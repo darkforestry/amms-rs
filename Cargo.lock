@@ -382,23 +382,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
-name = "cfmms"
-version = "0.6.2"
-dependencies = [
- "async-trait",
- "ethers",
- "futures",
- "indicatif 0.17.2",
- "num-bigfloat",
- "regex",
- "serde",
- "serde_json",
- "thiserror",
- "tokio",
- "uniswap_v3_math",
-]
-
-[[package]]
 name = "chrono"
 version = "0.4.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -674,6 +657,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0369ee1ad671834580515889b80f2ea915f23b8be8d0daa4bbaf2ac5c7590835"
 dependencies = [
  "cipher 0.4.3",
+]
+
+[[package]]
+name = "damms"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "ethers",
+ "futures",
+ "indicatif 0.17.2",
+ "num-bigfloat",
+ "regex",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "uniswap_v3_math",
 ]
 
 [[package]]
