@@ -2,12 +2,6 @@
 name = "dcfmms"
 version = "0.1.0"
 edition = "2021"
-license = "MIT"
-description = "CFMM lib built in Rust enabling pair syncing and swap simulation with pools on Ethereum."
-readme = "README.md"
-homepage = "https://github.com/0xKitsune/cfmms-rs"
-repository = "https://github.com/0xKitsune/cfmms-rs"
-keywords = ["ethereum", "mev", "dex", "cffms"]
 
 
 [dependencies]
