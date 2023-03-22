@@ -5,13 +5,13 @@ use ethers::{
     types::H160,
 };
 
-use cfmms::{dex::DexVariant, pool::Pool};
+use damms::{dex::DexVariant, pool::Pool};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     //Add rpc endpoint here:
-    let rpc_endpoint = std::env::var("ETHEREUM_MAINNET_ENDPOINT")
-        .expect("Could not get ETHEREUM_MAINNET_ENDPOINT");
+    let rpc_endpoint =
+        std::env::var("ETHEREUM_RPC_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
     let provider = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
 
     //UniswapV2 usdc weth pool on Eth mainnet

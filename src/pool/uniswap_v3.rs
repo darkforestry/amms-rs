@@ -855,8 +855,8 @@ mod test {
 
     #[tokio::test]
     async fn test_simulate_swap_0() {
-        let rpc_endpoint = std::env::var("ETHEREUM_MAINNET_ENDPOINT")
-            .expect("Could not get ETHEREUM_MAINNET_ENDPOINT");
+        let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")
+            .expect("Could not get ETHEREUM_RPC_ENDPOINT");
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
 
         let pool = UniswapV3Pool::new_from_address(
@@ -897,8 +897,8 @@ mod test {
 
     #[tokio::test]
     async fn test_simulate_swap_1() {
-        let rpc_endpoint = std::env::var("ETHEREUM_MAINNET_ENDPOINT")
-            .expect("Could not get ETHEREUM_MAINNET_ENDPOINT");
+        let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")
+            .expect("Could not get ETHEREUM_RPC_ENDPOINT");
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
 
         let pool = UniswapV3Pool::new_from_address(
@@ -939,8 +939,8 @@ mod test {
 
     #[tokio::test]
     async fn test_simulate_swap_2() {
-        let rpc_endpoint = std::env::var("ETHEREUM_MAINNET_ENDPOINT")
-            .expect("Could not get ETHEREUM_MAINNET_ENDPOINT");
+        let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")
+            .expect("Could not get ETHEREUM_RPC_ENDPOINT");
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
 
         let pool = UniswapV3Pool::new_from_address(
@@ -981,8 +981,8 @@ mod test {
 
     #[tokio::test]
     async fn test_simulate_swap_3() {
-        let rpc_endpoint = std::env::var("ETHEREUM_MAINNET_ENDPOINT")
-            .expect("Could not get ETHEREUM_MAINNET_ENDPOINT");
+        let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")
+            .expect("Could not get ETHEREUM_RPC_ENDPOINT");
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
 
         let pool = UniswapV3Pool::new_from_address(
@@ -1026,8 +1026,8 @@ mod test {
 
     #[tokio::test]
     async fn test_get_new_from_address() {
-        let rpc_endpoint = std::env::var("ETHEREUM_MAINNET_ENDPOINT")
-            .expect("Could not get ETHEREUM_MAINNET_ENDPOINT");
+        let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")
+            .expect("Could not get ETHEREUM_RPC_ENDPOINT");
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
 
         let pool = UniswapV3Pool::new_from_address(
@@ -1058,8 +1058,8 @@ mod test {
 
     #[tokio::test]
     async fn test_get_pool_data() {
-        let rpc_endpoint = std::env::var("ETHEREUM_MAINNET_ENDPOINT")
-            .expect("Could not get ETHEREUM_MAINNET_ENDPOINT");
+        let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")
+            .expect("Could not get ETHEREUM_RPC_ENDPOINT");
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
 
         let mut pool = UniswapV3Pool {
@@ -1090,8 +1090,8 @@ mod test {
 
     #[tokio::test]
     async fn test_sync_pool() {
-        let rpc_endpoint = std::env::var("ETHEREUM_MAINNET_ENDPOINT")
-            .expect("Could not get ETHEREUM_MAINNET_ENDPOINT");
+        let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")
+            .expect("Could not get ETHEREUM_RPC_ENDPOINT");
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
 
         let mut pool = UniswapV3Pool {
@@ -1106,8 +1106,8 @@ mod test {
 
     #[tokio::test]
     async fn test_calculate_virtual_reserves() {
-        let rpc_endpoint = std::env::var("ETHEREUM_MAINNET_ENDPOINT")
-            .expect("Could not get ETHEREUM_MAINNET_ENDPOINT");
+        let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")
+            .expect("Could not get ETHEREUM_RPC_ENDPOINT");
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
 
         let mut pool = UniswapV3Pool {
@@ -1152,8 +1152,8 @@ mod test {
 
     #[tokio::test]
     async fn test_calculate_price() {
-        let rpc_endpoint = std::env::var("ETHEREUM_MAINNET_ENDPOINT")
-            .expect("Could not get ETHEREUM_MAINNET_ENDPOINT");
+        let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")
+            .expect("Could not get ETHEREUM_RPC_ENDPOINT");
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
 
         let mut pool = UniswapV3Pool {

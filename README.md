@@ -16,5 +16,5 @@ cargo doc --open
 
 ## Running Examples
 
-To run any of the examples, first set a local environment variable called `ETHEREUM_MAINNET_ENDPOINT`. Then you can simply run `cargo run --example <example_name>`.
+To run any of the examples, first set a local environment variable called `ETHEREUM_RPC_ENDPOINT`. Then you can simply run `cargo run --example <example_name>`.
 

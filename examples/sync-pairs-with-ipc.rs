@@ -1,6 +1,6 @@
 use std::{str::FromStr, sync::Arc, time::Duration};
 
-use cfmms::{
+use damms::{
     dex::{Dex, DexVariant},
     sync,
 };

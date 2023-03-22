@@ -9,7 +9,7 @@ on:
       - development
 
 env:
-  ETHEREUM_MAINNET_ENDPOINT: ${{ secrets.ETHEREUM_MAINNET_ENDPOINT }}
+  ETHEREUM_RPC_ENDPOINT: ${{ secrets.ETHEREUM_RPC_ENDPOINT }}
 
 name: Continuous integration
 
