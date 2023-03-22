@@ -1,5 +1,5 @@
-# Dark CFMMS
-Sync pairs simulate swaps, and interact with constant function market makers on Ethereum.
+# Dark Automated Market Makers
+A Rust library to interact with automated market makers across EVM chains.
 
 To launch the docs, run the following command in your terminal. 
 ```
