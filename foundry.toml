@@ -1,0 +1,7 @@
+[profile.default]
+src = 'contracts'
+out = 'contracts/out'
+libs = ['contracts/lib']
+
+
+optimizer = false
