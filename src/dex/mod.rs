@@ -5,6 +5,7 @@ use ethers::{
     types::{BlockNumber, Filter, Log, ValueOrArray, H160, H256, U64},
 };
 use indicatif::ProgressBar;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     abi, batch_requests,
@@ -18,7 +19,7 @@ use self::{uniswap_v2::UniswapV2Dex, uniswap_v3::UniswapV3Dex};
 pub mod uniswap_v2;
 pub mod uniswap_v3;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum Dex {
     UniswapV2(UniswapV2Dex),
     UniswapV3(UniswapV3Dex),
