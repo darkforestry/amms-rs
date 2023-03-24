@@ -6,6 +6,7 @@ use ethers::{
     types::{BlockNumber, Log, H160, H256, U256},
 };
 use indicatif::ProgressBar;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     abi, batch_requests,
@@ -16,7 +17,7 @@ use crate::{
 
 use super::DexVariant;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct UniswapV2Dex {
     pub factory_address: H160,
     pub creation_block: BlockNumber,
