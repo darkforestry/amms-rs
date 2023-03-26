@@ -420,6 +420,25 @@ mod tests {
         assert_eq!(pool.fee, 300);
     }
 
+    #[test]
+    fn test_calculate_price() {
+        let token_a = H160::from_str("0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270").unwrap();
+        let token_b = H160::from_str("0x8f18dc399594b451eda8c5da02d0563c0b2d0f16").unwrap();
+        let x = UniswapV2Pool {
+            address: H160::from_str("0x652a7b75c229850714d4a11e856052aac3e9b065").unwrap(),
+            token_a,
+            token_a_decimals: 18,
+            token_b,
+            token_b_decimals: 9,
+            reserve_0: 23595096345912178729927,
+            reserve_1: 154664232014390554564,
+            fee: 300,
+        };
+
+        dbg!(x.calculate_price(token_a).unwrap());
+        dbg!(x.calculate_price(token_b).unwrap());
+    }
+
     #[tokio::test]
     async fn test_calculate_price_64_x_64() {
         let rpc_endpoint =
