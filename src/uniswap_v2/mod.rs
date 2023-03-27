@@ -132,6 +132,7 @@ impl UniswapV2Pool {
     //Creates a new instance of the pool from the pair address, and syncs the pool data
     pub async fn new_from_address<M: Middleware>(
         pair_address: H160,
+        fee: u32,
         middleware: Arc<M>,
     ) -> Result<Self, DAMMError<M>> {
         let mut pool = UniswapV2Pool {
@@ -142,7 +143,7 @@ impl UniswapV2Pool {
             token_b_decimals: 0,
             reserve_0: 0,
             reserve_1: 0,
-            fee: 300,
+            fee,
         };
 
         pool.get_pool_data(middleware.clone()).await?;
@@ -155,11 +156,12 @@ impl UniswapV2Pool {
     }
     pub async fn new_from_event_log<M: Middleware>(
         log: Log,
+        fee: u32, //TODO: maybe find a way to dynamically get the fee without having to pass it in
         middleware: Arc<M>,
     ) -> Result<Self, DAMMError<M>> {
         let tokens = ethers::abi::decode(&[ParamType::Address, ParamType::Uint(256)], &log.data)?;
         let pair_address = tokens[0].to_owned().into_address().unwrap();
-        UniswapV2Pool::new_from_address(pair_address, middleware).await
+        UniswapV2Pool::new_from_address(pair_address, fee, middleware).await
     }
 
     pub fn new_empty_pool_from_event_log<M: Middleware>(log: Log) -> Result<Self, DAMMError<M>> {
@@ -176,7 +178,7 @@ impl UniswapV2Pool {
             token_b_decimals: 0,
             reserve_0: 0,
             reserve_1: 0,
-            fee: 300,
+            fee: 0,
         })
     }
 
@@ -283,14 +285,6 @@ impl UniswapV2Pool {
         } else {
             Ok(div_uu(r_0, r_1))?
         }
-    }
-
-    pub fn address(&self) -> H160 {
-        self.address
-    }
-
-    pub fn update_pool_from_sync_log(&mut self, sync_log: &Log) {
-        (self.reserve_0, self.reserve_1) = self.decode_sync_log(sync_log);
     }
 
     //Returns reserve0, reserve1
@@ -539,6 +533,7 @@ mod tests {
 
         let pool = UniswapV2Pool::new_from_address(
             H160::from_str("0xB4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc").unwrap(),
+            300,
             middleware.clone(),
         )
         .await

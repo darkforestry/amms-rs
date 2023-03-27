@@ -1,7 +1,7 @@
 use ethers::{
     abi::{ParamType, Token},
     providers::Middleware,
-    types::{Bytes, H160, U256},
+    types::Bytes,
 };
 use std::sync::Arc;
 
@@ -13,7 +13,7 @@ pub async fn get_v2_pool_data_batch_request<M: Middleware>(
     pool: &mut UniswapV2Pool,
     middleware: Arc<M>,
 ) -> Result<(), DAMMError<M>> {
-    let constructor_args = Token::Tuple(vec![Token::Array(vec![Token::Address(pool.address())])]);
+    let constructor_args = Token::Tuple(vec![Token::Array(vec![Token::Address(pool.address)])]);
 
     let deployer =
         interfaces::IGetUniswapV2PoolDataBatchRequest::deploy(middleware.clone(), constructor_args)
