@@ -44,8 +44,9 @@ impl AutomatedMarketMaker for UniswapV2Pool {
 
         Ok(())
     }
-    async fn sync_from_log(&mut self) {
-        todo!()
+
+    async fn sync_from_log(&mut self, log: &Log) {
+        (self.reserve_0, self.reserve_1) = self.decode_sync_log(log);
     }
 
     fn sync_on_events(&self) -> Vec<H256> {

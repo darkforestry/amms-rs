@@ -3,10 +3,13 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use ethers::{
     providers::Middleware,
-    types::{H160, H256, U256},
+    types::{Log, H160, H256, U256},
 };
 
-use crate::errors::{ArithmeticError, DAMMError};
+use crate::{
+    errors::{ArithmeticError, DAMMError},
+    uniswap_v2::UniswapV2Pool,
+};
 
 #[async_trait]
 pub trait AutomatedMarketMaker {
@@ -16,11 +19,11 @@ pub trait AutomatedMarketMaker {
     fn simulate_swap_mut(&mut self, token_in: H160, amount_in: U256, token_out: H160) -> U256;
     fn tokens(&self) -> Vec<H160>;
     async fn sync<M: Middleware>(&mut self, middleware: Arc<M>) -> Result<(), DAMMError<M>>;
-    async fn sync_from_log(&mut self);
+    async fn sync_from_log(&mut self, log: &Log);
     fn sync_on_events(&self) -> Vec<H256>;
 }
 
 pub enum AMM {
-    UniswapV2Pool(),
+    UniswapV2Pool(UniswapV2Pool),
     UniswapV3Pool(),
 }
