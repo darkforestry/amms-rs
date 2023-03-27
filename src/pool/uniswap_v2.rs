@@ -461,7 +461,6 @@ mod tests {
         assert_eq!(1658.3725965327264, price_b_64_x); //No precision loss: 30591574867092394336528 / 2**64
         assert_eq!(0.0006030007985483893, price_a_64_x); //Precision loss: 11123401407064628 / 2**64
     }
-
     #[tokio::test]
     async fn test_calculate_price_64_x_64() {
         let rpc_endpoint =
