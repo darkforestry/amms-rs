@@ -9,12 +9,10 @@ use ethers::{
 use crate::{
     amm::{AutomatedMarketMaker, AMM},
     errors::DAMMError,
-    interfaces::{
-        IGetUniswapV3PoolDataBatchRequest, IGetUniswapV3TickDataBatchRequest,
-        ISyncUniswapV3PoolBatchRequest,
-    },
-    uniswap_v3::UniswapV3Pool,
+    interfaces::IGetUniswapV3PoolDataBatchRequest,
 };
+
+use super::UniswapV3Pool;
 
 //TODO: rename this and fix it so that it adheres to the updated arch.
 //TODO: we use this basically so that we dont have to match and separate the Pool type from the inner type when getting data

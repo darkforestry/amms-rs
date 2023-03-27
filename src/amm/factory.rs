@@ -6,12 +6,9 @@ use ethers::{
     types::{Log, H160, H256, U256},
 };
 
-use crate::{
-    amm::AMM,
-    errors::{ArithmeticError, DAMMError},
-    uniswap_v2::{factory::UniswapV2Factory, UniswapV2Pool},
-    uniswap_v3::{factory::UniswapV3Factory, UniswapV3Pool},
-};
+use crate::errors::DAMMError;
+
+use super::{uniswap_v2::factory::UniswapV2Factory, uniswap_v3::factory::UniswapV3Factory, AMM};
 
 #[async_trait]
 pub trait AutomatedMarketMakerFactory {

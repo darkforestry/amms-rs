@@ -1,3 +1,6 @@
+pub mod batch_requests;
+pub mod factory;
+
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -11,13 +14,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     amm::AutomatedMarketMaker,
-    batch_requests,
     errors::{ArithmeticError, DAMMError},
-    factory::AutomatedMarketMakerFactory,
     interfaces,
 };
-pub mod factory;
-
 
 pub const MIN_SQRT_RATIO: U256 = U256([4295128739, 0, 0, 0]);
 pub const MAX_SQRT_RATIO: U256 = U256([6743328256752651558, 17280870778742802505, 4294805859, 0]);
@@ -178,8 +177,7 @@ impl UniswapV3Pool {
         &mut self,
         middleware: Arc<M>,
     ) -> Result<(), DAMMError<M>> {
-        batch_requests::uniswap_v3::get_v3_pool_data_batch_request(self, middleware.clone())
-            .await?;
+        batch_requests::get_v3_pool_data_batch_request(self, middleware.clone()).await?;
 
         Ok(())
     }
