@@ -11,6 +11,7 @@ use std::{
     panic::resume_unwind,
     sync::{Arc, Mutex},
 };
+pub mod checkpoint;
 
 pub async fn sync_amms<M: 'static + Middleware>(
     factories: Vec<Factory>,
@@ -37,14 +38,14 @@ pub async fn sync_amms<M: 'static + Middleware>(
             let mut amms = factory.get_all_amms(step, middleware.clone()).await?;
             populate_amm_data(&mut amms, middleware.clone()).await?;
             //Clean empty pools
-            amms = remove_empty_pools(amms);
+            amms = remove_empty_amms(amms);
             Ok::<_, DAMMError<M>>(amms)
         }));
     }
 
     for handle in handles {
         match handle.await {
-            Ok(sync_result) => aggregated_pools.extend(sync_result?),
+            Ok(sync_result) => aggregated_amms.extend(sync_result?),
             Err(err) => {
                 {
                     if err.is_panic() {
@@ -62,7 +63,7 @@ pub async fn sync_amms<M: 'static + Middleware>(
 
         checkpoint::construct_checkpoint(
             dexes,
-            &aggregated_pools,
+            &aggregated_amms,
             current_block.as_u64(),
             checkpoint_path,
         )
@@ -124,125 +125,17 @@ pub async fn populate_amm_data<M: Middleware>(
     Ok(())
 }
 
-//Get all pairs and sync reserve values for each Dex in the `dexes` vec.
-pub async fn sync_pairs_with_throttle<M: 'static + Middleware>(
-    dexes: Vec<Dex>,
-    step: usize, //TODO: Add docs on step. Step is the block range used to get all pools from a dex if syncing from event logs
-    middleware: Arc<M>,
-    requests_per_second_limit: usize,
-    checkpoint_path: Option<&str>,
-) -> Result<Vec<Pool>, CFMMError<M>> {
-    let current_block = middleware
-        .get_block_number()
-        .await
-        .map_err(CFMMError::MiddlewareError)?;
-
-    //Initialize a new request throttle
-    let request_throttle = Arc::new(Mutex::new(RequestThrottle::new(requests_per_second_limit)));
-
-    //Aggregate the populated pools from each thread
-    let mut aggregated_pools: Vec<Pool> = vec![];
-    let mut handles = vec![];
-
-    //Initialize multi progress bar
-    let multi_progress_bar = MultiProgress::new();
-
-    //For each dex supplied, get all pair created events and get reserve values
-    for dex in dexes.clone() {
-        let middleware = middleware.clone();
-        let request_throttle = request_throttle.clone();
-        let progress_bar = multi_progress_bar.add(ProgressBar::new(0));
-
-        //Spawn a new thread to get all pools and sync data for each dex
-        handles.push(tokio::spawn(async move {
-            progress_bar.set_style(
-                ProgressStyle::with_template("{msg} {bar:40.cyan/blue} {pos:>7}/{len:7}")
-                    .expect("Error when setting progress bar style")
-                    .progress_chars("##-"),
-            );
-
-            //Get all of the pools from the dex
-            progress_bar.set_message(format!("Getting all pools from: {}", dex.factory_address()));
-
-            let mut pools = dex
-                .get_all_pools(
-                    request_throttle.clone(),
-                    step,
-                    progress_bar.clone(),
-                    middleware.clone(),
-                )
-                .await?;
-
-            progress_bar.reset();
-            progress_bar.set_style(
-                ProgressStyle::with_template("{msg} {bar:40.cyan/blue} {pos:>7}/{len:7}")
-                    .expect("Error when setting progress bar style")
-                    .progress_chars("##-"),
-            );
-
-            //Get all of the pool data and sync the pool
-            progress_bar.set_message(format!(
-                "Getting all pool data for: {}",
-                dex.factory_address()
-            ));
-            progress_bar.set_length(pools.len() as u64);
-
-            dex.get_all_pool_data(
-                &mut pools,
-                request_throttle.clone(),
-                progress_bar.clone(),
-                middleware.clone(),
-            )
-            .await?;
-
-            //Clean empty pools
-            pools = remove_empty_pools(pools);
-
-            Ok::<_, CFMMError<M>>(pools)
-        }));
-    }
-
-    for handle in handles {
-        match handle.await {
-            Ok(sync_result) => aggregated_pools.extend(sync_result?),
-            Err(err) => {
-                {
-                    if err.is_panic() {
-                        // Resume the panic on the main task
-                        resume_unwind(err.into_panic());
-                    }
-                }
-            }
-        }
-    }
-
-    //Save a checkpoint if a path is provided
-    if checkpoint_path.is_some() {
-        let checkpoint_path = checkpoint_path.unwrap();
-
-        checkpoint::construct_checkpoint(
-            dexes,
-            &aggregated_pools,
-            current_block.as_u64(),
-            checkpoint_path,
-        )
-    }
-
-    //Return the populated aggregated pools vec
-    Ok(aggregated_pools)
-}
-
-pub fn remove_empty_pools(pools: Vec<Pool>) -> Vec<Pool> {
+pub fn remove_empty_amms(pools: Vec<AMM>) -> Vec<AMM> {
     let mut cleaned_pools = vec![];
 
     for pool in pools {
         match pool {
-            Pool::UniswapV2(uniswap_v2_pool) => {
+            AMM::UniswapV2Pool(uniswap_v2_pool) => {
                 if !uniswap_v2_pool.token_a.is_zero() {
                     cleaned_pools.push(pool)
                 }
             }
-            Pool::UniswapV3(uniswap_v3_pool) => {
+            AMM::UniswapV3Pool(uniswap_v3_pool) => {
                 if !uniswap_v3_pool.token_a.is_zero() {
                     cleaned_pools.push(pool)
                 }

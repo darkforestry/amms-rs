@@ -14,6 +14,7 @@ use crate::{
     errors::{ArithmeticError, DAMMError},
     interfaces,
 };
+pub mod factory;
 
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
 pub struct UniswapV2Pool {

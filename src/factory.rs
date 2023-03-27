@@ -9,8 +9,8 @@ use ethers::{
 use crate::{
     amm::AMM,
     errors::{ArithmeticError, DAMMError},
-    uniswap_v2::UniswapV2Pool,
-    uniswap_v3::UniswapV3Pool,
+    uniswap_v2::{factory::UniswapV2Factory, UniswapV2Pool},
+    uniswap_v3::{factory::UniswapV3Factory, UniswapV3Pool},
 };
 
 #[async_trait]
@@ -25,8 +25,8 @@ pub trait AutomatedMarketMakerFactory {
 
 #[derive(Clone, Copy)]
 pub enum Factory {
-    UniswapV2Factory(),
-    UniswapV3Factory(),
+    UniswapV2Factory(UniswapV2Factory),
+    UniswapV3Factory(UniswapV3Factory),
 }
 
 #[async_trait]

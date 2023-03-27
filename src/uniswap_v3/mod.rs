@@ -13,8 +13,11 @@ use crate::{
     amm::AutomatedMarketMaker,
     batch_requests,
     errors::{ArithmeticError, DAMMError},
+    factory::AutomatedMarketMakerFactory,
     interfaces,
 };
+pub mod factory;
+
 
 pub const MIN_SQRT_RATIO: U256 = U256([4295128739, 0, 0, 0]);
 pub const MAX_SQRT_RATIO: U256 = U256([6743328256752651558, 17280870778742802505, 4294805859, 0]);
