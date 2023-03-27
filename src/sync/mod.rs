@@ -1,5 +1,3 @@
-use crate::{checkpoint, errors::DAMMError};
-
 use super::dex::Dex;
 use super::pool::Pool;
 use super::throttle::RequestThrottle;
@@ -15,7 +13,7 @@ pub async fn sync_pairs<M: 'static + Middleware>(
     dexes: Vec<Dex>,
     middleware: Arc<M>,
     checkpoint_path: Option<&str>,
-) -> Result<Vec<Pool>, DAMMError<M>> {
+) -> Result<Vec<Pool>, CFMMError<M>> {
     //Sync pairs with throttle but set the requests per second limit to 0, disabling the throttle.
     sync_pairs_with_throttle(dexes, 100000, middleware, 0, checkpoint_path).await
 }
@@ -26,7 +24,7 @@ pub async fn sync_pairs_with_step<M: 'static + Middleware>(
     step: usize,
     middleware: Arc<M>,
     checkpoint_path: Option<&str>,
-) -> Result<Vec<Pool>, DAMMError<M>> {
+) -> Result<Vec<Pool>, CFMMError<M>> {
     //Sync pairs with throttle but set the requests per second limit to 0, disabling the throttle.
     sync_pairs_with_throttle(dexes, step, middleware, 0, checkpoint_path).await
 }
@@ -38,11 +36,11 @@ pub async fn sync_pairs_with_throttle<M: 'static + Middleware>(
     middleware: Arc<M>,
     requests_per_second_limit: usize,
     checkpoint_path: Option<&str>,
-) -> Result<Vec<Pool>, DAMMError<M>> {
+) -> Result<Vec<Pool>, CFMMError<M>> {
     let current_block = middleware
         .get_block_number()
         .await
-        .map_err(DAMMError::MiddlewareError)?;
+        .map_err(CFMMError::MiddlewareError)?;
 
     //Initialize a new request throttle
     let request_throttle = Arc::new(Mutex::new(RequestThrottle::new(requests_per_second_limit)));
@@ -105,7 +103,7 @@ pub async fn sync_pairs_with_throttle<M: 'static + Middleware>(
             //Clean empty pools
             pools = remove_empty_pools(pools);
 
-            Ok::<_, DAMMError<M>>(pools)
+            Ok::<_, CFMMError<M>>(pools)
         }));
     }
 
