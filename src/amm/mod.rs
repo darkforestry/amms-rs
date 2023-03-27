@@ -1,3 +1,6 @@
+pub mod uniswap_v2;
+pub mod uniswap_v3;
+
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -7,9 +10,8 @@ use ethers::{
 };
 
 use crate::{
+    amms::{uniswap_v2::UniswapV2Pool, uniswap_v3::UniswapV3Pool},
     errors::{ArithmeticError, DAMMError},
-    uniswap_v2::UniswapV2Pool,
-    uniswap_v3::UniswapV3Pool,
 };
 
 #[async_trait]

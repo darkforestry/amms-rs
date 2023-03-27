@@ -1,6 +1,3 @@
-pub mod batch_requests;
-pub mod factory;
-
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -13,7 +10,7 @@ use num_bigfloat::BigFloat;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    amms::AutomatedMarketMaker,
+    amm::AutomatedMarketMaker,
     errors::{ArithmeticError, DAMMError},
     interfaces,
 };
@@ -846,7 +843,7 @@ pub struct Tick {
 }
 
 mod test {
-    use crate::amms::AutomatedMarketMaker;
+    use crate::amm::AutomatedMarketMaker;
     #[allow(unused)]
     use crate::interfaces::IUniswapV3Pool;
 

@@ -1,3 +1,4 @@
+pub mod batch_requests;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -9,8 +10,7 @@ use ethers::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    amms::AutomatedMarketMaker,
-    batch_requests,
+    amm::AutomatedMarketMaker,
     errors::{ArithmeticError, DAMMError},
     interfaces,
 };
@@ -144,8 +144,7 @@ impl UniswapV2Pool {
         &mut self,
         middleware: Arc<M>,
     ) -> Result<(), DAMMError<M>> {
-        batch_requests::uniswap_v2::get_v2_pool_data_batch_request(self, middleware.clone())
-            .await?;
+        batc::get_v2_pool_data_batch_request(self, middleware.clone()).await?;
 
         Ok(())
     }
