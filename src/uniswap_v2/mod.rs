@@ -58,48 +58,6 @@ impl AutomatedMarketMaker for UniswapV2Pool {
         Ok(q64_to_f64(self.calculate_price_64_x_64(base_token)?))
     }
 
-    fn simulate_swap(&self, token_in: H160, amount_in: U256, _token_out: H160) -> U256 {
-        if self.token_a == token_in {
-            self.get_amount_out(
-                amount_in,
-                U256::from(self.reserve_0),
-                U256::from(self.reserve_1),
-            )
-        } else {
-            self.get_amount_out(
-                amount_in,
-                U256::from(self.reserve_1),
-                U256::from(self.reserve_0),
-            )
-        }
-    }
-
-    fn simulate_swap_mut(&mut self, token_in: H160, amount_in: U256, _token_out: H160) -> U256 {
-        if self.token_a == token_in {
-            let amount_out = self.get_amount_out(
-                amount_in,
-                U256::from(self.reserve_0),
-                U256::from(self.reserve_1),
-            );
-
-            self.reserve_0 += amount_in.as_u128();
-            self.reserve_1 -= amount_out.as_u128();
-
-            amount_out
-        } else {
-            let amount_out = self.get_amount_out(
-                amount_in,
-                U256::from(self.reserve_1),
-                U256::from(self.reserve_0),
-            );
-
-            self.reserve_0 -= amount_out.as_u128();
-            self.reserve_1 += amount_in.as_u128();
-
-            amount_out
-        }
-    }
-
     fn tokens(&self) -> Vec<H160> {
         vec![self.token_a, self.token_b]
     }
