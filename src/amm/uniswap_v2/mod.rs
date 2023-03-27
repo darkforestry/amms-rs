@@ -12,7 +12,6 @@ use serde::{Deserialize, Serialize};
 use crate::{
     amm::AutomatedMarketMaker,
     errors::{ArithmeticError, DAMMError},
-    interfaces,
 };
 pub mod factory;
 

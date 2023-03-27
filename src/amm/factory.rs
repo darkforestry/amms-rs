@@ -15,7 +15,12 @@ pub trait AutomatedMarketMakerFactory {
     fn address(&self) -> H160;
     async fn get_all_amms<M: Middleware>(
         &self,
-        step: usize,
+        middleware: Arc<M>,
+    ) -> Result<Vec<AMM>, DAMMError<M>>;
+
+    async fn get_all_amm_data<M: Middleware>(
+        &self,
+        amms: &mut [AMM],
         middleware: Arc<M>,
     ) -> Result<Vec<AMM>, DAMMError<M>>;
 }
@@ -29,14 +34,30 @@ pub enum Factory {
 #[async_trait]
 impl AutomatedMarketMakerFactory for Factory {
     fn address(&self) -> H160 {
-        todo!()
+        match self {
+            Factory::UniswapV2Factory(factory) => factory.address(),
+            Factory::UniswapV3Factory(factory) => factory.address(),
+        }
     }
 
     async fn get_all_amms<M: Middleware>(
         &self,
-        step: usize,
         middleware: Arc<M>,
     ) -> Result<Vec<AMM>, DAMMError<M>> {
-        todo!()
+        match self {
+            Factory::UniswapV2Factory(factory) => factory.get_all_amms(middleware).await,
+            Factory::UniswapV3Factory(factory) => factory.get_all_amms(middleware).await,
+        }
+    }
+
+    async fn get_all_amm_data<M: Middleware>(
+        &self,
+        amms: &mut [AMM],
+        middleware: Arc<M>,
+    ) -> Result<Vec<AMM>, DAMMError<M>> {
+        match self {
+            Factory::UniswapV2Factory(factory) => factory.get_all_amm_data(amms, middleware).await,
+            Factory::UniswapV3Factory(factory) => factory.get_all_amm_data(amms, middleware).await,
+        }
     }
 }

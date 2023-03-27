@@ -1,3 +1,6 @@
+pub mod batch_request;
+pub mod factory;
+
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -12,10 +15,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     amm::AutomatedMarketMaker,
     errors::{ArithmeticError, DAMMError},
-    interfaces,
 };
-
-pub mod batch_request;
 
 use ethers::prelude::abigen;
 

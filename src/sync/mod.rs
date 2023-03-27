@@ -1,4 +1,7 @@
-use crate::{amm::AMM, errors::DAMMError};
+use crate::{
+    amm::{factory::Factory, uniswap_v3, AMM},
+    errors::DAMMError,
+};
 
 use ethers::providers::Middleware;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
@@ -57,15 +60,15 @@ pub async fn sync_amms<M: 'static + Middleware>(
         let checkpoint_path = checkpoint_path.unwrap();
 
         checkpoint::construct_checkpoint(
-            dexes,
+            factories,
             &aggregated_amms,
             current_block.as_u64(),
             checkpoint_path,
         )
     }
 
-    //Return the populated aggregated pools vec
-    Ok(aggregated_pools)
+    //Return the populated aggregated amms vec
+    Ok(aggregated_amms)
 }
 
 pub fn amms_are_congruent(amms: &[AMM]) -> bool {
@@ -89,7 +92,7 @@ pub async fn populate_amm_data<M: Middleware>(
             AMM::UniswapV2Pool(_) => {
                 let step = 127; //Max batch size for call
                 for amm_chunk in amms.chunks_mut(step) {
-                    batch_requests::uniswap_v2::get_amm_data_batch_request(
+                    uniswap_v3::batch_request::get_amm_data_batch_request(
                         amm_chunk,
                         middleware.clone(),
                     )
@@ -102,7 +105,7 @@ pub async fn populate_amm_data<M: Middleware>(
             AMM::UniswapV3Pool(_) => {
                 let step = 76; //Max batch size for call
                 for amm_chunk in amms.chunks_mut(step) {
-                    batch_requests::uniswap_v3::get_amm_data_batch_request(
+                    uniswap_v3::batch_request::get_amm_data_batch_request(
                         amm_chunk,
                         middleware.clone(),
                     )
