@@ -9,10 +9,9 @@ use ethers::{
     types::{Log, H160, H256, U256},
 };
 
-use crate::{
-    amms::{uniswap_v2::UniswapV2Pool, uniswap_v3::UniswapV3Pool},
-    errors::{ArithmeticError, DAMMError},
-};
+use crate::errors::{ArithmeticError, DAMMError};
+
+use self::{uniswap_v2::UniswapV2Pool, uniswap_v3::UniswapV3Pool};
 
 #[async_trait]
 pub trait AutomatedMarketMaker {

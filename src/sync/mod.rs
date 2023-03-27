@@ -1,9 +1,4 @@
-use crate::{
-    amm::AMM,
-    batch_requests,
-    errors::DAMMError,
-    factory::{AutomatedMarketMakerFactory, Factory},
-};
+use crate::{amm::AMM, errors::DAMMError};
 
 use ethers::providers::Middleware;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};

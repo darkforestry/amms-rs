@@ -15,6 +15,41 @@ use crate::{
     interfaces,
 };
 
+pub mod batch_request;
+
+use ethers::prelude::abigen;
+
+abigen!(
+
+    IUniswapV3Factory,
+    r#"[
+        function getPool(address tokenA, address tokenB, uint24 fee) external view returns (address pool)
+        event PoolCreated(address indexed token0, address indexed token1, uint24 indexed fee, int24 tickSpacing, address pool)
+    ]"#;
+
+    IUniswapV3Pool,
+    r#"[
+        function token0() external view returns (address)
+        function token1() external view returns (address)
+        function liquidity() external view returns (uint128)
+        function slot0() external view returns (uint160, int24, uint16, uint16, uint16, uint8, bool)
+        function fee() external view returns (uint24)
+        function tickSpacing() external view returns (int24)
+        function ticks(int24 tick) external view returns (uint128, int128, uint256, uint256, int56, uint160, uint32, bool)
+        function tickBitmap(int16 wordPosition) external view returns (uint256)
+        function swap(address recipient, bool zeroForOne, int256 amountSpecified, uint160 sqrtPriceLimitX96, bytes calldata data) external returns (int256, int256)
+        event Swap( address indexed sender, address indexed recipient, int256 amount0, int256 amount1, uint160 sqrtPriceX96, uint128 liquidity, int24 tick)
+    ]"#;
+
+    IErc20,
+    r#"[
+        function balanceOf(address account) external view returns (uint256)
+        function decimals() external view returns (uint8)
+    ]"#;
+
+
+);
+
 pub const MIN_SQRT_RATIO: U256 = U256([4295128739, 0, 0, 0]);
 pub const MAX_SQRT_RATIO: U256 = U256([6743328256752651558, 17280870778742802505, 4294805859, 0]);
 pub const SWAP_EVENT_SIGNATURE: H256 = H256([
@@ -47,7 +82,7 @@ impl AutomatedMarketMaker for UniswapV3Pool {
     }
 
     async fn sync<M: Middleware>(&mut self, middleware: Arc<M>) -> Result<(), DAMMError<M>> {
-        batch_requests::uniswap_v3::sync_v3_pool_batch_request(self, middleware.clone()).await?;
+        batch_request::sync_v3_pool_batch_request(self, middleware.clone()).await?;
         Ok(())
     }
 
@@ -174,7 +209,7 @@ impl UniswapV3Pool {
         &mut self,
         middleware: Arc<M>,
     ) -> Result<(), DAMMError<M>> {
-        batch_requests::get_v3_pool_data_batch_request(self, middleware.clone()).await?;
+        batch_request::get_v3_pool_data_batch_request(self, middleware.clone()).await?;
 
         Ok(())
     }
@@ -188,7 +223,7 @@ impl UniswapV3Pool {
         tick: i32,
         middleware: Arc<M>,
     ) -> Result<U256, DAMMError<M>> {
-        let v3_pool = interfaces::IUniswapV3Pool::new(self.address, middleware);
+        let v3_pool = IUniswapV3Pool::new(self.address, middleware);
         let (word_position, _) = uniswap_v3_math::tick_bit_map::position(tick);
         Ok(v3_pool.tick_bitmap(word_position).call().await?)
     }
@@ -198,7 +233,7 @@ impl UniswapV3Pool {
         word_position: i16,
         middleware: Arc<M>,
     ) -> Result<U256, DAMMError<M>> {
-        let v3_pool = interfaces::IUniswapV3Pool::new(self.address, middleware);
+        let v3_pool = IUniswapV3Pool::new(self.address, middleware);
         Ok(v3_pool.tick_bitmap(word_position).call().await?)
     }
 
@@ -206,7 +241,7 @@ impl UniswapV3Pool {
         &self,
         middleware: Arc<M>,
     ) -> Result<i32, DAMMError<M>> {
-        let v3_pool = interfaces::IUniswapV3Pool::new(self.address, middleware);
+        let v3_pool = IUniswapV3Pool::new(self.address, middleware);
         Ok(v3_pool.tick_spacing().call().await?)
     }
 
@@ -219,7 +254,7 @@ impl UniswapV3Pool {
         tick: i32,
         middleware: Arc<M>,
     ) -> Result<(u128, i128, U256, U256, i64, U256, u32, bool), DAMMError<M>> {
-        let v3_pool = interfaces::IUniswapV3Pool::new(self.address, middleware.clone());
+        let v3_pool = IUniswapV3Pool::new(self.address, middleware.clone());
 
         let tick_info = v3_pool.ticks(tick).call().await?;
 
@@ -257,7 +292,7 @@ impl UniswapV3Pool {
         &self,
         middleware: Arc<M>,
     ) -> Result<(U256, i32, u16, u16, u16, u8, bool), DAMMError<M>> {
-        let v3_pool = interfaces::IUniswapV3Pool::new(self.address, middleware);
+        let v3_pool = IUniswapV3Pool::new(self.address, middleware);
         Ok(v3_pool.slot_0().call().await?)
     }
 
@@ -265,7 +300,7 @@ impl UniswapV3Pool {
         &self,
         middleware: Arc<M>,
     ) -> Result<u128, DAMMError<M>> {
-        let v3_pool = interfaces::IUniswapV3Pool::new(self.address, middleware);
+        let v3_pool = IUniswapV3Pool::new(self.address, middleware);
         Ok(v3_pool.liquidity().call().await?)
     }
 
@@ -315,12 +350,12 @@ impl UniswapV3Pool {
         &mut self,
         middleware: Arc<M>,
     ) -> Result<(u8, u8), DAMMError<M>> {
-        let token_a_decimals = interfaces::IErc20::new(self.token_a, middleware.clone())
+        let token_a_decimals = IErc20::new(self.token_a, middleware.clone())
             .decimals()
             .call()
             .await?;
 
-        let token_b_decimals = interfaces::IErc20::new(self.token_b, middleware)
+        let token_b_decimals = IErc20::new(self.token_b, middleware)
             .decimals()
             .call()
             .await?;
@@ -332,7 +367,7 @@ impl UniswapV3Pool {
         &mut self,
         middleware: Arc<M>,
     ) -> Result<u32, DAMMError<M>> {
-        let fee = interfaces::IUniswapV3Pool::new(self.address, middleware)
+        let fee = IUniswapV3Pool::new(self.address, middleware)
             .fee()
             .call()
             .await?;
@@ -344,28 +379,28 @@ impl UniswapV3Pool {
         &self,
         middleware: Arc<M>,
     ) -> Result<H160, DAMMError<M>> {
-        let v2_pair = interfaces::IUniswapV2Pair::new(self.address, middleware);
+        let v3_pool = IUniswapV3Pool::new(self.address, middleware);
 
-        let token0 = match v2_pair.token_0().call().await {
+        let token_0 = match v3_pool.token_0().call().await {
             Ok(result) => result,
             Err(contract_error) => return Err(DAMMError::ContractError(contract_error)),
         };
 
-        Ok(token0)
+        Ok(token_0)
     }
 
     pub async fn get_token_1<M: Middleware>(
         &self,
         middleware: Arc<M>,
     ) -> Result<H160, DAMMError<M>> {
-        let v2_pair = interfaces::IUniswapV2Pair::new(self.address, middleware);
+        let v3_pool = IUniswapV3Pool::new(self.address, middleware);
 
-        let token1 = match v2_pair.token_1().call().await {
+        let token_1 = match v3_pool.token_1().call().await {
             Ok(result) => result,
             Err(contract_error) => return Err(DAMMError::ContractError(contract_error)),
         };
 
-        Ok(token1)
+        Ok(token_1)
     }
     /* Legend:
        sqrt(price) = sqrt(y/x)
@@ -416,16 +451,15 @@ impl UniswapV3Pool {
         let zero_for_one = token_in == self.token_a;
 
         //TODO: make this a queue instead of vec and then an iterator FIXME::
-        let (mut tick_data, block_number) =
-            batch_requests::uniswap_v3::get_uniswap_v3_tick_data_batch_request(
-                self,
-                self.tick,
-                zero_for_one,
-                num_ticks,
-                None,
-                middleware.clone(),
-            )
-            .await?;
+        let (mut tick_data, block_number) = batch_request::get_uniswap_v3_tick_data_batch_request(
+            self,
+            self.tick,
+            zero_for_one,
+            num_ticks,
+            None,
+            middleware.clone(),
+        )
+        .await?;
 
         let mut tick_data_iter = tick_data.iter();
 
@@ -459,16 +493,15 @@ impl UniswapV3Pool {
             let next_tick_data = if let Some(tick_data) = tick_data_iter.next() {
                 tick_data
             } else {
-                (tick_data, _) =
-                    batch_requests::uniswap_v3::get_uniswap_v3_tick_data_batch_request(
-                        self,
-                        current_state.tick,
-                        zero_for_one,
-                        num_ticks,
-                        Some(block_number),
-                        middleware.clone(),
-                    )
-                    .await?;
+                (tick_data, _) = batch_request::get_uniswap_v3_tick_data_batch_request(
+                    self,
+                    current_state.tick,
+                    zero_for_one,
+                    num_ticks,
+                    Some(block_number),
+                    middleware.clone(),
+                )
+                .await?;
 
                 tick_data_iter = tick_data.iter();
 
@@ -582,16 +615,15 @@ impl UniswapV3Pool {
         let zero_for_one = token_in == self.token_a;
 
         //TODO: make this a queue instead of vec and then an iterator FIXME::
-        let (mut tick_data, block_number) =
-            batch_requests::uniswap_v3::get_uniswap_v3_tick_data_batch_request(
-                self,
-                self.tick,
-                zero_for_one,
-                num_ticks,
-                None,
-                middleware.clone(),
-            )
-            .await?;
+        let (mut tick_data, block_number) = batch_request::get_uniswap_v3_tick_data_batch_request(
+            self,
+            self.tick,
+            zero_for_one,
+            num_ticks,
+            None,
+            middleware.clone(),
+        )
+        .await?;
 
         let mut tick_data_iter = tick_data.iter();
 
@@ -623,16 +655,15 @@ impl UniswapV3Pool {
             let next_tick_data = if let Some(tick_data) = tick_data_iter.next() {
                 tick_data
             } else {
-                (tick_data, _) =
-                    batch_requests::uniswap_v3::get_uniswap_v3_tick_data_batch_request(
-                        self,
-                        current_state.tick,
-                        zero_for_one,
-                        num_ticks,
-                        Some(block_number),
-                        middleware.clone(),
-                    )
-                    .await?;
+                (tick_data, _) = batch_request::get_uniswap_v3_tick_data_batch_request(
+                    self,
+                    current_state.tick,
+                    zero_for_one,
+                    num_ticks,
+                    Some(block_number),
+                    middleware.clone(),
+                )
+                .await?;
 
                 tick_data_iter = tick_data.iter();
 
@@ -745,21 +776,17 @@ impl UniswapV3Pool {
         if block_number.is_some() {
             //TODO: in the future, create a batch call to get this and liquidity net within the same call
 
-            Ok(
-                interfaces::IUniswapV3Pool::new(self.address, middleware.clone())
-                    .tick_bitmap(word_pos)
-                    .block(block_number.unwrap())
-                    .call()
-                    .await?,
-            )
+            Ok(IUniswapV3Pool::new(self.address, middleware.clone())
+                .tick_bitmap(word_pos)
+                .block(block_number.unwrap())
+                .call()
+                .await?)
         } else {
             //TODO: in the future, create a batch call to get this and liquidity net within the same call
-            Ok(
-                interfaces::IUniswapV3Pool::new(self.address, middleware.clone())
-                    .tick_bitmap(word_pos)
-                    .call()
-                    .await?,
-            )
+            Ok(IUniswapV3Pool::new(self.address, middleware.clone())
+                .tick_bitmap(word_pos)
+                .call()
+                .await?)
         }
     }
 
@@ -801,7 +828,7 @@ impl UniswapV3Pool {
             Token::Bytes(calldata),
         ];
 
-        interfaces::IUNISWAPV3POOL_ABI
+        IUNISWAPV3POOL_ABI
             .function("swap")
             .unwrap()
             .encode_input(&input_tokens)
@@ -842,13 +869,14 @@ pub struct Tick {
     pub initialized: bool,
 }
 
+#[cfg(test)]
 mod test {
-    use crate::amm::AutomatedMarketMaker;
+    use super::IUniswapV3Pool;
     #[allow(unused)]
-    use crate::interfaces::IUniswapV3Pool;
-
     #[allow(unused)]
     use super::UniswapV3Pool;
+    use crate::amm::AutomatedMarketMaker;
+
     #[allow(unused)]
     use ethers::providers::Middleware;
 

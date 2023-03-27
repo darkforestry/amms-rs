@@ -8,9 +8,24 @@ use std::sync::Arc;
 use crate::{
     amm::{AutomatedMarketMaker, AMM},
     errors::DAMMError,
-    interfaces::{IGetUniswapV2PairsBatchRequest, IGetUniswapV2PoolDataBatchRequest},
-    uniswap_v2::UniswapV2Pool,
 };
+
+use ethers::prelude::abigen;
+
+use super::UniswapV2Pool;
+
+abigen!(
+
+    IGetUniswapV2PairsBatchRequest,
+        "src/amm/uniswap_v2/batch_request/GetUniswapV2PairsBatchRequestABI.json";
+
+    IGetUniswapV2PoolDataBatchRequest,
+        "src/amm/uniswap_v2/batch_request/GetUniswapV2PoolDataBatchRequestABI.json";
+
+
+
+
+);
 
 pub async fn get_pairs_batch_request<M: Middleware>(
     factory: H160,

@@ -1,4 +1,4 @@
-pub mod batch_requests;
+pub mod batch_request;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -15,6 +15,30 @@ use crate::{
     interfaces,
 };
 pub mod factory;
+
+use ethers::prelude::abigen;
+
+abigen!(
+
+
+    IUniswapV2Pair,
+    r#"[
+        function getReserves() external view returns (uint112 reserve0, uint112 reserve1, uint32 blockTimestampLast)
+        function token0() external view returns (address)
+        function token1() external view returns (address)
+        function swap(uint256 amount0Out, uint256 amount1Out, address to, bytes calldata data);
+        event Sync(uint112 reserve0, uint112 reserve1)
+    ]"#;
+
+
+    IErc20,
+    r#"[
+        function balanceOf(address account) external view returns (uint256)
+        function decimals() external view returns (uint8)
+    ]"#;
+
+
+);
 
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
 pub struct UniswapV2Pool {
@@ -144,7 +168,7 @@ impl UniswapV2Pool {
         &mut self,
         middleware: Arc<M>,
     ) -> Result<(), DAMMError<M>> {
-        batc::get_v2_pool_data_batch_request(self, middleware.clone()).await?;
+        batch_request::get_v2_pool_data_batch_request(self, middleware.clone()).await?;
 
         Ok(())
     }
@@ -165,7 +189,7 @@ impl UniswapV2Pool {
         middleware: Arc<M>,
     ) -> Result<(u128, u128), DAMMError<M>> {
         //Initialize a new instance of the Pool
-        let v2_pair = interfaces::IUniswapV2Pair::new(self.address, middleware);
+        let v2_pair = IUniswapV2Pair::new(self.address, middleware);
         // Make a call to get the reserves
         let (reserve_0, reserve_1, _) = match v2_pair.get_reserves().call().await {
             Ok(result) => result,
@@ -179,12 +203,12 @@ impl UniswapV2Pool {
         &mut self,
         middleware: Arc<M>,
     ) -> Result<(u8, u8), DAMMError<M>> {
-        let token_a_decimals = interfaces::IErc20::new(self.token_a, middleware.clone())
+        let token_a_decimals = IErc20::new(self.token_a, middleware.clone())
             .decimals()
             .call()
             .await?;
 
-        let token_b_decimals = interfaces::IErc20::new(self.token_b, middleware)
+        let token_b_decimals = IErc20::new(self.token_b, middleware)
             .decimals()
             .call()
             .await?;
@@ -197,7 +221,7 @@ impl UniswapV2Pool {
         pair_address: H160,
         middleware: Arc<M>,
     ) -> Result<H160, DAMMError<M>> {
-        let v2_pair = interfaces::IUniswapV2Pair::new(pair_address, middleware);
+        let v2_pair = IUniswapV2Pair::new(pair_address, middleware);
 
         let token0 = match v2_pair.token_0().call().await {
             Ok(result) => result,
@@ -212,7 +236,7 @@ impl UniswapV2Pool {
         pair_address: H160,
         middleware: Arc<M>,
     ) -> Result<H160, DAMMError<M>> {
-        let v2_pair = interfaces::IUniswapV2Pair::new(pair_address, middleware);
+        let v2_pair = IUniswapV2Pair::new(pair_address, middleware);
 
         let token1 = match v2_pair.token_1().call().await {
             Ok(result) => result,
@@ -338,7 +362,7 @@ impl UniswapV2Pool {
             Token::Bytes(calldata),
         ];
 
-        interfaces::IUNISWAPV2PAIR_ABI
+        IUNISWAPV2PAIR_ABI
             .function("swap")
             .unwrap()
             .encode_input(&input_tokens)

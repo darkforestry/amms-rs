@@ -346,7 +346,7 @@ pub async fn generate_checkpoint_with_throttle<M: 'static + Middleware>(
     }
 
     //Clean empty pools
-    aggregated_pools = sync::remove_empty_pools(aggregated_pools);
+    aggregated_pools = sync::remove_empty_amms(aggregated_pools);
 
     let latest_block = middleware
         .get_block_number()

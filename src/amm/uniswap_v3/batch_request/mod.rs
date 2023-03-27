@@ -7,12 +7,23 @@ use ethers::{
 };
 
 use crate::{
-    amms::{AutomatedMarketMaker, AMM},
+    amm::{AutomatedMarketMaker, AMM},
     errors::DAMMError,
-    interfaces::IGetUniswapV3PoolDataBatchRequest,
 };
 
 use super::UniswapV3Pool;
+
+use ethers::prelude::abigen;
+
+abigen!(
+    IGetUniswapV3PoolDataBatchRequest,
+    "src/amm/uniswap_v3/batch_request/GetUniswapV3PoolDataBatchRequestABI.json";
+    IGetUniswapV3TickDataBatchRequest,
+    "src/amm/uniswap_v3/batch_request/GetUniswapV3TickDataBatchRequestABI.json";
+    ISyncUniswapV3PoolBatchRequest,
+    "src/amm/uniswap_v3/batch_request/SyncUniswapV3PoolBatchRequestABI.json";
+
+);
 
 //TODO: rename this and fix it so that it adheres to the updated arch.
 //TODO: we use this basically so that we dont have to match and separate the Pool type from the inner type when getting data
