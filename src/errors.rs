@@ -40,6 +40,8 @@ where
     NoInitializedTicks,
     #[error("No liquidity net found during v3 swap simulation")]
     NoLiquidityNet,
+    #[error("Incongruent AMMS supplied to batch request")]
+    IncongruentAMMs,
 }
 
 #[derive(Error, Debug)]

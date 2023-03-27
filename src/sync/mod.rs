@@ -1,7 +1,8 @@
 use crate::{
     amm::AMM,
+    batch_requests,
     errors::DAMMError,
-    factory::{AutomatedMarketMakerFactory, Factory}, batch_requests,
+    factory::{AutomatedMarketMakerFactory, Factory},
 };
 
 use ethers::providers::Middleware;
@@ -87,40 +88,36 @@ pub async fn populate_amm_data<M: Middleware>(
     amms: &mut [AMM],
     middleware: Arc<M>,
 ) -> Result<(), DAMMError<M>> {
-    //TODO: validate that amms are congruent
     if amms_are_congruent(&amms) {
         match amms[0] {
             AMM::UniswapV2Pool(_) => {
                 let step = 127; //Max batch size for call
                 for amm_chunk in amms.chunks_mut(step) {
-
-                    batch_requests::uniswap_v2::get_pool_data_batch_request(
+                    batch_requests::uniswap_v2::get_amm_data_batch_request(
                         amm_chunk,
                         middleware.clone(),
                     )
                     .await?;
 
-                    progress_bar.inc(step as u64);
+                    // progress_bar.inc(step as u64);
                 }
             }
 
             AMM::UniswapV3Pool(_) => {
                 let step = 76; //Max batch size for call
                 for amm_chunk in amms.chunks_mut(step) {
-                    
-
-                    batch_requests::uniswap_v3::get_pool_data_batch_request(
+                    batch_requests::uniswap_v3::get_amm_data_batch_request(
                         amm_chunk,
                         middleware.clone(),
                     )
                     .await?;
 
-                    progress_bar.inc(step as u64);
+                    // progress_bar.inc(step as u64);
                 }
             }
         }
-    }else{
-        need to add some error here
+    } else {
+        return Err(DAMMError::IncongruentAMMs);
     }
 
     //For each pair in the pairs vec, get the pool data
