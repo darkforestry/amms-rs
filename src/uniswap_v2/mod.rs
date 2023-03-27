@@ -58,7 +58,7 @@ impl AutomatedMarketMaker for UniswapV2Pool {
         Ok(q64_to_f64(self.calculate_price_64_x_64(base_token)?))
     }
 
-    fn simulate_swap(&self, token_in: H160, amount_in: U256, token_out: H160) -> U256 {
+    fn simulate_swap(&self, token_in: H160, amount_in: U256, _token_out: H160) -> U256 {
         if self.token_a == token_in {
             self.get_amount_out(
                 amount_in,
@@ -74,7 +74,7 @@ impl AutomatedMarketMaker for UniswapV2Pool {
         }
     }
 
-    fn simulate_swap_mut(&mut self, token_in: H160, amount_in: U256, token_out: H160) -> U256 {
+    fn simulate_swap_mut(&mut self, token_in: H160, amount_in: U256, _token_out: H160) -> U256 {
         if self.token_a == token_in {
             let amount_out = self.get_amount_out(
                 amount_in,
