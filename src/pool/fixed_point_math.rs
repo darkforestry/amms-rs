@@ -1,6 +1,6 @@
+use crate::pool::ArithmeticError;
 use ethers::types::U256;
 use num_bigfloat::BigFloat;
-use crate::pool::ArithmeticError;
 pub const U256_0XFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF: U256 = U256([
     18446744073709551615,
     18446744073709551615,
@@ -112,4 +112,3 @@ pub fn q64_to_f64(x: u128) -> f64 {
     let shift = 2_u128.pow(64);
     BigFloat::from(x).div(&BigFloat::from(shift)).to_f64()
 }
-

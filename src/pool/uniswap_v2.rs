@@ -438,7 +438,7 @@ mod tests {
         dbg!(x.calculate_price(token_a).unwrap());
         dbg!(x.calculate_price(token_b).unwrap());
     }
-    #[tokio::test]    
+    #[tokio::test]
     async fn test_calculate_price() {
         let rpc_endpoint =
             std::env::var("MAINNET_RPC_ENDPOINT").expect("Could not get MAINNET_RPC_ENDPOINT");
