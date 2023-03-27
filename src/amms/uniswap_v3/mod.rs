@@ -13,7 +13,7 @@ use num_bigfloat::BigFloat;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    amm::AutomatedMarketMaker,
+    amms::AutomatedMarketMaker,
     errors::{ArithmeticError, DAMMError},
     interfaces,
 };
@@ -846,7 +846,7 @@ pub struct Tick {
 }
 
 mod test {
-    use crate::amm::AutomatedMarketMaker;
+    use crate::amms::AutomatedMarketMaker;
     #[allow(unused)]
     use crate::interfaces::IUniswapV3Pool;
 

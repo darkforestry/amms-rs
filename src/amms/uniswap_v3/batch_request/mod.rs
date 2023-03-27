@@ -7,7 +7,7 @@ use ethers::{
 };
 
 use crate::{
-    amm::{AutomatedMarketMaker, AMM},
+    amms::{AutomatedMarketMaker, AMM},
     errors::DAMMError,
     interfaces::IGetUniswapV3PoolDataBatchRequest,
 };

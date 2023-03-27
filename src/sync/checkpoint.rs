@@ -16,7 +16,7 @@ use serde_json::{Map, Value};
 use tokio::task::JoinHandle;
 
 use crate::{
-    amm::AMM,
+    amms::AMM,
     dex::{Dex, DexVariant},
     errors::CFMMError,
     factory::{AutomatedMarketMakerFactory, Factory},

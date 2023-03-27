@@ -1,5 +1,5 @@
 use crate::{
-    amm::AMM,
+    amms::AMM,
     batch_requests,
     errors::DAMMError,
     factory::{AutomatedMarketMakerFactory, Factory},

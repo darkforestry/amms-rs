@@ -9,7 +9,7 @@ use ethers::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    amm::AutomatedMarketMaker,
+    amms::AutomatedMarketMaker,
     batch_requests,
     errors::{ArithmeticError, DAMMError},
     interfaces,
