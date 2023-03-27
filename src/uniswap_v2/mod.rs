@@ -10,11 +10,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     amm::AutomatedMarketMaker,
+    batch_requests,
     errors::{ArithmeticError, DAMMError},
     interfaces,
 };
-
-pub mod batch_request;
 
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
 pub struct UniswapV2Pool {
@@ -45,12 +44,8 @@ impl AutomatedMarketMaker for UniswapV2Pool {
         Ok(())
     }
 
-    async fn sync_from_log(&mut self, log: &Log) {
-        (self.reserve_0, self.reserve_1) = self.decode_sync_log(log);
-    }
-
-    fn sync_on_events(&self) -> Vec<H256> {
-        vec![SYNC_EVENT_SIGNATURE]
+    fn sync_on_event(&self) -> H256 {
+        SYNC_EVENT_SIGNATURE
     }
 
     //Calculates base/quote, meaning the price of base token per quote (ie. exchange rate is X base per 1 quote)
@@ -148,9 +143,14 @@ impl UniswapV2Pool {
         &mut self,
         middleware: Arc<M>,
     ) -> Result<(), DAMMError<M>> {
-        batch_request::get_v2_pool_data_batch_request(self, middleware.clone()).await?;
+        batch_requests::uniswap_v2::get_v2_pool_data_batch_request(self, middleware.clone())
+            .await?;
 
         Ok(())
+    }
+
+    fn sync_from_log(&mut self, log: &Log) {
+        (self.reserve_0, self.reserve_1) = self.decode_sync_log(log);
     }
 
     pub fn data_is_populated(&self) -> bool {

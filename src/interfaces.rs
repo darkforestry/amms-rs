@@ -11,10 +11,10 @@ abigen!(
     ]"#;
 
     IGetUniswapV2PairsBatchRequest,
-        "src/uniswap_v2/GetUniswapV2PairsBatchRequestABI.json";
+        "src/batch_requests/uniswap_v2/GetUniswapV2PairsBatchRequestABI.json";
 
     IGetUniswapV2PoolDataBatchRequest,
-        "src/uniswap_v2/GetUniswapV2PoolDataBatchRequestABI.json";
+        "src/batch_requests/uniswap_v2/GetUniswapV2PoolDataBatchRequestABI.json";
 
 
     IUniswapV2Pair,
@@ -45,6 +45,15 @@ abigen!(
         function swap(address recipient, bool zeroForOne, int256 amountSpecified, uint160 sqrtPriceLimitX96, bytes calldata data) external returns (int256, int256)
         event Swap( address indexed sender, address indexed recipient, int256 amount0, int256 amount1, uint160 sqrtPriceX96, uint128 liquidity, int24 tick)
     ]"#;
+
+
+    IGetUniswapV3PoolDataBatchRequest,
+    "src/batch_requests/uniswap_v3/GetUniswapV3PoolDataBatchRequestABI.json";
+    IGetUniswapV3TickDataBatchRequest,
+    "src/batch_requests/uniswap_v3/GetUniswapV3TickDataBatchRequestABI.json";
+    ISyncUniswapV3PoolBatchRequest,
+    "src/batch_requests/uniswap_v3/SyncUniswapV3PoolBatchRequestABI.json";
+
 
     IUniswapV3Quoter,
     r#"[
