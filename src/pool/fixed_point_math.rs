@@ -1,6 +1,6 @@
 use ethers::types::U256;
 use num_bigfloat::BigFloat;
-
+use crate::pool::ArithmeticError;
 pub const U256_0XFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF: U256 = U256([
     18446744073709551615,
     18446744073709551615,

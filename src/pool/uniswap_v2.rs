@@ -363,7 +363,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_new_from_address() {
         let rpc_endpoint =
-            std::env::var("ETHEREUM_RPC_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
+            std::env::var("MAINNET_RPC_ENDPOINT").expect("Could not get MAINNET_RPC_ENDPOINT");
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
 
         let pool = UniswapV2Pool::new_from_address(
@@ -393,7 +393,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_pool_data() {
         let rpc_endpoint =
-            std::env::var("ETHEREUM_RPC_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
+            std::env::var("MAINNET_RPC_ENDPOINT").expect("Could not get MAINNET_RPC_ENDPOINT");
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
 
         let mut pool = UniswapV2Pool {
@@ -421,7 +421,7 @@ mod tests {
     }
 
     #[test]
-    fn test_calculate_price() {
+    fn test_calculate_price_edge_case() {
         let token_a = H160::from_str("0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270").unwrap();
         let token_b = H160::from_str("0x8f18dc399594b451eda8c5da02d0563c0b2d0f16").unwrap();
         let x = UniswapV2Pool {
@@ -438,11 +438,34 @@ mod tests {
         dbg!(x.calculate_price(token_a).unwrap());
         dbg!(x.calculate_price(token_b).unwrap());
     }
+    #[tokio::test]    
+    async fn test_calculate_price() {
+        let rpc_endpoint =
+            std::env::var("MAINNET_RPC_ENDPOINT").expect("Could not get MAINNET_RPC_ENDPOINT");
+        let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
+
+        let mut pool = UniswapV2Pool {
+            address: H160::from_str("0xB4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc").unwrap(),
+            ..Default::default()
+        };
+
+        pool.get_pool_data(middleware.clone()).await.unwrap();
+
+        pool.reserve_0 = 47092140895915;
+        pool.reserve_1 = 28396598565590008529300;
+
+        let price_a_64_x = pool.calculate_price(pool.token_a).unwrap();
+
+        let price_b_64_x = pool.calculate_price(pool.token_b).unwrap();
+
+        assert_eq!(1658.3725965327264, price_b_64_x); //No precision loss: 30591574867092394336528 / 2**64
+        assert_eq!(0.0006030007985483893, price_a_64_x); //Precision loss: 11123401407064628 / 2**64
+    }
 
     #[tokio::test]
     async fn test_calculate_price_64_x_64() {
         let rpc_endpoint =
-            std::env::var("ETHEREUM_RPC_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
+            std::env::var("MAINNET_RPC_ENDPOINT").expect("Could not get MAINNET_RPC_ENDPOINT");
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
 
         let mut pool = UniswapV2Pool {

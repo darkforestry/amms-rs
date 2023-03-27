@@ -11,7 +11,7 @@ use damms::{dex::DexVariant, pool::Pool};
 async fn main() -> Result<(), Box<dyn Error>> {
     //Add rpc endpoint here:
     let rpc_endpoint =
-        std::env::var("ETHEREUM_RPC_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
+        std::env::var("MAINNET_RPC_ENDPOINT").expect("Could not get MAINNET_RPC_ENDPOINT");
     let provider = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
 
     //UniswapV2 usdc weth pool on Eth mainnet

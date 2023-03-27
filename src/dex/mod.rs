@@ -471,7 +471,7 @@ mod tests {
 
         let provider = Arc::new(
             Provider::<Http>::try_from(
-                env::var("ETHEREUM_RPC_ENDPOINT").expect("Could not initialize provider"),
+                env::var("MAINNET_RPC_ENDPOINT").expect("Could not initialize provider"),
             )
             .unwrap(),
         );
