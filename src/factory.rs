@@ -7,18 +7,39 @@ use ethers::{
 };
 
 use crate::{
+    amm::AMM,
     errors::{ArithmeticError, DAMMError},
     uniswap_v2::UniswapV2Pool,
     uniswap_v3::UniswapV3Pool,
 };
 
 #[async_trait]
-pub trait AMMFactory {
+pub trait AutomatedMarketMakerFactory {
     fn address(&self) -> H160;
-    async fn sync<M: Middleware>(&mut self, middleware: Arc<M>) -> Result<(), DAMMError<M>>;
-    fn sync_on_event(&self) -> H256;
-    fn tokens(&self) -> Vec<H160>;
-    fn calculate_price(&self, base_token: H160) -> Result<f64, ArithmeticError>;
+    async fn get_all_amms<M: Middleware>(
+        &self,
+        step: usize,
+        middleware: Arc<M>,
+    ) -> Result<Vec<AMM>, DAMMError<M>>;
 }
 
-pub enum Factory {}
+#[derive(Clone, Copy)]
+pub enum Factory {
+    UniswapV2Factory(),
+    UniswapV3Factory(),
+}
+
+#[async_trait]
+impl AutomatedMarketMakerFactory for Factory {
+    fn address(&self) -> H160 {
+        todo!()
+    }
+
+    async fn get_all_amms<M: Middleware>(
+        &self,
+        step: usize,
+        middleware: Arc<M>,
+    ) -> Result<Vec<AMM>, DAMMError<M>> {
+        todo!()
+    }
+}

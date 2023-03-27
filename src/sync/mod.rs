@@ -1,6 +1,9 @@
-use super::dex::Dex;
-use super::pool::Pool;
-use super::throttle::RequestThrottle;
+use crate::{
+    amm::AMM,
+    errors::DAMMError,
+    factory::{AutomatedMarketMakerFactory, Factory}, batch_requests,
+};
+
 use ethers::providers::Middleware;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use std::{
@@ -8,25 +11,120 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-//Get all pairs and sync reserve values for each Dex in the `dexes` vec.
-pub async fn sync_pairs<M: 'static + Middleware>(
-    dexes: Vec<Dex>,
-    middleware: Arc<M>,
-    checkpoint_path: Option<&str>,
-) -> Result<Vec<Pool>, CFMMError<M>> {
-    //Sync pairs with throttle but set the requests per second limit to 0, disabling the throttle.
-    sync_pairs_with_throttle(dexes, 100000, middleware, 0, checkpoint_path).await
-}
-
-//Get all pairs and sync reserve values for each Dex in the `dexes` vec.
-pub async fn sync_pairs_with_step<M: 'static + Middleware>(
-    dexes: Vec<Dex>,
+pub async fn sync_amms<M: 'static + Middleware>(
+    factories: Vec<Factory>,
     step: usize,
     middleware: Arc<M>,
     checkpoint_path: Option<&str>,
-) -> Result<Vec<Pool>, CFMMError<M>> {
-    //Sync pairs with throttle but set the requests per second limit to 0, disabling the throttle.
-    sync_pairs_with_throttle(dexes, step, middleware, 0, checkpoint_path).await
+) -> Result<Vec<AMM>, DAMMError<M>> {
+    let current_block = middleware
+        .get_block_number()
+        .await
+        .map_err(DAMMError::MiddlewareError)?;
+
+    //Aggregate the populated pools from each thread
+    let mut aggregated_amms: Vec<AMM> = vec![];
+    let mut handles = vec![];
+
+    //For each dex supplied, get all pair created events and get reserve values
+    for factory in factories.clone() {
+        let middleware = middleware.clone();
+
+        //Spawn a new thread to get all pools and sync data for each dex
+        handles.push(tokio::spawn(async move {
+            //Get all of the amms from the factory
+            let mut amms = factory.get_all_amms(step, middleware.clone()).await?;
+            populate_amm_data(&mut amms, middleware.clone()).await?;
+            //Clean empty pools
+            amms = remove_empty_pools(amms);
+            Ok::<_, DAMMError<M>>(amms)
+        }));
+    }
+
+    for handle in handles {
+        match handle.await {
+            Ok(sync_result) => aggregated_pools.extend(sync_result?),
+            Err(err) => {
+                {
+                    if err.is_panic() {
+                        // Resume the panic on the main task
+                        resume_unwind(err.into_panic());
+                    }
+                }
+            }
+        }
+    }
+
+    //Save a checkpoint if a path is provided
+    if checkpoint_path.is_some() {
+        let checkpoint_path = checkpoint_path.unwrap();
+
+        checkpoint::construct_checkpoint(
+            dexes,
+            &aggregated_pools,
+            current_block.as_u64(),
+            checkpoint_path,
+        )
+    }
+
+    //Return the populated aggregated pools vec
+    Ok(aggregated_pools)
+}
+
+pub fn amms_are_congruent(amms: &[AMM]) -> bool {
+    let expected_amm = amms[0];
+
+    for amm in amms {
+        if std::mem::discriminant(&expected_amm) != std::mem::discriminant(amm) {
+            return false;
+        }
+    }
+    return true;
+}
+
+//Gets all pool data and sync reserves
+pub async fn populate_amm_data<M: Middleware>(
+    amms: &mut [AMM],
+    middleware: Arc<M>,
+) -> Result<(), DAMMError<M>> {
+    //TODO: validate that amms are congruent
+    if amms_are_congruent(&amms) {
+        match amms[0] {
+            AMM::UniswapV2Pool(_) => {
+                let step = 127; //Max batch size for call
+                for amm_chunk in amms.chunks_mut(step) {
+
+                    batch_requests::uniswap_v2::get_pool_data_batch_request(
+                        amm_chunk,
+                        middleware.clone(),
+                    )
+                    .await?;
+
+                    progress_bar.inc(step as u64);
+                }
+            }
+
+            AMM::UniswapV3Pool(_) => {
+                let step = 76; //Max batch size for call
+                for amm_chunk in amms.chunks_mut(step) {
+                    
+
+                    batch_requests::uniswap_v3::get_pool_data_batch_request(
+                        amm_chunk,
+                        middleware.clone(),
+                    )
+                    .await?;
+
+                    progress_bar.inc(step as u64);
+                }
+            }
+        }
+    }else{
+        need to add some error here
+    }
+
+    //For each pair in the pairs vec, get the pool data
+    Ok(())
 }
 
 //Get all pairs and sync reserve values for each Dex in the `dexes` vec.
