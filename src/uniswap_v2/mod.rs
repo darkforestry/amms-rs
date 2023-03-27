@@ -1,13 +1,15 @@
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use ethers::{
     abi::{ethabi::Bytes, ParamType, Token},
     providers::Middleware,
-    types::{Log, H160, U256},
+    types::{Log, H160, H256, U256},
 };
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    amm::AutomatedMarketMaker,
     errors::{ArithmeticError, DAMMError},
     interfaces,
 };
@@ -24,6 +26,82 @@ pub struct UniswapV2Pool {
     pub reserve_0: u128,
     pub reserve_1: u128,
     pub fee: u32,
+}
+
+pub const SYNC_EVENT_SIGNATURE: H256 = H256([
+    28, 65, 30, 154, 150, 224, 113, 36, 28, 47, 33, 247, 114, 107, 23, 174, 137, 227, 202, 180,
+    199, 139, 229, 14, 6, 43, 3, 169, 255, 251, 186, 209,
+]);
+
+#[async_trait]
+impl AutomatedMarketMaker for UniswapV2Pool {
+    fn address(&self) -> H160 {
+        self.address
+    }
+
+    async fn sync<M: Middleware>(&mut self, middleware: Arc<M>) -> Result<(), DAMMError<M>> {
+        (self.reserve_0, self.reserve_1) = self.get_reserves(middleware).await?;
+
+        Ok(())
+    }
+    async fn sync_from_log(&mut self) {
+        todo!()
+    }
+
+    fn sync_on_events(&self) -> Vec<H256> {
+        vec![SYNC_EVENT_SIGNATURE]
+    }
+
+    //Calculates base/quote, meaning the price of base token per quote (ie. exchange rate is X base per 1 quote)
+    fn calculate_price(&self, base_token: H160) -> Result<f64, ArithmeticError> {
+        Ok(q64_to_f64(self.calculate_price_64_x_64(base_token)?))
+    }
+
+    fn simulate_swap(&self, token_in: H160, amount_in: U256, token_out: H160) -> U256 {
+        if self.token_a == token_in {
+            self.get_amount_out(
+                amount_in,
+                U256::from(self.reserve_0),
+                U256::from(self.reserve_1),
+            )
+        } else {
+            self.get_amount_out(
+                amount_in,
+                U256::from(self.reserve_1),
+                U256::from(self.reserve_0),
+            )
+        }
+    }
+
+    fn simulate_swap_mut(&mut self, token_in: H160, amount_in: U256, token_out: H160) -> U256 {
+        if self.token_a == token_in {
+            let amount_out = self.get_amount_out(
+                amount_in,
+                U256::from(self.reserve_0),
+                U256::from(self.reserve_1),
+            );
+
+            self.reserve_0 += amount_in.as_u128();
+            self.reserve_1 -= amount_out.as_u128();
+
+            amount_out
+        } else {
+            let amount_out = self.get_amount_out(
+                amount_in,
+                U256::from(self.reserve_1),
+                U256::from(self.reserve_0),
+            );
+
+            self.reserve_0 -= amount_out.as_u128();
+            self.reserve_1 += amount_in.as_u128();
+
+            amount_out
+        }
+    }
+
+    fn tokens(&self) -> Vec<H160> {
+        vec![self.token_a, self.token_b]
+    }
 }
 
 impl UniswapV2Pool {
@@ -136,15 +214,6 @@ impl UniswapV2Pool {
         Ok((reserve_0, reserve_1))
     }
 
-    pub async fn sync_pool<M: Middleware>(
-        &mut self,
-        middleware: Arc<M>,
-    ) -> Result<(), DAMMError<M>> {
-        (self.reserve_0, self.reserve_1) = self.get_reserves(middleware).await?;
-
-        Ok(())
-    }
-
     pub async fn get_token_decimals<M: Middleware>(
         &mut self,
         middleware: Arc<M>,
@@ -190,11 +259,6 @@ impl UniswapV2Pool {
         };
 
         Ok(token1)
-    }
-
-    //Calculates base/quote, meaning the price of base token per quote (ie. exchange rate is X base per 1 quote)
-    pub fn calculate_price(&self, base_token: H160) -> Result<f64, ArithmeticError> {
-        Ok(q64_to_f64(self.calculate_price_64_x_64(base_token)?))
     }
 
     pub fn calculate_price_64_x_64(&self, base_token: H160) -> Result<u128, ArithmeticError> {
