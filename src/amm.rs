@@ -26,11 +26,40 @@ pub enum AMM {
     UniswapV3Pool(UniswapV3Pool),
 }
 
+#[async_trait]
 impl AutomatedMarketMaker for AMM {
     fn address(&self) -> H160 {
         match self {
             AMM::UniswapV2Pool(pool) => pool.address,
             AMM::UniswapV3Pool(pool) => pool.address,
+        }
+    }
+
+    async fn sync<M: Middleware>(&mut self, middleware: Arc<M>) -> Result<(), DAMMError<M>> {
+        match self {
+            AMM::UniswapV2Pool(pool) => pool.sync(middleware).await,
+            AMM::UniswapV3Pool(pool) => pool.sync(middleware).await,
+        }
+    }
+
+    fn sync_on_event(&self) -> H256 {
+        match self {
+            AMM::UniswapV2Pool(pool) => pool.sync_on_event(),
+            AMM::UniswapV3Pool(pool) => pool.sync_on_event(),
+        }
+    }
+
+    fn tokens(&self) -> Vec<H160> {
+        match self {
+            AMM::UniswapV2Pool(pool) => pool.tokens(),
+            AMM::UniswapV3Pool(pool) => pool.tokens(),
+        }
+    }
+
+    fn calculate_price(&self, base_token: H160) -> Result<f64, ArithmeticError> {
+        match self {
+            AMM::UniswapV2Pool(pool) => pool.calculate_price(base_token),
+            AMM::UniswapV3Pool(pool) => pool.calculate_price(base_token),
         }
     }
 }
