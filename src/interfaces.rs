@@ -1,5 +1,10 @@
 use ethers::prelude::abigen;
 
+
+
+
+
+TODO: move each of these into each amm dir and remove the interfaces, this will keep it tighter to each mod
 abigen!(
     IUniswapV2Factory,
     r#"[
