@@ -7,9 +7,9 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use ethers::{
     providers::Middleware,
-    types::{Log, H160, H256, U256},
+    types::{H160, H256},
 };
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 use crate::errors::{ArithmeticError, DAMMError};
 

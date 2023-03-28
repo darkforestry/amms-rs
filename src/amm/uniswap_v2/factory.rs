@@ -1,17 +1,13 @@
-use std::{
-    sync::Arc,
-    time::{self, Duration},
-};
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use ethers::{
     abi::ParamType,
     providers::Middleware,
-    types::{BlockNumber, Log, H160, H256, U256},
+    types::{Log, H160, H256, U256},
 };
-use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+
 use serde::{Deserialize, Serialize};
-use tokio::time::sleep;
 
 use crate::{
     amm::{factory::AutomatedMarketMakerFactory, AMM},

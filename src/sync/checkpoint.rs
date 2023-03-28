@@ -1,19 +1,17 @@
-use core::panic;
 use std::{
     fs::read_to_string,
     panic::resume_unwind,
-    str::FromStr,
-    sync::{Arc, Mutex},
+    sync::Arc,
     time::{SystemTime, UNIX_EPOCH},
 };
 
 use ethers::{
     providers::Middleware,
-    types::{BlockNumber, H160, U256},
+    types::{BlockNumber, H160},
 };
-use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+
 use serde::{Deserialize, Serialize};
-use serde_json::{Map, Value};
+
 use tokio::task::JoinHandle;
 
 use crate::{
@@ -180,7 +178,7 @@ pub async fn batch_sync_amms_from_checkpoint<M: 'static + Middleware>(
 
             Ok::<_, DAMMError<M>>(amms)
         } else {
-            return Err(DAMMError::IncongruentAMMs);
+            Err(DAMMError::IncongruentAMMs)
         }
     })
 }
@@ -235,7 +233,7 @@ pub async fn get_new_pools_from_range<M: 'static + Middleware>(
 
 pub fn construct_checkpoint(
     factories: Vec<Factory>,
-    amms: &Vec<AMM>,
+    amms: &[AMM],
     latest_block: u64,
     checkpoint_path: &str,
 ) {
@@ -246,7 +244,7 @@ pub fn construct_checkpoint(
             .as_secs_f64() as usize,
         latest_block,
         factories,
-        amms.clone(),
+        amms.to_vec(),
     );
 
     std::fs::write(

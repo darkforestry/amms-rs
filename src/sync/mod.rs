@@ -7,12 +7,9 @@ use crate::{
 };
 
 use ethers::providers::Middleware;
-use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+
 use spinoff::{spinners, Color, Spinner};
-use std::{
-    panic::resume_unwind,
-    sync::{Arc, Mutex},
-};
+use std::{panic::resume_unwind, sync::Arc};
 pub mod checkpoint;
 
 pub async fn sync_amms<M: 'static + Middleware>(
@@ -86,7 +83,7 @@ pub fn amms_are_congruent(amms: &[AMM]) -> bool {
             return false;
         }
     }
-    return true;
+    true
 }
 
 //Gets all pool data and sync reserves
@@ -94,7 +91,7 @@ pub async fn populate_amms<M: Middleware>(
     amms: &mut [AMM],
     middleware: Arc<M>,
 ) -> Result<(), DAMMError<M>> {
-    if amms_are_congruent(&amms) {
+    if amms_are_congruent(amms) {
         match amms[0] {
             AMM::UniswapV2Pool(_) => {
                 let step = 127; //Max batch size for call

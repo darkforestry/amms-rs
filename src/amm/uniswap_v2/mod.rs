@@ -172,7 +172,7 @@ impl UniswapV2Pool {
         Ok(())
     }
 
-    fn sync_from_log(&mut self, log: &Log) {
+    pub fn sync_from_log(&mut self, log: &Log) {
         (self.reserve_0, self.reserve_1) = self.decode_sync_log(log);
     }
 

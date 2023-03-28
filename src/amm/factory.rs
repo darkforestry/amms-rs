@@ -3,7 +3,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use ethers::{
     providers::Middleware,
-    types::{BlockNumber, Filter, Log, ValueOrArray, H160, H256, U256, U64},
+    types::{BlockNumber, Filter, Log, ValueOrArray, H160, H256, U64},
 };
 use serde::{Deserialize, Serialize};
 
