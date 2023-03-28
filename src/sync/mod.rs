@@ -1,5 +1,8 @@
 use crate::{
-    amm::{factory::Factory, uniswap_v3, AMM},
+    amm::{
+        factory::{AutomatedMarketMakerFactory, Factory},
+        uniswap_v3, AMM,
+    },
     errors::DAMMError,
 };
 
@@ -33,7 +36,7 @@ pub async fn sync_amms<M: 'static + Middleware>(
         //Spawn a new thread to get all pools and sync data for each dex
         handles.push(tokio::spawn(async move {
             //Get all of the amms from the factory
-            let mut amms = factory.get_all_amms(step, middleware.clone()).await?;
+            let mut amms: Vec<AMM> = factory.get_all_amms(middleware.clone()).await?;
             populate_amms(&mut amms, middleware.clone()).await?;
             //Clean empty pools
             amms = remove_empty_amms(amms);
