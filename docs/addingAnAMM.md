@@ -370,6 +370,8 @@ pub async fn populate_amms<M: Middleware>(
 }
 ```
 
+<br>
+
 
 ## Add peripheral functions
 
@@ -384,6 +386,11 @@ Now that your new AMM is integrated into the `AMM` enum, its time to add periphe
 - `pub fn swap_calldata(args) -> Bytes`: This function takes in all of the arguments necessary for swapping tokens and returns the calldata that could be passed into a transaction or multicall.
 
 
-In addition to the above functions, feel free to write any other functions that might be useful like helper functions, calculations, etc.
+In addition to the functions above, feel free to write any other functions that might be useful like helper functions, calculations, etc.
 
 
+<br>
+
+## Add tests
+
+Last but not least, make sure to add tests for all of the new functions introduced by your AMM. Quality tests will save long nights of debugging for a needle in a haystack. The goal is to make sure that we have tests for all functions to ensure confidence and stability in production mev systems.
