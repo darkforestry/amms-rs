@@ -21,7 +21,7 @@ Most AMMs will have a factory that is responsible for deploying the AMM. This fa
 Adhere to the interface you will see where it breaks but also highlight where it breaks
 Also add sim swap, sim swap mut, swap calldata, and list others
 
-With the overview out of the way, lets start by creating a mod for your brand new AMM.
+With the overview out of the way, let's start by creating a mod for your brand new AMM.
 
 <br>
 
@@ -56,7 +56,7 @@ Thats it for this step, great job and congrats (insert champagne popping gif her
 <br>
 
 ## Create a new AMM type
-Now lets head to the newly created `mod.rs` file in the directory that you just initialized and write some code. Within this file, you will want to create a new struct for your AMM. Here is an example of what the `UniswapV2Pool` type looks like to get a rough idea of what the type should look like. Your new AMM will potentially look very different depending on the mechanics of the AMM itself.
+Now let's head to the newly created `mod.rs` file in the directory that you just initialized and write some code. Within this file, you will want to create a new struct for your AMM. Here is an example of what the `UniswapV2Pool` type looks like to get a rough idea of what the type should look like. Your new AMM will potentially look very different depending on the mechanics of the AMM itself.
 
 `File: src/amm/uniswap_v2/mod.rs`
 ```rust
@@ -76,14 +76,14 @@ pub struct UniswapV2Pool {
 Make sure that you have an `address` field in your struct as this will come in handy later. Also, make sure to implement the traits defined above the `UniswapV2Pool` (`#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
 `) on your struct as these will also be important later during syncing. Make sure that the struct is as lean as possible, but don't compromise simplicity. If it makes swap simulation much easier to store a specific attribute in your struct at the cost of size, it probably makes sense to do so. If you are unsure, feel free to get some feedback in the DF discord channel. 
 
-Now that we have a newly created struct, lets head to the next section.
+Now that we have a newly created struct, let's head to the next section.
 
 <br>
 
 
 ## Implement the `AutomatedMarketMaker` trait
 
-Now we will need to implement the `AutomatedMarketMaker` on your newly created struct. Lets take a look at the trait.
+Now we will need to implement the `AutomatedMarketMaker` on your newly created struct. Let's take a look at the trait.
 
 
 `File: src/amm/mod.rs`
@@ -110,7 +110,7 @@ Once you have implemented the `AutomatedMarketMaker` trait, the next step is to 
 
 <br>
 
-## Add the new AMM to the `AMM` enum
+## Add your new AMM to the `AMM` enum
 
 Now that your new AMM type is officially an `AutomatedMarketMaker`, we will add it to the `AMM` enum. Create a new AMM variant that wraps your newly created struct.
 
@@ -125,7 +125,7 @@ pub enum AMM {
 }
 ```
 
-And all of a sudden, red everywhere. You will notice that after adding your AMM variant, many things break. Fear not, this is a feature not a bug. `damms` uses exhaustive pattern matching for the `AMM` enum so that you know exactly where to add your new variant throughout the codebase. Lets take a look at each spot.
+And all of a sudden, red everywhere. You will notice that after adding your AMM variant, many things break. Fear not, this is a feature not a bug. `damms` uses exhaustive pattern matching for the `AMM` enum so that you know exactly where to add your new variant throughout the codebase. Let's take a look at each spot.
 
 
 
@@ -179,7 +179,7 @@ impl AutomatedMarketMaker for AMM {
 ```
 
 
-Next, lets head over to `src/sync/mod.rs`. The following function is responsible for removing AMMs that did not populate correctly from a given `Vec<AMM>`.
+Next, let's head over to `src/sync/mod.rs`. The following function is responsible for removing AMMs that did not populate correctly from a given `Vec<AMM>`.
 
 
 `File: src/sync/mod.rs`
@@ -211,5 +211,31 @@ pub fn remove_empty_amms(amms: Vec<AMM>) -> Vec<AMM> {
     }
 
     cleaned_amms
+}
+```
+
+Let's head to `src/sync/checkpoint.rs` for the next snippet. The `sort_amms` function is used during syncing and sorts the amms into separate `Vec`s so that syncing can happen via batch contracts (more on this later). We will add a few things to this function. First, add a new collection where all the AMMs that match your new variant will be sorted into. Then, add another `Vec<AMM>` to the return value. Then you can add your new collection to the return statement at the bottom of the function. Lastly, add pattern matching for your new `AMM` variant and push AMMs that match your variant to the new collection you just made. Below is an example of the completed function.
+
+```rust
+
+//Add another Vec<AMM> to the return value
+pub fn sort_amms(amms: Vec<AMM>) -> (Vec<AMM>, Vec<AMM>, Vec<AMM>) {
+    let mut uniswap_v2_pools = vec![];
+    let mut uniswap_v3_pools = vec![];
+    
+    //Add a vec to collect the sorted AMMs that match your variant
+    let mut your_new_amm_collection = vec![];
+
+    for amm in amms {
+        match amm {
+            AMM::UniswapV2Pool(_) => uniswap_v2_pools.push(amm),
+            AMM::UniswapV3Pool(_) => uniswap_v3_pools.push(amm),
+            AMM::YourNewAMM(_) => your_new_amm_collection.push(amm),
+
+        }
+    }
+
+    //Add the collection for your new variant to the return statement
+    (uniswap_v2_pools, uniswap_v3_pools, your_new_amm_collection)
 }
 ```
