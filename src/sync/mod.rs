@@ -16,7 +16,6 @@ pub mod checkpoint;
 
 pub async fn sync_amms<M: 'static + Middleware>(
     factories: Vec<Factory>,
-    step: usize,
     middleware: Arc<M>,
     checkpoint_path: Option<&str>,
 ) -> Result<Vec<AMM>, DAMMError<M>> {

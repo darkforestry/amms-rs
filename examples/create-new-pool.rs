@@ -1,11 +1,10 @@
 use std::{error::Error, str::FromStr, sync::Arc};
 
+use damms::amm::AMM;
 use ethers::{
     providers::{Http, Provider},
     types::H160,
 };
-
-use damms::{dex::DexVariant, pool::Pool};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -15,7 +14,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let provider = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
 
     //UniswapV2 usdc weth pool on Eth mainnet
-    let _uniswap_v2_usdc_weth_pool = Pool::new_from_address(
+    let _uniswap_v2_usdc_weth_pool = AMM::new_from_address(
         H160::from_str("0xB4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc").unwrap(),
         DexVariant::UniswapV2,
         provider.clone(),
