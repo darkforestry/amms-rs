@@ -110,6 +110,14 @@ impl AutomatedMarketMaker for UniswapV3Pool {
             Ok(1.0 / price)
         }
     }
+
+    async fn populate_data<M: Middleware>(
+        &mut self,
+        middleware: Arc<M>,
+    ) -> Result<(), DAMMError<M>> {
+        batch_request::get_v3_pool_data_batch_request(self, middleware.clone()).await?;
+        Ok(())
+    }
 }
 
 impl UniswapV3Pool {
@@ -161,7 +169,7 @@ impl UniswapV3Pool {
             liquidity_net: 0,
         };
 
-        pool.get_pool_data(middleware.clone()).await?;
+        pool.populate_data(middleware.clone()).await?;
 
         if !pool.data_is_populated() {
             return Err(DAMMError::PoolDataError);
@@ -203,15 +211,6 @@ impl UniswapV3Pool {
 
     pub fn fee(&self) -> u32 {
         self.fee
-    }
-
-    pub async fn get_pool_data<M: Middleware>(
-        &mut self,
-        middleware: Arc<M>,
-    ) -> Result<(), DAMMError<M>> {
-        batch_request::get_v3_pool_data_batch_request(self, middleware.clone()).await?;
-
-        Ok(())
     }
 
     pub fn data_is_populated(&self) -> bool {
@@ -1111,7 +1110,7 @@ mod test {
             ..Default::default()
         };
 
-        pool.get_pool_data(middleware).await.unwrap();
+        pool.populate_data(middleware).await.unwrap();
 
         assert_eq!(
             pool.address,
@@ -1159,7 +1158,7 @@ mod test {
             ..Default::default()
         };
 
-        pool.get_pool_data(middleware.clone()).await.unwrap();
+        pool.populate_data(middleware.clone()).await.unwrap();
 
         let pool_at_block = IUniswapV3Pool::new(
             H160::from_str("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640").unwrap(),
@@ -1205,7 +1204,7 @@ mod test {
             ..Default::default()
         };
 
-        pool.get_pool_data(middleware.clone()).await.unwrap();
+        pool.populate_data(middleware.clone()).await.unwrap();
 
         let block_pool = IUniswapV3Pool::new(
             H160::from_str("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640").unwrap(),

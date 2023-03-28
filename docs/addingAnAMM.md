@@ -14,13 +14,13 @@ The recommended way to read this document is to fully read through the entire wa
 - Add peripheral functions
 - Add tests
 
-Most AMMs will have a factory that is responsible for deploying the AMM. This factory allows `damms` to identify all of the AMMs from a given protocol, however some AMMs might not have a factory. In the case that the AMM you are adding does have a factory, make sure to add a factory type with the following steps below.
+Most AMMs will have a factory that is responsible for deploying the AMM. This factory allows `damms` to identify all of the AMMs from a given protocol, however some AMMs might not have a factory. If your AMM does have a factory, make sure to add a factory type with the following steps below.
 
 - Create a factory type
 - Implement the `AutomatedMarketMakerFactory` trait for the factory
 - Add your factory to the `Factory` enum
 - Add peripheral functions
-
+- Add tests
 
 Lastly, we will add the new AMM and factory to the discovery module (walkthrough coming soon).
 
@@ -93,12 +93,17 @@ Now we will need to implement the `AutomatedMarketMaker` on your newly created s
 ```rust
 #[async_trait]
 pub trait AutomatedMarketMaker {
-    fn address(&self) -> H160;    
-    fn tokens(&self) -> Vec<H160>;
-    fn calculate_price(&self, base_token: H160) -> Result<f64, ArithmeticError>;
+    fn address(&self) -> H160;
     async fn sync<M: Middleware>(&mut self, middleware: Arc<M>) -> Result<(), DAMMError<M>>;
     fn sync_on_event_signature(&self) -> H256;
+    fn tokens(&self) -> Vec<H160>;
+    fn calculate_price(&self, base_token: H160) -> Result<f64, ArithmeticError>;
+    async fn populate_data<M: Middleware>(
+        &mut self,
+        middleware: Arc<M>,
+    ) -> Result<(), DAMMError<M>>;
 }
+
 ```
 
 Let's walk through what each function does. 
@@ -107,6 +112,7 @@ Let's walk through what each function does.
 - `calculate_price` returns the price of `base_token` in the pool.
 - `sync` gets any relevant AMM data at the most recent block. For example, the `sync` method for the `UniswapV2Pool` syncs `reserve0` and `reserve1`.
 - `sync_on_event_signature` returns the event signature to subscribe to that will signal state changes in the AMM.
+- `populate_data` fetches all of the peripheral AMM data (token addresses, token decimals, etc.) 
 
 
 Once you have implemented the `AutomatedMarketMaker` trait, the next step is to add the new AMM to the `AMM` enum.
@@ -178,6 +184,18 @@ impl AutomatedMarketMaker for AMM {
             AMM::YourNewAMM(your_new_amm) => your_new_amm.calculate_price(base_token),
         }
     }
+
+    async fn populate_data<M: Middleware>(
+        &mut self,
+        middleware: Arc<M>,
+    ) -> Result<(), DAMMError<M>> {
+        match self {
+            AMM::UniswapV2Pool(pool) => pool.populate_data(middleware).await,
+            AMM::UniswapV3Pool(pool) => pool.populate_data(middleware).await,
+            AMM::YourNewAMM(your_new_amm) => your_new_amm.populate_data(middleware).await,
+
+        }
+    }
 }
 ```
 
@@ -219,8 +237,9 @@ pub fn remove_empty_amms(amms: Vec<AMM>) -> Vec<AMM> {
 
 Let's head to `src/sync/checkpoint.rs` for the next snippet. The `sort_amms` function is used during syncing and sorts the amms into separate `Vec`s so that syncing can happen via batch contracts (more on this later). We will add a few things to this function. First, add a new collection where all the AMMs that match your new variant will be sorted into. Then, add another `Vec<AMM>` to the return value. Then you can add your new collection to the return statement at the bottom of the function. Lastly, add pattern matching for your new `AMM` variant and push AMMs that match your variant to the new collection you just made. Below is an example of the completed function.
 
-```rust
 
+`File: src/sync/checkpoints.rs`
+```rust
 //Add another Vec<AMM> to the return value
 pub fn sort_amms(amms: Vec<AMM>) -> (Vec<AMM>, Vec<AMM>, Vec<AMM>) {
     let mut uniswap_v2_pools = vec![];
@@ -240,6 +259,116 @@ pub fn sort_amms(amms: Vec<AMM>) -> (Vec<AMM>, Vec<AMM>, Vec<AMM>) {
 
     //Add the collection for your new variant to the return statement
     (uniswap_v2_pools, uniswap_v3_pools, your_new_amm_collection)
+}
+```
+
+
+
+In the same file, you will need to add your `AMM` to the match statement within `batch_sync_amms_from_checkpoint`. This function syncs all of the amms from a given factory. If your AMM has a factory, just add a `todo!()` and we will come back to this once the factory type has been implemented.
+
+`File: src/sync/checkpoints.rs`
+```rust
+pub async fn batch_sync_amms_from_checkpoint<M: 'static + Middleware>(
+    mut amms: Vec<AMM>,
+    middleware: Arc<M>,
+) -> JoinHandle<Result<Vec<AMM>, DAMMError<M>>> {
+    let factory = match amms[0] {
+        AMM::UniswapV2Pool(_) => Some(Factory::UniswapV2Factory(UniswapV2Factory::new(
+            H160::zero(),
+            0,
+            0,
+        ))),
+
+        AMM::UniswapV3Pool(_) => Some(Factory::UniswapV3Factory(UniswapV3Factory::new(
+            H160::zero(),
+            0,
+        ))),
+
+        //Add a todo!() here, we will come back to this after we have implemented the AMM factory if applicable
+        AMM::YourNewAMM(_) => todo!(),
+    };
+
+    //--snip--
+
+}
+```
+
+In the case that the AMM you are adding does not have a factory, you can just add the following line instead of the snippet above.
+
+
+`File: src/sync/checkpoints.rs`
+```rust
+pub async fn batch_sync_amms_from_checkpoint<M: 'static + Middleware>(
+    mut amms: Vec<AMM>,
+    middleware: Arc<M>,
+) -> JoinHandle<Result<Vec<AMM>, DAMMError<M>>> {
+    let factory = match amms[0] {
+        AMM::UniswapV2Pool(_) => Some(Factory::UniswapV2Factory(UniswapV2Factory::new(
+            H160::zero(),
+            0,
+            0,
+        ))),
+
+        AMM::UniswapV3Pool(_) => Some(Factory::UniswapV3Factory(UniswapV3Factory::new(
+            H160::zero(),
+            0,
+        ))),
+
+        //If there is not a factory for your AMM, you can just assign `factory` to None
+        AMM::YourNewAMM(_) => None,
+    };
+
+    //--snip--
+}
+```
+
+The last stop on our tour is the `populate_amms` function in `src/sync/mod.rs`. This function is responsible for getting all of the relevant `AMM` data for a given AMM. The content of the `amms` slice must contain the same `AMM` variant.
+
+```rust
+
+pub async fn populate_amms<M: Middleware>(
+    amms: &mut [AMM],
+    middleware: Arc<M>,
+) -> Result<(), DAMMError<M>> {
+    if amms_are_congruent(amms) {
+        match amms[0] {
+            AMM::UniswapV2Pool(_) => {
+                let step = 127; //Max batch size for call
+                for amm_chunk in amms.chunks_mut(step) {
+                    uniswap_v3::batch_request::get_amm_data_batch_request(
+                        amm_chunk,
+                        middleware.clone(),
+                    )
+                    .await?;
+                }
+            }
+
+            AMM::UniswapV3Pool(_) => {
+                let step = 76; //Max batch size for call
+                for amm_chunk in amms.chunks_mut(step) {
+                    uniswap_v3::batch_request::get_amm_data_batch_request(
+                        amm_chunk,
+                        middleware.clone(),
+                    )
+                    .await?;
+                }
+            }
+
+
+            AMM::YourNewAMM(_)=>{
+
+                for amm in amms{
+                    amm.populate_data()
+                }
+
+            }
+        }
+    } else {
+        return Err(DAMMError::IncongruentAMMs);
+    }
+
+    //For each pair in the pairs vec, get the pool data
+    Ok(())
 }
 ```
 

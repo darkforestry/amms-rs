@@ -23,6 +23,10 @@ pub trait AutomatedMarketMaker {
     fn sync_on_event_signature(&self) -> H256;
     fn tokens(&self) -> Vec<H160>;
     fn calculate_price(&self, base_token: H160) -> Result<f64, ArithmeticError>;
+    async fn populate_data<M: Middleware>(
+        &mut self,
+        middleware: Arc<M>,
+    ) -> Result<(), DAMMError<M>>;
 }
 
 #[derive(Clone, Copy, Serialize, Deserialize)]
@@ -52,6 +56,16 @@ impl AutomatedMarketMaker for AMM {
         match self {
             AMM::UniswapV2Pool(pool) => pool.sync_on_event_signature(),
             AMM::UniswapV3Pool(pool) => pool.sync_on_event_signature(),
+        }
+    }
+
+    async fn populate_data<M: Middleware>(
+        &mut self,
+        middleware: Arc<M>,
+    ) -> Result<(), DAMMError<M>> {
+        match self {
+            AMM::UniswapV2Pool(pool) => pool.populate_data(middleware).await,
+            AMM::UniswapV3Pool(pool) => pool.populate_data(middleware).await,
         }
     }
 

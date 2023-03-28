@@ -161,24 +161,34 @@ pub async fn batch_sync_amms_from_checkpoint<M: 'static + Middleware>(
     middleware: Arc<M>,
 ) -> JoinHandle<Result<Vec<AMM>, DAMMError<M>>> {
     let factory = match amms[0] {
-        AMM::UniswapV2Pool(_) => {
-            Factory::UniswapV2Factory(UniswapV2Factory::new(H160::zero(), 0, 0))
-        }
-        AMM::UniswapV3Pool(_) => Factory::UniswapV3Factory(UniswapV3Factory::new(H160::zero(), 0)),
+        AMM::UniswapV2Pool(_) => Some(Factory::UniswapV2Factory(UniswapV2Factory::new(
+            H160::zero(),
+            0,
+            0,
+        ))),
+
+        AMM::UniswapV3Pool(_) => Some(Factory::UniswapV3Factory(UniswapV3Factory::new(
+            H160::zero(),
+            0,
+        ))),
     };
 
     //Spawn a new thread to get all pools and sync data for each dex
     tokio::spawn(async move {
-        if amms_are_congruent(&amms) {
-            //Get all pool data via batched calls
-            factory.populate_amm_data(&mut amms, middleware).await?;
+        if let Some(factory) = factory {
+            if amms_are_congruent(&amms) {
+                //Get all pool data via batched calls
+                factory.populate_amm_data(&mut amms, middleware).await?;
 
-            //Clean empty pools
-            amms = sync::remove_empty_amms(amms);
+                //Clean empty pools
+                amms = sync::remove_empty_amms(amms);
 
-            Ok::<_, DAMMError<M>>(amms)
+                Ok::<_, DAMMError<M>>(amms)
+            } else {
+                Err(DAMMError::IncongruentAMMs)
+            }
         } else {
-            Err(DAMMError::IncongruentAMMs)
+            Ok::<_, DAMMError<M>>(vec![])
         }
     })
 }
