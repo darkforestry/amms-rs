@@ -1,6 +1,6 @@
 
 ## Foreword
-The recommended way to read this document is to fully read through the entire walkthrough once, without writing any code. This will allow you to grok the moving parts of the library as well as the architecture of the code without having to worry about AMM design before you know how everything fits together. The first read should be slow and steady, taking about 30 - 60 min. Then when you have reached the end of the walkthrough, you should pass through it again but adding code for the new AMM this time. The second pass through will allow you to fully focus on your AMM implementation instead of library architecture. As always, feel free to ask any questions in the DF discord if you run into any challenges.
+The recommended way to read this document is to fully read through the entire walkthrough once, without writing any code. This will allow you to grok the moving parts of the library as well as the architecture of the code without having to worry about AMM design before you know how everything fits together. The first read should be slow and steady, taking about 30 min. Then when you have reached the end of the walkthrough, you should pass through it again but adding code for the new AMM this time. The second pass through will allow you to fully focus on your AMM implementation instead of library architecture. As always, feel free to ask any questions in the DF discord if you run into any challenges.
 
 
 ## Adding a new AMM
@@ -483,7 +483,7 @@ Once you have implemented the `AutomatedMarketMakerFactory` trait, the next step
 
 Similarly to adding a new AMM to the `AMM` enum, you can add a new factory to the `Factory` enum by creating a new `Factory` variant and using your new factory type as the inner value as seen below.
 
-File: src/amm/factory.rs
+`File: src/amm/factory.rs`
 ```rust
 #[derive(Clone, Copy, Serialize, Deserialize)]
 pub enum Factory {
@@ -493,11 +493,9 @@ pub enum Factory {
 }
 ```
 
-I'm sure you noticed, that change introduced a few compiler errors. The good news is that everything is contained to `src/amm/factory.rs`.
+I'm sure you noticed, that change introduced a few compiler errors. The good news is that everything is contained in one spot within `src/amm/factory.rs`. You will need to add the new `Factory` variant is in the `AutomatedMarketMakerFactory` implementation for the `Factory` enum. Drop the new factory variant into each of the functions as seen below.
 
-The first spot that you will need to add the new `Factory` variant is in the `AutomatedMarketMakerFactory` implementation for the `Factory` enum. Drop the new factory variant into each of the functions as seen below.
-
-File: src/amm/factory.rs
+`File: src/amm/factory.rs`
 ```rust
 #[async_trait]
 impl AutomatedMarketMakerFactory for Factory {
@@ -573,4 +571,19 @@ impl AutomatedMarketMakerFactory for Factory {
 }
 ```
 
+<br>
 
+## Add peripheral functions
+
+Add any peripheral functions that might be helpful for the factory. Feel free to checkout the `UniswapV2Factory` in `src/amm/uniswap_v2/factory.rs` or `UniswapV3Factory` in `src/amm/uniswap_v3_factory.rs` for inspiration.
+
+<br>
+
+## Add tests
+
+Just like with the AMM integration, make sure to add tests for all of the new functions introduced by your factory. It was said earlier but worth saying again, quality tests will save long nights of debugging for a needle in a haystack. The goal is to make sure that we have tests for all functions to ensure confidence and stability in production mev systems.
+
+
+## Add the factory to `discovery`
+
+The discovery mod uses AMM factories to discover protocols that adhere to the factory's interface. A walkthrough on how to add a factory to the `discovery` module is coming soon.
