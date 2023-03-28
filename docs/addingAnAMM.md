@@ -160,11 +160,11 @@ impl AutomatedMarketMaker for AMM {
         }
     }
 
-    fn sync_on_event_signature(&self) -> H256 {
+    fn sync_on_event_signatures(&self) -> Vec<H256> {
         match self {
-            AMM::UniswapV2Pool(pool) => pool.sync_on_event_signature(),
-            AMM::UniswapV3Pool(pool) => pool.sync_on_event_signature(),
-            AMM::YourNewAMM(your_new_amm) => your_new_amm.sync_on_event_signature(),
+            AMM::UniswapV2Pool(pool) => pool.sync_on_event_signatures(),
+            AMM::UniswapV3Pool(pool) => pool.sync_on_event_signatures(),
+            AMM::YourNewAMM(your_new_amm) => your_new_amm.sync_on_event_signatures(),
         }
     }
 
@@ -382,8 +382,9 @@ Now that your new AMM is integrated into the `AMM` enum, its time to add periphe
 
 - `pub fn fee(&self) -> u32`: If there is a fee associated with the AMM, it should be returned with this method.
 
-- `pub fn swap_calldata(args) -> Bytes`: This function takes in all of the arguments necessary for swapping tokens and returns the calldata that could be passed into a transaction or multicall.
+- `pub fn swap_calldata(&self, args) -> Bytes`: This function takes in all of the arguments necessary for swapping tokens and returns the calldata that could be passed into a transaction or multicall.
 
+- `pub fn sync_from_log(&self, log: &Log) -> Result<(), DAMMError<M>>`: Handles any logs and syncs the AMM accordingly. It is possible that an AMM needs to listen for multiple logs. If this is the case, this function should have pattern matching for each event signature and handle the log accordingly. This function should return an error if the log passed in does not match any signatures related to the AMM.
 
 In addition to the functions above, feel free to write any other functions that might be useful like helper functions, calculations, etc.
 
