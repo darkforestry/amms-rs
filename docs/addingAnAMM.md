@@ -397,6 +397,40 @@ Last but not least, make sure to add tests for all of the new functions introduc
 <br>
 
 
-## Adding a new AMM Factory
+## Adding a new AMM factory
 
-Many AMMs will have a factory that is responsible for deploying / managing automated market makers associated with a protocol. Some AMMs might not have a factor however, it is very typical for DEXs and other CFMMs to have one. In the case that your AMM has a factory, we will add it to `damms` to enable identification of all AMMs related to that factory. An example of this is the UniswapV2Factory. This contract deploys all of the UniswapV2 pools and through the factory, we can identify every pool within the UniswapV2 ecosystem. 
+Many AMMs will have a factory that is responsible for deploying / managing automated market makers associated with a protocol. Some AMMs might not have a factor however, it is very typical for DEXs and other CFMMs to have one. In the case that your AMM has a factory, we will add it to `damms` to enable identification of all AMMs related to that factory. An example of this is the UniswapV2Factory. This contract deploys all of the UniswapV2 pools and through the factory, we can identify every pool within the UniswapV2 ecosystem. In the following sections, we will walk through creating a factory type,k implementing the `AutomatedMarketMakerFactory` trait, adding the factory to the `Factory` enum, adding peripheral functions, adding tests and lastly adding the factory to the discovery module. This process is very similar to creating a new AMM by design. Let's get started.
+
+
+<br>
+
+## Create a new factory type
+
+Let's head back into the `src/amm/your_new_amm/` directory that you created earlier and create a new file called `factory.rs`. Next, head into `src/amm/your_new_amm/mod.rs` and expose the new factory mod as public at the top of the file.
+
+`File: src/amm/your_new_amm/mod.rs`
+```rust
+pub mod factory;
+```
+
+
+Now head back into `your_new_amm/factory.rs` and create a new struct to represent your factory. The factory must have at least an `address` and `creation_block` attribute. Make sure to also implement `#[derive(Clone, Copy, Serialize, Deserialize)]` as traits, these will come in handy later as well. Here is an example of what the `UniswapV2Factory` looks like.
+
+`File: src/amm/uniswap_v2/factory.rs`
+```rust
+
+#[derive(Clone, Copy, Serialize, Deserialize)]
+pub struct UniswapV2Factory {
+    pub address: H160,
+    pub creation_block: u64,
+    pub fee: u32,
+}
+```
+
+Now that we have a brand new factory type, lets move to the next step. 
+
+<br>
+
+## Implement the `AutomatedMarketMakerFactory` trait
+
+Now we will need to implement the `AutomatedMarketMakerFactory` trait for the newly created factory struct.

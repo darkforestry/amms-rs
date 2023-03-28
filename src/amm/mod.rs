@@ -33,7 +33,6 @@ pub trait AutomatedMarketMaker {
 pub enum AMM {
     UniswapV2Pool(UniswapV2Pool),
     UniswapV3Pool(UniswapV3Pool),
-    X(X),
 }
 
 #[async_trait]

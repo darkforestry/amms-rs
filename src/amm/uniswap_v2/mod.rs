@@ -1,4 +1,6 @@
 pub mod batch_request;
+pub mod factory;
+
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -13,7 +15,6 @@ use crate::{
     amm::AutomatedMarketMaker,
     errors::{ArithmeticError, DAMMError},
 };
-pub mod factory;
 
 use ethers::prelude::abigen;
 
