@@ -322,7 +322,7 @@ pub async fn batch_sync_amms_from_checkpoint<M: 'static + Middleware>(
 }
 ```
 
-The last stop on our tour is the `populate_amms` function in `src/sync/mod.rs`. This function is responsible for getting all of the relevant `AMM` data for a given AMM. The content of the `amms` slice must contain the same `AMM` variant.
+The last stop on our tour is the `populate_amms` function in `src/sync/mod.rs`. This function is responsible for getting all of the relevant `AMM` data for a given AMM. The content of the `amms` slice must contain the same `AMM` variant. There are two approaches to fetching the data. You can either create a [batch contract]() to get data for each of the AMMs in the vec in chunks or populate the data one by one. For the example below, we will implement data population without a batch contract.
 
 ```rust
 
@@ -354,13 +354,11 @@ pub async fn populate_amms<M: Middleware>(
                 }
             }
 
-
+            //Populate data for each amm
             AMM::YourNewAMM(_)=>{
-
                 for amm in amms{
                     amm.populate_data()
                 }
-
             }
         }
     } else {
