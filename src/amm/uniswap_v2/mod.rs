@@ -9,6 +9,7 @@ use ethers::{
     providers::Middleware,
     types::{Log, H160, H256, U256},
 };
+use num_bigfloat::BigFloat;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -35,6 +36,12 @@ abigen!(
     ]"#;
 );
 
+pub const U128_0X10000000000000000: u128 = 18446744073709551616;
+pub const SYNC_EVENT_SIGNATURE: H256 = H256([
+    28, 65, 30, 154, 150, 224, 113, 36, 28, 47, 33, 247, 114, 107, 23, 174, 137, 227, 202, 180,
+    199, 139, 229, 14, 6, 43, 3, 169, 255, 251, 186, 209,
+]);
+
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
 pub struct UniswapV2Pool {
     pub address: H160,
@@ -46,11 +53,6 @@ pub struct UniswapV2Pool {
     pub reserve_1: u128,
     pub fee: u32,
 }
-
-pub const SYNC_EVENT_SIGNATURE: H256 = H256([
-    28, 65, 30, 154, 150, 224, 113, 36, 28, 47, 33, 247, 114, 107, 23, 174, 137, 227, 202, 180,
-    199, 139, 229, 14, 6, 43, 3, 169, 255, 251, 186, 209,
-]);
 
 #[async_trait]
 impl AutomatedMarketMaker for UniswapV2Pool {
@@ -473,10 +475,9 @@ pub fn div_uu(x: U256, y: U256) -> Result<u128, ArithmeticError> {
 
 //Converts a Q64 fixed point to a Q16 fixed point -> f64
 pub fn q64_to_f64(x: u128) -> f64 {
-    let decimals = ((x & 0xFFFFFFFFFFFFFFFF_u128) >> 48) as u32;
-    let integers = ((x >> 64) & 0xFFFF) as u32;
-
-    ((integers << 16) + decimals) as f64 / 2_f64.powf(16.0)
+    BigFloat::from(x)
+        .div(&BigFloat::from(U128_0X10000000000000000))
+        .to_f64()
 }
 
 #[cfg(test)]
