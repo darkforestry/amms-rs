@@ -63,7 +63,7 @@ impl AutomatedMarketMaker for UniswapV2Pool {
         Ok(())
     }
 
-    fn sync_on_event(&self) -> H256 {
+    fn sync_on_event_signature(&self) -> H256 {
         SYNC_EVENT_SIGNATURE
     }
 

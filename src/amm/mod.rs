@@ -19,7 +19,7 @@ use self::{uniswap_v2::UniswapV2Pool, uniswap_v3::UniswapV3Pool};
 pub trait AutomatedMarketMaker {
     fn address(&self) -> H160;
     async fn sync<M: Middleware>(&mut self, middleware: Arc<M>) -> Result<(), DAMMError<M>>;
-    fn sync_on_event(&self) -> H256;
+    fn sync_on_event_signature(&self) -> H256;
     fn tokens(&self) -> Vec<H160>;
     fn calculate_price(&self, base_token: H160) -> Result<f64, ArithmeticError>;
 }
@@ -46,10 +46,10 @@ impl AutomatedMarketMaker for AMM {
         }
     }
 
-    fn sync_on_event(&self) -> H256 {
+    fn sync_on_event_signature(&self) -> H256 {
         match self {
-            AMM::UniswapV2Pool(pool) => pool.sync_on_event(),
-            AMM::UniswapV3Pool(pool) => pool.sync_on_event(),
+            AMM::UniswapV2Pool(pool) => pool.sync_on_event_signature(),
+            AMM::UniswapV3Pool(pool) => pool.sync_on_event_signature(),
         }
     }
 

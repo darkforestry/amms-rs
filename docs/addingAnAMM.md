@@ -37,3 +37,55 @@ Welcome to the first and easiest step of the walkthrough. Currently all AMMs are
             - mod.rs
 ```
 
+Thats it for this step, great job and congrats (insert champagne popping gif here).
+
+
+
+### Crate a new AMM type
+Now lets head to the newly created `mod.rs` file in the directory that you just initialized and write some code. Within this file, you will want to create a new struct for your AMM. Here is an example of what the `UniswapV2Pool` type looks like to get a rough idea of what the type should look like. Your new AMM will potentially look very different depending on the mechanics of the AMM itself.
+
+```rust
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
+pub struct UniswapV2Pool {
+    pub address: H160,
+    pub token_a: H160,
+    pub token_a_decimals: u8,
+    pub token_b: H160,
+    pub token_b_decimals: u8,
+    pub reserve_0: u128,
+    pub reserve_1: u128,
+    pub fee: u32,
+}
+```
+
+Make sure that you have an `address` field in your struct as this will come in handy later. Also, make sure to implement the traits defined above the `UniswapV2Pool` (`#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
+`) on your struct as these will also be important later during syncing. Make sure that the struct is as lean as possible, but don't compromise simplicity. If it makes swap simulation much easier to store a specific attribute in your struct at the cost of size, it probably makes sense to do so. If you are unsure, feel free to get some feedback in the DF discord channel. 
+
+Now that we have a newly created struct, lets head to the next section.
+
+
+### Implement the `AutomatedMarketMaker` trait
+
+Now we will need to implement the `AutomatedMarketMaker` on your newly created struct. Lets take a look at the trait.
+
+```rust
+#[async_trait]
+pub trait AutomatedMarketMaker {
+    fn address(&self) -> H160;    
+    fn tokens(&self) -> Vec<H160>;
+    fn calculate_price(&self, base_token: H160) -> Result<f64, ArithmeticError>;
+    async fn sync<M: Middleware>(&mut self, middleware: Arc<M>) -> Result<(), DAMMError<M>>;
+    fn sync_on_event_signature(&self) -> H256;
+}
+```
+
+Let's walk through what each function does. 
+- `address`  simply returns the address for the given AMM. 
+- `tokens` returns all of the tokens in the AMM as a `Vec<H160>`. For example, a `UniswapV2Pool` returns `[token_0, token_1]`. 
+- `calculate_price` returns the price of `base_token` in the pool.
+- `sync` gets any relevant AMM data at the most recent block. For example, the `sync` method for the `UniswapV2Pool` syncs `reserve0` and `reserve1`.
+- `sync_on_event_signature` returns the event signature to subscribe to that will signal state changes in the AMM.
+
+
+Once you have implemented the `AutomatedMarketMaker` trait, the next step is to add the new AMM to the `AMM` enum.
+
