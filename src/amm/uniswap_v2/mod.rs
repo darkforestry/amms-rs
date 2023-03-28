@@ -73,8 +73,8 @@ impl AutomatedMarketMaker for UniswapV2Pool {
         Ok(())
     }
 
-    fn sync_on_event_signature(&self) -> H256 {
-        SYNC_EVENT_SIGNATURE
+    fn sync_on_event_signatures(&self) -> Vec<H256> {
+        vec![SYNC_EVENT_SIGNATURE]
     }
 
     //Calculates base/quote, meaning the price of base token per quote (ie. exchange rate is X base per 1 quote)

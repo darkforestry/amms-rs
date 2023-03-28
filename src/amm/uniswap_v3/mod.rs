@@ -86,8 +86,8 @@ impl AutomatedMarketMaker for UniswapV3Pool {
         Ok(())
     }
 
-    fn sync_on_event_signature(&self) -> H256 {
-        SWAP_EVENT_SIGNATURE
+    fn sync_on_event_signatures(&self) -> Vec<H256> {
+        vec![SWAP_EVENT_SIGNATURE]
     }
 
     fn tokens(&self) -> Vec<H160> {

@@ -94,7 +94,7 @@ Now we will need to implement the `AutomatedMarketMaker` on your newly created s
 pub trait AutomatedMarketMaker {
     fn address(&self) -> H160;
     async fn sync<M: Middleware>(&mut self, middleware: Arc<M>) -> Result<(), DAMMError<M>>;
-    fn sync_on_event_signature(&self) -> H256;
+    fn sync_on_event_signatures(&self) -> Vec<H256>;
     fn tokens(&self) -> Vec<H160>;
     fn calculate_price(&self, base_token: H160) -> Result<f64, ArithmeticError>;
     async fn populate_data<M: Middleware>(
@@ -110,7 +110,7 @@ Let's walk through what each function does.
 - `tokens` returns all of the tokens in the AMM as a `Vec<H160>`. For example, a `UniswapV2Pool` returns `[token_0, token_1]`. 
 - `calculate_price` returns the price of `base_token` in the pool.
 - `sync` gets any relevant AMM data at the most recent block. For example, the `sync` method for the `UniswapV2Pool` syncs `reserve0` and `reserve1`.
-- `sync_on_event_signature` returns the event signature to subscribe to that will signal state changes in the AMM.
+- `sync_on_event_signatures` returns all event signatures to subscribe to that will signal state changes in the AMM.
 - `populate_data` fetches all of the peripheral AMM data (token addresses, token decimals, etc.) 
 
 
