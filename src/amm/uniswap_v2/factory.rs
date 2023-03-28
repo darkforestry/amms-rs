@@ -6,6 +6,7 @@ use ethers::{
     providers::Middleware,
     types::{BlockNumber, Log, H160, H256, U256},
 };
+use serde::{Serialize, Deserialize};
 
 use crate::{
     amm::{factory::AutomatedMarketMakerFactory, AMM},
@@ -32,7 +33,7 @@ pub const PAIR_CREATED_EVENT_SIGNATURE: H256 = H256([
     131, 85, 205, 222, 253, 227, 26, 250, 40, 208, 233,
 ]);
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Serialize, Deserialize)]
 pub struct UniswapV2Factory {
     pub address: H160,
     pub creation_block: u64,

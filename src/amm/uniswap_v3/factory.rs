@@ -6,6 +6,7 @@ use ethers::{
     providers::Middleware,
     types::{BlockNumber, Filter, Log, ValueOrArray, H160, H256, U256, U64},
 };
+use serde::{Deserialize, Serialize};
 
 use crate::{
     amm::{factory::AutomatedMarketMakerFactory, AMM},
@@ -14,7 +15,7 @@ use crate::{
 
 use super::{batch_request, UniswapV3Pool};
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Serialize, Deserialize)]
 pub struct UniswapV3Factory {
     pub address: H160,
     pub creation_block: u64,

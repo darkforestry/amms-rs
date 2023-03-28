@@ -5,6 +5,7 @@ use ethers::{
     providers::Middleware,
     types::{BlockNumber, Filter, Log, ValueOrArray, H160, H256, U256, U64},
 };
+use serde::{Deserialize, Serialize};
 
 use crate::errors::DAMMError;
 
@@ -36,7 +37,7 @@ pub trait AutomatedMarketMakerFactory {
     ) -> Result<AMM, DAMMError<M>>;
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Serialize, Deserialize)]
 pub enum Factory {
     UniswapV2Factory(UniswapV2Factory),
     UniswapV3Factory(UniswapV3Factory),

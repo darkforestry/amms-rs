@@ -9,6 +9,7 @@ use ethers::{
     providers::Middleware,
     types::{Log, H160, H256, U256},
 };
+use serde::{Serialize, Deserialize};
 
 use crate::errors::{ArithmeticError, DAMMError};
 
@@ -23,6 +24,7 @@ pub trait AutomatedMarketMaker {
     fn calculate_price(&self, base_token: H160) -> Result<f64, ArithmeticError>;
 }
 
+#[derive(Clone, Copy, Serialize, Deserialize)]
 pub enum AMM {
     UniswapV2Pool(UniswapV2Pool),
     UniswapV3Pool(UniswapV3Pool),
