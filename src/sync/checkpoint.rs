@@ -57,7 +57,6 @@ impl Checkpoint {
 pub async fn sync_amms_from_checkpoint<M: 'static + Middleware>(
     path_to_checkpoint: &str,
     step: usize,
-    requests_per_second_limit: usize,
     middleware: Arc<M>,
 ) -> Result<(Vec<Factory>, Vec<AMM>), DAMMError<M>> {
     let current_block = middleware

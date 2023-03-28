@@ -8,6 +8,7 @@ use crate::{
 
 use ethers::providers::Middleware;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+use spinoff::{spinners, Color, Spinner};
 use std::{
     panic::resume_unwind,
     sync::{Arc, Mutex},
@@ -19,6 +20,8 @@ pub async fn sync_amms<M: 'static + Middleware>(
     middleware: Arc<M>,
     checkpoint_path: Option<&str>,
 ) -> Result<Vec<AMM>, DAMMError<M>> {
+    let spinner = Spinner::new(spinners::Dots, "Syncing AMMs...", Color::Blue);
+
     let current_block = middleware
         .get_block_number()
         .await
@@ -39,6 +42,7 @@ pub async fn sync_amms<M: 'static + Middleware>(
             populate_amms(&mut amms, middleware.clone()).await?;
             //Clean empty pools
             amms = remove_empty_amms(amms);
+
             Ok::<_, DAMMError<M>>(amms)
         }));
     }
@@ -68,6 +72,7 @@ pub async fn sync_amms<M: 'static + Middleware>(
             checkpoint_path,
         )
     }
+    spinner.success("AMMs synced");
 
     //Return the populated aggregated amms vec
     Ok(aggregated_amms)
