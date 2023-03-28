@@ -1,3 +1,4 @@
 /target
 /contracts/out
 /cache
+.env
