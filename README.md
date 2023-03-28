@@ -17,6 +17,10 @@ cargo doc --open
 ## Adding an AMM
  - TODO: Add a straight forward explanation of what needs to happen to add a new AMM
 
+Adhere to the interface you will see where it breaks but also highlight where it breaks
+Also add sim swap, sim swap mut, swap calldata, and list others
+
+
 
 ## Running Examples
 
