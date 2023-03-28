@@ -21,8 +21,7 @@ Most AMMs will have a factory that is responsible for deploying the AMM. This fa
 - Add your factory to the `Factory` enum
 - Add peripheral functions
 - Add tests
-
-Lastly, we will add the new AMM and factory to the discovery module (walkthrough coming soon).
+- Add the factory to the `discovery` module
 
 With the overview out of the way, let's start by creating a mod for your brand new AMM.
 
@@ -394,3 +393,10 @@ In addition to the functions above, feel free to write any other functions that 
 ## Add tests
 
 Last but not least, make sure to add tests for all of the new functions introduced by your AMM. Quality tests will save long nights of debugging for a needle in a haystack. The goal is to make sure that we have tests for all functions to ensure confidence and stability in production mev systems.
+
+<br>
+
+
+## Adding a new AMM Factory
+
+Many AMMs will have a factory that is responsible for deploying / managing automated market makers associated with a protocol. Some AMMs might not have a factor however, it is very typical for DEXs and other CFMMs to have one. In the case that your AMM has a factory, we will add it to `damms` to enable identification of all AMMs related to that factory. An example of this is the UniswapV2Factory. This contract deploys all of the UniswapV2 pools and through the factory, we can identify every pool within the UniswapV2 ecosystem. 
