@@ -370,3 +370,20 @@ pub async fn populate_amms<M: Middleware>(
 }
 ```
 
+
+## Add peripheral functions
+
+Now that your new AMM is integrated into the `AMM` enum, its time to add peripheral functions. These are functions that are generally useful and specific to your AMM. These functions are not included in the `AutomatedMarketMaker` trait definition since different AMMs can have very specific internals, making it overly complex/inefficient to write a generic interface that encompasses all AMM variants now and in the future. While you won't get a compiler error if you do not integrate these functions, the following functions are necessary to have full functionality for swap routing and transaction creation.
+
+- `pub fn simulate_swap(&self, token_in: H160, amount_in: U256) -> U256`: This function enables swap simulation which is critical for routing. Since the function does not have to adhere to a specific interface, you can add additional arguments like `token_out` or similar that relate specifically to your AMM. An `amount_out` represented as a `U256` should always be returned.
+
+- `pub fn simulate_swap_mut(&self, token_in: H160, amount_in: U256) -> U256`: This function should be identical to the `simulate_swap` function with the difference being that the AMM should be mutated from the resulting swap. For example, on a UniswapV2 pool, `simulate_swap` simply returns the amount out, while `simulate_swap_mut` returns the amount_out and mutates the reserves based on the amount in.
+
+- `pub fn fee(&self) -> u32`: If there is a fee associated with the AMM, it should be returned with this method.
+
+- `pub fn swap_calldata(args) -> Bytes`: This function takes in all of the arguments necessary for swapping tokens and returns the calldata that could be passed into a transaction or multicall.
+
+
+In addition to the above functions, feel free to write any other functions that might be useful like helper functions, calculations, etc.
+
+
