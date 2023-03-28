@@ -9,7 +9,11 @@ use serde::{Deserialize, Serialize};
 
 use crate::errors::DAMMError;
 
-use super::{uniswap_v2::factory::UniswapV2Factory, uniswap_v3::factory::UniswapV3Factory, AMM};
+use super::{
+    uniswap_v2::{factory::UniswapV2Factory, UniswapV2Pool},
+    uniswap_v3::factory::UniswapV3Factory,
+    AMM,
+};
 
 #[async_trait]
 pub trait AutomatedMarketMakerFactory {
@@ -35,12 +39,57 @@ pub trait AutomatedMarketMakerFactory {
         log: Log,
         middleware: Arc<M>,
     ) -> Result<AMM, DAMMError<M>>;
+
+    fn new_empty_amm_from_log(&self, log: Log) -> Result<AMM, ethers::abi::Error>;
 }
 
 #[derive(Clone, Copy, Serialize, Deserialize)]
 pub enum Factory {
     UniswapV2Factory(UniswapV2Factory),
     UniswapV3Factory(UniswapV3Factory),
+    YourNewFactory,
+}
+
+pub struct YourNewFactoryStruct {}
+
+#[async_trait]
+impl AutomatedMarketMakerFactory for YourNewFactoryStruct {
+    fn address(&self) -> H160 {
+        H160::zero()
+    }
+
+    fn creation_block(&self) -> u64 {
+        0
+    }
+
+    fn amm_created_event_signature(&self) -> H256 {
+        H256::zero()
+    }
+
+    async fn new_amm_from_log<M: Middleware>(
+        &self,
+        log: Log,
+        middleware: Arc<M>,
+    ) -> Result<AMM, DAMMError<M>> {
+        Ok(AMM::UniswapV2Pool(
+            UniswapV2Pool::new_from_address(H160::zero(), 0, middleware).await?,
+        ))
+    }
+
+    async fn get_all_amms<M: Middleware>(
+        &self,
+        middleware: Arc<M>,
+    ) -> Result<Vec<AMM>, DAMMError<M>> {
+        Ok(vec![])
+    }
+
+    async fn populate_amm_data<M: Middleware>(
+        &self,
+        amms: &mut [AMM],
+        middleware: Arc<M>,
+    ) -> Result<(), DAMMError<M>> {
+        Ok(())
+    }
 }
 
 #[async_trait]
@@ -67,6 +116,13 @@ impl AutomatedMarketMakerFactory for Factory {
         match self {
             Factory::UniswapV2Factory(factory) => factory.new_amm_from_log(log, middleware).await,
             Factory::UniswapV3Factory(factory) => factory.new_amm_from_log(log, middleware).await,
+        }
+    }
+
+    fn new_empty_amm_from_log(&self, log: Log) -> Result<AMM, ethers::abi::Error> {
+        match self {
+            Factory::UniswapV2Factory(factory) => factory.new_empty_amm_from_log(log),
+            Factory::UniswapV3Factory(factory) => factory.new_empty_amm_from_log(log),
         }
     }
 
@@ -137,24 +193,10 @@ impl Factory {
                 .await
                 .map_err(DAMMError::MiddlewareError)?;
 
-            match self {
-                Factory::UniswapV2Factory(uniswap_v2_factory) => {
-                    //For each pair created log, create a new Pair type and add it to the pairs vec
-                    for log in logs {
-                        let amm = uniswap_v2_factory.new_empty_amm_from_log(log)?;
-                        aggregated_amms.push(amm);
-                    }
-                }
-                Factory::UniswapV3Factory(uniswap_v3_factory) => {
-                    //For each pair created log, create a new Pair type and add it to the pairs vec
-                    for log in logs {
-                        let amm = uniswap_v3_factory.new_empty_amm_from_log(log)?;
-                        aggregated_amms.push(amm);
-                    }
-                }
+            for log in logs {
+                let amm = self.new_empty_amm_from_log(log)?;
+                aggregated_amms.push(amm);
             }
-
-            //Increment the progress bar by the step
         }
 
         Ok(aggregated_amms)

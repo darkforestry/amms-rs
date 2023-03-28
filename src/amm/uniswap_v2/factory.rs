@@ -101,24 +101,6 @@ impl UniswapV2Factory {
 
         Ok(amms)
     }
-
-    pub fn new_empty_amm_from_log<M: Middleware>(&self, log: Log) -> Result<AMM, DAMMError<M>> {
-        let tokens = ethers::abi::decode(&[ParamType::Address, ParamType::Uint(256)], &log.data)?;
-        let token_a = H160::from(log.topics[0]);
-        let token_b = H160::from(log.topics[1]);
-        let address = tokens[0].to_owned().into_address().unwrap();
-
-        Ok(AMM::UniswapV2Pool(UniswapV2Pool {
-            address,
-            token_a,
-            token_b,
-            token_a_decimals: 0,
-            token_b_decimals: 0,
-            reserve_0: 0,
-            reserve_1: 0,
-            fee: 300,
-        }))
-    }
 }
 
 #[async_trait]
@@ -142,6 +124,24 @@ impl AutomatedMarketMakerFactory for UniswapV2Factory {
         Ok(AMM::UniswapV2Pool(
             UniswapV2Pool::new_from_address(pair_address, self.fee, middleware).await?,
         ))
+    }
+
+    fn new_empty_amm_from_log(&self, log: Log) -> Result<AMM, ethers::abi::Error> {
+        let tokens = ethers::abi::decode(&[ParamType::Address, ParamType::Uint(256)], &log.data)?;
+        let token_a = H160::from(log.topics[0]);
+        let token_b = H160::from(log.topics[1]);
+        let address = tokens[0].to_owned().into_address().unwrap();
+
+        Ok(AMM::UniswapV2Pool(UniswapV2Pool {
+            address,
+            token_a,
+            token_b,
+            token_a_decimals: 0,
+            token_b_decimals: 0,
+            reserve_0: 0,
+            reserve_1: 0,
+            fee: 300,
+        }))
     }
 
     async fn get_all_amms<M: Middleware>(

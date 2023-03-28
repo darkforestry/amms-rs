@@ -81,6 +81,28 @@ impl AutomatedMarketMakerFactory for UniswapV3Factory {
 
         Ok(())
     }
+
+    fn new_empty_amm_from_log(&self, log: Log) -> Result<AMM, ethers::abi::Error> {
+        let tokens = ethers::abi::decode(&[ParamType::Uint(32), ParamType::Address], &log.data)?;
+        let token_a = H160::from(log.topics[0]);
+        let token_b = H160::from(log.topics[1]);
+        let fee = tokens[0].to_owned().into_uint().unwrap().as_u32();
+        let address = tokens[1].to_owned().into_address().unwrap();
+
+        Ok(AMM::UniswapV3Pool(UniswapV3Pool {
+            address,
+            token_a,
+            token_b,
+            token_a_decimals: 0,
+            token_b_decimals: 0,
+            fee,
+            liquidity: 0,
+            sqrt_price: U256::zero(),
+            tick_spacing: 0,
+            tick: 0,
+            liquidity_net: 0,
+        }))
+    }
 }
 
 impl UniswapV3Factory {
@@ -136,27 +158,5 @@ impl UniswapV3Factory {
         }
 
         Ok(aggregated_amms)
-    }
-
-    pub fn new_empty_amm_from_log<M: Middleware>(&self, log: Log) -> Result<AMM, DAMMError<M>> {
-        let tokens = ethers::abi::decode(&[ParamType::Uint(32), ParamType::Address], &log.data)?;
-        let token_a = H160::from(log.topics[0]);
-        let token_b = H160::from(log.topics[1]);
-        let fee = tokens[0].to_owned().into_uint().unwrap().as_u32();
-        let address = tokens[1].to_owned().into_address().unwrap();
-
-        Ok(AMM::UniswapV3Pool(UniswapV3Pool {
-            address,
-            token_a,
-            token_b,
-            token_a_decimals: 0,
-            token_b_decimals: 0,
-            fee,
-            liquidity: 0,
-            sqrt_price: U256::zero(),
-            tick_spacing: 0,
-            tick: 0,
-            liquidity_net: 0,
-        }))
     }
 }

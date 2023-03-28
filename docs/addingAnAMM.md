@@ -124,7 +124,6 @@ Now that your new AMM type is officially an `AutomatedMarketMaker`, we will add 
 
 File: src/amm/mod.rs
 ```rust
-#[async_trait]
 #[derive(Clone, Copy, Serialize, Deserialize)]
 pub enum AMM {
     UniswapV2Pool(UniswapV2Pool),
@@ -134,8 +133,6 @@ pub enum AMM {
 ```
 
 And all of a sudden, red everywhere. You will notice that after adding your AMM variant, many things break. Fear not, this is a feature not a bug. `damms` uses exhaustive pattern matching for the `AMM` enum so that you know exactly where to add your new variant throughout the codebase. Let's take a look at each spot.
-
-
 
 The first spot we need to add code is the `AutomatedMarketMaker` implementation for the `AMM` enum. We use an enum dispatch so that we can put all `AMM` variants in a collection and call any of the `AutomatedMarketMaker` methods on the `AMM` enum itself without having to match on the inner types.
 
@@ -434,4 +431,146 @@ Now that we have a brand new factory type, lets move to the next step.
 
 ## Implement the `AutomatedMarketMakerFactory` trait
 
-Now we will need to implement the `AutomatedMarketMakerFactory` trait for the newly created factory struct.
+Now we will need to implement the `AutomatedMarketMakerFactory` trait for the newly created factory struct. Let's take a look at the trait.
+
+`File: src/amm/factory.rs`
+```rust
+#[async_trait]
+pub trait AutomatedMarketMakerFactory {
+    fn address(&self) -> H160;
+    fn amm_created_event_signature(&self) -> H256;
+    fn new_empty_amm_from_log(&self, log: Log) -> Result<AMM, ethers::abi::Error>;
+    fn creation_block(&self) -> u64;
+
+   async fn new_amm_from_log<M: Middleware>(
+        &self,
+        log: Log,
+        middleware: Arc<M>,
+    ) -> Result<AMM, DAMMError<M>>;
+
+    async fn get_all_amms<M: Middleware>(
+        &self,
+        middleware: Arc<M>,
+    ) -> Result<Vec<AMM>, DAMMError<M>>;
+
+    async fn populate_amm_data<M: Middleware>(
+        &self,
+        amms: &mut [AMM],
+        middleware: Arc<M>,
+    ) -> Result<(), DAMMError<M>>;
+}
+```
+
+Let's walk through what each function does. 
+- `address` simply returns the address for the given AMM factory. 
+- `amm_created_event_signature` returns the event signature that signals when an AMM is created from the factory.
+- `new_empty_amm_from_log` creates a new empty AMM that coincides with the factory.
+- `new_amm_from_log` creates a new AMM that coincides with the factory.
+- `get_all_amms` gets all of the amms associated with that factory. For example the `UniswapV2Factory` gets all of the UniswapV2 pools.
+- `populate_amm_data` populates all AMM data for the AMMs that are passed in. The AMMs must be related to the factory.
+- `creation_block` is the block that the factory was created.
+
+
+
+Once you have implemented the `AutomatedMarketMakerFactory` trait, the next step is to add the new factory to the `Factory` enum.
+
+
+<br>
+
+
+## Add your new factory to the `Factory` enum
+
+
+Similarly to adding a new AMM to the `AMM` enum, you can add a new factory to the `Factory` enum by creating a new `Factory` variant and using your new factory type as the inner value as seen below.
+
+File: src/amm/factory.rs
+```rust
+#[derive(Clone, Copy, Serialize, Deserialize)]
+pub enum Factory {
+    UniswapV2Factory(UniswapV2Factory),
+    UniswapV3Factory(UniswapV3Factory),
+    YourNewFactory(YourNewFactoryStruct),
+}
+```
+
+I'm sure you noticed, that change introduced a few compiler errors. The good news is that everything is contained to `src/amm/factory.rs`.
+
+The first spot that you will need to add the new `Factory` variant is in the `AutomatedMarketMakerFactory` implementation for the `Factory` enum. Drop the new factory variant into each of the functions as seen below.
+
+File: src/amm/factory.rs
+```rust
+#[async_trait]
+impl AutomatedMarketMakerFactory for Factory {
+    fn address(&self) -> H160 {
+        match self {
+            Factory::UniswapV2Factory(factory) => factory.address(),
+            Factory::UniswapV3Factory(factory) => factory.address(),
+            Factory::YourNewFactory(factory) => factory.address(),
+        }
+    }
+
+    fn amm_created_event_signature(&self) -> H256 {
+        match self {
+            Factory::UniswapV2Factory(factory) => factory.amm_created_event_signature(),
+            Factory::UniswapV3Factory(factory) => factory.amm_created_event_signature(),
+            Factory::YourNewFactory(factory) => factory.amm_created_event_signature(),
+
+        }
+    }
+
+    async fn new_amm_from_log<M: Middleware>(
+        &self,
+        log: Log,
+        middleware: Arc<M>,
+    ) -> Result<AMM, DAMMError<M>> {
+        match self {
+            Factory::UniswapV2Factory(factory) => factory.new_amm_from_log(log, middleware).await,
+            Factory::UniswapV3Factory(factory) => factory.new_amm_from_log(log, middleware).await,
+            Factory::YourNewFactory(factory) => factory.new_amm_from_log(log, middleware).await,
+
+        }
+    }
+
+    fn new_empty_amm_from_log(&self, log: Log) -> Result<AMM, ethers::abi::Error> {
+        match self {
+            Factory::UniswapV2Factory(factory) => factory.new_empty_amm_from_log(log),
+            Factory::UniswapV3Factory(factory) => factory.new_empty_amm_from_log(log),
+            Factory::YourNewFactory(factory) => factory.new_empty_amm_from_log(log),
+        }
+    }
+
+    async fn get_all_amms<M: Middleware>(
+        &self,
+        middleware: Arc<M>,
+    ) -> Result<Vec<AMM>, DAMMError<M>> {
+        match self {
+            Factory::UniswapV2Factory(factory) => factory.get_all_amms(middleware).await,
+            Factory::UniswapV3Factory(factory) => factory.get_all_amms(middleware).await,
+            Factory::YourNewFactory(factory) => factory.get_all_amms(middleware).await,
+        }
+    }
+
+    async fn populate_amm_data<M: Middleware>(
+        &self,
+        amms: &mut [AMM],
+        middleware: Arc<M>,
+    ) -> Result<(), DAMMError<M>> {
+        match self {
+            Factory::UniswapV2Factory(factory) => factory.populate_amm_data(amms, middleware).await,
+            Factory::UniswapV3Factory(factory) => factory.populate_amm_data(amms, middleware).await,
+            Factory::YourNewFactory(factory) => factory.populate_amm_data(amms, middleware).await,
+        }
+    }
+
+    fn creation_block(&self) -> u64 {
+        match self {
+            Factory::UniswapV2Factory(uniswap_v2_factory) => uniswap_v2_factory.creation_block,
+            Factory::UniswapV3Factory(uniswap_v3_factory) => uniswap_v3_factory.creation_block,
+            Factory::YourNewFactory(factory) => factory.creation_block,
+
+        }
+    }
+}
+```
+
+
