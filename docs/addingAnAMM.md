@@ -38,6 +38,18 @@ Welcome to the first and easiest step of the walkthrough. Currently all AMMs are
             - mod.rs
 ```
 
+After creating the `mod.rs` file, make sure to declare the module as public in `amm/mod.rs` at the top of the file.
+
+
+`File: src/amm/mod.rs`
+```rust
+pub mod factory;
+pub mod uniswap_v2;
+pub mod uniswap_v3;
+pub mod your_new_amm;
+```
+
+
 Thats it for this step, great job and congrats (insert champagne popping gif here).
 
 
@@ -46,7 +58,7 @@ Thats it for this step, great job and congrats (insert champagne popping gif her
 ## Create a new AMM type
 Now lets head to the newly created `mod.rs` file in the directory that you just initialized and write some code. Within this file, you will want to create a new struct for your AMM. Here is an example of what the `UniswapV2Pool` type looks like to get a rough idea of what the type should look like. Your new AMM will potentially look very different depending on the mechanics of the AMM itself.
 
-File: src/amm/uniswap_v2/mod.rs
+`File: src/amm/uniswap_v2/mod.rs`
 ```rust
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
 pub struct UniswapV2Pool {
@@ -74,7 +86,7 @@ Now that we have a newly created struct, lets head to the next section.
 Now we will need to implement the `AutomatedMarketMaker` on your newly created struct. Lets take a look at the trait.
 
 
-File: src/amm/mod.rs
+`File: src/amm/mod.rs`
 ```rust
 #[async_trait]
 pub trait AutomatedMarketMaker {
@@ -115,3 +127,89 @@ pub enum AMM {
 
 And all of a sudden, red everywhere. You will notice that after adding your AMM variant, many things break. Fear not, this is a feature not a bug. `damms` uses exhaustive pattern matching for the `AMM` enum so that you know exactly where to add your new variant throughout the codebase. Lets take a look at each spot.
 
+
+
+The first spot we need to add code is the `AutomatedMarketMaker` implementation for the `AMM` enum. We use an enum dispatch so that we can put all `AMM` variants in a collection and call any of the `AutomatedMarketMaker` methods on the `AMM` enum itself without having to match on the inner types.
+
+`File: src/amm/mod.rs`
+```rust
+
+#[async_trait]
+impl AutomatedMarketMaker for AMM {
+    fn address(&self) -> H160 {
+        match self {
+            AMM::UniswapV2Pool(pool) => pool.address,
+            AMM::UniswapV3Pool(pool) => pool.address,
+            AMM::YourNewAMM(your_new_amm) => your_new_amm.address,
+        }
+    }
+
+    async fn sync<M: Middleware>(&mut self, middleware: Arc<M>) -> Result<(), DAMMError<M>> {
+        match self {
+            AMM::UniswapV2Pool(pool) => pool.sync(middleware).await,
+            AMM::UniswapV3Pool(pool) => pool.sync(middleware).await,
+            AMM::YourNewAMM(your_new_amm) => your_new_amm.sync(middleware).await,
+        }
+    }
+
+    fn sync_on_event_signature(&self) -> H256 {
+        match self {
+            AMM::UniswapV2Pool(pool) => pool.sync_on_event_signature(),
+            AMM::UniswapV3Pool(pool) => pool.sync_on_event_signature(),
+            AMM::YourNewAMM(your_new_amm) => your_new_amm.sync_on_event_signature(),
+        }
+    }
+
+    fn tokens(&self) -> Vec<H160> {
+        match self {
+            AMM::UniswapV2Pool(pool) => pool.tokens(),
+            AMM::UniswapV3Pool(pool) => pool.tokens(),
+            AMM::YourNewAMM(your_new_amm) => your_new_amm.tokens(),
+        }
+    }
+
+    fn calculate_price(&self, base_token: H160) -> Result<f64, ArithmeticError> {
+        match self {
+            AMM::UniswapV2Pool(pool) => pool.calculate_price(base_token),
+            AMM::UniswapV3Pool(pool) => pool.calculate_price(base_token),
+            AMM::YourNewAMM(your_new_amm) => your_new_amm.calculate_price(base_token),
+        }
+    }
+}
+```
+
+
+Next, lets head over to `src/sync/mod.rs`. The following function is responsible for removing AMMs that did not populate correctly from a given `Vec<AMM>`.
+
+
+`File: src/sync/mod.rs`
+```rust
+pub fn remove_empty_amms(amms: Vec<AMM>) -> Vec<AMM> {
+    let mut cleaned_amms = vec![];
+
+    for amm in amms {
+        match amm {
+            AMM::UniswapV2Pool(uniswap_v2_pool) => {
+                if !uniswap_v2_pool.token_a.is_zero() && !uniswap_v2_pool.token_b.is_zero() {
+                    cleaned_amms.push(amm)
+                }
+            }
+
+            AMM::UniswapV3Pool(uniswap_v3_pool) => {
+                if !uniswap_v3_pool.token_a.is_zero() && !uniswap_v3_pool.token_b.is_zero() {
+                    cleaned_amms.push(amm)
+                }
+            }
+
+            AMM::YourNewAMM(your_new_amm) => {
+                //This can be anything to signal that the pool has been populated
+                if your_new_amm.some_condition() {
+                    cleaned_amms.push(amm)
+                }
+            }
+        }
+    }
+
+    cleaned_amms
+}
+```

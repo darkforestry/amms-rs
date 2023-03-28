@@ -1,6 +1,7 @@
 pub mod factory;
 pub mod uniswap_v2;
 pub mod uniswap_v3;
+pub mod x;
 
 use std::sync::Arc;
 
@@ -13,7 +14,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::errors::{ArithmeticError, DAMMError};
 
-use self::{uniswap_v2::UniswapV2Pool, uniswap_v3::UniswapV3Pool};
+use self::{uniswap_v2::UniswapV2Pool, uniswap_v3::UniswapV3Pool, x::X};
 
 #[async_trait]
 pub trait AutomatedMarketMaker {
@@ -28,6 +29,7 @@ pub trait AutomatedMarketMaker {
 pub enum AMM {
     UniswapV2Pool(UniswapV2Pool),
     UniswapV3Pool(UniswapV3Pool),
+    X(X),
 }
 
 #[async_trait]

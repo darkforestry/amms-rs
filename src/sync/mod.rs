@@ -101,8 +101,6 @@ pub async fn populate_amms<M: Middleware>(
                         middleware.clone(),
                     )
                     .await?;
-
-                    // progress_bar.inc(step as u64);
                 }
             }
 
@@ -114,8 +112,6 @@ pub async fn populate_amms<M: Middleware>(
                         middleware.clone(),
                     )
                     .await?;
-
-                    // progress_bar.inc(step as u64);
                 }
             }
         }
@@ -127,23 +123,23 @@ pub async fn populate_amms<M: Middleware>(
     Ok(())
 }
 
-pub fn remove_empty_amms(pools: Vec<AMM>) -> Vec<AMM> {
-    let mut cleaned_pools = vec![];
+pub fn remove_empty_amms(amms: Vec<AMM>) -> Vec<AMM> {
+    let mut cleaned_amms = vec![];
 
-    for pool in pools {
-        match pool {
+    for amm in amms {
+        match amm {
             AMM::UniswapV2Pool(uniswap_v2_pool) => {
-                if !uniswap_v2_pool.token_a.is_zero() {
-                    cleaned_pools.push(pool)
+                if !uniswap_v2_pool.token_a.is_zero() && !uniswap_v2_pool.token_b.is_zero() {
+                    cleaned_amms.push(amm)
                 }
             }
             AMM::UniswapV3Pool(uniswap_v3_pool) => {
-                if !uniswap_v3_pool.token_a.is_zero() {
-                    cleaned_pools.push(pool)
+                if !uniswap_v3_pool.token_a.is_zero() && !uniswap_v3_pool.token_b.is_zero() {
+                    cleaned_amms.push(amm)
                 }
             }
         }
     }
 
-    cleaned_pools
+    cleaned_amms
 }
