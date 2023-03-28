@@ -19,7 +19,7 @@ pub trait AutomatedMarketMakerFactory {
         middleware: Arc<M>,
     ) -> Result<Vec<AMM>, DAMMError<M>>;
 
-    async fn populate_amms<M: Middleware>(
+    async fn populate_amm_data<M: Middleware>(
         &self,
         amms: &mut [AMM],
         middleware: Arc<M>,
@@ -79,14 +79,14 @@ impl AutomatedMarketMakerFactory for Factory {
         }
     }
 
-    async fn populate_amms<M: Middleware>(
+    async fn populate_amm_data<M: Middleware>(
         &self,
         amms: &mut [AMM],
         middleware: Arc<M>,
     ) -> Result<(), DAMMError<M>> {
         match self {
-            Factory::UniswapV2Factory(factory) => factory.populate_amms(amms, middleware).await,
-            Factory::UniswapV3Factory(factory) => factory.populate_amms(amms, middleware).await,
+            Factory::UniswapV2Factory(factory) => factory.populate_amm_data(amms, middleware).await,
+            Factory::UniswapV3Factory(factory) => factory.populate_amm_data(amms, middleware).await,
         }
     }
 
@@ -99,8 +99,7 @@ impl AutomatedMarketMakerFactory for Factory {
 }
 
 impl Factory {
-    //Function to get all pair created events for a given Dex factory address and sync pool data
-    pub async fn get_all_pools_from_logs_within_range<M: 'static + Middleware>(
+    pub async fn get_all_pools_from_logs<M: 'static + Middleware>(
         self,
         from_block: BlockNumber,
         to_block: BlockNumber,
@@ -137,80 +136,26 @@ impl Factory {
                 .await
                 .map_err(DAMMError::MiddlewareError)?;
 
-            //For each pair created log, create a new Pair type and add it to the pairs vec
-            for log in logs {
-                let amm = self.new_empty_pool_from_event(log)?;
-                aggregated_pairs.push(pool);
+            match self {
+                Factory::UniswapV2Factory(uniswap_v2_factory) => {
+                    //For each pair created log, create a new Pair type and add it to the pairs vec
+                    for log in logs {
+                        let amm = uniswap_v2_factory.new_empty_amm_from_log(log)?;
+                        aggregated_amms.push(amm);
+                    }
+                }
+                Factory::UniswapV3Factory(uniswap_v3_factory) => {
+                    //For each pair created log, create a new Pair type and add it to the pairs vec
+                    for log in logs {
+                        let amm = uniswap_v3_factory.new_empty_amm_from_log(log)?;
+                        aggregated_amms.push(amm);
+                    }
+                }
             }
 
             //Increment the progress bar by the step
-            progress_bar.inc(step as u64);
         }
 
-        Ok(aggregated_pairs)
-    }
-
-    //Function to get all pair created events for a given Dex factory address and sync pool data
-    pub async fn get_all_pools_from_logs<M: 'static + Middleware>(
-        self,
-        current_block: BlockNumber,
-        step: usize,
-        request_throttle: Arc<Mutex<RequestThrottle>>,
-        progress_bar: ProgressBar,
-        middleware: Arc<M>,
-    ) -> Result<Vec<AMM>, DAMMError<M>> {
-        //Unwrap can be used here because the creation block was verified within `Dex::new()`
-        let from_block = self
-            .creation_block()
-            .as_number()
-            .expect("Error converting creation block as number")
-            .as_u64();
-        let current_block = current_block
-            .as_number()
-            .expect("Error converting current block as number")
-            .as_u64();
-
-        let mut aggregated_amms: Vec<AMM> = vec![];
-
-        //Initialize the progress bar message
-        progress_bar.set_length(current_block - from_block);
-
-        //For each block within the range, get all pairs asynchronously
-        for from_block in (from_block..=current_block).step_by(step) {
-            let request_throttle = request_throttle.clone();
-            let provider = middleware.clone();
-            let progress_bar = progress_bar.clone();
-
-            //Get pair created event logs within the block range
-            let to_block = from_block + step as u64;
-
-            //Update the throttle
-            request_throttle
-                .lock()
-                .expect("Error when acquiring request throttle mutex lock")
-                .increment_or_sleep(1);
-
-            let logs = provider
-                .get_logs(
-                    &Filter::new()
-                        .topic0(ValueOrArray::Value(self.pool_created_event_signature()))
-                        .address(self.factory_address())
-                        .from_block(BlockNumber::Number(U64([from_block])))
-                        .to_block(BlockNumber::Number(U64([to_block]))),
-                )
-                .await
-                .map_err(CFMMError::MiddlewareError)?;
-
-            //For each pair created log, create a new Pair type and add it to the pairs vec
-            for log in logs {
-                let pool = self.new_empty_pool_from_event(log)?;
-                aggregated_pairs.push(pool);
-            }
-
-            //Increment the progress bar by the step
-            progress_bar.inc(step as u64);
-        }
-
-        Ok(aggregated_pairs)
+        Ok(aggregated_amms)
     }
 }

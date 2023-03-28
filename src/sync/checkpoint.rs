@@ -17,7 +17,7 @@ use serde_json::{Map, Value};
 use tokio::task::JoinHandle;
 
 use crate::{
-    amm::{AMM, factory::Factory},
+    amm::{AMM, factory::{Factory, AutomatedMarketMakerFactory}},
     errors::DAMMError,
     sync,
 };
@@ -179,7 +179,7 @@ pub async fn get_new_pools_from_range<M: 'static + Middleware>(
 
             
             let mut pools = factory
-                .get_all_pools_from_logs_within_range(
+                .get_all_pools_from_logs(
                     from_block,
                     to_block,
                     step,
@@ -188,7 +188,7 @@ pub async fn get_new_pools_from_range<M: 'static + Middleware>(
                 .await?;
 
 
-                factory.get_all_pool_data(
+                factory.populate_amm_data(
                 &mut pools,
                 middleware.clone(),
             )

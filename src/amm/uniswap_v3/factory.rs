@@ -25,6 +25,63 @@ pub const POOL_CREATED_EVENT_SIGNATURE: H256 = H256([
     53, 122, 46, 139, 29, 155, 43, 78, 107, 113, 24,
 ]);
 
+#[async_trait]
+impl AutomatedMarketMakerFactory for UniswapV3Factory {
+    fn address(&self) -> H160 {
+        self.address
+    }
+
+    fn creation_block(&self) -> u64 {
+        self.creation_block
+    }
+
+    fn amm_created_event_signature(&self) -> H256 {
+        POOL_CREATED_EVENT_SIGNATURE
+    }
+
+    async fn new_amm_from_log<M: Middleware>(
+        &self,
+        log: Log,
+        middleware: Arc<M>,
+    ) -> Result<AMM, DAMMError<M>> {
+        let tokens = ethers::abi::decode(&[ParamType::Uint(32), ParamType::Address], &log.data)?;
+        let pair_address = tokens[1].to_owned().into_address().unwrap();
+
+        Ok(AMM::UniswapV3Pool(
+            UniswapV3Pool::new_from_address(pair_address, middleware).await?,
+        ))
+    }
+
+    async fn get_all_amms<M: Middleware>(
+        &self,
+        middleware: Arc<M>,
+    ) -> Result<Vec<AMM>, DAMMError<M>> {
+        let current_block = middleware
+            .get_block_number()
+            .await
+            .map_err(DAMMError::MiddlewareError)?;
+
+        self.get_all_pools_from_logs(current_block.into(), 100000, middleware)
+            .await
+    }
+
+    async fn populate_amm_data<M: Middleware>(
+        &self,
+        amms: &mut [AMM],
+        middleware: Arc<M>,
+    ) -> Result<(), DAMMError<M>> {
+        let step = 127; //Max batch size for call
+        for amm_chunk in amms.chunks_mut(step) {
+            batch_request::get_amm_data_batch_request(amms, middleware.clone()).await?;
+
+            //TODO: add back progress bars
+            // progress_bar.inc(step as u64);
+        }
+
+        Ok(())
+    }
+}
+
 impl UniswapV3Factory {
     pub fn new(address: H160, creation_block: u64) -> UniswapV3Factory {
         UniswapV3Factory {
@@ -41,11 +98,7 @@ impl UniswapV3Factory {
         middleware: Arc<M>,
     ) -> Result<Vec<AMM>, DAMMError<M>> {
         //Unwrap can be used here because the creation block was verified within `Dex::new()`
-        let from_block = self
-            .creation_block
-            .as_number()
-            .expect("Error converting creation block as number")
-            .as_u64();
+        let from_block = self.creation_block;
         let current_block = current_block
             .as_number()
             .expect("Error converting current block as number")
@@ -104,58 +157,5 @@ impl UniswapV3Factory {
             tick: 0,
             liquidity_net: 0,
         }))
-    }
-}
-
-#[async_trait]
-impl AutomatedMarketMakerFactory for UniswapV3Factory {
-    fn address(&self) -> H160 {
-        self.address
-    }
-
-    fn amm_created_event_signature(&self) -> H256 {
-        POOL_CREATED_EVENT_SIGNATURE
-    }
-
-    async fn new_amm_from_log<M: Middleware>(
-        &self,
-        log: Log,
-        middleware: Arc<M>,
-    ) -> Result<AMM, DAMMError<M>> {
-        let tokens = ethers::abi::decode(&[ParamType::Uint(32), ParamType::Address], &log.data)?;
-        let pair_address = tokens[1].to_owned().into_address().unwrap();
-
-        Ok(AMM::UniswapV3Pool(
-            UniswapV3Pool::new_from_address(pair_address, middleware).await?,
-        ))
-    }
-
-    async fn get_all_amms<M: Middleware>(
-        &self,
-        middleware: Arc<M>,
-    ) -> Result<Vec<AMM>, DAMMError<M>> {
-        let current_block = middleware
-            .get_block_number()
-            .await
-            .map_err(DAMMError::MiddlewareError)?;
-
-        self.get_all_pools_from_logs(current_block.into(), 100000, middleware)
-            .await
-    }
-
-    async fn populate_amms<M: Middleware>(
-        &self,
-        amms: &mut [AMM],
-        middleware: Arc<M>,
-    ) -> Result<(), DAMMError<M>> {
-        let step = 127; //Max batch size for call
-        for amm_chunk in amms.chunks_mut(step) {
-            batch_request::get_amm_data_batch_request(amms, middleware.clone()).await?;
-
-            //TODO: add back progress bars
-            // progress_bar.inc(step as u64);
-        }
-
-        Ok(())
     }
 }

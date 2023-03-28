@@ -100,7 +100,7 @@ impl UniswapV2Factory {
         Ok(amms)
     }
 
-    pub fn new_empty_amm_from_event<M: Middleware>(&self, log: Log) -> Result<AMM, DAMMError<M>> {
+    pub fn new_empty_amm_from_log<M: Middleware>(&self, log: Log) -> Result<AMM, DAMMError<M>> {
         let tokens = ethers::abi::decode(&[ParamType::Address, ParamType::Uint(256)], &log.data)?;
         let token_a = H160::from(log.topics[0]);
         let token_b = H160::from(log.topics[1]);
@@ -149,7 +149,7 @@ impl AutomatedMarketMakerFactory for UniswapV2Factory {
         self.get_all_pairs_via_batched_calls(middleware).await
     }
 
-    async fn populate_amms<M: Middleware>(
+    async fn populate_amm_data<M: Middleware>(
         &self,
         amms: &mut [AMM],
         middleware: Arc<M>,
