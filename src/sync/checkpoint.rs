@@ -176,6 +176,8 @@ pub async fn get_new_pools_from_range<M: 'static + Middleware>(
 
         //Spawn a new thread to get all pools and sync data for each dex
         handles.push(tokio::spawn(async move {
+
+            
             let mut pools = factory
                 .get_all_pools_from_logs_within_range(
                     from_block,

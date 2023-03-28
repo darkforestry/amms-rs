@@ -17,7 +17,7 @@ use super::{batch_request, UniswapV3Pool};
 #[derive(Clone, Copy)]
 pub struct UniswapV3Factory {
     pub address: H160,
-    pub creation_block: BlockNumber,
+    pub creation_block: u64,
 }
 
 pub const POOL_CREATED_EVENT_SIGNATURE: H256 = H256([
@@ -26,7 +26,7 @@ pub const POOL_CREATED_EVENT_SIGNATURE: H256 = H256([
 ]);
 
 impl UniswapV3Factory {
-    pub fn new(address: H160, creation_block: BlockNumber) -> UniswapV3Factory {
+    pub fn new(address: H160, creation_block: u64) -> UniswapV3Factory {
         UniswapV3Factory {
             address,
             creation_block,

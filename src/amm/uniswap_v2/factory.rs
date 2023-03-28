@@ -35,12 +35,12 @@ pub const PAIR_CREATED_EVENT_SIGNATURE: H256 = H256([
 #[derive(Clone, Copy)]
 pub struct UniswapV2Factory {
     pub address: H160,
-    pub creation_block: BlockNumber,
+    pub creation_block: u64,
     pub fee: u32,
 }
 
 impl UniswapV2Factory {
-    pub fn new(address: H160, creation_block: BlockNumber, fee: u32) -> UniswapV2Factory {
+    pub fn new(address: H160, creation_block: u64, fee: u32) -> UniswapV2Factory {
         UniswapV2Factory {
             address,
             creation_block,
@@ -162,5 +162,9 @@ impl AutomatedMarketMakerFactory for UniswapV2Factory {
             // progress_bar.inc(step as u64);
         }
         Ok(())
+    }
+
+    fn creation_block(&self) -> u64 {
+        self.creation_block
     }
 }
