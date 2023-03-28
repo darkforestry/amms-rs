@@ -309,13 +309,13 @@ pub async fn sync_v3_pool_batch_request<M: Middleware>(
 }
 
 pub async fn get_amm_data_batch_request<M: Middleware>(
-    pools: &mut [AMM],
+    amms: &mut [AMM],
     middleware: Arc<M>,
 ) -> Result<(), DAMMError<M>> {
     let mut target_addresses = vec![];
 
-    for pool in pools.iter() {
-        target_addresses.push(Token::Address(pool.address()));
+    for amm in amms.iter() {
+        target_addresses.push(Token::Address(amm.address()));
     }
 
     let constructor_args = Token::Tuple(vec![Token::Array(target_addresses)]);
@@ -350,8 +350,7 @@ pub async fn get_amm_data_batch_request<M: Middleware>(
                     //If the pool token A is not zero, signaling that the pool data was populated
                     if !pool_data[0].to_owned().into_address().unwrap().is_zero() {
                         //Update the pool data
-                        if let AMM::UniswapV3Pool(uniswap_v3_pool) =
-                            pools.get_mut(pool_idx).unwrap()
+                        if let AMM::UniswapV3Pool(uniswap_v3_pool) = amms.get_mut(pool_idx).unwrap()
                         {
                             uniswap_v3_pool.token_a =
                                 pool_data[0].to_owned().into_address().unwrap();

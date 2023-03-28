@@ -73,7 +73,7 @@ impl AutomatedMarketMakerFactory for UniswapV3Factory {
     ) -> Result<(), DAMMError<M>> {
         let step = 127; //Max batch size for call
         for amm_chunk in amms.chunks_mut(step) {
-            batch_request::get_amm_data_batch_request(amms, middleware.clone()).await?;
+            batch_request::get_amm_data_batch_request(amm_chunk, middleware.clone()).await?;
 
             //TODO: add back progress bars
             // progress_bar.inc(step as u64);
@@ -92,7 +92,7 @@ impl UniswapV3Factory {
     }
 
     //Function to get all pair created events for a given Dex factory address and sync pool data
-    pub async fn get_all_pools_from_logs<M: 'static + Middleware>(
+    pub async fn get_all_pools_from_logs<M: Middleware>(
         self,
         current_block: BlockNumber,
         step: usize,

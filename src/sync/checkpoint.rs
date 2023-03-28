@@ -170,16 +170,19 @@ pub async fn batch_sync_amms_from_checkpoint<M: 'static + Middleware>(
         AMM::UniswapV3Pool(_) => Factory::UniswapV3Factory(UniswapV3Factory::new(H160::zero(), 0)),
     };
 
-    amms_are_congruent(amms)
     //Spawn a new thread to get all pools and sync data for each dex
     tokio::spawn(async move {
-        //Get all pool data via batched calls
-        factory.populate_amm_data(&mut amms, middleware).await?;
+        if amms_are_congruent(&amms) {
+            //Get all pool data via batched calls
+            factory.populate_amm_data(&mut amms, middleware).await?;
 
-        //Clean empty pools
-        pools = sync::remove_empty_pools(pools);
+            //Clean empty pools
+            amms = sync::remove_empty_amms(amms);
 
-        Ok::<_, CFMMError<M>>(pools)
+            Ok::<_, DAMMError<M>>(amms)
+        } else {
+            return Err(DAMMError::IncongruentAMMs);
+        }
     })
 }
 
@@ -244,7 +247,7 @@ pub fn construct_checkpoint(
             .as_secs_f64() as usize,
         latest_block,
         factories,
-        *amms,
+        amms.clone(),
     );
 
     std::fs::write(

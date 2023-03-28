@@ -6,7 +6,7 @@ use ethers::{
     providers::Middleware,
     types::{BlockNumber, Log, H160, H256, U256},
 };
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 use crate::{
     amm::{factory::AutomatedMarketMakerFactory, AMM},
@@ -49,7 +49,7 @@ impl UniswapV2Factory {
         }
     }
 
-    pub async fn get_all_pairs_via_batched_calls<M: 'static + Middleware>(
+    pub async fn get_all_pairs_via_batched_calls<M: Middleware>(
         self,
         middleware: Arc<M>,
     ) -> Result<Vec<AMM>, DAMMError<M>> {
@@ -157,7 +157,7 @@ impl AutomatedMarketMakerFactory for UniswapV2Factory {
     ) -> Result<(), DAMMError<M>> {
         let step = 127; //Max batch size for call
         for amm_chunk in amms.chunks_mut(step) {
-            batch_request::get_amm_data_batch_request(amms, middleware.clone()).await?;
+            batch_request::get_amm_data_batch_request(amm_chunk, middleware.clone()).await?;
 
             //TODO: add back progress bars
             // progress_bar.inc(step as u64);
