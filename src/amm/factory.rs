@@ -9,11 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::errors::DAMMError;
 
-use super::{
-    uniswap_v2::{factory::UniswapV2Factory, UniswapV2Pool},
-    uniswap_v3::factory::UniswapV3Factory,
-    AMM,
-};
+use super::{uniswap_v2::factory::UniswapV2Factory, uniswap_v3::factory::UniswapV3Factory, AMM};
 
 #[async_trait]
 pub trait AutomatedMarketMakerFactory {
