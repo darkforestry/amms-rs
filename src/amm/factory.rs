@@ -47,49 +47,6 @@ pub trait AutomatedMarketMakerFactory {
 pub enum Factory {
     UniswapV2Factory(UniswapV2Factory),
     UniswapV3Factory(UniswapV3Factory),
-    YourNewFactory,
-}
-
-pub struct YourNewFactoryStruct {}
-
-#[async_trait]
-impl AutomatedMarketMakerFactory for YourNewFactoryStruct {
-    fn address(&self) -> H160 {
-        H160::zero()
-    }
-
-    fn creation_block(&self) -> u64 {
-        0
-    }
-
-    fn amm_created_event_signature(&self) -> H256 {
-        H256::zero()
-    }
-
-    async fn new_amm_from_log<M: Middleware>(
-        &self,
-        log: Log,
-        middleware: Arc<M>,
-    ) -> Result<AMM, DAMMError<M>> {
-        Ok(AMM::UniswapV2Pool(
-            UniswapV2Pool::new_from_address(H160::zero(), 0, middleware).await?,
-        ))
-    }
-
-    async fn get_all_amms<M: Middleware>(
-        &self,
-        middleware: Arc<M>,
-    ) -> Result<Vec<AMM>, DAMMError<M>> {
-        Ok(vec![])
-    }
-
-    async fn populate_amm_data<M: Middleware>(
-        &self,
-        amms: &mut [AMM],
-        middleware: Arc<M>,
-    ) -> Result<(), DAMMError<M>> {
-        Ok(())
-    }
 }
 
 #[async_trait]
