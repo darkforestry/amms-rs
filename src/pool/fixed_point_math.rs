@@ -1,7 +1,6 @@
+use crate::pool::ArithmeticError;
 use ethers::types::U256;
-
-use crate::errors::ArithmeticError;
-
+use num_bigfloat::BigFloat;
 pub const U256_0XFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF: U256 = U256([
     18446744073709551615,
     18446744073709551615,
@@ -11,6 +10,7 @@ pub const U256_0XFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF: U256 = U256([
 
 pub const U256_0XFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF: U256 =
     U256([18446744073709551615, 18446744073709551615, 0, 0]);
+pub const U128_0X10000000000000000: u128 = 18446744073709551616;
 
 pub const U256_0X100000000: U256 = U256([4294967296, 0, 0, 0]);
 pub const U256_0X10000: U256 = U256([65536, 0, 0, 0]);
@@ -110,8 +110,7 @@ pub fn div_uu(x: U256, y: U256) -> Result<u128, ArithmeticError> {
 
 //Converts a Q64 fixed point to a Q16 fixed point -> f64
 pub fn q64_to_f64(x: u128) -> f64 {
-    let decimals = ((x & 0xFFFFFFFFFFFFFFFF_u128) >> 48) as u32;
-    let integers = ((x >> 64) & 0xFFFF) as u32;
-
-    ((integers << 16) + decimals) as f64 / 2_f64.powf(16.0)
+    BigFloat::from(x)
+        .div(&BigFloat::from(U128_0X10000000000000000))
+        .to_f64()
 }
