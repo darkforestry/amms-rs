@@ -34,7 +34,7 @@ pub async fn sync_amms<M: 'static + Middleware>(
         handles.push(tokio::spawn(async move {
             //Get all of the amms from the factory
             let mut amms = factory.get_all_amms(step, middleware.clone()).await?;
-            populate_amm_data(&mut amms, middleware.clone()).await?;
+            populate_amms(&mut amms, middleware.clone()).await?;
             //Clean empty pools
             amms = remove_empty_amms(amms);
             Ok::<_, DAMMError<M>>(amms)
@@ -83,7 +83,7 @@ pub fn amms_are_congruent(amms: &[AMM]) -> bool {
 }
 
 //Gets all pool data and sync reserves
-pub async fn populate_amm_data<M: Middleware>(
+pub async fn populate_amms<M: Middleware>(
     amms: &mut [AMM],
     middleware: Arc<M>,
 ) -> Result<(), DAMMError<M>> {

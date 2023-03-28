@@ -21,10 +21,6 @@ abigen!(
 
     IGetUniswapV2PoolDataBatchRequest,
         "src/amm/uniswap_v2/batch_request/GetUniswapV2PoolDataBatchRequestABI.json";
-
-
-
-
 );
 
 pub async fn get_pairs_batch_request<M: Middleware>(
