@@ -1,7 +1,7 @@
 
 ## Adding a new AMM
 
-`damms` was written with modularity in mind. The following is a straightforward walkthrough on how to add a new `AMM`. Once you are familiar with the codebase, building on top of the existing framework should be a breeze. Below is a quick overview of the process.
+`damms` was written with modularity in mind. The following is a straightforward walkthrough on how to add a new `AMM`. Note that this might seem complex at first, but this walkthrough is designed to make the integration process simple and easy. Just keep reading through the walkthrough, and you will have your new AMM integrated in no time! Once you are familiar with the codebase, building on top of the existing framework should be a breeze. Below is a quick overview of the steps to add a new AMM.
 
 - Create a new module for your AMM
 - Create a new AMM type
@@ -18,8 +18,7 @@ Most AMMs will have a factory that is responsible for deploying the AMM. This fa
 - Add peripheral functions
 
 
-Adhere to the interface you will see where it breaks but also highlight where it breaks
-Also add sim swap, sim swap mut, swap calldata, and list others
+Lastly, we will add the new AMM and factory to the discovery module (walkthrough coming soon).
 
 With the overview out of the way, let's start by creating a mod for your brand new AMM.
 
@@ -239,3 +238,4 @@ pub fn sort_amms(amms: Vec<AMM>) -> (Vec<AMM>, Vec<AMM>, Vec<AMM>) {
     (uniswap_v2_pools, uniswap_v3_pools, your_new_amm_collection)
 }
 ```
+
