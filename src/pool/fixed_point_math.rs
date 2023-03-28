@@ -10,6 +10,7 @@ pub const U256_0XFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF: U256 = U256([
 
 pub const U256_0XFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF: U256 =
     U256([18446744073709551615, 18446744073709551615, 0, 0]);
+pub const U128_0X10000000000000000: u128 = 18446744073709551616;
 
 pub const U256_0X100000000: U256 = U256([4294967296, 0, 0, 0]);
 pub const U256_0X10000: U256 = U256([65536, 0, 0, 0]);
@@ -109,6 +110,7 @@ pub fn div_uu(x: U256, y: U256) -> Result<u128, ArithmeticError> {
 
 //Converts a Q64 fixed point to a Q16 fixed point -> f64
 pub fn q64_to_f64(x: u128) -> f64 {
-    let shift = 2_u128.pow(64);
-    BigFloat::from(x).div(&BigFloat::from(shift)).to_f64()
+    BigFloat::from(x)
+        .div(&BigFloat::from(U128_0X10000000000000000))
+        .to_f64()
 }
