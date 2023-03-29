@@ -8,7 +8,7 @@ use tokio::task::JoinError;
 use uniswap_v3_math::error::UniswapV3MathError;
 
 #[derive(Error, Debug)]
-pub enum CFMMError<M>
+pub enum DAMMError<M>
 where
     M: Middleware,
 {
@@ -40,6 +40,8 @@ where
     NoInitializedTicks,
     #[error("No liquidity net found during v3 swap simulation")]
     NoLiquidityNet,
+    #[error("Incongruent AMMS supplied to batch request")]
+    IncongruentAMMs,
 }
 
 #[derive(Error, Debug)]

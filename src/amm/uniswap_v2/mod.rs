@@ -1,19 +1,42 @@
+pub mod batch_request;
+pub mod factory;
+
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use ethers::{
     abi::{ethabi::Bytes, ParamType, Token},
     providers::Middleware,
     types::{Log, H160, H256, U256},
 };
+use num_bigfloat::BigFloat;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    abi, batch_requests,
-    errors::{ArithmeticError, CFMMError},
+    amm::AutomatedMarketMaker,
+    errors::{ArithmeticError, DAMMError},
 };
 
-use super::fixed_point_math::{self};
+use ethers::prelude::abigen;
 
+abigen!(
+    IUniswapV2Pair,
+    r#"[
+        function getReserves() external view returns (uint112 reserve0, uint112 reserve1, uint32 blockTimestampLast)
+        function token0() external view returns (address)
+        function token1() external view returns (address)
+        function swap(uint256 amount0Out, uint256 amount1Out, address to, bytes calldata data);
+        event Sync(uint112 reserve0, uint112 reserve1)
+    ]"#;
+
+    IErc20,
+    r#"[
+        function balanceOf(address account) external view returns (uint256)
+        function decimals() external view returns (uint8)
+    ]"#;
+);
+
+pub const U128_0X10000000000000000: u128 = 18446744073709551616;
 pub const SYNC_EVENT_SIGNATURE: H256 = H256([
     28, 65, 30, 154, 150, 224, 113, 36, 28, 47, 33, 247, 114, 107, 23, 174, 137, 227, 202, 180,
     199, 139, 229, 14, 6, 43, 3, 169, 255, 251, 186, 209,
@@ -29,6 +52,41 @@ pub struct UniswapV2Pool {
     pub reserve_0: u128,
     pub reserve_1: u128,
     pub fee: u32,
+}
+
+#[async_trait]
+impl AutomatedMarketMaker for UniswapV2Pool {
+    fn address(&self) -> H160 {
+        self.address
+    }
+
+    async fn sync<M: Middleware>(&mut self, middleware: Arc<M>) -> Result<(), DAMMError<M>> {
+        (self.reserve_0, self.reserve_1) = self.get_reserves(middleware).await?;
+
+        Ok(())
+    }
+
+    async fn populate_data<M: Middleware>(
+        &mut self,
+        middleware: Arc<M>,
+    ) -> Result<(), DAMMError<M>> {
+        batch_request::get_v2_pool_data_batch_request(self, middleware.clone()).await?;
+
+        Ok(())
+    }
+
+    fn sync_on_event_signatures(&self) -> Vec<H256> {
+        vec![SYNC_EVENT_SIGNATURE]
+    }
+
+    //Calculates base/quote, meaning the price of base token per quote (ie. exchange rate is X base per 1 quote)
+    fn calculate_price(&self, base_token: H160) -> Result<f64, ArithmeticError> {
+        Ok(q64_to_f64(self.calculate_price_64_x_64(base_token)?))
+    }
+
+    fn tokens(&self) -> Vec<H160> {
+        vec![self.token_a, self.token_b]
+    }
 }
 
 impl UniswapV2Pool {
@@ -58,8 +116,9 @@ impl UniswapV2Pool {
     //Creates a new instance of the pool from the pair address, and syncs the pool data
     pub async fn new_from_address<M: Middleware>(
         pair_address: H160,
+        fee: u32,
         middleware: Arc<M>,
-    ) -> Result<Self, CFMMError<M>> {
+    ) -> Result<Self, DAMMError<M>> {
         let mut pool = UniswapV2Pool {
             address: pair_address,
             token_a: H160::zero(),
@@ -68,27 +127,28 @@ impl UniswapV2Pool {
             token_b_decimals: 0,
             reserve_0: 0,
             reserve_1: 0,
-            fee: 300,
+            fee,
         };
 
-        pool.get_pool_data(middleware.clone()).await?;
+        pool.populate_data(middleware.clone()).await?;
 
         if !pool.data_is_populated() {
-            return Err(CFMMError::PoolDataError);
+            return Err(DAMMError::PoolDataError);
         }
 
         Ok(pool)
     }
     pub async fn new_from_event_log<M: Middleware>(
         log: Log,
+        fee: u32, //TODO: maybe find a way to dynamically get the fee without having to pass it in
         middleware: Arc<M>,
-    ) -> Result<Self, CFMMError<M>> {
+    ) -> Result<Self, DAMMError<M>> {
         let tokens = ethers::abi::decode(&[ParamType::Address, ParamType::Uint(256)], &log.data)?;
         let pair_address = tokens[0].to_owned().into_address().unwrap();
-        UniswapV2Pool::new_from_address(pair_address, middleware).await
+        UniswapV2Pool::new_from_address(pair_address, fee, middleware).await
     }
 
-    pub fn new_empty_pool_from_event_log<M: Middleware>(log: Log) -> Result<Self, CFMMError<M>> {
+    pub fn new_empty_pool_from_event_log<M: Middleware>(log: Log) -> Result<Self, DAMMError<M>> {
         let tokens = ethers::abi::decode(&[ParamType::Address, ParamType::Uint(256)], &log.data)?;
         let token_a = H160::from(log.topics[0]);
         let token_b = H160::from(log.topics[1]);
@@ -102,7 +162,7 @@ impl UniswapV2Pool {
             token_b_decimals: 0,
             reserve_0: 0,
             reserve_1: 0,
-            fee: 300,
+            fee: 0,
         })
     }
 
@@ -110,14 +170,8 @@ impl UniswapV2Pool {
         self.fee
     }
 
-    pub async fn get_pool_data<M: Middleware>(
-        &mut self,
-        middleware: Arc<M>,
-    ) -> Result<(), CFMMError<M>> {
-        batch_requests::uniswap_v2::get_v2_pool_data_batch_request(self, middleware.clone())
-            .await?;
-
-        Ok(())
+    pub fn sync_from_log(&mut self, log: &Log) {
+        (self.reserve_0, self.reserve_1) = self.decode_sync_log(log);
     }
 
     pub fn data_is_populated(&self) -> bool {
@@ -130,37 +184,28 @@ impl UniswapV2Pool {
     pub async fn get_reserves<M: Middleware>(
         &self,
         middleware: Arc<M>,
-    ) -> Result<(u128, u128), CFMMError<M>> {
+    ) -> Result<(u128, u128), DAMMError<M>> {
         //Initialize a new instance of the Pool
-        let v2_pair = abi::IUniswapV2Pair::new(self.address, middleware);
+        let v2_pair = IUniswapV2Pair::new(self.address, middleware);
         // Make a call to get the reserves
         let (reserve_0, reserve_1, _) = match v2_pair.get_reserves().call().await {
             Ok(result) => result,
-            Err(contract_error) => return Err(CFMMError::ContractError(contract_error)),
+            Err(contract_error) => return Err(DAMMError::ContractError(contract_error)),
         };
 
         Ok((reserve_0, reserve_1))
     }
 
-    pub async fn sync_pool<M: Middleware>(
-        &mut self,
-        middleware: Arc<M>,
-    ) -> Result<(), CFMMError<M>> {
-        (self.reserve_0, self.reserve_1) = self.get_reserves(middleware).await?;
-
-        Ok(())
-    }
-
     pub async fn get_token_decimals<M: Middleware>(
         &mut self,
         middleware: Arc<M>,
-    ) -> Result<(u8, u8), CFMMError<M>> {
-        let token_a_decimals = abi::IErc20::new(self.token_a, middleware.clone())
+    ) -> Result<(u8, u8), DAMMError<M>> {
+        let token_a_decimals = IErc20::new(self.token_a, middleware.clone())
             .decimals()
             .call()
             .await?;
 
-        let token_b_decimals = abi::IErc20::new(self.token_b, middleware)
+        let token_b_decimals = IErc20::new(self.token_b, middleware)
             .decimals()
             .call()
             .await?;
@@ -172,12 +217,12 @@ impl UniswapV2Pool {
         &self,
         pair_address: H160,
         middleware: Arc<M>,
-    ) -> Result<H160, CFMMError<M>> {
-        let v2_pair = abi::IUniswapV2Pair::new(pair_address, middleware);
+    ) -> Result<H160, DAMMError<M>> {
+        let v2_pair = IUniswapV2Pair::new(pair_address, middleware);
 
         let token0 = match v2_pair.token_0().call().await {
             Ok(result) => result,
-            Err(contract_error) => return Err(CFMMError::ContractError(contract_error)),
+            Err(contract_error) => return Err(DAMMError::ContractError(contract_error)),
         };
 
         Ok(token0)
@@ -187,22 +232,15 @@ impl UniswapV2Pool {
         &self,
         pair_address: H160,
         middleware: Arc<M>,
-    ) -> Result<H160, CFMMError<M>> {
-        let v2_pair = abi::IUniswapV2Pair::new(pair_address, middleware);
+    ) -> Result<H160, DAMMError<M>> {
+        let v2_pair = IUniswapV2Pair::new(pair_address, middleware);
 
         let token1 = match v2_pair.token_1().call().await {
             Ok(result) => result,
-            Err(contract_error) => return Err(CFMMError::ContractError(contract_error)),
+            Err(contract_error) => return Err(DAMMError::ContractError(contract_error)),
         };
 
         Ok(token1)
-    }
-
-    //Calculates base/quote, meaning the price of base token per quote (ie. exchange rate is X base per 1 quote)
-    pub fn calculate_price(&self, base_token: H160) -> Result<f64, ArithmeticError> {
-        Ok(fixed_point_math::q64_to_f64(
-            self.calculate_price_64_x_64(base_token)?,
-        ))
     }
 
     pub fn calculate_price_64_x_64(&self, base_token: H160) -> Result<u128, ArithmeticError> {
@@ -222,18 +260,10 @@ impl UniswapV2Pool {
         };
 
         if base_token == self.token_a {
-            Ok(fixed_point_math::div_uu(r_1, r_0)?)
+            Ok(div_uu(r_1, r_0)?)
         } else {
-            Ok(fixed_point_math::div_uu(r_0, r_1))?
+            Ok(div_uu(r_0, r_1))?
         }
-    }
-
-    pub fn address(&self) -> H160 {
-        self.address
-    }
-
-    pub fn update_pool_from_sync_log(&mut self, sync_log: &Log) {
-        (self.reserve_0, self.reserve_1) = self.decode_sync_log(sync_log);
     }
 
     //Returns reserve0, reserve1
@@ -329,12 +359,125 @@ impl UniswapV2Pool {
             Token::Bytes(calldata),
         ];
 
-        abi::IUNISWAPV2PAIR_ABI
+        IUNISWAPV2PAIR_ABI
             .function("swap")
             .unwrap()
             .encode_input(&input_tokens)
             .expect("Could not encode swap calldata")
     }
+}
+
+pub const U256_0XFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF: U256 = U256([
+    18446744073709551615,
+    18446744073709551615,
+    18446744073709551615,
+    0,
+]);
+
+pub const U256_0XFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF: U256 =
+    U256([18446744073709551615, 18446744073709551615, 0, 0]);
+
+pub const U256_0X100000000: U256 = U256([4294967296, 0, 0, 0]);
+pub const U256_0X10000: U256 = U256([65536, 0, 0, 0]);
+pub const U256_0X100: U256 = U256([256, 0, 0, 0]);
+pub const U256_255: U256 = U256([255, 0, 0, 0]);
+pub const U256_192: U256 = U256([192, 0, 0, 0]);
+pub const U256_191: U256 = U256([191, 0, 0, 0]);
+pub const U256_128: U256 = U256([128, 0, 0, 0]);
+pub const U256_64: U256 = U256([64, 0, 0, 0]);
+pub const U256_32: U256 = U256([32, 0, 0, 0]);
+pub const U256_16: U256 = U256([16, 0, 0, 0]);
+pub const U256_8: U256 = U256([8, 0, 0, 0]);
+pub const U256_4: U256 = U256([4, 0, 0, 0]);
+pub const U256_2: U256 = U256([2, 0, 0, 0]);
+
+pub fn div_uu(x: U256, y: U256) -> Result<u128, ArithmeticError> {
+    if !y.is_zero() {
+        let mut answer;
+
+        if x <= U256_0XFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF {
+            answer = (x << U256_64) / y;
+        } else {
+            let mut msb = U256_192;
+            let mut xc = x >> U256_192;
+
+            if xc >= U256_0X100000000 {
+                xc >>= U256_32;
+                msb += U256_32;
+            }
+
+            if xc >= U256_0X10000 {
+                xc >>= U256_16;
+                msb += U256_16;
+            }
+
+            if xc >= U256_0X100 {
+                xc >>= U256_8;
+                msb += U256_8;
+            }
+
+            if xc >= U256_16 {
+                xc >>= U256_4;
+                msb += U256_4;
+            }
+
+            if xc >= U256_4 {
+                xc >>= U256_2;
+                msb += U256_2;
+            }
+
+            if xc >= U256_2 {
+                msb += U256::one();
+            }
+
+            answer =
+                (x << (U256_255 - msb)) / (((y - U256::one()) >> (msb - U256_191)) + U256::one());
+        }
+
+        if answer > U256_0XFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF {
+            return Err(ArithmeticError::ShadowOverflow(answer));
+        }
+
+        let hi = answer * (y >> U256_128);
+        let mut lo = answer * (y & U256_0XFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF);
+
+        let mut xh = x >> U256_192;
+        let mut xl = x << U256_64;
+
+        if xl < lo {
+            xh -= U256::one();
+        }
+
+        xl = xl.overflowing_sub(lo).0;
+        lo = hi << U256_128;
+
+        if xl < lo {
+            xh -= U256::one();
+        }
+
+        xl = xl.overflowing_sub(lo).0;
+
+        if xh != hi >> U256_128 {
+            return Err(ArithmeticError::RoundingError);
+        }
+
+        answer += xl / y;
+
+        if answer > U256_0XFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF {
+            return Err(ArithmeticError::ShadowOverflow(answer));
+        }
+
+        Ok(answer.as_u128())
+    } else {
+        Err(ArithmeticError::YIsZero)
+    }
+}
+
+//Converts a Q64 fixed point to a Q16 fixed point -> f64
+pub fn q64_to_f64(x: u128) -> f64 {
+    BigFloat::from(x)
+        .div(&BigFloat::from(U128_0X10000000000000000))
+        .to_f64()
 }
 
 #[cfg(test)]
@@ -345,6 +488,8 @@ mod tests {
         providers::{Http, Provider},
         types::{H160, U256},
     };
+
+    use crate::amm::AutomatedMarketMaker;
 
     use super::UniswapV2Pool;
 
@@ -368,6 +513,7 @@ mod tests {
 
         let pool = UniswapV2Pool::new_from_address(
             H160::from_str("0xB4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc").unwrap(),
+            300,
             middleware.clone(),
         )
         .await
@@ -401,7 +547,7 @@ mod tests {
             ..Default::default()
         };
 
-        pool.get_pool_data(middleware).await.unwrap();
+        pool.populate_data(middleware).await.unwrap();
 
         assert_eq!(
             pool.address,
@@ -435,8 +581,8 @@ mod tests {
             fee: 300,
         };
 
-        dbg!(x.calculate_price(token_a).unwrap());
-        dbg!(x.calculate_price(token_b).unwrap());
+        assert!(x.calculate_price(token_a).unwrap() != 0.0);
+        assert!(x.calculate_price(token_b).unwrap() != 0.0);
     }
     #[tokio::test]
     async fn test_calculate_price() {
@@ -449,7 +595,7 @@ mod tests {
             ..Default::default()
         };
 
-        pool.get_pool_data(middleware.clone()).await.unwrap();
+        pool.populate_data(middleware.clone()).await.unwrap();
 
         pool.reserve_0 = 47092140895915;
         pool.reserve_1 = 28396598565590008529300;
@@ -472,7 +618,7 @@ mod tests {
             ..Default::default()
         };
 
-        pool.get_pool_data(middleware.clone()).await.unwrap();
+        pool.populate_data(middleware.clone()).await.unwrap();
 
         pool.reserve_0 = 47092140895915;
         pool.reserve_1 = 28396598565590008529300;

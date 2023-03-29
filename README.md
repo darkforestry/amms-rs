@@ -6,15 +6,13 @@ To launch the docs, run the following command in your terminal.
 cargo doc --open
 ```
 
-## Supported Dexes
+## Supported AMMs
 
-| Dex | Status |
+| AMM | Status |
 |----------|------|
-| UniswapV2 variants  | ✅||
-| UniswapV3  | ✅||
+| UniswapV2 Pools | ✅||
+| UniswapV3 Pools | ✅||
 
 
-## Running Examples
 
-To run any of the examples, first set a local environment variable called `ETHEREUM_RPC_ENDPOINT`. Then you can simply run `cargo run --example <example_name>`.
 

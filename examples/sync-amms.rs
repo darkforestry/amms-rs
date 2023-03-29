@@ -6,7 +6,10 @@ use ethers::{
 };
 
 use damms::{
-    dex::{Dex, DexVariant},
+    amm::{
+        factory::Factory, uniswap_v2::factory::UniswapV2Factory,
+        uniswap_v3::factory::UniswapV3Factory,
+    },
     sync,
 };
 
@@ -17,32 +20,28 @@ async fn main() -> Result<(), Box<dyn Error>> {
         std::env::var("ETHEREUM_RPC_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
     let provider = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
 
-    let dexes = vec![
+    let factories = vec![
         //UniswapV2
-        Dex::new(
+        Factory::UniswapV2Factory(UniswapV2Factory::new(
             H160::from_str("0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f").unwrap(),
-            DexVariant::UniswapV2,
             2638438,
-            Some(300),
-        ),
+            300,
+        )),
         //Add Sushiswap
-        Dex::new(
+        Factory::UniswapV2Factory(UniswapV2Factory::new(
             H160::from_str("0xC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac").unwrap(),
-            DexVariant::UniswapV2,
             10794229,
-            Some(300),
-        ),
+            300,
+        )),
         //Add UniswapV3
-        Dex::new(
+        Factory::UniswapV3Factory(UniswapV3Factory::new(
             H160::from_str("0x1F98431c8aD98523631AE4a59f267346ea31F984").unwrap(),
-            DexVariant::UniswapV3,
             12369621,
-            None,
-        ),
+        )),
     ];
 
     //Sync pairs
-    sync::sync_pairs(dexes, provider, None).await?;
+    sync::sync_amms(factories, provider, None).await?;
 
     Ok(())
 }
