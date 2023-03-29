@@ -581,8 +581,8 @@ mod tests {
             fee: 300,
         };
 
-        dbg!(x.calculate_price(token_a).unwrap());
-        dbg!(x.calculate_price(token_b).unwrap());
+        assert!(x.calculate_price(token_a).unwrap() != 0.0);
+        assert!(x.calculate_price(token_b).unwrap() != 0.0);
     }
     #[tokio::test]
     async fn test_calculate_price() {
