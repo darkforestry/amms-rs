@@ -12,6 +12,17 @@ use crate::{
     errors::{ArithmeticError, DAMMError},
 };
 
+use ethers::prelude::abigen;
+
+abigen!(
+    IERC4626Vault,
+    r#"[
+        function totalAssets() external view returns (uint256)
+        function totalSupply() external view returns (uint256)
+        function decimals() external view returns (uint8)
+    ]"#;
+);
+
 pub const DEPOSIT_EVENT_SIGNATURE: H256 = H256([
     220, 188, 28, 5, 36, 15, 49, 255, 58, 208, 103, 239, 30, 227, 92, 228, 153, 119, 98, 117, 46,
     58, 9, 82, 132, 117, 69, 68, 244, 199, 9, 215,
@@ -48,8 +59,9 @@ impl AutomatedMarketMaker for ERC4626Vault {
         Ok(0.0)
     }
 
-    // TODO: implement
     async fn sync<M: Middleware>(&mut self, middleware: Arc<M>) -> Result<(), DAMMError<M>> {
+        (self.vault_reserve, self.asset_reserve) = self.get_reserves(middleware).await?;
+
         Ok(())
     }
 
@@ -87,5 +99,25 @@ impl ERC4626Vault {
             asset_reserve,
             fee,
         }
+    }
+
+    pub async fn get_reserves<M: Middleware>(
+        &self,
+        middleware: Arc<M>,
+    ) -> Result<(u128, u128), DAMMError<M>> {
+        //Initialize a new instance of the vault
+        let vault = IERC4626Vault::new(self.address, middleware);
+        // Get the total assets in the vault
+        let total_assets = match vault.total_assets().call().await {
+            Ok(total_assets) => total_assets,
+            Err(e) => return Err(DAMMError::ContractError(e)),
+        };
+        // Get the total supply of the vault token
+        let total_supply = match vault.total_supply().call().await {
+            Ok(total_supply) => total_supply,
+            Err(e) => return Err(DAMMError::ContractError(e)),
+        };
+
+        Ok((total_supply, total_assets))
     }
 }
