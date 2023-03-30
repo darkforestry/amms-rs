@@ -352,8 +352,8 @@ pub async fn populate_amms<M: Middleware>(
 
             //Populate data for each amm
             AMM::YourNewAMM(_)=>{
-                for amm in amms{
-                    amm.populate_data()
+                for amm in amms {
+                    amm.populate_data(middleware.clone()).await?;
                 }
             }
         }
