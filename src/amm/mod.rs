@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::errors::{ArithmeticError, DAMMError};
 
-use self::{uniswap_v2::UniswapV2Pool, uniswap_v3::UniswapV3Pool};
+use self::{erc_4626::ERC4626Vault, uniswap_v2::UniswapV2Pool, uniswap_v3::UniswapV3Pool};
 
 #[async_trait]
 pub trait AutomatedMarketMaker {
@@ -33,6 +33,7 @@ pub trait AutomatedMarketMaker {
 pub enum AMM {
     UniswapV2Pool(UniswapV2Pool),
     UniswapV3Pool(UniswapV3Pool),
+    ERC4626Vault(ERC4626Vault),
 }
 
 #[async_trait]
@@ -41,6 +42,7 @@ impl AutomatedMarketMaker for AMM {
         match self {
             AMM::UniswapV2Pool(pool) => pool.address,
             AMM::UniswapV3Pool(pool) => pool.address,
+            AMM::ERC4626Vault(pool) => pool.address,
         }
     }
 
@@ -48,6 +50,7 @@ impl AutomatedMarketMaker for AMM {
         match self {
             AMM::UniswapV2Pool(pool) => pool.sync(middleware).await,
             AMM::UniswapV3Pool(pool) => pool.sync(middleware).await,
+            AMM::ERC4626Vault(pool) => pool.sync(middleware).await,
         }
     }
 
@@ -55,6 +58,7 @@ impl AutomatedMarketMaker for AMM {
         match self {
             AMM::UniswapV2Pool(pool) => pool.sync_on_event_signatures(),
             AMM::UniswapV3Pool(pool) => pool.sync_on_event_signatures(),
+            AMM::ERC4626Vault(pool) => pool.sync_on_event_signatures(),
         }
     }
 
@@ -65,6 +69,7 @@ impl AutomatedMarketMaker for AMM {
         match self {
             AMM::UniswapV2Pool(pool) => pool.populate_data(middleware).await,
             AMM::UniswapV3Pool(pool) => pool.populate_data(middleware).await,
+            AMM::ERC4626Vault(pool) => pool.populate_data(middleware).await,
         }
     }
 
@@ -72,6 +77,7 @@ impl AutomatedMarketMaker for AMM {
         match self {
             AMM::UniswapV2Pool(pool) => pool.tokens(),
             AMM::UniswapV3Pool(pool) => pool.tokens(),
+            AMM::ERC4626Vault(pool) => pool.tokens(),
         }
     }
 
@@ -79,6 +85,7 @@ impl AutomatedMarketMaker for AMM {
         match self {
             AMM::UniswapV2Pool(pool) => pool.calculate_price(base_token),
             AMM::UniswapV3Pool(pool) => pool.calculate_price(base_token),
+            AMM::ERC4626Vault(pool) => pool.calculate_price(base_token),
         }
     }
 }
