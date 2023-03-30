@@ -1,13 +1,25 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use ethers::{providers::Middleware, types::H160};
+use ethers::{
+    providers::Middleware,
+    types::{H160, H256},
+};
 use serde::{Deserialize, Serialize};
 
 use crate::{
     amm::AutomatedMarketMaker,
     errors::{ArithmeticError, DAMMError},
 };
+
+pub const DEPOSIT_EVENT_SIGNATURE: H256 = H256([
+    220, 188, 28, 5, 36, 15, 49, 255, 58, 208, 103, 239, 30, 227, 92, 228, 153, 119, 98, 117, 46,
+    58, 9, 82, 132, 117, 69, 68, 244, 199, 9, 215,
+]);
+pub const WITHDRAW_EVENT_SIGNATURE: H256 = H256([
+    251, 222, 121, 125, 32, 28, 104, 27, 145, 5, 101, 41, 25, 224, 176, 36, 7, 199, 187, 150, 164,
+    162, 199, 92, 1, 252, 150, 103, 114, 50, 200, 219,
+]);
 
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
 pub struct ERC4626Vault {
@@ -41,9 +53,8 @@ impl AutomatedMarketMaker for ERC4626Vault {
         Ok(())
     }
 
-    // TODO: implement
     fn sync_on_event_signatures(&self) -> Vec<H256> {
-        vec![]
+        vec![DEPOSIT_EVENT_SIGNATURE, WITHDRAW_EVENT_SIGNATURE]
     }
 
     // TODO: implement
