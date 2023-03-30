@@ -1,3 +1,4 @@
+pub mod erc_4626;
 pub mod factory;
 pub mod uniswap_v2;
 pub mod uniswap_v3;
