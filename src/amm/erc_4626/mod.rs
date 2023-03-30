@@ -3,7 +3,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use ethers::{
     providers::Middleware,
-    types::{H160, H256},
+    types::{H160, H256, U256},
 };
 use serde::{Deserialize, Serialize};
 
@@ -39,8 +39,8 @@ pub struct ERC4626Vault {
     pub vault_token_decimals: u8,
     pub asset_token: H160, // token received from withdrawing, i.e. underlying token
     pub asset_token_decimals: u8,
-    pub vault_reserve: u128, // total supply of vault tokens
-    pub asset_reserve: u128, // total balance of asset tokens held by vault
+    pub vault_reserve: U256, // total supply of vault tokens
+    pub asset_reserve: U256, // total balance of asset tokens held by vault
     pub fee: u32,
 }
 
@@ -85,8 +85,8 @@ impl ERC4626Vault {
         vault_token_decimals: u8,
         asset_token: H160,
         asset_token_decimals: u8,
-        vault_reserve: u128,
-        asset_reserve: u128,
+        vault_reserve: U256,
+        asset_reserve: U256,
         fee: u32,
     ) -> ERC4626Vault {
         ERC4626Vault {
@@ -104,7 +104,7 @@ impl ERC4626Vault {
     pub async fn get_reserves<M: Middleware>(
         &self,
         middleware: Arc<M>,
-    ) -> Result<(u128, u128), DAMMError<M>> {
+    ) -> Result<(U256, U256), DAMMError<M>> {
         //Initialize a new instance of the vault
         let vault = IERC4626Vault::new(self.address, middleware);
         // Get the total assets in the vault
