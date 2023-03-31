@@ -87,24 +87,20 @@ contract GetERC4626VaultDataBatchRequest {
 
             // Get fee deltas
             // Deposit fee delta 1 - 100 asset tokens
-            uint256 depositFeeDelta1NoFee = IERC4626Vault(vaultAddress).convertToShares(1000 ** vaultData.assetTokenDecimals);
-            uint256 depositFeeDelta1Fee = IERC4626Vault(vaultAddress).previewDeposit(1000 ** vaultData.assetTokenDecimals);
-            vaultData.depositFeeDelta1 = depositFeeDelta1NoFee - depositFeeDelta1Fee;
+            vaultData.depositFeeDelta1 = IERC4626Vault(vaultAddress).convertToShares(100 * 10 ** vaultData.assetTokenDecimals) - 
+                IERC4626Vault(vaultAddress).previewDeposit(100 * 10 ** vaultData.assetTokenDecimals);
 
             // Deposit fee delta 2 - 200 asset tokens
-            uint256 depositFeeDelta2NoFee = IERC4626Vault(vaultAddress).convertToShares(2000 ** vaultData.assetTokenDecimals);
-            uint256 depositFeeDelta2Fee = IERC4626Vault(vaultAddress).previewDeposit(2000 ** vaultData.assetTokenDecimals);
-            vaultData.depositFeeDelta2 = depositFeeDelta2NoFee - depositFeeDelta2Fee;
+            vaultData.depositFeeDelta2 = IERC4626Vault(vaultAddress).convertToShares(200 * 10 ** vaultData.assetTokenDecimals) - 
+                IERC4626Vault(vaultAddress).previewDeposit(200 * 10 ** vaultData.assetTokenDecimals);
 
             // Withdraw fee delta 1 - 100 vault tokens
-            uint256 withdrawFeeDelta1NoFee = IERC4626Vault(vaultAddress).convertToAssets(1000 ** vaultData.vaultTokenDecimals);
-            uint256 withdrawFeeDelta1Fee = IERC4626Vault(vaultAddress).previewRedeem(1000 ** vaultData.vaultTokenDecimals);
-            vaultData.withdrawFeeDelta1 = withdrawFeeDelta1NoFee - withdrawFeeDelta1Fee;
+            vaultData.withdrawFeeDelta1 = IERC4626Vault(vaultAddress).convertToAssets(100 * 10 ** vaultData.vaultTokenDecimals) - 
+                IERC4626Vault(vaultAddress).previewRedeem(100 * 10 ** vaultData.vaultTokenDecimals);
 
             // Withdraw fee delta 2 - 200 vault tokens
-            uint256 withdrawFeeDelta2NoFee = IERC4626Vault(vaultAddress).convertToAssets(2000 ** vaultData.vaultTokenDecimals);
-            uint256 withdrawFeeDelta2Fee = IERC4626Vault(vaultAddress).previewRedeem(2000 ** vaultData.vaultTokenDecimals);
-            vaultData.withdrawFeeDelta2 = withdrawFeeDelta2NoFee - withdrawFeeDelta2Fee;
+            vaultData.withdrawFeeDelta2 = IERC4626Vault(vaultAddress).convertToAssets(200 * 10 ** vaultData.vaultTokenDecimals) - 
+                IERC4626Vault(vaultAddress).previewRedeem(200 * 10 ** vaultData.vaultTokenDecimals);
 
             allVaultData[i] = vaultData;
         }
