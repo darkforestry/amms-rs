@@ -309,4 +309,39 @@ mod tests {
         assert_eq!(price_v_64_x, 18576281487340329878);
         assert_eq!(price_a_64_x, 18318109959350028841);
     }
+
+    #[tokio::test]
+    async fn test_simulate_swap() {
+        let rpc_endpoint =
+            std::env::var("ETHEREUM_RPC_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
+        let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
+
+        let mut vault = ERC4626Vault {
+            vault_token: H160::from_str("0x163538E22F4d38c1eb21B79939f3d2ee274198Ff").unwrap(),
+            ..Default::default()
+        };
+
+        vault.populate_data(middleware).await.unwrap();
+
+        vault.vault_reserve = U256::from_dec_str("501910315708981197269904").unwrap();
+        vault.asset_reserve = U256::from_dec_str("505434849031054568651911").unwrap();
+
+        let assets_out = vault.simulate_swap(
+            vault.vault_token,
+            U256::from_dec_str("3000000000000000000").unwrap(),
+        );
+        let shares_out = vault.simulate_swap(
+            vault.asset_token,
+            U256::from_dec_str("3000000000000000000").unwrap(),
+        );
+
+        assert_eq!(
+            assets_out,
+            U256::from_dec_str("3021066711791496478").unwrap()
+        );
+        assert_eq!(
+            shares_out,
+            U256::from_dec_str("2979080192063348487").unwrap()
+        );
+    }
 }
