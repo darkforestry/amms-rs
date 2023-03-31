@@ -140,21 +140,19 @@ impl ERC4626Vault {
 
         if base_token == self.vault_token {
             if r_v == U256::zero() {
-                return Ok(WAD);
+                return Ok(10u128.pow(self.vault_token_decimals as u32));
             } else {
                 Ok(div_uu(r_a, r_v)?)
             }
         } else {
             if r_a == U256::zero() {
-                return Ok(WAD);
+                return Ok(10u128.pow(self.asset_token_decimals as u32));
             } else {
                 Ok(div_uu(r_v, r_a)?)
             }
         }
     }
 }
-
-pub const WAD: u128 = 1_000_000_000_000_000_000u128;
 
 #[cfg(test)]
 mod tests {
@@ -191,21 +189,26 @@ mod tests {
         assert_eq!(vault.fee, 0);
     }
 
-    // #[tokio::test]
-    // async fn test_calculate_price_64_x_64() {
-    //     let rpc_endpoint =
-    //         std::env::var("ETHEREUM_RPC_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
-    //     let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
+    #[tokio::test]
+    async fn test_calculate_price_64_x_64() {
+        let rpc_endpoint =
+            std::env::var("ETHEREUM_RPC_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
+        let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
 
-    //     let vault = ERC4626Vault::new(
-    //         H160::from_str("0x163538E22F4d38c1eb21B79939f3d2ee274198Ff").unwrap(),
-    //         18,
-    //         H160::from_str("0x6B175474E89094C44Da98b954EedeAC495271d0F").unwrap(),
-    //         18,
-    //         U256::from_dec_str("501910315708981197269904").unwrap(),
-    //         U256::from_dec_str("505434849031054568651911").unwrap(),
-    //         0,
-    //     );
+        let mut vault = ERC4626Vault {
+            vault_token: H160::from_str("0x163538E22F4d38c1eb21B79939f3d2ee274198Ff").unwrap(),
+            ..Default::default()
+        };
 
-    // }
+        vault.populate_data(middleware).await.unwrap();
+
+        vault.vault_reserve = U256::from_dec_str("501910315708981197269904").unwrap();
+        vault.asset_reserve = U256::from_dec_str("505434849031054568651911").unwrap();
+
+        let price_v_64_x = vault.calculate_price_64_x_64(vault.vault_token).unwrap();
+        let price_a_64_x = vault.calculate_price_64_x_64(vault.asset_token).unwrap();
+
+        assert_eq!(price_v_64_x, 18576281487340329878);
+        assert_eq!(price_a_64_x, 18318109959350028841);
+    }
 }
