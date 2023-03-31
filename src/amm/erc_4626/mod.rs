@@ -193,6 +193,30 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_calculate_price_varying_decimals() {
+        let rpc_endpoint =
+            std::env::var("ETHEREUM_RPC_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
+        let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
+
+        let mut vault = ERC4626Vault {
+            vault_token: H160::from_str("0x163538E22F4d38c1eb21B79939f3d2ee274198Ff").unwrap(),
+            ..Default::default()
+        };
+
+        vault.populate_data(middleware).await.unwrap();
+
+        vault.vault_reserve = U256::from_dec_str("501910315708981197269904").unwrap();
+        vault.asset_token_decimals = 6;
+        vault.asset_reserve = U256::from_dec_str("505434849031").unwrap();
+
+        let price_v_64_x = vault.calculate_price(vault.vault_token).unwrap();
+        let price_a_64_x = vault.calculate_price(vault.asset_token).unwrap();
+
+        assert_eq!(price_v_64_x, 1.0070222372637234);
+        assert_eq!(price_a_64_x, 0.99302673068789);
+    }
+
+    #[tokio::test]
     async fn test_calculate_price_zero_reserve() {
         let rpc_endpoint =
             std::env::var("ETHEREUM_RPC_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
