@@ -373,7 +373,9 @@ pub async fn populate_amms<M: Middleware>(
 
 Now that your new AMM is integrated into the `AMM` enum, its time to add peripheral functions. These are functions that are generally useful and specific to your AMM. These functions are not included in the `AutomatedMarketMaker` trait definition since different AMMs can have very specific internals, making it overly complex/inefficient to write a generic interface that encompasses all AMM variants now and in the future. While you won't get a compiler error if you do not integrate these functions, the following functions are necessary to have full functionality for swap routing and transaction creation.
 
-- `pub fn new(args) -> YourNewAMMStruct`: Associated function to generate a new instance of the type.
+- `pub fn new(args) -> YourNewAMMStruct`: Associated function to generate a new instance of the struct.
+
+- `pub fn new_from_address(args) -> YourNewAMMStruct`: Associated function that generates a new populated struct with all of the relevant AMM data (see `UniswapV2Pool::new_from_address()` or `UniwsapV3Pool::new_from_address()` for reference).
 
 - `pub fn simulate_swap(&self, token_in: H160, amount_in: U256) -> U256`: This function enables swap simulation which is critical for routing. Since the function does not have to adhere to a specific interface, you can add additional arguments like `token_out` or similar that relate specifically to your AMM. An `amount_out` represented as a `U256` should always be returned.
 
