@@ -14,7 +14,7 @@ use crate::{
 
 use ethers::prelude::abigen;
 
-use super::uniswap_v2::div_uu;
+use super::uniswap_v2::{div_uu, q64_to_f64};
 
 abigen!(
     IERC4626Vault,
@@ -55,9 +55,8 @@ impl AutomatedMarketMaker for ERC4626Vault {
         vec![self.vault_token, self.asset_token]
     }
 
-    // TODO: implement
     fn calculate_price(&self, base_token: H160) -> Result<f64, ArithmeticError> {
-        Ok(0.0)
+        Ok(q64_to_f64(self.calculate_price_64_x_64(base_token)?))
     }
 
     async fn sync<M: Middleware>(&mut self, middleware: Arc<M>) -> Result<(), DAMMError<M>> {
