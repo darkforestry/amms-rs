@@ -159,6 +159,19 @@ impl ERC4626Vault {
             }
         }
     }
+
+    // TODO: Include fee
+    pub fn get_amount_out(&self, amount_in: U256, reserve_in: U256, reserve_out: U256) -> U256 {
+        if amount_in.is_zero() {
+            return U256::zero();
+        }
+
+        if self.vault_reserve.is_zero() {
+            return amount_in;
+        }
+
+        amount_in * reserve_out / reserve_in
+    }
 }
 
 #[cfg(test)]
