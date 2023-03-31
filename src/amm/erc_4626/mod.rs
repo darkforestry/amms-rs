@@ -156,34 +156,56 @@ impl ERC4626Vault {
 
 pub const WAD: u128 = 1_000_000_000_000_000_000u128;
 
-// #[cfg(test)]
-// mod tests {
-//     use std::{str::FromStr, sync::Arc};
+#[cfg(test)]
+mod tests {
+    use std::{str::FromStr, sync::Arc};
 
-//     use ethers::{
-//         providers::{Http, Provider},
-//         types::{H160, U256},
-//     };
+    use ethers::{
+        providers::{Http, Provider},
+        types::{H160, U256},
+    };
 
-//     use crate::amm::AutomatedMarketMaker;
+    use crate::amm::AutomatedMarketMaker;
 
-//     use super::ERC4626Vault;
+    use super::ERC4626Vault;
 
-//     #[tokio::test]
-//     async fn test_calculate_price_64_x_64() {
-//         let rpc_endpoint =
-//             std::env::var("ETHEREUM_RPC_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
-//         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
+    #[tokio::test]
+    async fn test_get_vault_data() {
+        let rpc_endpoint =
+            std::env::var("ETHEREUM_RPC_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
+        let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
 
-//         let vault = ERC4626Vault::new(
-//             H160::from_str("0x163538E22F4d38c1eb21B79939f3d2ee274198Ff").unwrap(),
-//             18,
-//             H160::from_str("0x6B175474E89094C44Da98b954EedeAC495271d0F").unwrap(),
-//             18,
-//             U256::from_dec_str("501910315708981197269904").unwrap(),
-//             U256::from_dec_str("505434849031054568651911").unwrap(),
-//             0,
-//         );
+        let mut vault = ERC4626Vault {
+            vault_token: H160::from_str("0x163538E22F4d38c1eb21B79939f3d2ee274198Ff").unwrap(),
+            ..Default::default()
+        };
 
-//     }
-// }
+        vault.populate_data(middleware).await.unwrap();
+
+        assert_eq!(vault.vault_token_decimals, 18);
+        assert_eq!(
+            vault.asset_token,
+            H160::from_str("0x6B175474E89094C44Da98b954EedeAC495271d0F").unwrap()
+        );
+        assert_eq!(vault.asset_token_decimals, 18);
+        assert_eq!(vault.fee, 0);
+    }
+
+    // #[tokio::test]
+    // async fn test_calculate_price_64_x_64() {
+    //     let rpc_endpoint =
+    //         std::env::var("ETHEREUM_RPC_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
+    //     let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
+
+    //     let vault = ERC4626Vault::new(
+    //         H160::from_str("0x163538E22F4d38c1eb21B79939f3d2ee274198Ff").unwrap(),
+    //         18,
+    //         H160::from_str("0x6B175474E89094C44Da98b954EedeAC495271d0F").unwrap(),
+    //         18,
+    //         U256::from_dec_str("501910315708981197269904").unwrap(),
+    //         U256::from_dec_str("505434849031054568651911").unwrap(),
+    //         0,
+    //     );
+
+    // }
+}
