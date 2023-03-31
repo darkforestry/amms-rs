@@ -42,7 +42,7 @@ impl AutomatedMarketMaker for AMM {
         match self {
             AMM::UniswapV2Pool(pool) => pool.address,
             AMM::UniswapV3Pool(pool) => pool.address,
-            AMM::ERC4626Vault(pool) => pool.address,
+            AMM::ERC4626Vault(pool) => pool.vault_token,
         }
     }
 
