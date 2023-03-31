@@ -168,6 +168,24 @@ impl ERC4626Vault {
         }
     }
 
+    pub fn simulate_swap_mut(&mut self, token_in: H160, amount_in: U256) -> U256 {
+        if self.vault_token == token_in {
+            let amount_out = self.get_amount_out(amount_in, self.vault_reserve, self.asset_reserve);
+
+            self.vault_reserve -= amount_in;
+            self.asset_reserve -= amount_out;
+
+            amount_out
+        } else {
+            let amount_out = self.get_amount_out(amount_in, self.asset_reserve, self.vault_reserve);
+
+            self.asset_reserve += amount_in;
+            self.vault_reserve += amount_out;
+
+            amount_out
+        }
+    }
+
     // TODO: Include fee
     pub fn get_amount_out(&self, amount_in: U256, reserve_in: U256, reserve_out: U256) -> U256 {
         if amount_in.is_zero() {
