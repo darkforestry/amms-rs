@@ -79,7 +79,6 @@ impl AutomatedMarketMaker for ERC4626Vault {
 
 impl ERC4626Vault {
     pub fn new(
-        address: H160,
         vault_token: H160,
         vault_token_decimals: u8,
         asset_token: H160,
@@ -89,7 +88,6 @@ impl ERC4626Vault {
         fee: u32,
     ) -> ERC4626Vault {
         ERC4626Vault {
-            address,
             vault_token,
             vault_token_decimals,
             asset_token,
@@ -105,7 +103,7 @@ impl ERC4626Vault {
         middleware: Arc<M>,
     ) -> Result<(U256, U256), DAMMError<M>> {
         //Initialize a new instance of the vault
-        let vault = IERC4626Vault::new(self.address, middleware);
+        let vault = IERC4626Vault::new(self.vault_token, middleware);
         // Get the total assets in the vault
         let total_assets = match vault.total_assets().call().await {
             Ok(total_assets) => total_assets,
