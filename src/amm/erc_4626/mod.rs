@@ -1,3 +1,5 @@
+pub mod batch_request;
+
 use std::{cmp::Ordering, sync::Arc};
 
 use async_trait::async_trait;
@@ -69,11 +71,12 @@ impl AutomatedMarketMaker for ERC4626Vault {
         vec![DEPOSIT_EVENT_SIGNATURE, WITHDRAW_EVENT_SIGNATURE]
     }
 
-    // TODO: implement
     async fn populate_data<M: Middleware>(
         &mut self,
         middleware: Arc<M>,
     ) -> Result<(), DAMMError<M>> {
+        batch_request::get_4626_vault_data_batch_request(self, middleware.clone()).await?;
+
         Ok(())
     }
 }
