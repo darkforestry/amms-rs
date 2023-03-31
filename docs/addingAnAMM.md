@@ -124,7 +124,7 @@ Now that your new AMM type is officially an `AutomatedMarketMaker`, we will add 
 
 File: src/amm/mod.rs
 ```rust
-#[derive(Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum AMM {
     UniswapV2Pool(UniswapV2Pool),
     UniswapV3Pool(UniswapV3Pool),
