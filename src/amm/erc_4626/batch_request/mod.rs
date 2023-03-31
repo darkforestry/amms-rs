@@ -47,10 +47,10 @@ pub async fn get_4626_vault_data_batch_request<M: Middleware>(
                     if !vault_data[0].to_owned().into_address().unwrap().is_zero() {
                         vault.vault_token = vault_data[0].to_owned().into_address().unwrap();
                         vault.vault_token_decimals =
-                            vault_data[1].to_owned().into_uint().unwrap().as_u8();
+                            vault_data[1].to_owned().into_uint().unwrap().as_u32() as u8;
                         vault.asset_token = vault_data[2].to_owned().into_address().unwrap();
                         vault.asset_token_decimals =
-                            vault_data[3].to_owned().into_uint().unwrap().as_u8();
+                            vault_data[3].to_owned().into_uint().unwrap().as_u32() as u8;
                         vault.vault_reserve = vault_data[4].to_owned().into_uint().unwrap();
                         vault.asset_reserve = vault_data[5].to_owned().into_uint().unwrap();
                         // TODO: Add fee

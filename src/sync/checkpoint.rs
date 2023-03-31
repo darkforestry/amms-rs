@@ -70,7 +70,7 @@ pub async fn sync_amms_from_checkpoint<M: 'static + Middleware>(
     .expect("Error when converting checkpoint file contents to serde_json::Value");
 
     //Sort all of the pools from the checkpoint into uniswap_v2_pools and uniswap_v3_pools pools so we can sync them concurrently
-    let (uniswap_v2_pools, uniswap_v3_pools) = sort_amms(checkpoint.amms);
+    let (uniswap_v2_pools, uniswap_v3_pools, erc_4626_pools) = sort_amms(checkpoint.amms);
 
     let mut aggregated_amms = vec![];
     let mut handles = vec![];
@@ -84,6 +84,8 @@ pub async fn sync_amms_from_checkpoint<M: 'static + Middleware>(
     if !uniswap_v3_pools.is_empty() {
         handles.push(batch_sync_amms_from_checkpoint(uniswap_v3_pools, middleware.clone()).await);
     }
+
+    // TODO: Batch sync erc4626 pools from checkpoint
 
     //Sync all pools from the since synced block
     handles.extend(
