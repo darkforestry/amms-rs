@@ -102,6 +102,10 @@ impl ERC4626Vault {
         }
     }
 
+    pub fn fee(&self) -> u32 {
+        self.fee
+    }
+
     pub async fn get_reserves<M: Middleware>(
         &self,
         middleware: Arc<M>,
