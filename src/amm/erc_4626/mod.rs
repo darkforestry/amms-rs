@@ -34,7 +34,6 @@ pub const WITHDRAW_EVENT_SIGNATURE: H256 = H256([
 
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
 pub struct ERC4626Vault {
-    pub address: H160,
     pub vault_token: H160, // token received from depositing, i.e. shares token
     pub vault_token_decimals: u8,
     pub asset_token: H160, // token received from withdrawing, i.e. underlying token
@@ -47,7 +46,7 @@ pub struct ERC4626Vault {
 #[async_trait]
 impl AutomatedMarketMaker for ERC4626Vault {
     fn address(&self) -> H160 {
-        self.address
+        self.vault_token
     }
 
     fn tokens(&self) -> Vec<H160> {
