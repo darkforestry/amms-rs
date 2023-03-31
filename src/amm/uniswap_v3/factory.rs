@@ -15,7 +15,7 @@ use crate::{
 
 use super::{batch_request, UniswapV3Pool};
 
-#[derive(Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct UniswapV3Factory {
     pub address: H160,
     pub creation_block: u64,

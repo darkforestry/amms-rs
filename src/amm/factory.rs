@@ -39,7 +39,7 @@ pub trait AutomatedMarketMakerFactory {
     fn new_empty_amm_from_log(&self, log: Log) -> Result<AMM, ethers::abi::Error>;
 }
 
-#[derive(Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum Factory {
     UniswapV2Factory(UniswapV2Factory),
     UniswapV3Factory(UniswapV3Factory),

@@ -28,7 +28,7 @@ pub trait AutomatedMarketMaker {
     ) -> Result<(), DAMMError<M>>;
 }
 
-#[derive(Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum AMM {
     UniswapV2Pool(UniswapV2Pool),
     UniswapV3Pool(UniswapV3Pool),

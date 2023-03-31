@@ -34,7 +34,7 @@ pub const PAIR_CREATED_EVENT_SIGNATURE: H256 = H256([
     131, 85, 205, 222, 253, 227, 26, 250, 40, 208, 233,
 ]);
 
-#[derive(Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct UniswapV2Factory {
     pub address: H160,
     pub creation_block: u64,

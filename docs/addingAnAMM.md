@@ -416,12 +416,12 @@ pub mod factory;
 ```
 
 
-Now head back into `your_new_amm/factory.rs` and create a new struct to represent your factory. The factory must have at least an `address` and `creation_block` attribute. Make sure to also implement `#[derive(Clone, Copy, Serialize, Deserialize)]` as traits, these will come in handy later as well. Here is an example of what the `UniswapV2Factory` looks like.
+Now head back into `your_new_amm/factory.rs` and create a new struct to represent your factory. The factory must have at least an `address` and `creation_block` attribute. Make sure to also implement `#[derive(Debug, Clone, Copy, Serialize, Deserialize)]` as traits, these will come in handy later as well. Here is an example of what the `UniswapV2Factory` looks like.
 
 `File: src/amm/uniswap_v2/factory.rs`
 ```rust
 
-#[derive(Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct UniswapV2Factory {
     pub address: H160,
     pub creation_block: u64,
@@ -489,7 +489,7 @@ Similarly to adding a new AMM to the `AMM` enum, you can add a new factory to th
 
 `File: src/amm/factory.rs`
 ```rust
-#[derive(Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum Factory {
     UniswapV2Factory(UniswapV2Factory),
     UniswapV3Factory(UniswapV3Factory),

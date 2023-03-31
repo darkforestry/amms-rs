@@ -60,7 +60,7 @@ pub const SWAP_EVENT_SIGNATURE: H256 = H256([
 pub const U256_TWO: U256 = U256([2, 0, 0, 0]);
 pub const Q128: U256 = U256([0, 0, 1, 0]);
 pub const Q224: U256 = U256([0, 0, 0, 4294967296]);
-#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
 pub struct UniswapV3Pool {
     pub address: H160,
     pub token_a: H160,
