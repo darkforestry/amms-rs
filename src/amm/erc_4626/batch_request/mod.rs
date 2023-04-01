@@ -66,25 +66,25 @@ pub async fn get_4626_vault_data_batch_request<M: Middleware>(
                         // If both deltas are zero, the fee is zero
                         if deposit_fee_delta_1.is_zero() && deposit_fee_delta_2.is_zero() {
                             vault.deposit_fee = 0;
-                        // If the delta of 1e20 is half the delta of 2e20, relative fee.
+                        // Assuming 18 decimals, if the delta of 1e20 is half the delta of 2e20, relative fee.
                         // Delta from 1e20 divided by 1e16 to give us the fee in basis points
                         } else if deposit_fee_delta_1 * 2 == deposit_fee_delta_2 {
                             vault.deposit_fee = (deposit_fee_delta_1
-                                / U256::from_dec_str("10000000000000000").unwrap())
+                                / U256::from(10u128.pow(vault.vault_token_decimals.into())))
                             .as_u32();
                         } else {
                             // If not a relative fee or zero, ignore vault
                             return Err(DAMMError::InvalidERC4626Fee);
                         }
 
-                        // If both deltas are zero, the fee is zero
+                        // Assuming 18 decimals, if both deltas are zero, the fee is zero
                         if withdraw_fee_delta_1.is_zero() && withdraw_fee_delta_2.is_zero() {
                             vault.withdraw_fee = 0;
                         // If the delta of 1e20 is half the delta of 2e20, relative fee.
                         // Delta from 1e20 divided by 1e16 to give us the fee in basis points
                         } else if withdraw_fee_delta_1 * 2 == withdraw_fee_delta_2 {
                             vault.withdraw_fee = (withdraw_fee_delta_1
-                                / U256::from_dec_str("10000000000000000").unwrap())
+                                / U256::from(10u128.pow(vault.asset_token_decimals.into())))
                             .as_u32();
                         } else {
                             // If not a relative fee or zero, ignore vault
