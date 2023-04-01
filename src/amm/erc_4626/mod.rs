@@ -44,7 +44,8 @@ pub struct ERC4626Vault {
     pub asset_token_decimals: u8,
     pub vault_reserve: U256, // total supply of vault tokens
     pub asset_reserve: U256, // total balance of asset tokens held by vault
-    pub fee: u32,
+    pub depositFee: u32,     // deposit fee in basis points
+    pub withdrawalFee: u32,  // withdrawal fee in basis points
 }
 
 #[async_trait]
@@ -89,7 +90,8 @@ impl ERC4626Vault {
         asset_token_decimals: u8,
         vault_reserve: U256,
         asset_reserve: U256,
-        fee: u32,
+        depositFee: u32,
+        withdrawalFee: u32,
     ) -> ERC4626Vault {
         ERC4626Vault {
             vault_token,
@@ -98,12 +100,9 @@ impl ERC4626Vault {
             asset_token_decimals,
             vault_reserve,
             asset_reserve,
-            fee,
+            depositFee,
+            withdrawalFee,
         }
-    }
-
-    pub fn fee(&self) -> u32 {
-        self.fee
     }
 
     pub async fn get_reserves<M: Middleware>(
