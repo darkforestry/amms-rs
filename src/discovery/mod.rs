@@ -33,8 +33,7 @@ impl DiscoverableFactory {
     }
 }
 
-//TODO: implement a function that goes through all logs and checks if a potential factory address adheres to the factory interface
-// defined in the interface_check mod
+// Returns a vec of empty factories that match one of the Factory interfaces specified by each DiscoverableFactory
 pub async fn discover_factories<M: Middleware>(
     factories: Vec<DiscoverableFactory>,
     number_of_amms_threshold: u64,
@@ -45,7 +44,7 @@ pub async fn discover_factories<M: Middleware>(
     let mut event_signatures = vec![];
 
     for factory in factories {
-        event_signatures.push(factory.discovery());
+        event_signatures.push(factory.discovery_event_signature());
     }
 
     let block_filter = Filter::new().topic0(event_signatures);
@@ -61,7 +60,7 @@ pub async fn discover_factories<M: Middleware>(
     let step = 100000;
 
     //Set up filter and events to filter each block you are searching by
-    let mut identified_factories: HashMap<H160, u64> = HashMap::new();
+    let mut identified_factories: HashMap<H160, (Factory, u64)> = HashMap::new();
 
     for from_block in (from_block..=current_block).step_by(step) {
         //Get pair created event logs within the block range
@@ -77,19 +76,34 @@ pub async fn discover_factories<M: Middleware>(
             .map_err(DAMMError::MiddlewareError)?;
 
         for log in logs {
-            if let Some(amms_length) = identified_factories.get_mut(&log.address) {
-                *factory_pairs += 1;
+            if let Some((_, amms_length)) = identified_factories.get_mut(&log.address) {
+                *amms_length += 1;
             } else {
-                identified_factories.insert(log.address, 0);
+                //TODO: conduct interface checks for the given factory
+
+                let factory = Factory::new_empty_factory_from_event_signature(log.topics[0]);
+
+                match factory {
+                    Factory::UniswapV2Factory(mut uniswap_v2_factory) => {
+                        uniswap_v2_factory.address = log.address
+                    }
+                    Factory::UniswapV3Factory(mut uniswap_v3_factory) => {
+                        uniswap_v3_factory.address = log.address
+                    }
+                }
+
+                identified_factories.insert(log.address, (factory, 0));
             }
         }
     }
 
-    for (factory, amms_length) in identified_factories {
+    let mut filtered_factories = vec![];
+    for (_, (factory, amms_length)) in identified_factories {
         if amms_length >= number_of_amms_threshold {
-            Factory::UniswapV2Factory(())
+            filtered_factories.push(factory);
         }
     }
 
-    todo!()
+    spinner.success("All factories discovered");
+    Ok(filtered_factories)
 }

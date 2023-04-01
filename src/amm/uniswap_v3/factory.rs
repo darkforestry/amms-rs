@@ -31,7 +31,7 @@ pub const POOL_CREATED_EVENT_SIGNATURE: H256 = H256([
     53, 122, 46, 139, 29, 155, 43, 78, 107, 113, 24,
 ]);
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct UniswapV3Factory {
     pub address: H160,
     pub creation_block: u64,

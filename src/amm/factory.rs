@@ -9,7 +9,11 @@ use serde::{Deserialize, Serialize};
 
 use crate::errors::DAMMError;
 
-use super::{uniswap_v2::factory::UniswapV2Factory, uniswap_v3::factory::UniswapV3Factory, AMM};
+use super::{
+    uniswap_v2::factory::{UniswapV2Factory, PAIR_CREATED_EVENT_SIGNATURE},
+    uniswap_v3::factory::{UniswapV3Factory, POOL_CREATED_EVENT_SIGNATURE},
+    AMM,
+};
 
 #[async_trait]
 pub trait AutomatedMarketMakerFactory {
@@ -153,5 +157,16 @@ impl Factory {
         }
 
         Ok(aggregated_amms)
+    }
+
+    pub fn new_empty_factory_from_event_signature(event_signature: H256) -> Self {
+        if event_signature == PAIR_CREATED_EVENT_SIGNATURE {
+            Factory::UniswapV2Factory(UniswapV2Factory::default())
+        } else if event_signature == POOL_CREATED_EVENT_SIGNATURE {
+            Factory::UniswapV3Factory(UniswapV3Factory::default())
+        } else {
+            //TODO: handle this error
+            panic!("Unrecognized event signature")
+        }
     }
 }
