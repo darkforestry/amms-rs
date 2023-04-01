@@ -45,7 +45,7 @@ pub struct ERC4626Vault {
     pub vault_reserve: U256, // total supply of vault tokens
     pub asset_reserve: U256, // total balance of asset tokens held by vault
     pub deposit_fee: u32,    // deposit fee in basis points
-    pub withdrawal_fee: u32, // withdrawal fee in basis points
+    pub withdraw_fee: u32,   // withdrawal fee in basis points
 }
 
 #[async_trait]
@@ -91,7 +91,7 @@ impl ERC4626Vault {
         vault_reserve: U256,
         asset_reserve: U256,
         deposit_fee: u32,
-        withdrawal_fee: u32,
+        withdraw_fee: u32,
     ) -> ERC4626Vault {
         ERC4626Vault {
             vault_token,
@@ -101,7 +101,7 @@ impl ERC4626Vault {
             vault_reserve,
             asset_reserve,
             deposit_fee,
-            withdrawal_fee,
+            withdraw_fee,
         }
     }
 
@@ -231,7 +231,8 @@ mod tests {
             H160::from_str("0x6B175474E89094C44Da98b954EedeAC495271d0F").unwrap()
         );
         assert_eq!(vault.asset_token_decimals, 18);
-        assert_eq!(vault.fee, 0);
+        assert_eq!(vault.deposit_fee, 0);
+        assert_eq!(vault.withdraw_fee, 0);
     }
 
     #[tokio::test]
