@@ -3,7 +3,6 @@ pub mod interface_check;
 use std::{collections::HashMap, sync::Arc};
 
 use ethers::{
-    abi,
     providers::Middleware,
     types::{Filter, H160, H256},
 };
