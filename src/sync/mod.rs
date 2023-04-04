@@ -1,7 +1,7 @@
 use crate::{
     amm::{
         factory::{AutomatedMarketMakerFactory, Factory},
-        uniswap_v3, AMM,
+        uniswap_v2, uniswap_v3, AMM,
     },
     errors::DAMMError,
 };
@@ -96,7 +96,7 @@ pub async fn populate_amms<M: Middleware>(
             AMM::UniswapV2Pool(_) => {
                 let step = 127; //Max batch size for call
                 for amm_chunk in amms.chunks_mut(step) {
-                    uniswap_v3::batch_request::get_amm_data_batch_request(
+                    uniswap_v2::batch_request::get_amm_data_batch_request(
                         amm_chunk,
                         middleware.clone(),
                     )
