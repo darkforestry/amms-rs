@@ -106,6 +106,37 @@ impl ERC4626Vault {
         }
     }
 
+    pub async fn new_from_address<M: Middleware>(
+        vault_token: H160,
+        middleware: Arc<M>,
+    ) -> Result<Self, DAMMError<M>> {
+        let mut vault = ERC4626Vault {
+            vault_token: vault_token,
+            vault_token_decimals: 0,
+            asset_token: H160::zero(),
+            asset_token_decimals: 0,
+            vault_reserve: U256::zero(),
+            asset_reserve: U256::zero(),
+            deposit_fee: 0,
+            withdraw_fee: 0,
+        };
+
+        vault.populate_data(middleware.clone()).await?;
+
+        if !vault.data_is_populated() {
+            return Err(DAMMError::PoolDataError);
+        }
+
+        Ok(vault)
+    }
+
+    pub fn data_is_populated(&self) -> bool {
+        !(self.vault_token.is_zero()
+            || self.asset_token.is_zero()
+            || self.vault_reserve.is_zero()
+            || self.asset_reserve.is_zero())
+    }
+
     pub async fn get_reserves<M: Middleware>(
         &self,
         middleware: Arc<M>,
