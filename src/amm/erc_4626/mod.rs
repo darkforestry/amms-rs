@@ -84,6 +84,7 @@ impl AutomatedMarketMaker for ERC4626Vault {
 }
 
 impl ERC4626Vault {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         vault_token: H160,
         vault_token_decimals: u8,
@@ -111,7 +112,7 @@ impl ERC4626Vault {
         middleware: Arc<M>,
     ) -> Result<Self, DAMMError<M>> {
         let mut vault = ERC4626Vault {
-            vault_token: vault_token,
+            vault_token,
             vault_token_decimals: 0,
             asset_token: H160::zero(),
             asset_token_decimals: 0,
@@ -163,13 +164,12 @@ impl ERC4626Vault {
         // Normalize reserves by decimal shift
         let (r_v, r_a) = match decimal_shift.cmp(&0) {
             Ordering::Less => (
-                U256::from(self.vault_reserve)
-                    * U256::from(10u128.pow(decimal_shift.unsigned_abs() as u32)),
-                U256::from(self.asset_reserve),
+                self.vault_reserve * U256::from(10u128.pow(decimal_shift.unsigned_abs() as u32)),
+                self.asset_reserve,
             ),
             _ => (
-                U256::from(self.vault_reserve),
-                U256::from(self.asset_reserve) * U256::from(10u128.pow(decimal_shift as u32)),
+                self.vault_reserve,
+                self.asset_reserve * U256::from(10u128.pow(decimal_shift as u32)),
             ),
         };
 
@@ -177,18 +177,16 @@ impl ERC4626Vault {
         if base_token == self.vault_token {
             if r_v == U256::zero() {
                 // Return 1 in Q64
-                return Ok(2u128.pow(64) * u128::from(10000 - self.withdraw_fee) / 10000);
+                Ok(2u128.pow(64) * u128::from(10000 - self.withdraw_fee) / 10000)
             } else {
                 Ok(div_uu(r_a, r_v)? * u128::from(10000 - self.withdraw_fee) / 10000)
             }
         // Deposit
+        } else if r_a == U256::zero() {
+            // Return 1 in Q64
+            Ok(2u128.pow(64) * u128::from(10000 - self.deposit_fee) / 10000)
         } else {
-            if r_a == U256::zero() {
-                // Return 1 in Q64
-                return Ok(2u128.pow(64) * u128::from(10000 - self.deposit_fee) / 10000);
-            } else {
-                Ok(div_uu(r_v, r_a)? * u128::from(10000 - self.deposit_fee) / 10000)
-            }
+            Ok(div_uu(r_v, r_a)? * u128::from(10000 - self.deposit_fee) / 10000)
         }
     }
 
@@ -227,12 +225,11 @@ impl ERC4626Vault {
             return amount_in;
         }
 
-        let fee;
-        if reserve_in == self.vault_reserve {
-            fee = self.withdraw_fee;
+        let fee = if reserve_in == self.vault_reserve {
+            self.withdraw_fee
         } else {
-            fee = self.deposit_fee;
-        }
+            self.deposit_fee
+        };
 
         amount_in * reserve_out / reserve_in * (10000 - fee) / 10000
     }
