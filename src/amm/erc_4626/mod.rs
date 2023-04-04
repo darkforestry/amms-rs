@@ -186,7 +186,6 @@ impl ERC4626Vault {
         }
     }
 
-    // TODO: Include fee
     pub fn get_amount_out(&self, amount_in: U256, reserve_in: U256, reserve_out: U256) -> U256 {
         if amount_in.is_zero() {
             return U256::zero();
@@ -196,7 +195,14 @@ impl ERC4626Vault {
             return amount_in;
         }
 
-        amount_in * reserve_out / reserve_in
+        let fee;
+        if reserve_in == self.vault_reserve {
+            fee = self.withdraw_fee;
+        } else {
+            fee = self.deposit_fee;
+        }
+
+        amount_in * reserve_out / reserve_in * (10000 - fee) / 10000
     }
 }
 
