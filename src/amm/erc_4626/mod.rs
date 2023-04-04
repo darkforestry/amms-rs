@@ -4,8 +4,9 @@ use std::{cmp::Ordering, sync::Arc};
 
 use async_trait::async_trait;
 use ethers::{
+    abi::ParamType,
     providers::Middleware,
-    types::{H160, H256, U256},
+    types::{Log, H160, H256, U256},
 };
 use serde::{Deserialize, Serialize};
 
@@ -203,6 +204,67 @@ impl ERC4626Vault {
         }
 
         amount_in * reserve_out / reserve_in * (10000 - fee) / 10000
+    }
+
+    pub fn sync_from_log(&mut self, log: &Log) {
+        if log.topics[0] == DEPOSIT_EVENT_SIGNATURE {
+            let (assets_in, shares_in) = self.decode_deposit_log(log);
+            self.asset_reserve += assets_in;
+            self.vault_reserve += shares_in;
+        } else if log.topics[0] == WITHDRAW_EVENT_SIGNATURE {
+            let (assets_out, shares_out) = self.decode_withdraw_log(log);
+            self.asset_reserve -= assets_out;
+            self.vault_reserve -= shares_out;
+        }
+    }
+
+    pub fn decode_deposit_log(&self, log: &Log) -> (U256, U256) {
+        let data = ethers::abi::decode(
+            &[
+                ParamType::Address,
+                ParamType::Address,
+                ParamType::Uint(256),
+                ParamType::Uint(256),
+            ],
+            &log.data,
+        )
+        .expect("Could not get log data");
+
+        (
+            data[2]
+                .to_owned()
+                .into_uint()
+                .expect("Could not convert assets in to uint"),
+            data[3]
+                .to_owned()
+                .into_uint()
+                .expect("Could not convert shares in to uint"),
+        )
+    }
+
+    pub fn decode_withdraw_log(&self, log: &Log) -> (U256, U256) {
+        let data = ethers::abi::decode(
+            &[
+                ParamType::Address,
+                ParamType::Address,
+                ParamType::Address,
+                ParamType::Uint(256),
+                ParamType::Uint(256),
+            ],
+            &log.data,
+        )
+        .expect("Could not get log data");
+
+        (
+            data[3]
+                .to_owned()
+                .into_uint()
+                .expect("Could not convert assets in to uint"),
+            data[4]
+                .to_owned()
+                .into_uint()
+                .expect("Could not convert shares in to uint"),
+        )
     }
 }
 
