@@ -42,6 +42,8 @@ where
     NoLiquidityNet,
     #[error("Incongruent AMMS supplied to batch request")]
     IncongruentAMMs,
+    #[error("Invalid ERC4626 fee")]
+    InvalidERC4626Fee,
 }
 
 #[derive(Error, Debug)]

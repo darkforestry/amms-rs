@@ -1,7 +1,7 @@
 use crate::{
     amm::{
         factory::{AutomatedMarketMakerFactory, Factory},
-        uniswap_v2, uniswap_v3, AMM,
+        uniswap_v2, uniswap_v3, AutomatedMarketMaker, AMM,
     },
     errors::DAMMError,
 };
@@ -114,6 +114,13 @@ pub async fn populate_amms<M: Middleware>(
                     .await?;
                 }
             }
+
+            // TODO: Implement batch request
+            AMM::ERC4626Vault(_) => {
+                for amm in amms {
+                    amm.populate_data(middleware.clone()).await?;
+                }
+            }
         }
     } else {
         return Err(DAMMError::IncongruentAMMs);
@@ -135,6 +142,11 @@ pub fn remove_empty_amms(amms: Vec<AMM>) -> Vec<AMM> {
             }
             AMM::UniswapV3Pool(uniswap_v3_pool) => {
                 if !uniswap_v3_pool.token_a.is_zero() && !uniswap_v3_pool.token_b.is_zero() {
+                    cleaned_amms.push(amm)
+                }
+            }
+            AMM::ERC4626Vault(erc4626_vault) => {
+                if !erc4626_vault.vault_token.is_zero() && !erc4626_vault.asset_token.is_zero() {
                     cleaned_amms.push(amm)
                 }
             }

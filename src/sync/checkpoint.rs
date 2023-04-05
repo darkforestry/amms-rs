@@ -70,7 +70,7 @@ pub async fn sync_amms_from_checkpoint<M: 'static + Middleware>(
     .expect("Error when converting checkpoint file contents to serde_json::Value");
 
     //Sort all of the pools from the checkpoint into uniswap_v2_pools and uniswap_v3_pools pools so we can sync them concurrently
-    let (uniswap_v2_pools, uniswap_v3_pools) = sort_amms(checkpoint.amms);
+    let (uniswap_v2_pools, uniswap_v3_pools, _erc_4626_pools) = sort_amms(checkpoint.amms);
 
     let mut aggregated_amms = vec![];
     let mut handles = vec![];
@@ -84,6 +84,8 @@ pub async fn sync_amms_from_checkpoint<M: 'static + Middleware>(
     if !uniswap_v3_pools.is_empty() {
         handles.push(batch_sync_amms_from_checkpoint(uniswap_v3_pools, middleware.clone()).await);
     }
+
+    // TODO: Batch sync erc4626 pools from checkpoint
 
     //Sync all pools from the since synced block
     handles.extend(
@@ -171,6 +173,8 @@ pub async fn batch_sync_amms_from_checkpoint<M: 'static + Middleware>(
             H160::zero(),
             0,
         ))),
+
+        AMM::ERC4626Vault(_) => None,
     };
 
     //Spawn a new thread to get all pools and sync data for each dex
@@ -193,18 +197,20 @@ pub async fn batch_sync_amms_from_checkpoint<M: 'static + Middleware>(
     })
 }
 
-pub fn sort_amms(amms: Vec<AMM>) -> (Vec<AMM>, Vec<AMM>) {
+pub fn sort_amms(amms: Vec<AMM>) -> (Vec<AMM>, Vec<AMM>, Vec<AMM>) {
     let mut uniswap_v2_pools = vec![];
     let mut uniswap_v3_pools = vec![];
+    let mut erc_4626_vaults = vec![];
 
     for amm in amms {
         match amm {
             AMM::UniswapV2Pool(_) => uniswap_v2_pools.push(amm),
             AMM::UniswapV3Pool(_) => uniswap_v3_pools.push(amm),
+            AMM::ERC4626Vault(_) => erc_4626_vaults.push(amm),
         }
     }
 
-    (uniswap_v2_pools, uniswap_v3_pools)
+    (uniswap_v2_pools, uniswap_v3_pools, erc_4626_vaults)
 }
 
 pub async fn get_new_pools_from_range<M: 'static + Middleware>(
