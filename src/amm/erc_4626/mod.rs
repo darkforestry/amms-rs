@@ -17,7 +17,7 @@ use crate::{
 
 use ethers::prelude::abigen;
 
-use super::uniswap_v2::{div_uu, q64_to_f64};
+use super::uniswap_v2::{div_uu, q64_to_f64, U128_0X10000000000000000};
 
 abigen!(
     IERC4626Vault,
@@ -176,15 +176,15 @@ impl ERC4626Vault {
         // Withdraw
         if base_token == self.vault_token {
             if r_v == U256::zero() {
-                // Return 1 in Q64
-                Ok(2u128.pow(64) * u128::from(10000 - self.withdraw_fee) / 10000)
+                // Return 1 in Q64 - fee
+                Ok(U128_0X10000000000000000 * u128::from(10000 - self.withdraw_fee) / 10000)
             } else {
                 Ok(div_uu(r_a, r_v)? * u128::from(10000 - self.withdraw_fee) / 10000)
             }
         // Deposit
         } else if r_a == U256::zero() {
-            // Return 1 in Q64
-            Ok(2u128.pow(64) * u128::from(10000 - self.deposit_fee) / 10000)
+            // Return 1 in Q64 - fee
+            Ok(U128_0X10000000000000000 * u128::from(10000 - self.deposit_fee) / 10000)
         } else {
             Ok(div_uu(r_v, r_a)? * u128::from(10000 - self.deposit_fee) / 10000)
         }
