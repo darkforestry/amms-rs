@@ -3,6 +3,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use ethers::{
     abi::ParamType,
+    prelude::abigen,
     providers::Middleware,
     types::{BlockNumber, Filter, Log, ValueOrArray, H160, H256, U256, U64},
 };
@@ -15,16 +16,26 @@ use crate::{
 
 use super::{batch_request, UniswapV3Pool};
 
-#[derive(Clone, Copy, Serialize, Deserialize)]
-pub struct UniswapV3Factory {
-    pub address: H160,
-    pub creation_block: u64,
-}
+abigen!(
+    IUniswapV3Factory,
+    r#"[
+        function getPool(address tokenA, address tokenB, uint24 fee) external view returns (address pool)
+        event PoolCreated(address indexed token0, address indexed token1, uint24 indexed fee, int24 tickSpacing, address pool)
+        parameters() returns (address, address, uint24, int24)
+        feeAmountTickSpacing(uint24) returns (int24)
+        ]"#;
+);
 
 pub const POOL_CREATED_EVENT_SIGNATURE: H256 = H256([
     120, 60, 202, 28, 4, 18, 221, 13, 105, 94, 120, 69, 104, 201, 109, 162, 233, 194, 47, 249, 137,
     53, 122, 46, 139, 29, 155, 43, 78, 107, 113, 24,
 ]);
+
+#[derive(Default, Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct UniswapV3Factory {
+    pub address: H160,
+    pub creation_block: u64,
+}
 
 #[async_trait]
 impl AutomatedMarketMakerFactory for UniswapV3Factory {
