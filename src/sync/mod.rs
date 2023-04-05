@@ -1,7 +1,7 @@
 use crate::{
     amm::{
         factory::{AutomatedMarketMakerFactory, Factory},
-        uniswap_v2, uniswap_v3, AMM,
+        uniswap_v2, uniswap_v3, AutomatedMarketMaker, AMM,
     },
     errors::DAMMError,
 };
