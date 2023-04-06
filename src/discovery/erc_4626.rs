@@ -1,13 +1,8 @@
-use std::{
-    collections::{HashMap, HashSet},
-    str::FromStr,
-    sync::Arc,
-    time::{self, Duration},
-};
+use std::{collections::HashSet, str::FromStr, sync::Arc};
 
 use ethers::{
     providers::Middleware,
-    types::{Filter, H160, U256},
+    types::{Filter, U256},
 };
 use regex::Regex;
 use spinoff::{spinners, Color, Spinner};
@@ -39,6 +34,8 @@ pub async fn discover_erc_4626_vaults<M: Middleware>(
     //For each block within the range, get all pairs asynchronously
     let step = 100000;
 
+    let mut adheres_to_withdraw_event = HashSet::new();
+    let mut adheres_to_deposit_event = HashSet::new();
     let mut identified_addresses = HashSet::new();
 
     let mut from_block = 0;
@@ -49,11 +46,10 @@ pub async fn discover_erc_4626_vaults<M: Middleware>(
             to_block = current_block;
         }
 
-        dbg!(from_block, to_block);
-
         let block_filter = block_filter.clone();
         //TODO: use a better method, this is just quick and scrappy
         let fallback_block_filter = block_filter.clone();
+
         let logs = match middleware
             .get_logs(&block_filter.from_block(from_block).to_block(to_block))
             .await
@@ -91,28 +87,29 @@ pub async fn discover_erc_4626_vaults<M: Middleware>(
         };
 
         for log in logs {
-            //TODO: Add an interface check, but for now just try to get a new vault from address, if it fails then do not add it to the identified
-            //TODO: vaults. This approach is inefficient but should work for now.
-
-            if let None = identified_addresses.get(&log.address) {
-                identified_addresses.insert(log.address);
+            if log.topics[0] == DEPOSIT_EVENT_SIGNATURE {
+                adheres_to_deposit_event.insert(log.address);
+            } else if log.topics[0] == WITHDRAW_EVENT_SIGNATURE {
+                adheres_to_withdraw_event.insert(log.address);
             }
         }
+    }
 
-        std::thread::sleep(Duration::from_millis(50));
+    for address in adheres_to_deposit_event.iter() {
+        if adheres_to_withdraw_event.contains(address) {
+            identified_addresses.insert(address);
+        }
     }
 
     let mut vaults = vec![];
-
     for identified_address in identified_addresses {
-        std::thread::sleep(Duration::from_millis(100));
+        //TODO: Add an interface check, but for now just try to get a new vault from address, if it fails then do not add it to the identified
+        //TODO: vaults. This approach is inefficient but should work for now.
+
         if let Ok(vault) =
-            ERC4626Vault::new_from_address(identified_address, middleware.clone()).await
+            ERC4626Vault::new_from_address(*identified_address, middleware.clone()).await
         {
-            dbg!(vault);
             vaults.push(vault);
-        } else {
-            dbg!("not a vault", identified_address);
         }
     }
 

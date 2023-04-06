@@ -15,9 +15,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let provider = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
 
     //discover vaults
-    let vaults = discovery::erc_4626::discover_erc_4626_vaults(provider).await?;
-
-    dbg!(vaults);
+    let _vaults = discovery::erc_4626::discover_erc_4626_vaults(provider).await?;
 
     Ok(())
 }
