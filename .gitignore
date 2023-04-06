@@ -2,3 +2,4 @@
 /contracts/out
 /cache
 .env
+.vscode
