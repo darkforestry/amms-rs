@@ -1,7 +1,7 @@
 pub mod batch_request;
 pub mod factory;
 
-use std::sync::Arc;
+use std::{cmp::Ordering, sync::Arc};
 
 use async_trait::async_trait;
 use ethers::{
@@ -97,12 +97,11 @@ impl AutomatedMarketMaker for UniswapV3Pool {
     fn calculate_price(&self, base_token: H160) -> Result<f64, ArithmeticError> {
         let tick = uniswap_v3_math::tick_math::get_tick_at_sqrt_ratio(self.sqrt_price)?;
         let shift = self.token_a_decimals as i8 - self.token_b_decimals as i8;
-        let mut price = 1.0001_f64.powi(tick);
 
-        if shift < 0 {
-            price /= 10_f64.powi(-shift as i32)
-        } else if shift > 0 {
-            price *= 10_f64.powi(shift as i32)
+        let price = match shift.cmp(&0) {
+            Ordering::Less => 1.0001_f64.powi(tick) / 10_f64.powi(-shift as i32),
+            Ordering::Greater => 1.0001_f64.powi(tick) * 10_f64.powi(shift as i32),
+            Ordering::Equal => 1.0001_f64.powi(tick),
         };
 
         if base_token == self.token_a {
