@@ -6,7 +6,7 @@ use damms::discovery::factory::{discover_factories, DiscoverableFactory};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let factories_filename = "discovered_factories/polygon_factories.json";
+    let factories_filename = "polygon_factories.json";
     let number_of_amms_threshold = 50;
 
     //Add rpc endpoint here:
@@ -23,6 +23,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
         provider,
     )
     .await?;
+
+    dbg!(factories.clone());
 
     std::fs::write(
         factories_filename,

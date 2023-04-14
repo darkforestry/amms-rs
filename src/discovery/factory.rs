@@ -78,16 +78,18 @@ pub async fn discover_factories<M: Middleware>(
             } else {
                 //TODO: conduct interface checks for the given factory
 
-                let factory = Factory::new_empty_factory_from_event_signature(log.topics[0]);
+                let mut factory = Factory::new_empty_factory_from_event_signature(log.topics[0]);
 
-                match factory {
-                    Factory::UniswapV2Factory(mut uniswap_v2_factory) => {
+                match &mut factory {
+                    Factory::UniswapV2Factory(uniswap_v2_factory) => {
                         uniswap_v2_factory.address = log.address
                     }
-                    Factory::UniswapV3Factory(mut uniswap_v3_factory) => {
+                    Factory::UniswapV3Factory(uniswap_v3_factory) => {
                         uniswap_v3_factory.address = log.address
                     }
                 }
+
+                dbg!(factory);
 
                 identified_factories.insert(log.address, (factory, 0));
             }
