@@ -1,7 +1,7 @@
 pub mod batch_request;
 pub mod factory;
 
-use std::sync::Arc;
+use std::{cmp::Ordering, sync::Arc};
 
 use async_trait::async_trait;
 use ethers::{
@@ -95,13 +95,13 @@ impl AutomatedMarketMaker for UniswapV3Pool {
     }
 
     fn calculate_price(&self, base_token: H160) -> Result<f64, ArithmeticError> {
-        let tick = uniswap_v3_math::tick_math::get_tick_at_sqrt_ratio(self.sqrt_price)
-            .expect("TODO: handle this and dont let it unwrap ");
+        let tick = uniswap_v3_math::tick_math::get_tick_at_sqrt_ratio(self.sqrt_price)?;
         let shift = self.token_a_decimals as i8 - self.token_b_decimals as i8;
-        let price = if shift < 0 {
-            1.0001_f64.powi(tick) / 10_f64.powi(-shift as i32)
-        } else {
-            1.0001_f64.powi(tick) * 10_f64.powi(shift as i32)
+
+        let price = match shift.cmp(&0) {
+            Ordering::Less => 1.0001_f64.powi(tick) / 10_f64.powi(-shift as i32),
+            Ordering::Greater => 1.0001_f64.powi(tick) * 10_f64.powi(shift as i32),
+            Ordering::Equal => 1.0001_f64.powi(tick),
         };
 
         if base_token == self.token_a {
@@ -408,7 +408,8 @@ impl UniswapV3Pool {
        ==> y = L^2*price
     */
     pub fn calculate_virtual_reserves(&self) -> Result<(u128, u128), ArithmeticError> {
-        let price: f64 = self.calculate_price(self.token_a)?;
+        let tick = uniswap_v3_math::tick_math::get_tick_at_sqrt_ratio(self.sqrt_price)?;
+        let price = 1.0001_f64.powi(tick);
 
         let sqrt_price = BigFloat::from_f64(price.sqrt());
         let liquidity = BigFloat::from_u128(self.liquidity);
@@ -1189,8 +1190,10 @@ mod test {
             .calculate_virtual_reserves()
             .expect("Could not calculate virtual reserves");
 
-        assert_eq!(1067543429906214084651, r_0);
-        assert_eq!(649198362624067396, r_1);
+        dbg!(r_0, r_1);
+
+        assert_eq!(1067543429906214, r_0);
+        assert_eq!(649198362624067343572319, r_1);
     }
 
     #[tokio::test]
@@ -1224,7 +1227,7 @@ mod test {
 
         dbg!(pool);
 
-        println!("Price A: {float_price_a}");
-        println!("Price B: {float_price_b}");
+        assert_eq!(float_price_a, 0.0006081236083117488);
+        assert_eq!(float_price_b, 1644.4025299004006);
     }
 }
