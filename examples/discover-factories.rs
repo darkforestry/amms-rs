@@ -24,7 +24,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
     )
     .await?;
 
-    dbg!(factories.clone());
 
     std::fs::write(
         factories_filename,

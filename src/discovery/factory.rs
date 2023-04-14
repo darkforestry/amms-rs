@@ -97,8 +97,6 @@ pub async fn discover_factories<M: Middleware>(
                     }
                 }
 
-                dbg!(factory);
-
                 identified_factories.insert(log.address, (factory, 0));
             }
         }
