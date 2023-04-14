@@ -6,12 +6,12 @@ use damms::discovery::factory::{discover_factories, DiscoverableFactory};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let factories_filename = "factories.json";
+    let factories_filename = "polygon_factories.json";
     let number_of_amms_threshold = 50;
 
     //Add rpc endpoint here:
-    let rpc_endpoint =
-        std::env::var("ETHEREUM_RPC_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
+    let rpc_endpoint = "";
+
     let provider = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
 
     let factories = discover_factories(
