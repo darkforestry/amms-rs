@@ -1,15 +1,14 @@
-use std::{error::Error, str::FromStr, sync::Arc};
+use std::{error::Error, sync::Arc};
 
-use ethers::{
-    providers::{Http, Provider},
-    types::H160,
-};
+use ethers::providers::{Http, Provider};
 
 use damms::discovery::factory::{discover_factories, DiscoverableFactory};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     let factories_filename = "factories.json";
+    let number_of_amms_threshold = 50;
+
     //Add rpc endpoint here:
     let rpc_endpoint =
         std::env::var("ETHEREUM_RPC_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
@@ -20,7 +19,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             DiscoverableFactory::UniswapV2Factory,
             DiscoverableFactory::UniswapV3Factory,
         ],
-        50,
+        number_of_amms_threshold,
         provider,
     )
     .await?;
