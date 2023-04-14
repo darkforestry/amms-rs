@@ -52,6 +52,7 @@ pub enum ArithmeticError {
     RoundingError,
     YIsZero,
     SqrtPriceOverflow,
+    UniswapV3MathError(#[from] UniswapV3MathError),
 }
 
 impl std::fmt::Display for ArithmeticError {

@@ -260,9 +260,9 @@ impl UniswapV2Pool {
         };
 
         if base_token == self.token_a {
-            Ok(div_uu(r_1, r_0)?)
+            div_uu(r_1, r_0)
         } else {
-            Ok(div_uu(r_0, r_1))?
+            div_uu(r_0, r_1)
         }
     }
 
