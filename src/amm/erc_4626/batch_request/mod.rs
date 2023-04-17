@@ -37,8 +37,10 @@ pub async fn get_4626_vault_data_batch_request<M: Middleware>(
             ParamType::Uint(256), // asset token reserve
             ParamType::Uint(256), // deposit fee delta 1
             ParamType::Uint(256), // deposit fee delta 2
+            ParamType::Uint(256), // deposit not fee
             ParamType::Uint(256), // withdraw fee delta 1
             ParamType::Uint(256), // withdraw fee delta 2
+            ParamType::Uint(256), // withdraw no fee
         ])))],
         &return_data,
     )?;
