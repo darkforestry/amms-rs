@@ -67,10 +67,10 @@ pub async fn get_4626_vault_data_batch_request<M: Middleware>(
                         if deposit_fee_delta_1.is_zero() && deposit_fee_delta_2.is_zero() {
                             vault.deposit_fee = 0;
                         // Assuming 18 decimals, if the delta of 1e20 is half the delta of 2e20, relative fee.
-                        // Delta from 1e20 divided by 1e16 to give us the fee in basis points
+                        // Delta from 1e20 divided by 1e14 to give us the fee in basis points
                         } else if deposit_fee_delta_1 * 2 == deposit_fee_delta_2 {
                             vault.deposit_fee = (deposit_fee_delta_1
-                                / U256::from(10u128.pow((vault.vault_token_decimals - 2).into())))
+                                / U256::from(10u128.pow((vault.vault_token_decimals - 4).into())))
                             .as_u32();
                         } else {
                             // If not a relative fee or zero, ignore vault
@@ -81,10 +81,10 @@ pub async fn get_4626_vault_data_batch_request<M: Middleware>(
                         if withdraw_fee_delta_1.is_zero() && withdraw_fee_delta_2.is_zero() {
                             vault.withdraw_fee = 0;
                         // Assuming 18 decimals, if the delta of 1e20 is half the delta of 2e20, relative fee.
-                        // Delta from 1e20 divided by 1e16 to give us the fee in basis points
+                        // Delta from 1e20 divided by 1e14 to give us the fee in basis points
                         } else if withdraw_fee_delta_1 * 2 == withdraw_fee_delta_2 {
                             vault.withdraw_fee = (withdraw_fee_delta_1
-                                / U256::from(10u128.pow((vault.asset_token_decimals - 2).into())))
+                                / U256::from(10u128.pow((vault.asset_token_decimals - 4).into())))
                             .as_u32();
                         } else {
                             // If not a relative fee or zero, ignore vault
