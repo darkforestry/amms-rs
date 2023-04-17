@@ -176,14 +176,14 @@ impl ERC4626Vault {
         // Withdraw
         if base_token == self.vault_token {
             if r_v.is_zero() {
-                // Return 1 in Q64 - fee
+                // Return 1 in Q64
                 Ok(U128_0X10000000000000000)
             } else {
                 Ok(div_uu(r_a, r_v)?)
             }
         // Deposit
         } else if r_a.is_zero() {
-            // Return 1 in Q64 - fee
+            // Return 1 in Q64
             Ok(U128_0X10000000000000000)
         } else {
             Ok(div_uu(r_v, r_a)?)
