@@ -177,17 +177,17 @@ impl ERC4626Vault {
         // Withdraw
         if base_token == self.vault_token {
             if r_v.is_zero() {
-                // Return 1 in Q64 - fee
-                Ok(U128_0X10000000000000000 * u128::from(10000 - self.withdraw_fee) / 10000)
+                // Return 1 in Q64
+                Ok(U128_0X10000000000000000)
             } else {
-                Ok(div_uu(r_a, r_v)? * u128::from(10000 - self.withdraw_fee) / 10000)
+                Ok(div_uu(r_a, r_v)?)
             }
         // Deposit
         } else if r_a.is_zero() {
-            // Return 1 in Q64 - fee
-            Ok(U128_0X10000000000000000 * u128::from(10000 - self.deposit_fee) / 10000)
+            // Return 1 in Q64
+            Ok(U128_0X10000000000000000)
         } else {
-            Ok(div_uu(r_v, r_a)? * u128::from(10000 - self.deposit_fee) / 10000)
+            Ok(div_uu(r_v, r_a)?)
         }
     }
 
@@ -378,31 +378,6 @@ mod tests {
 
         assert_eq!(price_v_64_x, 1.0);
         assert_eq!(price_a_64_x, 1.0);
-    }
-
-    #[tokio::test]
-    async fn test_calculate_price_with_fees() {
-        let rpc_endpoint =
-            std::env::var("ETHEREUM_RPC_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
-        let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
-
-        let mut vault = ERC4626Vault {
-            vault_token: H160::from_str("0x163538E22F4d38c1eb21B79939f3d2ee274198Ff").unwrap(),
-            ..Default::default()
-        };
-
-        vault.populate_data(middleware).await.unwrap();
-
-        vault.vault_reserve = U256::from_dec_str("501910315708981197269904").unwrap();
-        vault.asset_reserve = U256::from_dec_str("505434849031054568651911").unwrap();
-        vault.deposit_fee = 10; // 0.1%
-        vault.withdraw_fee = 50; // 0.5%
-
-        let price_v_64_x = vault.calculate_price(vault.vault_token).unwrap();
-        let price_a_64_x = vault.calculate_price(vault.asset_token).unwrap();
-
-        assert_eq!(price_v_64_x, 1.001987126077513);
-        assert_eq!(price_a_64_x, 0.992033703957095);
     }
 
     #[tokio::test]
