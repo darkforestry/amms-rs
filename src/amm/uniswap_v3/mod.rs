@@ -1,7 +1,7 @@
 pub mod batch_request;
 pub mod factory;
 
-use std::{cmp::Ordering, sync::Arc};
+use std::{cmp::Ordering, collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
 use ethers::{
@@ -60,7 +60,7 @@ pub const SWAP_EVENT_SIGNATURE: H256 = H256([
 pub const U256_TWO: U256 = U256([2, 0, 0, 0]);
 pub const Q128: U256 = U256([0, 0, 1, 0]);
 pub const Q224: U256 = U256([0, 0, 0, 4294967296]);
-#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct UniswapV3Pool {
     pub address: H160,
     pub token_a: H160,
@@ -72,6 +72,14 @@ pub struct UniswapV3Pool {
     pub fee: u32,
     pub tick: i32,
     pub tick_spacing: i32,
+    pub liquidity_net: i128,
+    // pub tick_bitmap: HashMap<i16, U256>,
+    // pub ticks: HashMap<i32, Info>,
+}
+
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
+pub struct Info {
+    pub initialized: bool,
     pub liquidity_net: i128,
 }
 

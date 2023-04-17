@@ -43,7 +43,7 @@ pub trait AutomatedMarketMakerFactory {
     fn new_empty_amm_from_log(&self, log: Log) -> Result<AMM, ethers::abi::Error>;
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Factory {
     UniswapV2Factory(UniswapV2Factory),
     UniswapV3Factory(UniswapV3Factory),
@@ -114,7 +114,7 @@ impl AutomatedMarketMakerFactory for Factory {
 
 impl Factory {
     pub async fn get_all_pools_from_logs<M: 'static + Middleware>(
-        self,
+        &self,
         from_block: BlockNumber,
         to_block: BlockNumber,
         step: usize,

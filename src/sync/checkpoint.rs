@@ -135,7 +135,7 @@ pub async fn get_new_amms_from_range<M: 'static + Middleware>(
     //Aggregate the populated pools from each thread
     let mut handles = vec![];
 
-    for factory in factories {
+    for factory in factories.into_iter() {
         let middleware = middleware.clone();
 
         //Spawn a new thread to get all pools and sync data for each dex

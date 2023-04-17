@@ -24,7 +24,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
     )
     .await?;
 
-
     std::fs::write(
         factories_filename,
         serde_json::to_string_pretty(&factories).unwrap(),

@@ -163,9 +163,6 @@ impl UniswapV3Factory {
                 let amm = self.new_empty_amm_from_log(log)?;
                 aggregated_amms.push(amm);
             }
-
-            //Increment the progress bar by the step
-            // progress_bar.inc(step as u64);
         }
 
         Ok(aggregated_amms)

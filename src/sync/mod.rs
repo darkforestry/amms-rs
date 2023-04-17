@@ -76,10 +76,10 @@ pub async fn sync_amms<M: 'static + Middleware>(
 }
 
 pub fn amms_are_congruent(amms: &[AMM]) -> bool {
-    let expected_amm = amms[0];
+    let expected_amm = &amms[0];
 
     for amm in amms {
-        if std::mem::discriminant(&expected_amm) != std::mem::discriminant(amm) {
+        if std::mem::discriminant(expected_amm) != std::mem::discriminant(amm) {
             return false;
         }
     }
@@ -133,19 +133,19 @@ pub async fn populate_amms<M: Middleware>(
 pub fn remove_empty_amms(amms: Vec<AMM>) -> Vec<AMM> {
     let mut cleaned_amms = vec![];
 
-    for amm in amms {
+    for amm in amms.into_iter() {
         match amm {
-            AMM::UniswapV2Pool(uniswap_v2_pool) => {
+            AMM::UniswapV2Pool(ref uniswap_v2_pool) => {
                 if !uniswap_v2_pool.token_a.is_zero() && !uniswap_v2_pool.token_b.is_zero() {
                     cleaned_amms.push(amm)
                 }
             }
-            AMM::UniswapV3Pool(uniswap_v3_pool) => {
+            AMM::UniswapV3Pool(ref uniswap_v3_pool) => {
                 if !uniswap_v3_pool.token_a.is_zero() && !uniswap_v3_pool.token_b.is_zero() {
                     cleaned_amms.push(amm)
                 }
             }
-            AMM::ERC4626Vault(erc4626_vault) => {
+            AMM::ERC4626Vault(ref erc4626_vault) => {
                 if !erc4626_vault.vault_token.is_zero() && !erc4626_vault.asset_token.is_zero() {
                     cleaned_amms.push(amm)
                 }

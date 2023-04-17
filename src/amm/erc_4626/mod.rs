@@ -38,7 +38,7 @@ pub const WITHDRAW_EVENT_SIGNATURE: H256 = H256([
     74, 44, 117, 192, 31, 201, 102, 114, 50, 200, 219,
 ]);
 
-#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ERC4626Vault {
     pub vault_token: H160, // token received from depositing, i.e. shares token
     pub vault_token_decimals: u8,
