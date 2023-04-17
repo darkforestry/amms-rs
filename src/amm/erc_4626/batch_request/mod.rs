@@ -37,8 +37,10 @@ pub async fn get_4626_vault_data_batch_request<M: Middleware>(
             ParamType::Uint(256), // asset token reserve
             ParamType::Uint(256), // deposit fee delta 1
             ParamType::Uint(256), // deposit fee delta 2
+            ParamType::Uint(256), // deposit not fee
             ParamType::Uint(256), // withdraw fee delta 1
             ParamType::Uint(256), // withdraw fee delta 2
+            ParamType::Uint(256), // withdraw no fee
         ])))],
         &return_data,
     )?;
@@ -60,17 +62,19 @@ pub async fn get_4626_vault_data_batch_request<M: Middleware>(
 
                         let deposit_fee_delta_1 = vault_data[6].to_owned().into_uint().unwrap();
                         let deposit_fee_delta_2 = vault_data[7].to_owned().into_uint().unwrap();
-                        let withdraw_fee_delta_1 = vault_data[8].to_owned().into_uint().unwrap();
-                        let withdraw_fee_delta_2 = vault_data[9].to_owned().into_uint().unwrap();
+                        let deposit_no_fee = vault_data[8].to_owned().into_uint().unwrap();
+                        let withdraw_fee_delta_1 = vault_data[9].to_owned().into_uint().unwrap();
+                        let withdraw_fee_delta_2 = vault_data[10].to_owned().into_uint().unwrap();
+                        let withdraw_no_fee = vault_data[11].to_owned().into_uint().unwrap();
 
                         // If both deltas are zero, the fee is zero
                         if deposit_fee_delta_1.is_zero() && deposit_fee_delta_2.is_zero() {
                             vault.deposit_fee = 0;
                         // Assuming 18 decimals, if the delta of 1e20 is half the delta of 2e20, relative fee.
-                        // Delta from 1e20 divided by 1e16 to give us the fee in basis points
+                        // Delta / (amount without fee / 10000) to give us the fee in basis points
                         } else if deposit_fee_delta_1 * 2 == deposit_fee_delta_2 {
                             vault.deposit_fee = (deposit_fee_delta_1
-                                / U256::from(10u128.pow((vault.vault_token_decimals - 2).into())))
+                                / (deposit_no_fee / U256::from("0x2710")))
                             .as_u32();
                         } else {
                             // If not a relative fee or zero, ignore vault
@@ -81,10 +85,10 @@ pub async fn get_4626_vault_data_batch_request<M: Middleware>(
                         if withdraw_fee_delta_1.is_zero() && withdraw_fee_delta_2.is_zero() {
                             vault.withdraw_fee = 0;
                         // Assuming 18 decimals, if the delta of 1e20 is half the delta of 2e20, relative fee.
-                        // Delta from 1e20 divided by 1e16 to give us the fee in basis points
+                        // Delta / (amount without fee / 10000) to give us the fee in basis points
                         } else if withdraw_fee_delta_1 * 2 == withdraw_fee_delta_2 {
                             vault.withdraw_fee = (withdraw_fee_delta_1
-                                / U256::from(10u128.pow((vault.asset_token_decimals - 2).into())))
+                                / (withdraw_no_fee / U256::from("0x2710")))
                             .as_u32();
                         } else {
                             // If not a relative fee or zero, ignore vault
