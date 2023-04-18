@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{sync::Arc, collections::HashMap};
 
 use async_trait::async_trait;
 use ethers::{
@@ -112,6 +112,8 @@ impl AutomatedMarketMakerFactory for UniswapV3Factory {
             tick_spacing: 0,
             tick: 0,
             liquidity_net: 0,
+            tick_bitmap: HashMap::new(),
+            ticks: HashMap::new(),
         }))
     }
 }
