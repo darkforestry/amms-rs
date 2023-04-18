@@ -12,6 +12,8 @@ use spinoff::{spinners, Color, Spinner};
 use std::{panic::resume_unwind, sync::Arc};
 pub mod checkpoint;
 
+//TODO: This needs to return the block that everything started syncing at
+
 pub async fn sync_amms<M: 'static + Middleware>(
     factories: Vec<Factory>,
     middleware: Arc<M>,
@@ -35,7 +37,24 @@ pub async fn sync_amms<M: 'static + Middleware>(
         //Spawn a new thread to get all pools and sync data for each dex
         handles.push(tokio::spawn(async move {
             //Get all of the amms from the factory
-            let mut amms: Vec<AMM> = factory.get_all_amms(middleware.clone()).await?;
+            let mut amms: Vec<AMM> = factory.get_all_amms(
+                
+               Hello gentlemen, before you undertake this, there are a few things to consider. Because we are now conducting v3 swap simulation completely locally,
+                We need to ensure that we do not miss any logs that will result in state changes to a v3 pool, and equally as important, we need to ensure that we do not 
+                duplicate the state changes from any log. With the current setup, we would be certainly missing logs from the initial sync to the time that we are listening for changes
+                from new blocks. This is due to state space filtering and any other latencies that we might incur. So solve for this, the sync amms function should return a block number that was originally cached
+                at the start of the function. This block number should also be passed into `factory.get_all_amms` so that if a factory needs to sync from logs, it will sync from 
+                genesis to the passed in block. Then we can return that block and ensure that when we are syncing logs, we start from the block that syncing originally left off at. 
+                There are many footguns in this process now that we are doing everything locally and we need to keep perfect state (unwinding state changes, missed blocks, etc) else we will be running
+                a glorified space heater instead of an arb machine. 
+
+                In summary, we need to cache a block and pass it into get all amms, as well as return that block. We need to remember to use that block as the first from block when syncing logs after initial amm sync. 
+                In the future it would be nice to abstract all of this and keep it all in damms without having to worry about it being replicated across codebases. We could also create another lib that is dedicated towards
+                keeping the state and handling all state changes, unwinds, etc from a state space. It could be called something like state_space_something. 
+
+                - Kit
+                
+                middleware.clone()).await?;
             populate_amms(&mut amms, middleware.clone()).await?;
             //Clean empty pools
             amms = remove_empty_amms(amms);
