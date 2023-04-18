@@ -335,7 +335,7 @@ impl UniswapV3Pool {
         }
 
         for log in aggregated_logs {
-            self.sync_from_log(&log);
+            self.sync_from_log(&log)?;
         }
 
         Ok(())
@@ -462,17 +462,69 @@ impl UniswapV3Pool {
         let (tick_lower, tick_upper, amount) = self.decode_burn_log(&log);
 
         if let Some(info_lower) = self.ticks.get_mut(&tick_lower) {
+            //We are decreasing the liquidity net of the lower tick by the amount of liquidity burned
+            info_lower.liquidity_net -= amount as i128;
+            info_lower.initialized = true;
+        } else {
+            //NOTE: This should never happen, but in the case of asynchronomousity, we need to handle it
+            self.ticks
+                .insert(tick_lower, Info::new(true, -(amount as i128)));
+        }
+
+        if let Some(info_upper) = self.ticks.get_mut(&tick_upper) {
+            //We are increasing the liquidity net of the upper tick by the amount of liquidity burned
+            info_upper.liquidity_net += amount as i128;
+            info_upper.initialized = true;
+        } else {
+            //NOTE: This should never happen, but in the case of asynchronomousity, we need to handle it
+            self.ticks
+                .insert(tick_upper, Info::new(true, amount as i128));
+        }
+
+        let compressed_lower = tick_lower / self.tick_spacing;
+        let compressed_upper = tick_upper / self.tick_spacing;
+
+        let (word_pos_lower, bit_pos_lower) =
+            uniswap_v3_math::tick_bit_map::position(compressed_lower);
+        let (word_pos_upper, bit_pos_upper) =
+            uniswap_v3_math::tick_bit_map::position(compressed_upper);
+
+        let mask_lower = 1 << bit_pos_lower;
+        let mask_upper = 1 << bit_pos_upper;
+
+        if let Some(word_lower) = self.tick_bitmap.get_mut(&word_pos_lower) {
+            *word_lower ^= U256::from(mask_lower);
+        } else {
+            self.tick_bitmap
+                .insert(word_pos_lower, U256::from(mask_lower));
+        }
+
+        if let Some(word_upper) = self.tick_bitmap.get_mut(&word_pos_upper) {
+            *word_upper ^= U256::from(mask_upper);
+        } else {
+            self.tick_bitmap
+                .insert(word_pos_upper, U256::from(mask_upper));
+        }
+    }
+    pub fn sync_from_mint_log(&mut self, log: &Log) {
+        let (tick_lower, tick_upper, amount) = self.decode_mint_log(&log);
+
+        if let Some(info_lower) = self.ticks.get_mut(&tick_lower) {
+            //We are decreasing the liquidity net of the lower tick by the amount of liquidity burned
             info_lower.liquidity_net += amount as i128;
             info_lower.initialized = true;
         } else {
+            //NOTE: This should never happen, but in the case of asynchronomousity, we need to handle it
             self.ticks
                 .insert(tick_lower, Info::new(true, amount as i128));
         }
 
         if let Some(info_upper) = self.ticks.get_mut(&tick_upper) {
+            //We are increasing the liquidity net of the upper tick by the amount of liquidity burned
             info_upper.liquidity_net -= amount as i128;
             info_upper.initialized = true;
         } else {
+            //NOTE: This should never happen, but in the case of asynchronomousity, we need to handle it
             self.ticks
                 .insert(tick_upper, Info::new(true, -(amount as i128)));
         }
@@ -502,7 +554,6 @@ impl UniswapV3Pool {
                 .insert(word_pos_upper, U256::from(mask_upper));
         }
     }
-    pub fn sync_from_mint_log(&mut self, log: &Log) {}
 
     pub fn sync_from_swap_log(&mut self, log: &Log) {
         (_, _, self.sqrt_price, self.liquidity, self.tick) = self.decode_swap_log(log);
