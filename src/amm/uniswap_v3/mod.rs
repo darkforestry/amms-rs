@@ -66,8 +66,8 @@ pub const BURN_EVENT_SIGNATURE: H256 = H256([
 
 // Mint event signature
 pub const MINT_EVENT_SIGNATURE: H256 = H256([
-    253, 189, 120, 38, 125, 40, 65, 12, 29, 171, 58, 191, 108, 84, 3, 96, 28, 38, 73, 65, 228, 47, 120,
-    194, 22, 25, 33, 119, 38, 107, 112, 31,
+    253, 189, 120, 38, 125, 40, 65, 12, 29, 171, 58, 191, 108, 84, 3, 96, 28, 38, 73, 65, 228, 47,
+    120, 194, 22, 25, 33, 119, 38, 107, 112, 31,
 ]);
 
 pub const U256_TWO: U256 = U256([2, 0, 0, 0]);
@@ -108,7 +108,11 @@ impl AutomatedMarketMaker for UniswapV3Pool {
     }
 
     fn sync_on_event_signatures(&self) -> Vec<H256> {
-        vec![SWAP_EVENT_SIGNATURE,MINT_EVENT_SIGNATURE,BURN_EVENT_SIGNATURE]
+        vec![
+            SWAP_EVENT_SIGNATURE,
+            MINT_EVENT_SIGNATURE,
+            BURN_EVENT_SIGNATURE,
+        ]
     }
 
     fn tokens(&self) -> Vec<H160> {
@@ -373,18 +377,18 @@ impl UniswapV3Pool {
 
         (amount_0, amount_1, sqrt_price, liquidity, tick)
     }
-    
+
     //Decodes the burn event log from a burned v3 position
     pub fn decode_burn_log(&self, burn_log: &Log) -> (i32, i32, u128) {
         let log_data = decode(
             &[
-                ParamType::Address, //sender
-                ParamType::Address, //owner
-                ParamType::Int(24),  //tickLower
-                ParamType::Int(24),  //tickUpper
+                ParamType::Address,   //sender
+                ParamType::Address,   //owner
+                ParamType::Int(24),   //tickLower
+                ParamType::Int(24),   //tickUpper
                 ParamType::Uint(128), //amount
                 ParamType::Uint(256), //amount0
-                ParamType::Int(256), //amount1
+                ParamType::Int(256),  //amount1
             ],
             &burn_log.data,
         )
@@ -401,13 +405,13 @@ impl UniswapV3Pool {
     pub fn decode_mint_log(&self, mint_log: &Log) -> (i32, i32, u128) {
         let log_data = decode(
             &[
-                ParamType::Address, //sender
-                ParamType::Address, //owner
-                ParamType::Int(24),  //tickLower
-                ParamType::Int(24),  //tickUpper
+                ParamType::Address,   //sender
+                ParamType::Address,   //owner
+                ParamType::Int(24),   //tickLower
+                ParamType::Int(24),   //tickUpper
                 ParamType::Uint(128), //amount
                 ParamType::Uint(256), //amount0
-                ParamType::Int(256), //amount1
+                ParamType::Int(256),  //amount1
             ],
             &mint_log.data,
         )
