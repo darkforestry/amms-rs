@@ -11,6 +11,7 @@ use ethers::{
 };
 use num_bigfloat::BigFloat;
 use serde::{Deserialize, Serialize};
+use uniswap_v3_math::tick_bit_map;
 
 use crate::{
     amm::AutomatedMarketMaker,
@@ -57,6 +58,18 @@ pub const SWAP_EVENT_SIGNATURE: H256 = H256([
     235, 100, 254, 216, 0, 78, 17, 95, 188, 202, 103,
 ]);
 
+// Burn event signature
+pub const BURN_EVENT_SIGNATURE: H256 = H256([
+    41, 176, 60, 231, 212, 144, 162, 105, 105, 6, 105, 70, 97, 240, 41, 0, 27, 61, 4, 16, 155, 121,
+    52, 223, 51, 234, 192, 220, 69, 37, 92, 90,
+]);
+
+// Mint event signature
+pub const MINT_EVENT_SIGNATURE: H256 = H256([
+    253, 189, 120, 38, 125, 40, 65, 12, 29, 171, 58, 191, 108, 84, 3, 96, 28, 38, 73, 65, 228, 47, 120,
+    194, 22, 25, 33, 119, 38, 107, 112, 31,
+]);
+
 pub const U256_TWO: U256 = U256([2, 0, 0, 0]);
 pub const Q128: U256 = U256([0, 0, 1, 0]);
 pub const Q224: U256 = U256([0, 0, 0, 4294967296]);
@@ -73,11 +86,11 @@ pub struct UniswapV3Pool {
     pub tick: i32,
     pub tick_spacing: i32,
     pub liquidity_net: i128,
-    // pub tick_bitmap: HashMap<i16, U256>,
-    // pub ticks: HashMap<i32, Info>,
+    pub tick_bitmap: HashMap<i16, U256>,
+    pub ticks: HashMap<i32, Info>,
 }
 
-#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Info {
     pub initialized: bool,
     pub liquidity_net: i128,
@@ -95,7 +108,7 @@ impl AutomatedMarketMaker for UniswapV3Pool {
     }
 
     fn sync_on_event_signatures(&self) -> Vec<H256> {
-        vec![SWAP_EVENT_SIGNATURE]
+        vec![SWAP_EVENT_SIGNATURE,MINT_EVENT_SIGNATURE,BURN_EVENT_SIGNATURE]
     }
 
     fn tokens(&self) -> Vec<H160> {
@@ -142,6 +155,8 @@ impl UniswapV3Pool {
         tick: i32,
         tick_spacing: i32,
         liquidity_net: i128,
+        tick_bitmap: HashMap<i16, U256>,
+        ticks: HashMap<i32, Info>,
     ) -> UniswapV3Pool {
         UniswapV3Pool {
             address,
@@ -155,6 +170,8 @@ impl UniswapV3Pool {
             tick,
             tick_spacing,
             liquidity_net,
+            tick_bitmap,
+            ticks,
         }
     }
 
@@ -175,6 +192,8 @@ impl UniswapV3Pool {
             tick_spacing: 0,
             fee: 0,
             liquidity_net: 0,
+            tick_bitmap: HashMap::new(),
+            ticks: HashMap::new(),
         };
 
         pool.populate_data(middleware.clone()).await?;
@@ -214,6 +233,8 @@ impl UniswapV3Pool {
             tick_spacing: 0,
             tick: 0,
             liquidity_net: 0,
+            tick_bitmap: HashMap::new(),
+            ticks: HashMap::new(),
         })
     }
 
@@ -351,6 +372,52 @@ impl UniswapV3Pool {
         let tick = log_data[4].to_owned().into_uint().unwrap().as_u32() as i32;
 
         (amount_0, amount_1, sqrt_price, liquidity, tick)
+    }
+    
+    //Decodes the burn event log from a burned v3 position
+    pub fn decode_burn_log(&self, burn_log: &Log) -> (i32, i32, u128) {
+        let log_data = decode(
+            &[
+                ParamType::Address, //sender
+                ParamType::Address, //owner
+                ParamType::Int(24),  //tickLower
+                ParamType::Int(24),  //tickUpper
+                ParamType::Uint(128), //amount
+                ParamType::Uint(256), //amount0
+                ParamType::Int(256), //amount1
+            ],
+            &burn_log.data,
+        )
+        .expect("Could not get log data");
+
+        let amount = log_data[4].to_owned().into_int().unwrap().as_u128();
+        let tick_lower = log_data[2].to_owned().into_int().unwrap().as_u32() as i32;
+        let tick_upper = log_data[3].to_owned().into_int().unwrap().as_u32() as i32;
+
+        (tick_lower, tick_upper, amount)
+    }
+
+    //Decodes mint log of a new v3 position
+    pub fn decode_mint_log(&self, mint_log: &Log) -> (i32, i32, u128) {
+        let log_data = decode(
+            &[
+                ParamType::Address, //sender
+                ParamType::Address, //owner
+                ParamType::Int(24),  //tickLower
+                ParamType::Int(24),  //tickUpper
+                ParamType::Uint(128), //amount
+                ParamType::Uint(256), //amount0
+                ParamType::Int(256), //amount1
+            ],
+            &mint_log.data,
+        )
+        .expect("Could not get log data");
+
+        let amount = log_data[4].to_owned().into_int().unwrap().as_u128();
+        let tick_lower = log_data[2].to_owned().into_int().unwrap().as_u32() as i32;
+        let tick_upper = log_data[3].to_owned().into_int().unwrap().as_u32() as i32;
+
+        (tick_lower, tick_upper, amount)
     }
 
     pub async fn get_token_decimals<M: Middleware>(
