@@ -59,9 +59,11 @@ impl AutomatedMarketMakerFactory for UniswapV3Factory {
         let tokens = ethers::abi::decode(&[ParamType::Uint(32), ParamType::Address], &log.data)?;
         let pair_address = tokens[1].to_owned().into_address().unwrap();
 
-      
         if let Some(block_number) = log.block_number {
-           Ok( AMM::UniswapV3Pool(UniswapV3Pool::new_from_address(pair_address, block_number.as_u64(), middleware).await?))
+            Ok(AMM::UniswapV3Pool(
+                UniswapV3Pool::new_from_address(pair_address, block_number.as_u64(), middleware)
+                    .await?,
+            ))
         } else {
             //TODO: add an error to notify that there is not log block number
             // DAMMError::LogBlockNumberNotFound

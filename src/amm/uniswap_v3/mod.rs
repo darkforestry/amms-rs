@@ -224,50 +224,52 @@ impl UniswapV3Pool {
         log: Log,
         middleware: Arc<M>,
     ) -> Result<Self, DAMMError<M>> {
-        match log.topics[0] {
-            PAIR_CREATED_EVENT_SIGNATURE => {
-                let tokens =
-                    ethers::abi::decode(&[ParamType::Uint(32), ParamType::Address], &log.data)?;
-                let pair_address = tokens[1].to_owned().into_address().unwrap();
+        let event_signature = log.topics[0];
 
-                if let Some(block_number) = log.block_number {
-                    UniswapV3Pool::new_from_address(pair_address, block_number.as_u64(), middleware)
-                        .await
-                } else {
-                    Err(EventLogError::LogBlockNumberNotFound)?
-                }
+        if event_signature == PAIR_CREATED_EVENT_SIGNATURE {
+            let tokens =
+                ethers::abi::decode(&[ParamType::Uint(32), ParamType::Address], &log.data)?;
+            let pair_address = tokens[1].to_owned().into_address().unwrap();
+
+            if let Some(block_number) = log.block_number {
+                UniswapV3Pool::new_from_address(pair_address, block_number.as_u64(), middleware)
+                    .await
+            } else {
+                Err(EventLogError::LogBlockNumberNotFound)?
             }
-            _ => Err(EventLogError::InvalidEventSignature)?,
+        } else {
+            Err(EventLogError::InvalidEventSignature)?
         }
     }
 
     pub fn new_empty_pool_from_log(log: Log) -> Result<Self, EventLogError> {
-        match log.topics[0] {
-            PAIR_CREATED_EVENT_SIGNATURE => {
-                let tokens =
-                    ethers::abi::decode(&[ParamType::Uint(32), ParamType::Address], &log.data)?;
-                let token_a = H160::from(log.topics[0]);
-                let token_b = H160::from(log.topics[1]);
-                let fee = tokens[0].to_owned().into_uint().unwrap().as_u32();
-                let address = tokens[1].to_owned().into_address().unwrap();
+        let event_signature = log.topics[0];
 
-                Ok(UniswapV3Pool {
-                    address,
-                    token_a,
-                    token_b,
-                    token_a_decimals: 0,
-                    token_b_decimals: 0,
-                    fee,
-                    liquidity: 0,
-                    sqrt_price: U256::zero(),
-                    tick_spacing: 0,
-                    tick: 0,
-                    liquidity_net: 0,
-                    tick_bitmap: HashMap::new(),
-                    ticks: HashMap::new(),
-                })
-            }
-            _ => Err(EventLogError::InvalidEventSignature)?,
+        if event_signature == PAIR_CREATED_EVENT_SIGNATURE {
+            let tokens =
+                ethers::abi::decode(&[ParamType::Uint(32), ParamType::Address], &log.data)?;
+            let token_a = H160::from(log.topics[0]);
+            let token_b = H160::from(log.topics[1]);
+            let fee = tokens[0].to_owned().into_uint().unwrap().as_u32();
+            let address = tokens[1].to_owned().into_address().unwrap();
+
+            Ok(UniswapV3Pool {
+                address,
+                token_a,
+                token_b,
+                token_a_decimals: 0,
+                token_b_decimals: 0,
+                fee,
+                liquidity: 0,
+                sqrt_price: U256::zero(),
+                tick_spacing: 0,
+                tick: 0,
+                liquidity_net: 0,
+                tick_bitmap: HashMap::new(),
+                ticks: HashMap::new(),
+            })
+        } else {
+            Err(EventLogError::InvalidEventSignature)
         }
     }
 
@@ -432,18 +434,18 @@ impl UniswapV3Pool {
     }
 
     pub async fn sync_from_log(&mut self, log: &Log) -> Result<(), EventLogError> {
-        match log.topics[0] {
-            BURN_EVENT_SIGNATURE => {
-                todo!();
-            }
-            MINT_EVENT_SIGNATURE => {
-                todo!();
-            }
-            SWAP_EVENT_SIGNATURE => {
-                todo!();
-            }
-            _ => Err(EventLogError::InvalidEventSignature),
+        let event_signature = log.topics[0];
+
+        if event_signature == BURN_EVENT_SIGNATURE {
+            todo!();
+        } else if event_signature == MINT_EVENT_SIGNATURE {
+            todo!();
+        } else if event_signature == SWAP_EVENT_SIGNATURE {
+            todo!();
+        } else {
+            return Err(EventLogError::InvalidEventSignature);
         }
+        Ok(())
     }
 
     //Returns reserve0, reserve1
@@ -1075,6 +1077,7 @@ mod test {
 
         let pool = UniswapV3Pool::new_from_address(
             H160::from_str("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640").unwrap(),
+            12376729,
             middleware.clone(),
         )
         .await
@@ -1117,6 +1120,7 @@ mod test {
 
         let pool = UniswapV3Pool::new_from_address(
             H160::from_str("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640").unwrap(),
+            12376729,
             middleware.clone(),
         )
         .await
@@ -1159,6 +1163,7 @@ mod test {
 
         let pool = UniswapV3Pool::new_from_address(
             H160::from_str("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640").unwrap(),
+            12376729,
             middleware.clone(),
         )
         .await
@@ -1201,6 +1206,7 @@ mod test {
 
         let pool = UniswapV3Pool::new_from_address(
             H160::from_str("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640").unwrap(),
+            12376729,
             middleware.clone(),
         )
         .await
@@ -1246,6 +1252,7 @@ mod test {
 
         let pool = UniswapV3Pool::new_from_address(
             H160::from_str("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640").unwrap(),
+            12376729,
             middleware.clone(),
         )
         .await

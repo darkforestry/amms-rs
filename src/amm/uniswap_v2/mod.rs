@@ -14,10 +14,12 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     amm::AutomatedMarketMaker,
-    errors::{ArithmeticError, DAMMError},
+    errors::{ArithmeticError, DAMMError, EventLogError},
 };
 
 use ethers::prelude::abigen;
+
+use self::factory::PAIR_CREATED_EVENT_SIGNATURE;
 
 abigen!(
     IUniswapV2Pair,
@@ -143,47 +145,57 @@ impl UniswapV2Pool {
         fee: u32, //TODO: maybe find a way to dynamically get the fee without having to pass it in
         middleware: Arc<M>,
     ) -> Result<Self, DAMMError<M>> {
+        let event_signature = log.topics[0];
 
-
-        sdfsdfdf
-
-        // let event_signature = log.topics
-        let tokens = ethers::abi::decode(&[ParamType::Address, ParamType::Uint(256)], &log.data)?;
-        let pair_address = tokens[0].to_owned().into_address().unwrap();
-        UniswapV2Pool::new_from_address(pair_address, fee, middleware).await
+        if event_signature == PAIR_CREATED_EVENT_SIGNATURE {
+            // let event_signature = log.topics
+            let tokens =
+                ethers::abi::decode(&[ParamType::Address, ParamType::Uint(256)], &log.data)?;
+            let pair_address = tokens[0].to_owned().into_address().unwrap();
+            UniswapV2Pool::new_from_address(pair_address, fee, middleware).await
+        } else {
+            Err(EventLogError::InvalidEventSignature)?
+        }
     }
 
-    pub fn new_empty_pool_from_log<M: Middleware>(log: Log) -> Result<Self, DAMMError<M>> {
+    pub fn new_empty_pool_from_log(log: Log) -> Result<Self, EventLogError> {
+        let event_signature = log.topics[0];
 
-        asdfsdf
+        if event_signature == PAIR_CREATED_EVENT_SIGNATURE {
+            let tokens =
+                ethers::abi::decode(&[ParamType::Address, ParamType::Uint(256)], &log.data)?;
+            let token_a = H160::from(log.topics[0]);
+            let token_b = H160::from(log.topics[1]);
+            let address = tokens[0].to_owned().into_address().unwrap();
 
-        let tokens = ethers::abi::decode(&[ParamType::Address, ParamType::Uint(256)], &log.data)?;
-        let token_a = H160::from(log.topics[0]);
-        let token_b = H160::from(log.topics[1]);
-        let address = tokens[0].to_owned().into_address().unwrap();
-
-        Ok(UniswapV2Pool {
-            address,
-            token_a,
-            token_b,
-            token_a_decimals: 0,
-            token_b_decimals: 0,
-            reserve_0: 0,
-            reserve_1: 0,
-            fee: 0,
-        })
+            Ok(UniswapV2Pool {
+                address,
+                token_a,
+                token_b,
+                token_a_decimals: 0,
+                token_b_decimals: 0,
+                reserve_0: 0,
+                reserve_1: 0,
+                fee: 0,
+            })
+        } else {
+            Err(EventLogError::InvalidEventSignature)?
+        }
     }
 
     pub fn fee(&self) -> u32 {
         self.fee
     }
 
-    pub fn sync_from_log(&mut self, log: &Log) {
+    pub fn sync_from_log(&mut self, log: &Log) -> Result<(), EventLogError> {
+        let event_signature = log.topics[0];
 
-
-adsfasdf
-
-        (self.reserve_0, self.reserve_1) = self.decode_sync_log(log);
+        if event_signature == SYNC_EVENT_SIGNATURE {
+            (self.reserve_0, self.reserve_1) = self.decode_sync_log(log);
+            Ok(())
+        } else {
+            Err(EventLogError::InvalidEventSignature)
+        }
     }
 
     pub fn data_is_populated(&self) -> bool {

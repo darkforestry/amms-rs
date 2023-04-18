@@ -236,24 +236,20 @@ impl ERC4626Vault {
     }
 
     pub fn sync_from_log(&mut self, log: &Log) -> Result<(), EventLogError> {
-        match log.topics[0] {
-            DEPOSIT_EVENT_SIGNATURE => {
-                let (assets_in, shares_in) = self.decode_deposit_log(log);
-                self.asset_reserve += assets_in;
-                self.vault_reserve += shares_in;
-            },
-
-            WITHDRAW_EVENT_SIGNATURE => {
-                let (assets_out, shares_out) = self.decode_withdraw_log(log);
-                self.asset_reserve -= assets_out;
-                self.vault_reserve -= shares_out;
-            },
-
-            _ => Err(EventLogError::InvalidEventSignature),
+        let event_signature = log.topics[0];
+        if event_signature == DEPOSIT_EVENT_SIGNATURE {
+            let (assets_in, shares_in) = self.decode_deposit_log(log);
+            self.asset_reserve += assets_in;
+            self.vault_reserve += shares_in;
+        } else if event_signature == WITHDRAW_EVENT_SIGNATURE {
+            let (assets_out, shares_out) = self.decode_withdraw_log(log);
+            self.asset_reserve -= assets_out;
+            self.vault_reserve -= shares_out;
+        } else {
+            return Err(EventLogError::InvalidEventSignature);
         }
 
         Ok(())
-       
     }
 
     pub fn decode_deposit_log(&self, log: &Log) -> (U256, U256) {
