@@ -99,6 +99,15 @@ pub struct Info {
     pub liquidity_net: i128,
 }
 
+impl Info {
+    pub fn new(initialized: bool, liquidity_net: i128) -> Self {
+        Info {
+            initialized,
+            liquidity_net,
+        }
+    }
+}
+
 #[async_trait]
 impl AutomatedMarketMaker for UniswapV3Pool {
     fn address(&self) -> H160 {
@@ -433,19 +442,70 @@ impl UniswapV3Pool {
         Ok(self.get_slot_0(middleware).await?.0)
     }
 
-    pub async fn sync_from_log(&mut self, log: &Log) -> Result<(), EventLogError> {
+    pub fn sync_from_log(&mut self, log: &Log) -> Result<(), EventLogError> {
         let event_signature = log.topics[0];
 
         if event_signature == BURN_EVENT_SIGNATURE {
-            todo!();
+            self.sync_from_burn_log(&log);
         } else if event_signature == MINT_EVENT_SIGNATURE {
-            todo!();
+            self.sync_from_mint_log(&log);
         } else if event_signature == SWAP_EVENT_SIGNATURE {
-            todo!();
+            self.sync_from_swap_log(&log);
         } else {
             Err(EventLogError::InvalidEventSignature)?
         }
+
         Ok(())
+    }
+
+    pub fn sync_from_burn_log(&mut self, log: &Log) {
+        let (tick_lower, tick_upper, amount) = self.decode_burn_log(&log);
+
+        if let Some(info_lower) = self.ticks.get_mut(&tick_lower) {
+            info_lower.liquidity_net += amount as i128;
+            info_lower.initialized = true;
+        } else {
+            self.ticks
+                .insert(tick_lower, Info::new(true, amount as i128));
+        }
+
+        if let Some(info_upper) = self.ticks.get_mut(&tick_upper) {
+            info_upper.liquidity_net -= amount as i128;
+            info_upper.initialized = true;
+        } else {
+            self.ticks
+                .insert(tick_upper, Info::new(true, -(amount as i128)));
+        }
+
+        let compressed_lower = tick_lower / self.tick_spacing;
+        let compressed_upper = tick_upper / self.tick_spacing;
+
+        let (word_pos_lower, bit_pos_lower) =
+            uniswap_v3_math::tick_bit_map::position(compressed_lower);
+        let (word_pos_upper, bit_pos_upper) =
+            uniswap_v3_math::tick_bit_map::position(compressed_upper);
+
+        let mask_lower = 1 << bit_pos_lower;
+        let mask_upper = 1 << bit_pos_upper;
+
+        if let Some(word_lower) = self.tick_bitmap.get_mut(&word_pos_lower) {
+            *word_lower ^= U256::from(mask_lower);
+        } else {
+            self.tick_bitmap
+                .insert(word_pos_lower, U256::from(mask_lower));
+        }
+
+        if let Some(word_upper) = self.tick_bitmap.get_mut(&word_pos_upper) {
+            *word_upper ^= U256::from(mask_upper);
+        } else {
+            self.tick_bitmap
+                .insert(word_pos_upper, U256::from(mask_upper));
+        }
+    }
+    pub fn sync_from_mint_log(&mut self, log: &Log) {}
+
+    pub fn sync_from_swap_log(&mut self, log: &Log) {
+        (_, _, self.sqrt_price, self.liquidity, self.tick) = self.decode_swap_log(log);
     }
 
     //Returns reserve0, reserve1
@@ -456,63 +516,62 @@ impl UniswapV3Pool {
                 ParamType::Int(256),  //amount1
                 ParamType::Uint(160), //sqrtPriceX96
                 ParamType::Uint(128), //liquidity
-                ParamType::Int(24),
+                ParamType::Int(24),   //tick
             ],
             &swap_log.data,
         )
         .expect("Could not get log data");
 
-        let amount_0 = I256::from_raw(log_data[1].to_owned().into_int().unwrap());
+        let amount_0 = I256::from_raw(log_data[0].to_owned().into_int().unwrap());
         let amount_1 = I256::from_raw(log_data[1].to_owned().into_int().unwrap());
         let sqrt_price = log_data[2].to_owned().into_uint().unwrap();
         let liquidity = log_data[3].to_owned().into_uint().unwrap().as_u128();
-        let tick = log_data[4].to_owned().into_uint().unwrap().as_u32() as i32;
+        let tick = I256::from_raw(log_data[4].to_owned().into_int().unwrap()).as_i32();
 
         (amount_0, amount_1, sqrt_price, liquidity, tick)
     }
 
     //Decodes the burn event log from a burned v3 position
     pub fn decode_burn_log(&self, burn_log: &Log) -> (i32, i32, u128) {
+        let tick_lower =
+            I256::from_raw(U256::from_big_endian(burn_log.topics[2].as_bytes())).as_i32();
+        let tick_upper =
+            I256::from_raw(U256::from_big_endian(burn_log.topics[3].as_bytes())).as_i32();
+
         let log_data = decode(
             &[
-                ParamType::Address,   //sender
-                ParamType::Address,   //owner
-                ParamType::Int(24),   //tickLower
-                ParamType::Int(24),   //tickUpper
                 ParamType::Uint(128), //amount
                 ParamType::Uint(256), //amount0
-                ParamType::Int(256),  //amount1
+                ParamType::Uint(256), //amount1
             ],
             &burn_log.data,
         )
         .expect("Could not get log data");
 
-        let amount = log_data[4].to_owned().into_int().unwrap().as_u128();
-        let tick_lower = log_data[2].to_owned().into_int().unwrap().as_u32() as i32;
-        let tick_upper = log_data[3].to_owned().into_int().unwrap().as_u32() as i32;
+        let amount = log_data[0].to_owned().into_int().unwrap().as_u128();
 
         (tick_lower, tick_upper, amount)
     }
 
     //Decodes mint log of a new v3 position
     pub fn decode_mint_log(&self, mint_log: &Log) -> (i32, i32, u128) {
+        let tick_lower =
+            I256::from_raw(U256::from_big_endian(mint_log.topics[2].as_bytes())).as_i32();
+        let tick_upper =
+            I256::from_raw(U256::from_big_endian(mint_log.topics[3].as_bytes())).as_i32();
+
         let log_data = decode(
             &[
                 ParamType::Address,   //sender
-                ParamType::Address,   //owner
-                ParamType::Int(24),   //tickLower
-                ParamType::Int(24),   //tickUpper
                 ParamType::Uint(128), //amount
                 ParamType::Uint(256), //amount0
-                ParamType::Int(256),  //amount1
+                ParamType::Uint(256), //amount1
             ],
             &mint_log.data,
         )
         .expect("Could not get log data");
 
-        let amount = log_data[4].to_owned().into_int().unwrap().as_u128();
-        let tick_lower = log_data[2].to_owned().into_int().unwrap().as_u32() as i32;
-        let tick_upper = log_data[3].to_owned().into_int().unwrap().as_u32() as i32;
+        let amount = log_data[1].to_owned().into_uint().unwrap().as_u128();
 
         (tick_lower, tick_upper, amount)
     }
