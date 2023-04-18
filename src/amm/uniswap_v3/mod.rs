@@ -464,21 +464,31 @@ impl UniswapV3Pool {
         if let Some(info_lower) = self.ticks.get_mut(&tick_lower) {
             //We are decreasing the liquidity net of the lower tick by the amount of liquidity burned
             info_lower.liquidity_net -= amount as i128;
-            info_lower.initialized = true;
+            if info_lower.liquidity_net < 0 {
+                info_lower.initialized = false;
+            } else {
+                //TODO: This is most likely redundant, confirm and remove. Otherwise, keep it and write a comment explaining
+                info_lower.initialized = true;
+            }
         } else {
             //NOTE: This should never happen, but in the case of asynchronomousity, we need to handle it
             self.ticks
-                .insert(tick_lower, Info::new(true, -(amount as i128)));
+                .insert(tick_lower, Info::new(false, -(amount as i128)));
         }
 
         if let Some(info_upper) = self.ticks.get_mut(&tick_upper) {
             //We are increasing the liquidity net of the upper tick by the amount of liquidity burned
             info_upper.liquidity_net += amount as i128;
-            info_upper.initialized = true;
+            if info_upper.liquidity_net > 0 {
+                info_upper.initialized = false;
+            } else {
+                //TODO: This is most likely redundant, confirm and remove. Otherwise, keep it and write a comment explaining
+                info_upper.initialized = true;
+            }
         } else {
             //NOTE: This should never happen, but in the case of asynchronomousity, we need to handle it
             self.ticks
-                .insert(tick_upper, Info::new(true, amount as i128));
+                .insert(tick_upper, Info::new(false, amount as i128));
         }
 
         let compressed_lower = tick_lower / self.tick_spacing;
