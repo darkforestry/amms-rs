@@ -1,24 +1,27 @@
 pub mod batch_request;
 pub mod factory;
 
-use std::{cmp::Ordering, collections::HashMap, sync::Arc};
+use std::{cmp::Ordering, collections::HashMap, panic::resume_unwind, sync::Arc};
 
 use async_trait::async_trait;
 use ethers::{
     abi::{decode, ethabi::Bytes, ParamType, Token},
     providers::Middleware,
-    types::{Log, H160, H256, I256, U256, U64},
+    types::{BlockNumber, Filter, Log, ValueOrArray, H160, H256, I256, U256, U64},
 };
 use num_bigfloat::BigFloat;
 use serde::{Deserialize, Serialize};
+use tokio::task::JoinHandle;
 use uniswap_v3_math::tick_bit_map;
 
 use crate::{
     amm::AutomatedMarketMaker,
-    errors::{ArithmeticError, DAMMError},
+    errors::{ArithmeticError, DAMMError, EventLogError},
 };
 
 use ethers::prelude::abigen;
+
+use super::uniswap_v2::factory::PAIR_CREATED_EVENT_SIGNATURE;
 
 abigen!(
 
@@ -107,6 +110,7 @@ impl AutomatedMarketMaker for UniswapV3Pool {
         Ok(())
     }
 
+    //This defines the event signatures to listen to that will produce events to be passed into AMM::sync_from_log()
     fn sync_on_event_signatures(&self) -> Vec<H256> {
         vec![
             SWAP_EVENT_SIGNATURE,
@@ -135,7 +139,7 @@ impl AutomatedMarketMaker for UniswapV3Pool {
             Ok(1.0 / price)
         }
     }
-
+    //TODO: document that this function will not populate the tick_bitmap and ticks, if you want to populate those, you must call populate_tick_data on an initialized pool.1.0001_f64
     async fn populate_data<M: Middleware>(
         &mut self,
         middleware: Arc<M>,
@@ -179,9 +183,12 @@ impl UniswapV3Pool {
         }
     }
 
+    //TODO: document that this function will not populate the tick_bitmap and ticks, if you want to populate those, you must call populate_tick_data on an initialized pool.1.0001_f64
+
     //Creates a new instance of the pool from the pair address
     pub async fn new_from_address<M: Middleware>(
         pair_address: H160,
+        creation_block: u64,
         middleware: Arc<M>,
     ) -> Result<Self, DAMMError<M>> {
         let mut pool = UniswapV3Pool {
@@ -200,7 +207,10 @@ impl UniswapV3Pool {
             ticks: HashMap::new(),
         };
 
+        //TODO: break this into two threads so it can happen concurrently?
+
         pool.populate_data(middleware.clone()).await?;
+        //TODO: pool.populate_tick_data(creation_block) here
 
         if !pool.data_is_populated() {
             return Err(DAMMError::PoolDataError);
@@ -209,37 +219,115 @@ impl UniswapV3Pool {
         Ok(pool)
     }
 
-    pub async fn new_from_event_log<M: Middleware>(
+    //TODO: Add some logic to ensure that this is the right function signature or return an error
+    pub async fn new_from_log<M: Middleware>(
         log: Log,
         middleware: Arc<M>,
     ) -> Result<Self, DAMMError<M>> {
-        let tokens = ethers::abi::decode(&[ParamType::Uint(32), ParamType::Address], &log.data)?;
-        let pair_address = tokens[1].to_owned().into_address().unwrap();
-        UniswapV3Pool::new_from_address(pair_address, middleware).await
+        match log.topics[0] {
+            PAIR_CREATED_EVENT_SIGNATURE => {
+                let tokens =
+                    ethers::abi::decode(&[ParamType::Uint(32), ParamType::Address], &log.data)?;
+                let pair_address = tokens[1].to_owned().into_address().unwrap();
+
+                if let Some(block_number) = log.block_number {
+                    UniswapV3Pool::new_from_address(pair_address, block_number.as_u64(), middleware)
+                        .await
+                } else {
+                    Err(EventLogError::LogBlockNumberNotFound)?
+                }
+            }
+            _ => Err(EventLogError::InvalidEventSignature)?,
+        }
     }
 
-    pub fn new_empty_pool_from_event_log<M: Middleware>(log: Log) -> Result<Self, DAMMError<M>> {
-        let tokens = ethers::abi::decode(&[ParamType::Uint(32), ParamType::Address], &log.data)?;
-        let token_a = H160::from(log.topics[0]);
-        let token_b = H160::from(log.topics[1]);
-        let fee = tokens[0].to_owned().into_uint().unwrap().as_u32();
-        let address = tokens[1].to_owned().into_address().unwrap();
+    pub fn new_empty_pool_from_log(log: Log) -> Result<Self, EventLogError> {
+        match log.topics[0] {
+            PAIR_CREATED_EVENT_SIGNATURE => {
+                let tokens =
+                    ethers::abi::decode(&[ParamType::Uint(32), ParamType::Address], &log.data)?;
+                let token_a = H160::from(log.topics[0]);
+                let token_b = H160::from(log.topics[1]);
+                let fee = tokens[0].to_owned().into_uint().unwrap().as_u32();
+                let address = tokens[1].to_owned().into_address().unwrap();
 
-        Ok(UniswapV3Pool {
-            address,
-            token_a,
-            token_b,
-            token_a_decimals: 0,
-            token_b_decimals: 0,
-            fee,
-            liquidity: 0,
-            sqrt_price: U256::zero(),
-            tick_spacing: 0,
-            tick: 0,
-            liquidity_net: 0,
-            tick_bitmap: HashMap::new(),
-            ticks: HashMap::new(),
-        })
+                Ok(UniswapV3Pool {
+                    address,
+                    token_a,
+                    token_b,
+                    token_a_decimals: 0,
+                    token_b_decimals: 0,
+                    fee,
+                    liquidity: 0,
+                    sqrt_price: U256::zero(),
+                    tick_spacing: 0,
+                    tick: 0,
+                    liquidity_net: 0,
+                    tick_bitmap: HashMap::new(),
+                    ticks: HashMap::new(),
+                })
+            }
+            _ => Err(EventLogError::InvalidEventSignature)?,
+        }
+    }
+
+    pub async fn populate_tick_data<M: 'static + Middleware>(
+        &mut self,
+        creation_block: u64,
+        middleware: Arc<M>,
+    ) -> Result<(), DAMMError<M>> {
+        let current_block = middleware
+            .get_block_number()
+            .await
+            .map_err(DAMMError::MiddlewareError)?
+            .as_u64();
+
+        let step = 100000;
+        let mut handles = vec![];
+
+        //For each block within the range, get all logs asynchronously in batches
+        for from_block in (creation_block..=current_block).step_by(step) {
+            let middleware = middleware.clone();
+
+            let to_block = from_block + step as u64;
+            let filter = Filter::new()
+                .topic0(vec![BURN_EVENT_SIGNATURE, MINT_EVENT_SIGNATURE])
+                .address(self.address)
+                .from_block(BlockNumber::Number(U64([from_block])))
+                .to_block(BlockNumber::Number(U64([to_block])));
+
+            handles.push(tokio::spawn(async move {
+                let logs = middleware
+                    .get_logs(&filter)
+                    .await
+                    .map_err(DAMMError::MiddlewareError)?;
+
+                Ok::<_, DAMMError<M>>(logs)
+            }));
+        }
+
+        let mut aggregated_logs = vec![];
+        for handle in handles {
+            match handle.await {
+                Ok(mut logs_result) => match logs_result {
+                    Ok(ref mut logs) => {
+                        aggregated_logs.append(logs);
+                    }
+                    Err(err) => {
+                        return Err(err);
+                    }
+                },
+                Err(err) => {
+                    return Err(err)?;
+                }
+            }
+        }
+
+        for log in aggregated_logs {
+            self.sync_from_log(&log);
+        }
+
+        Ok(())
     }
 
     pub fn fee(&self) -> u32 {
@@ -343,16 +431,19 @@ impl UniswapV3Pool {
         Ok(self.get_slot_0(middleware).await?.0)
     }
 
-    pub async fn sync_from_log<M: Middleware>(
-        &mut self,
-        swap_log: &Log,
-        middleware: Arc<M>,
-    ) -> Result<(), DAMMError<M>> {
-        (_, _, self.sqrt_price, self.liquidity, self.tick) = self.decode_swap_log(swap_log);
-
-        self.liquidity_net = self.get_liquidity_net(self.tick, middleware).await?;
-
-        Ok(())
+    pub async fn sync_from_log(&mut self, log: &Log) -> Result<(), EventLogError> {
+        match log.topics[0] {
+            BURN_EVENT_SIGNATURE => {
+                todo!();
+            }
+            MINT_EVENT_SIGNATURE => {
+                todo!();
+            }
+            SWAP_EVENT_SIGNATURE => {
+                todo!();
+            }
+            _ => Err(EventLogError::InvalidEventSignature),
+        }
     }
 
     //Returns reserve0, reserve1

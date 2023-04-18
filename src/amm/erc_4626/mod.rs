@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     amm::AutomatedMarketMaker,
-    errors::{ArithmeticError, DAMMError},
+    errors::{ArithmeticError, DAMMError, EventLogError},
 };
 
 use ethers::prelude::abigen;
@@ -235,16 +235,25 @@ impl ERC4626Vault {
         amount_in * reserve_out / reserve_in * (10000 - fee) / 10000
     }
 
-    pub fn sync_from_log(&mut self, log: &Log) {
-        if log.topics[0] == DEPOSIT_EVENT_SIGNATURE {
-            let (assets_in, shares_in) = self.decode_deposit_log(log);
-            self.asset_reserve += assets_in;
-            self.vault_reserve += shares_in;
-        } else if log.topics[0] == WITHDRAW_EVENT_SIGNATURE {
-            let (assets_out, shares_out) = self.decode_withdraw_log(log);
-            self.asset_reserve -= assets_out;
-            self.vault_reserve -= shares_out;
+    pub fn sync_from_log(&mut self, log: &Log) -> Result<(), EventLogError> {
+        match log.topics[0] {
+            DEPOSIT_EVENT_SIGNATURE => {
+                let (assets_in, shares_in) = self.decode_deposit_log(log);
+                self.asset_reserve += assets_in;
+                self.vault_reserve += shares_in;
+            },
+
+            WITHDRAW_EVENT_SIGNATURE => {
+                let (assets_out, shares_out) = self.decode_withdraw_log(log);
+                self.asset_reserve -= assets_out;
+                self.vault_reserve -= shares_out;
+            },
+
+            _ => Err(EventLogError::InvalidEventSignature),
         }
+
+        Ok(())
+       
     }
 
     pub fn decode_deposit_log(&self, log: &Log) -> (U256, U256) {

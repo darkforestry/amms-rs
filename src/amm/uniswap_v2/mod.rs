@@ -138,17 +138,25 @@ impl UniswapV2Pool {
 
         Ok(pool)
     }
-    pub async fn new_from_event_log<M: Middleware>(
+    pub async fn new_from_log<M: Middleware>(
         log: Log,
         fee: u32, //TODO: maybe find a way to dynamically get the fee without having to pass it in
         middleware: Arc<M>,
     ) -> Result<Self, DAMMError<M>> {
+
+
+        sdfsdfdf
+
+        // let event_signature = log.topics
         let tokens = ethers::abi::decode(&[ParamType::Address, ParamType::Uint(256)], &log.data)?;
         let pair_address = tokens[0].to_owned().into_address().unwrap();
         UniswapV2Pool::new_from_address(pair_address, fee, middleware).await
     }
 
-    pub fn new_empty_pool_from_event_log<M: Middleware>(log: Log) -> Result<Self, DAMMError<M>> {
+    pub fn new_empty_pool_from_log<M: Middleware>(log: Log) -> Result<Self, DAMMError<M>> {
+
+        asdfsdf
+
         let tokens = ethers::abi::decode(&[ParamType::Address, ParamType::Uint(256)], &log.data)?;
         let token_a = H160::from(log.topics[0]);
         let token_b = H160::from(log.topics[1]);
@@ -171,6 +179,10 @@ impl UniswapV2Pool {
     }
 
     pub fn sync_from_log(&mut self, log: &Log) {
+
+
+adsfasdf
+
         (self.reserve_0, self.reserve_1) = self.decode_sync_log(log);
     }
 
