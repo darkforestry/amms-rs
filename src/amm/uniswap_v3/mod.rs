@@ -443,7 +443,7 @@ impl UniswapV3Pool {
         } else if event_signature == SWAP_EVENT_SIGNATURE {
             todo!();
         } else {
-            return Err(EventLogError::InvalidEventSignature);
+            Err(EventLogError::InvalidEventSignature)?
         }
         Ok(())
     }
