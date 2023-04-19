@@ -1122,7 +1122,7 @@ mod test {
 
         let current_block = middleware.get_block_number().await.unwrap();
         let amount_out = pool
-            .simulate_swap(pool.token_a, amount_in, middleware.clone())
+            .simulate_swap(pool.token_a, amount_in)
             .await
             .unwrap();
 
@@ -1165,7 +1165,7 @@ mod test {
 
         let current_block = middleware.get_block_number().await.unwrap();
         let amount_out_1 = pool
-            .simulate_swap(pool.token_a, amount_in_1, middleware.clone())
+            .simulate_swap(pool.token_a, amount_in_1)
             .await
             .unwrap();
 
@@ -1208,7 +1208,7 @@ mod test {
 
         let current_block = middleware.get_block_number().await.unwrap();
         let amount_out_2 = pool
-            .simulate_swap(pool.token_a, amount_in_2, middleware.clone())
+            .simulate_swap(pool.token_a, amount_in_2)
             .await
             .unwrap();
 
@@ -1254,7 +1254,7 @@ mod test {
 
         let current_block = middleware.get_block_number().await.unwrap();
         let amount_out_3 = pool
-            .simulate_swap(pool.token_a, amount_in_3, middleware.clone())
+            .simulate_swap(pool.token_a, amount_in_3)
             .await
             .unwrap();
 
