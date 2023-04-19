@@ -46,6 +46,8 @@ where
     InvalidERC4626Fee,
     #[error("Event log error")]
     EventLogError(#[from] EventLogError),
+    #[error("Block number not found")]
+    BlockNumberNotFound,
 }
 
 #[derive(Error, Debug)]

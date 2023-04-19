@@ -146,6 +146,7 @@ impl AutomatedMarketMakerFactory for UniswapV2Factory {
 
     async fn get_all_amms<M: Middleware>(
         &self,
+        _to_block: Option<u64>,
         middleware: Arc<M>,
     ) -> Result<Vec<AMM>, DAMMError<M>> {
         self.get_all_pairs_via_batched_calls(middleware).await

@@ -9,6 +9,7 @@ use ethers::{
     providers::Middleware,
     types::{BlockNumber, Filter, Log, ValueOrArray, H160, H256, I256, U256, U64},
 };
+use futures::future::join_all;
 use num_bigfloat::BigFloat;
 use serde::{Deserialize, Serialize};
 use tokio::task::JoinHandle;
@@ -217,9 +218,8 @@ impl UniswapV3Pool {
         };
 
         //TODO: break this into two threads so it can happen concurrently?
-
         pool.populate_data(middleware.clone()).await?;
-        //TODO: pool.populate_tick_data(creation_block) here
+        pool.populate_tick_data(creation_block, middleware).await?;
 
         if !pool.data_is_populated() {
             return Err(DAMMError::PoolDataError);
@@ -228,7 +228,6 @@ impl UniswapV3Pool {
         Ok(pool)
     }
 
-    //TODO: Add some logic to ensure that this is the right function signature or return an error
     pub async fn new_from_log<M: Middleware>(
         log: Log,
         middleware: Arc<M>,
@@ -282,8 +281,8 @@ impl UniswapV3Pool {
         }
     }
 
-    pub async fn populate_tick_data<M: 'static + Middleware>(
-        &mut self,
+    pub async fn populate_tick_data<'a, M: Middleware>(
+        &'a mut self,
         creation_block: u64,
         middleware: Arc<M>,
     ) -> Result<(), DAMMError<M>> {
@@ -307,29 +306,26 @@ impl UniswapV3Pool {
                 .from_block(BlockNumber::Number(U64([from_block])))
                 .to_block(BlockNumber::Number(U64([to_block])));
 
-            handles.push(tokio::spawn(async move {
+            handles.push(async move {
                 let logs = middleware
                     .get_logs(&filter)
                     .await
                     .map_err(DAMMError::MiddlewareError)?;
 
                 Ok::<_, DAMMError<M>>(logs)
-            }));
+            });
         }
 
+        let results = join_all(handles).await;
+
         let mut aggregated_logs = vec![];
-        for handle in handles {
-            match handle.await {
-                Ok(mut logs_result) => match logs_result {
-                    Ok(ref mut logs) => {
-                        aggregated_logs.append(logs);
-                    }
-                    Err(err) => {
-                        return Err(err);
-                    }
-                },
+        for mut result in results {
+            match result {
+                Ok(ref mut logs) => {
+                    aggregated_logs.append(logs);
+                }
                 Err(err) => {
-                    return Err(err)?;
+                    return Err(err);
                 }
             }
         }
