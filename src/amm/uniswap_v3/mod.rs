@@ -13,11 +13,11 @@ use futures::future::join_all;
 use num_bigfloat::BigFloat;
 use serde::{Deserialize, Serialize};
 use tokio::task::JoinHandle;
-use uniswap_v3_math::tick_bit_map;
+use uniswap_v3_math::{error::UniswapV3MathError};
 
 use crate::{
     amm::AutomatedMarketMaker,
-    errors::{ArithmeticError, DAMMError, EventLogError},
+    errors::{ArithmeticError, DAMMError, EventLogError, SwapSimError},
 };
 
 use ethers::prelude::abigen;
@@ -351,7 +351,7 @@ impl UniswapV3Pool {
         middleware: Arc<M>,
     ) -> Result<U256, DAMMError<M>> {
         let v3_pool = IUniswapV3Pool::new(self.address, middleware);
-        let (word_position, _) = uniswap_v3_math::tick_bit_map::position(tick);
+        let (word_position, _) = uniswap_v3_math::tick_bitmap::position(tick);
         Ok(v3_pool.tick_bitmap(word_position).call().await?)
     }
 
@@ -491,9 +491,9 @@ impl UniswapV3Pool {
         let compressed_upper = tick_upper / self.tick_spacing;
 
         let (word_pos_lower, bit_pos_lower) =
-            uniswap_v3_math::tick_bit_map::position(compressed_lower);
+            uniswap_v3_math::tick_bitmap::position(compressed_lower);
         let (word_pos_upper, bit_pos_upper) =
-            uniswap_v3_math::tick_bit_map::position(compressed_upper);
+            uniswap_v3_math::tick_bitmap::position(compressed_upper);
 
         let mask_lower = 1 << bit_pos_lower;
         let mask_upper = 1 << bit_pos_upper;
@@ -539,9 +539,9 @@ impl UniswapV3Pool {
         let compressed_upper = tick_upper / self.tick_spacing;
 
         let (word_pos_lower, bit_pos_lower) =
-            uniswap_v3_math::tick_bit_map::position(compressed_lower);
+            uniswap_v3_math::tick_bitmap::position(compressed_lower);
         let (word_pos_upper, bit_pos_upper) =
-            uniswap_v3_math::tick_bit_map::position(compressed_upper);
+            uniswap_v3_math::tick_bitmap::position(compressed_upper);
 
         let mask_lower = 1 << bit_pos_lower;
         let mask_upper = 1 << bit_pos_upper;
@@ -725,31 +725,16 @@ impl UniswapV3Pool {
         ))
     }
 
-    pub async fn simulate_swap_mut_with_cache<M: Middleware>(
+    pub async fn simulate_swap_mut(
         &mut self,
         token_in: H160,
         amount_in: U256,
-        num_ticks: u16,
-        middleware: Arc<M>,
-    ) -> Result<U256, DAMMError<M>> {
+    ) -> Result<U256, UniswapV3MathError> {
         if amount_in.is_zero() {
             return Ok(U256::zero());
         }
 
         let zero_for_one = token_in == self.token_a;
-
-        //TODO: make this a queue instead of vec and then an iterator FIXME::
-        let (mut tick_data, block_number) = batch_request::get_uniswap_v3_tick_data_batch_request(
-            self,
-            self.tick,
-            zero_for_one,
-            num_ticks,
-            None,
-            middleware.clone(),
-        )
-        .await?;
-
-        let mut tick_data_iter = tick_data.iter();
 
         //Set sqrt_price_limit_x_96 to the max or min sqrt price in the pool depending on zero_for_one
         let sqrt_price_limit_x_96 = if zero_for_one {
@@ -767,8 +752,6 @@ impl UniswapV3Pool {
             liquidity: self.liquidity, //Current available liquidity in the tick range
         };
 
-        let mut liquidity_net = self.liquidity_net;
-
         while current_state.amount_specified_remaining != I256::zero()
             && current_state.sqrt_price_x_96 != sqrt_price_limit_x_96
         {
@@ -778,30 +761,13 @@ impl UniswapV3Pool {
                 ..Default::default()
             };
 
-            let next_tick_data = if let Some(tick_data) = tick_data_iter.next() {
-                tick_data
-            } else {
-                (tick_data, _) = batch_request::get_uniswap_v3_tick_data_batch_request(
-                    self,
-                    current_state.tick,
-                    zero_for_one,
-                    num_ticks,
-                    Some(block_number),
-                    middleware.clone(),
-                )
-                .await?;
-
-                tick_data_iter = tick_data.iter();
-
-                if let Some(tick_data) = tick_data_iter.next() {
-                    tick_data
-                } else {
-                    //This should never happen, but if it does, we should return an error because something is wrong
-                    return Err(DAMMError::NoInitializedTicks);
-                }
-            };
-
-            step.tick_next = next_tick_data.tick;
+            //Get the next tick from the current tick
+            (step.tick_next, step.initialized) = uniswap_v3_math::tick_bitmap::next_initialized_tick_within_one_word(
+                self.tick_bitmap.clone(),
+                current_state.tick,
+                self.tick_spacing,
+                zero_for_one
+            )?;
 
             // ensure that we do not overshoot the min/max tick, as the tick bitmap is not aware of these bounds
             //Note: this could be removed as we are clamping in the batch contract
@@ -850,8 +816,8 @@ impl UniswapV3Pool {
 
             //If the price moved all the way to the next price, recompute the liquidity change for the next iteration
             if current_state.sqrt_price_x_96 == step.sqrt_price_next_x96 {
-                if next_tick_data.initialized {
-                    liquidity_net = next_tick_data.liquidity_net;
+                if step.initialized {
+                    let mut liquidity_net = self.ticks[&step.tick_next].liquidity_net;
 
                     // we are on a tick boundary, and the next tick is initialized, so we must charge a protocol fee
                     if zero_for_one {
@@ -884,36 +850,20 @@ impl UniswapV3Pool {
         self.liquidity = current_state.liquidity;
         self.sqrt_price = current_state.sqrt_price_x_96;
         self.tick = current_state.tick;
-        self.liquidity_net = liquidity_net;
 
         Ok((-current_state.amount_calculated).into_raw())
     }
 
-    pub async fn simulate_swap_with_cache<M: Middleware>(
+    pub async fn simulate_swap(
         &self,
         token_in: H160,
-        amount_in: U256,
-        num_ticks: u16,
-        middleware: Arc<M>,
-    ) -> Result<U256, DAMMError<M>> {
+        amount_in: U256
+    ) -> Result<U256, UniswapV3MathError> {
         if amount_in.is_zero() {
             return Ok(U256::zero());
         }
 
         let zero_for_one = token_in == self.token_a;
-
-        //TODO: make this a queue instead of vec and then an iterator FIXME::
-        let (mut tick_data, block_number) = batch_request::get_uniswap_v3_tick_data_batch_request(
-            self,
-            self.tick,
-            zero_for_one,
-            num_ticks,
-            None,
-            middleware.clone(),
-        )
-        .await?;
-
-        let mut tick_data_iter = tick_data.iter();
 
         //Set sqrt_price_limit_x_96 to the max or min sqrt price in the pool depending on zero_for_one
         let sqrt_price_limit_x_96 = if zero_for_one {
@@ -940,30 +890,13 @@ impl UniswapV3Pool {
                 ..Default::default()
             };
 
-            let next_tick_data = if let Some(tick_data) = tick_data_iter.next() {
-                tick_data
-            } else {
-                (tick_data, _) = batch_request::get_uniswap_v3_tick_data_batch_request(
-                    self,
-                    current_state.tick,
-                    zero_for_one,
-                    num_ticks,
-                    Some(block_number),
-                    middleware.clone(),
-                )
-                .await?;
-
-                tick_data_iter = tick_data.iter();
-
-                if let Some(tick_data) = tick_data_iter.next() {
-                    tick_data
-                } else {
-                    //This should never happen, but if it does, we should return an error because something is wrong
-                    return Err(DAMMError::NoInitializedTicks);
-                }
-            };
-
-            step.tick_next = next_tick_data.tick;
+            //Get the next tick from the current tick
+            (step.tick_next, step.initialized) = uniswap_v3_math::tick_bitmap::next_initialized_tick_within_one_word(
+                self.tick_bitmap.clone(),
+                current_state.tick,
+                self.tick_spacing,
+                zero_for_one
+            ).expect("Could not calculate next initialized tick"); //This should never hit ...
 
             // ensure that we do not overshoot the min/max tick, as the tick bitmap is not aware of these bounds
             //Note: this could be removed as we are clamping in the batch contract
@@ -1012,8 +945,8 @@ impl UniswapV3Pool {
 
             //If the price moved all the way to the next price, recompute the liquidity change for the next iteration
             if current_state.sqrt_price_x_96 == step.sqrt_price_next_x96 {
-                if next_tick_data.initialized {
-                    let mut liquidity_net = next_tick_data.liquidity_net;
+                if step.initialized {
+                    let mut liquidity_net = self.ticks[&step.tick_next].liquidity_net;
 
                     // we are on a tick boundary, and the next tick is initialized, so we must charge a protocol fee
                     if zero_for_one {
@@ -1045,15 +978,6 @@ impl UniswapV3Pool {
         Ok((-current_state.amount_calculated).into_raw())
     }
 
-    pub async fn simulate_swap<M: Middleware>(
-        &self,
-        token_in: H160,
-        amount_in: U256,
-        middleware: Arc<M>,
-    ) -> Result<U256, DAMMError<M>> {
-        self.simulate_swap_with_cache(token_in, amount_in, 150, middleware)
-            .await
-    }
 
     pub async fn get_word<M: Middleware>(
         &self,
@@ -1087,17 +1011,7 @@ impl UniswapV3Pool {
     }
 
     pub fn calculate_word_pos_bit_pos(&self, compressed: i32) -> (i16, u8) {
-        uniswap_v3_math::tick_bit_map::position(compressed)
-    }
-
-    pub async fn simulate_swap_mut<M: Middleware>(
-        &mut self,
-        token_in: H160,
-        amount_in: U256,
-        middleware: Arc<M>,
-    ) -> Result<U256, DAMMError<M>> {
-        self.simulate_swap_mut_with_cache(token_in, amount_in, 150, middleware)
-            .await
+        uniswap_v3_math::tick_bitmap::position(compressed)
     }
 
     pub fn swap_calldata(

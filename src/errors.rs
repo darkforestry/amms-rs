@@ -48,6 +48,8 @@ where
     EventLogError(#[from] EventLogError),
     #[error("Block number not found")]
     BlockNumberNotFound,
+    #[error("Swap simulation error")]
+    SwapSimError(#[from] SwapSimError),
 }
 
 #[derive(Error, Debug)]
@@ -72,4 +74,10 @@ pub enum EventLogError {
     LogBlockNumberNotFound,
     #[error("Eth abi error")]
     EthABIError(#[from] ethers::abi::Error),
+}
+
+#[derive(Error, Debug)]
+pub enum SwapSimError {
+    #[error("Could not get next tick")]
+    InvalidTick,
 }
