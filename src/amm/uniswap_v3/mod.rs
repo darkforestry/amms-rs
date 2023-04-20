@@ -763,7 +763,7 @@ impl UniswapV3Pool {
             //Get the next tick from the current tick
             (step.tick_next, step.initialized) =
                 uniswap_v3_math::tick_bitmap::next_initialized_tick_within_one_word(
-                    self.tick_bitmap.clone(),
+                    &self.tick_bitmap,
                     current_state.tick,
                     self.tick_spacing,
                     zero_for_one,
@@ -893,7 +893,7 @@ impl UniswapV3Pool {
             //Get the next tick from the current tick
             (step.tick_next, step.initialized) =
                 uniswap_v3_math::tick_bitmap::next_initialized_tick_within_one_word(
-                    self.tick_bitmap.clone(),
+                    &self.tick_bitmap,
                     current_state.tick,
                     self.tick_spacing,
                     zero_for_one,
