@@ -1,8 +1,7 @@
-use std::{error::Error, str::FromStr, sync::Arc};
+use std::{error::Error, sync::Arc};
 
 use ethers::{
     providers::{Http, Provider},
-    types::H160,
 };
 
 use damms::discovery;

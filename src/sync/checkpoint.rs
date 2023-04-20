@@ -7,7 +7,7 @@ use std::{
 
 use ethers::{
     providers::Middleware,
-    types::{BlockNumber, H160},
+    types::{H160},
 };
 
 use serde::{Deserialize, Serialize};

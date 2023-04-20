@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{HashMap},
     sync::Arc,
 };
 
@@ -8,7 +8,7 @@ use ethers::{
     abi::ParamType,
     prelude::abigen,
     providers::Middleware,
-    types::{BlockNumber, Filter, Log, ValueOrArray, H160, H256, U256, U64},
+    types::{BlockNumber, Filter, Log, H160, H256, U256, U64},
 };
 use serde::{Deserialize, Serialize};
 
@@ -200,9 +200,7 @@ impl UniswapV3Factory {
             }
         }
 
-        Ok(aggregated_amms
-            .into_iter()
-            .map(|(_, v)| v)
+        Ok(aggregated_amms.into_values()
             .collect::<Vec<AMM>>())
     }
 }

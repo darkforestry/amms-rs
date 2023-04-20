@@ -1,23 +1,23 @@
 pub mod batch_request;
 pub mod factory;
 
-use std::{cmp::Ordering, collections::HashMap, panic::resume_unwind, sync::Arc};
+use std::{cmp::Ordering, collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
 use ethers::{
     abi::{decode, ethabi::Bytes, ParamType, Token},
     providers::Middleware,
-    types::{BlockNumber, Filter, Log, ValueOrArray, H160, H256, I256, U256, U64},
+    types::{BlockNumber, Filter, Log, H160, H256, I256, U256, U64},
 };
 use futures::future::join_all;
 use num_bigfloat::BigFloat;
 use serde::{Deserialize, Serialize};
-use tokio::task::JoinHandle;
+
 use uniswap_v3_math::error::UniswapV3MathError;
 
 use crate::{
     amm::AutomatedMarketMaker,
-    errors::{ArithmeticError, DAMMError, EventLogError, SwapSimError},
+    errors::{ArithmeticError, DAMMError, EventLogError},
 };
 
 use ethers::prelude::abigen;
@@ -292,8 +292,8 @@ impl UniswapV3Pool {
         }
     }
 
-    pub async fn populate_tick_data<'a, M: Middleware>(
-        &'a mut self,
+    pub async fn populate_tick_data<M: Middleware>(
+        &mut self,
         creation_block: u64,
         middleware: Arc<M>,
     ) -> Result<u64, DAMMError<M>> {
@@ -453,11 +453,11 @@ impl UniswapV3Pool {
         let event_signature = log.topics[0];
 
         if event_signature == BURN_EVENT_SIGNATURE {
-            self.sync_from_burn_log(&log);
+            self.sync_from_burn_log(log);
         } else if event_signature == MINT_EVENT_SIGNATURE {
-            self.sync_from_mint_log(&log);
+            self.sync_from_mint_log(log);
         } else if event_signature == SWAP_EVENT_SIGNATURE {
-            self.sync_from_swap_log(&log);
+            self.sync_from_swap_log(log);
         } else {
             Err(EventLogError::InvalidEventSignature)?
         }
@@ -466,12 +466,12 @@ impl UniswapV3Pool {
     }
 
     pub fn sync_from_burn_log(&mut self, log: &Log) {
-        let (tick_lower, tick_upper, amount) = self.decode_burn_log(&log);
+        let (tick_lower, tick_upper, amount) = self.decode_burn_log(log);
         self.modify_position(tick_lower, tick_upper, -(amount as i128));
     }
 
     pub fn sync_from_mint_log(&mut self, log: &Log) {
-        let (tick_lower, tick_upper, amount) = self.decode_mint_log(&log);
+        let (tick_lower, tick_upper, amount) = self.decode_mint_log(log);
         self.modify_position(tick_lower, tick_upper, amount as i128);
     }
 
@@ -1087,7 +1087,6 @@ mod test {
     #[allow(unused)]
     use ethers::providers::Middleware;
 
-    use ethers::types::H256;
     #[allow(unused)]
     use ethers::{
         prelude::abigen,
