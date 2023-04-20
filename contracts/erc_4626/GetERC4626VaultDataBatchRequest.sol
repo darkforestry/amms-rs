@@ -30,8 +30,10 @@ contract GetERC4626VaultDataBatchRequest {
         uint256 assetTokenReserve;
         uint256 depositFeeDelta1;
         uint256 depositFeeDelta2;
+        uint256 depositNoFee;
         uint256 withdrawFeeDelta1;
         uint256 withdrawFeeDelta2;
+        uint256 withdrawNoFee;
     }
 
     constructor(address[] memory vaults) {
@@ -94,6 +96,8 @@ contract GetERC4626VaultDataBatchRequest {
             vaultData.depositFeeDelta2 = IERC4626Vault(vaultAddress).convertToShares(200 * 10 ** vaultData.assetTokenDecimals) - 
                 IERC4626Vault(vaultAddress).previewDeposit(200 * 10 ** vaultData.assetTokenDecimals);
 
+            vaultData.depositNoFee = IERC4626Vault(vaultAddress).convertToShares(100 * 10 ** vaultData.assetTokenDecimals);
+
             // Withdraw fee delta 1 - 100 vault tokens
             vaultData.withdrawFeeDelta1 = IERC4626Vault(vaultAddress).convertToAssets(100 * 10 ** vaultData.vaultTokenDecimals) - 
                 IERC4626Vault(vaultAddress).previewRedeem(100 * 10 ** vaultData.vaultTokenDecimals);
@@ -101,6 +105,8 @@ contract GetERC4626VaultDataBatchRequest {
             // Withdraw fee delta 2 - 200 vault tokens
             vaultData.withdrawFeeDelta2 = IERC4626Vault(vaultAddress).convertToAssets(200 * 10 ** vaultData.vaultTokenDecimals) - 
                 IERC4626Vault(vaultAddress).previewRedeem(200 * 10 ** vaultData.vaultTokenDecimals);
+
+            vaultData.withdrawNoFee = IERC4626Vault(vaultAddress).convertToAssets(100 * 10 ** vaultData.vaultTokenDecimals);
 
             allVaultData[i] = vaultData;
         }

@@ -12,6 +12,11 @@ cargo doc --open
 |----------|------|
 | UniswapV2 Pools | ✅||
 | UniswapV3 Pools | ✅||
+| Curve Pools | ❌||
+| Balancer Pools | ❌||
+| Bancor Pools | ❌||
+| Izumi Pools | ❌||
+| ERC4626 Vaults | ✅||
 
 
 
