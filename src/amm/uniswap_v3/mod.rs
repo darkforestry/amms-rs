@@ -609,11 +609,7 @@ impl UniswapV3Pool {
         )
         .expect("Could not get log data");
 
-        let amount = log_data[0]
-            .to_owned()
-            .into_uint()
-            .expect(&String::from(log_data[0].to_string()))
-            .as_u128();
+        let amount: u128 = log_data[0].to_owned().into_uint().unwrap().as_u128();
 
         (tick_lower, tick_upper, amount)
     }
