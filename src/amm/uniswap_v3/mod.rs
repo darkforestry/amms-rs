@@ -13,7 +13,7 @@ use futures::future::join_all;
 use num_bigfloat::BigFloat;
 use serde::{Deserialize, Serialize};
 use tokio::task::JoinHandle;
-use uniswap_v3_math::{error::UniswapV3MathError};
+use uniswap_v3_math::error::UniswapV3MathError;
 
 use crate::{
     amm::AutomatedMarketMaker,
@@ -64,14 +64,14 @@ pub const SWAP_EVENT_SIGNATURE: H256 = H256([
 
 // Burn event signature
 pub const BURN_EVENT_SIGNATURE: H256 = H256([
-    41, 176, 60, 231, 212, 144, 162, 105, 105, 6, 105, 70, 97, 240, 41, 0, 27, 61, 4, 16, 155, 121,
-    52, 223, 51, 234, 192, 220, 69, 37, 92, 90,
+    12, 57, 108, 217, 137, 163, 159, 68, 89, 181, 250, 26, 237, 106, 154, 141, 205, 188, 69, 144,
+    138, 207, 214, 126, 2, 140, 213, 104, 218, 152, 152, 44,
 ]);
 
 // Mint event signature
 pub const MINT_EVENT_SIGNATURE: H256 = H256([
-    253, 189, 120, 38, 125, 40, 65, 12, 29, 171, 58, 191, 108, 84, 3, 96, 28, 38, 73, 65, 228, 47,
-    120, 194, 22, 25, 33, 119, 38, 107, 112, 31,
+    122, 83, 8, 11, 164, 20, 21, 139, 231, 236, 105, 185, 135, 181, 251, 125, 7, 222, 225, 1, 254,
+    133, 72, 143, 8, 83, 174, 22, 35, 157, 11, 222,
 ]);
 
 pub const U256_TWO: U256 = U256([2, 0, 0, 0]);
@@ -495,21 +495,21 @@ impl UniswapV3Pool {
         let (word_pos_upper, bit_pos_upper) =
             uniswap_v3_math::tick_bitmap::position(compressed_upper);
 
-        let mask_lower = 1 << bit_pos_lower;
-        let mask_upper = 1 << bit_pos_upper;
+        let mask_lower = U256::one() << bit_pos_lower;
+        let mask_upper = U256::one() << bit_pos_upper;
 
         if let Some(word_lower) = self.tick_bitmap.get_mut(&word_pos_lower) {
-            *word_lower ^= U256::from(mask_lower);
+            *word_lower ^= mask_lower;
         } else {
             self.tick_bitmap
-                .insert(word_pos_lower, U256::from(mask_lower));
+                .insert(word_pos_lower, mask_lower);
         }
 
         if let Some(word_upper) = self.tick_bitmap.get_mut(&word_pos_upper) {
-            *word_upper ^= U256::from(mask_upper);
+            *word_upper ^= mask_upper;
         } else {
             self.tick_bitmap
-                .insert(word_pos_upper, U256::from(mask_upper));
+                .insert(word_pos_upper, mask_upper);
         }
     }
     pub fn sync_from_mint_log(&mut self, log: &Log) {
@@ -543,18 +543,18 @@ impl UniswapV3Pool {
         let (word_pos_upper, bit_pos_upper) =
             uniswap_v3_math::tick_bitmap::position(compressed_upper);
 
-        let mask_lower = 1 << bit_pos_lower;
-        let mask_upper = 1 << bit_pos_upper;
+        let mask_lower = U256::one() << bit_pos_lower;
+        let mask_upper = U256::one() << bit_pos_upper;
 
         if let Some(word_lower) = self.tick_bitmap.get_mut(&word_pos_lower) {
-            *word_lower ^= U256::from(mask_lower);
+            *word_lower ^= mask_lower;
         } else {
             self.tick_bitmap
-                .insert(word_pos_lower, U256::from(mask_lower));
+                .insert(word_pos_lower, mask_lower);
         }
 
         if let Some(word_upper) = self.tick_bitmap.get_mut(&word_pos_upper) {
-            *word_upper ^= U256::from(mask_upper);
+            *word_upper ^= mask_upper;
         } else {
             self.tick_bitmap
                 .insert(word_pos_upper, U256::from(mask_upper));
@@ -605,7 +605,7 @@ impl UniswapV3Pool {
         )
         .expect("Could not get log data");
 
-        let amount = log_data[0].to_owned().into_int().unwrap().as_u128();
+        let amount = log_data[0].to_owned().into_uint().expect(&String::from(log_data[0].to_string())).as_u128();
 
         (tick_lower, tick_upper, amount)
     }
@@ -762,12 +762,13 @@ impl UniswapV3Pool {
             };
 
             //Get the next tick from the current tick
-            (step.tick_next, step.initialized) = uniswap_v3_math::tick_bitmap::next_initialized_tick_within_one_word(
-                self.tick_bitmap.clone(),
-                current_state.tick,
-                self.tick_spacing,
-                zero_for_one
-            )?;
+            (step.tick_next, step.initialized) =
+                uniswap_v3_math::tick_bitmap::next_initialized_tick_within_one_word(
+                    self.tick_bitmap.clone(),
+                    current_state.tick,
+                    self.tick_spacing,
+                    zero_for_one,
+                )?;
 
             // ensure that we do not overshoot the min/max tick, as the tick bitmap is not aware of these bounds
             //Note: this could be removed as we are clamping in the batch contract
@@ -857,7 +858,7 @@ impl UniswapV3Pool {
     pub async fn simulate_swap(
         &self,
         token_in: H160,
-        amount_in: U256
+        amount_in: U256,
     ) -> Result<U256, UniswapV3MathError> {
         if amount_in.is_zero() {
             return Ok(U256::zero());
@@ -891,12 +892,14 @@ impl UniswapV3Pool {
             };
 
             //Get the next tick from the current tick
-            (step.tick_next, step.initialized) = uniswap_v3_math::tick_bitmap::next_initialized_tick_within_one_word(
-                self.tick_bitmap.clone(),
-                current_state.tick,
-                self.tick_spacing,
-                zero_for_one
-            ).expect("Could not calculate next initialized tick"); //This should never hit ...
+            (step.tick_next, step.initialized) =
+                uniswap_v3_math::tick_bitmap::next_initialized_tick_within_one_word(
+                    self.tick_bitmap.clone(),
+                    current_state.tick,
+                    self.tick_spacing,
+                    zero_for_one,
+                )
+                .expect("Could not calculate next initialized tick"); //This should never hit ...
 
             // ensure that we do not overshoot the min/max tick, as the tick bitmap is not aware of these bounds
             //Note: this could be removed as we are clamping in the batch contract
@@ -977,7 +980,6 @@ impl UniswapV3Pool {
 
         Ok((-current_state.amount_calculated).into_raw())
     }
-
 
     pub async fn get_word<M: Middleware>(
         &self,
@@ -1082,6 +1084,7 @@ mod test {
     #[allow(unused)]
     use ethers::providers::Middleware;
 
+    use ethers::types::H256;
     #[allow(unused)]
     use ethers::{
         prelude::abigen,
@@ -1120,12 +1123,9 @@ mod test {
 
         let amount_in = U256::from_dec_str("100000000").unwrap(); // 100 USDC
 
+        
+        let amount_out = pool.simulate_swap(pool.token_a, amount_in).await.unwrap();
         let current_block = middleware.get_block_number().await.unwrap();
-        let amount_out = pool
-            .simulate_swap(pool.token_a, amount_in)
-            .await
-            .unwrap();
-
         let expected_amount_out = quoter
             .quote_exact_input_single(
                 pool.token_a,
@@ -1134,11 +1134,10 @@ mod test {
                 amount_in,
                 U256::zero(),
             )
-            .block(current_block)
             .call()
             .await
             .unwrap();
-
+        dbg!(&expected_amount_out, &amount_out);
         assert_eq!(amount_out, expected_amount_out);
     }
 
@@ -1147,7 +1146,10 @@ mod test {
         let rpc_endpoint =
             std::env::var("ETHEREUM_RPC_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
-
+        let topic =
+            H256::from_str("0x7a53080ba414158be7ec69b987b5fb7d07dee101fe85488f0853ae16239d0bde")
+                .unwrap();
+        dbg!(&topic.as_bytes());
         let pool = UniswapV3Pool::new_from_address(
             H160::from_str("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640").unwrap(),
             12376729,
@@ -1164,10 +1166,7 @@ mod test {
         let amount_in_1 = U256::from_dec_str("10000000000").unwrap(); // 10_000 USDC
 
         let current_block = middleware.get_block_number().await.unwrap();
-        let amount_out_1 = pool
-            .simulate_swap(pool.token_a, amount_in_1)
-            .await
-            .unwrap();
+        let amount_out_1 = pool.simulate_swap(pool.token_a, amount_in_1).await.unwrap();
 
         let expected_amount_out_1 = quoter
             .quote_exact_input_single(
@@ -1207,10 +1206,7 @@ mod test {
         let amount_in_2 = U256::from_dec_str("10000000000000").unwrap(); // 10_000_000 USDC
 
         let current_block = middleware.get_block_number().await.unwrap();
-        let amount_out_2 = pool
-            .simulate_swap(pool.token_a, amount_in_2)
-            .await
-            .unwrap();
+        let amount_out_2 = pool.simulate_swap(pool.token_a, amount_in_2).await.unwrap();
 
         let expected_amount_out_2 = quoter
             .quote_exact_input_single(
@@ -1253,10 +1249,7 @@ mod test {
         dbg!(pool.tick_spacing);
 
         let current_block = middleware.get_block_number().await.unwrap();
-        let amount_out_3 = pool
-            .simulate_swap(pool.token_a, amount_in_3)
-            .await
-            .unwrap();
+        let amount_out_3 = pool.simulate_swap(pool.token_a, amount_in_3).await.unwrap();
 
         let expected_amount_out_3 = quoter
             .quote_exact_input_single(
