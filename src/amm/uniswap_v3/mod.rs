@@ -96,15 +96,18 @@ pub struct UniswapV3Pool {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Info {
-    pub initialized: bool,
+    pub liquidity_gross: u128,
     pub liquidity_net: i128,
+    pub initialized: bool,
 }
 
 impl Info {
-    pub fn new(initialized: bool, liquidity_net: i128) -> Self {
-        Info {
-            initialized,
+    pub fn new(liquidity_gross:u128, liquidity_net: i128,initialized: bool,) -> Self {
+        Info {            liquidity_gross,
+
             liquidity_net,
+            initialized,
+
         }
     }
 }
@@ -472,7 +475,7 @@ impl UniswapV3Pool {
         self.modify_position(tick_lower, tick_upper, amount as i128);
     }
 
-    pub fn modify_position(&self, tick_lower: i32, tick_upper: i32, liquidity_delta: i128) {
+    pub fn modify_position(&mut self, tick_lower: i32, tick_upper: i32, liquidity_delta: i128) {
         //We are only using this function when a mint or burn event is emitted, therefore we do not need to checkTicks as that has happened before the event is emitted
         self.update_position(tick_lower, tick_upper, liquidity_delta);
 
@@ -493,8 +496,8 @@ impl UniswapV3Pool {
         let mut flipped_upper = false;
 
         if liquidity_delta != 0 {
-            flipped_lower = self.update_tick(tick_lower, self.tick, liquidity_delta, false);
-            flipped_upper = self.update_tick(tick_upper, self.tick, liquidity_delta, true);
+            flipped_lower = self.update_tick(tick_lower, liquidity_delta, false);
+            flipped_upper = self.update_tick(tick_upper, liquidity_delta, true);
             if flipped_lower {
                 self.flip_tick(tick_lower, self.tick_spacing);
             }
@@ -517,7 +520,6 @@ impl UniswapV3Pool {
     pub fn update_tick(
         &mut self,
         tick: i32,
-        tick_current: i32,
         liquidity_delta: i128,
         upper: bool,
     ) -> bool {
@@ -525,8 +527,7 @@ impl UniswapV3Pool {
         let info = match self.ticks.get_mut(&tick) {
             Some(info) => info,
             None => {
-                let new_info = Info::default();
-                self.ticks.insert(tick, new_info);
+                self.ticks.insert(tick, Info::default());
                 self.ticks.get_mut(&tick).unwrap()
             }
         };
@@ -539,8 +540,8 @@ impl UniswapV3Pool {
             liquidity_gross_before + (liquidity_delta as u128)
         };
 
-        //we do not need to check if liqudity gross after > maxLiquidity because we are only calling update tick on a burn or mint log
-
+        //we do not need to check if liqudity_gross_after > maxLiquidity because we are only calling update tick on a burn or mint log.
+        // this should already be validated when a log is
         let flipped = (liquidity_gross_after == 0) != (liquidity_gross_before == 0);
 
         if liquidity_gross_before == 0 {
@@ -558,7 +559,7 @@ impl UniswapV3Pool {
         flipped
     }
 
-    pub fn flip_tick(&self, tick: i32, tick_spacing: i32) {
+    pub fn flip_tick(&mut self, tick: i32, tick_spacing: i32) {
         let (word_pos, bit_pos) = uniswap_v3_math::tick_bitmap::position(tick / tick_spacing);
         let mask = U256::one() << bit_pos;
 
