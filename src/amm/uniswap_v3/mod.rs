@@ -89,7 +89,6 @@ pub struct UniswapV3Pool {
     pub fee: u32,
     pub tick: i32,
     pub tick_spacing: i32,
-    pub liquidity_net: i128,
     pub tick_bitmap: HashMap<i16, U256>,
     pub ticks: HashMap<i32, Info>,
 }
@@ -130,6 +129,22 @@ impl AutomatedMarketMaker for UniswapV3Pool {
             MINT_EVENT_SIGNATURE,
             BURN_EVENT_SIGNATURE,
         ]
+    }
+
+    fn sync_from_log(&mut self, log: &Log) -> Result<(), EventLogError> {
+        let event_signature = log.topics[0];
+
+        if event_signature == BURN_EVENT_SIGNATURE {
+            self.sync_from_burn_log(log);
+        } else if event_signature == MINT_EVENT_SIGNATURE {
+            self.sync_from_mint_log(log);
+        } else if event_signature == SWAP_EVENT_SIGNATURE {
+            self.sync_from_swap_log(log);
+        } else {
+            Err(EventLogError::InvalidEventSignature)?
+        }
+
+        Ok(())
     }
 
     fn tokens(&self) -> Vec<H160> {
@@ -177,7 +192,6 @@ impl UniswapV3Pool {
         sqrt_price: U256,
         tick: i32,
         tick_spacing: i32,
-        liquidity_net: i128,
         tick_bitmap: HashMap<i16, U256>,
         ticks: HashMap<i32, Info>,
     ) -> UniswapV3Pool {
@@ -192,7 +206,6 @@ impl UniswapV3Pool {
             sqrt_price,
             tick,
             tick_spacing,
-            liquidity_net,
             tick_bitmap,
             ticks,
         }
@@ -217,7 +230,6 @@ impl UniswapV3Pool {
             tick: 0,
             tick_spacing: 0,
             fee: 0,
-            liquidity_net: 0,
             tick_bitmap: HashMap::new(),
             ticks: HashMap::new(),
         };
@@ -283,7 +295,6 @@ impl UniswapV3Pool {
                 sqrt_price: U256::zero(),
                 tick_spacing: 0,
                 tick: 0,
-                liquidity_net: 0,
                 tick_bitmap: HashMap::new(),
                 ticks: HashMap::new(),
             })
@@ -447,22 +458,6 @@ impl UniswapV3Pool {
         middleware: Arc<M>,
     ) -> Result<U256, DAMMError<M>> {
         Ok(self.get_slot_0(middleware).await?.0)
-    }
-
-    pub fn sync_from_log(&mut self, log: &Log) -> Result<(), EventLogError> {
-        let event_signature = log.topics[0];
-
-        if event_signature == BURN_EVENT_SIGNATURE {
-            self.sync_from_burn_log(log);
-        } else if event_signature == MINT_EVENT_SIGNATURE {
-            self.sync_from_mint_log(log);
-        } else if event_signature == SWAP_EVENT_SIGNATURE {
-            self.sync_from_swap_log(log);
-        } else {
-            Err(EventLogError::InvalidEventSignature)?
-        }
-
-        Ok(())
     }
 
     pub fn sync_from_burn_log(&mut self, log: &Log) {

@@ -126,7 +126,6 @@ impl AutomatedMarketMakerFactory for UniswapV3Factory {
             sqrt_price: U256::zero(),
             tick_spacing: 0,
             tick: 0,
-            liquidity_net: 0,
             tick_bitmap: HashMap::new(),
             ticks: HashMap::new(),
         }))
