@@ -5,10 +5,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use ethers::{
-    providers::Middleware,
-    types::{BlockNumber, H160},
-};
+use ethers::{providers::Middleware, types::H160};
 
 use serde::{Deserialize, Serialize};
 
@@ -60,7 +57,8 @@ pub async fn sync_amms_from_checkpoint<M: 'static + Middleware>(
     let current_block = middleware
         .get_block_number()
         .await
-        .map_err(DAMMError::MiddlewareError)?;
+        .map_err(DAMMError::MiddlewareError)?
+        .as_u64();
 
     let checkpoint: Checkpoint = serde_json::from_str(
         read_to_string(path_to_checkpoint)
@@ -77,12 +75,26 @@ pub async fn sync_amms_from_checkpoint<M: 'static + Middleware>(
 
     //Sync all uniswap v2 pools from checkpoint
     if !uniswap_v2_pools.is_empty() {
-        handles.push(batch_sync_amms_from_checkpoint(uniswap_v2_pools, middleware.clone()).await);
+        handles.push(
+            batch_sync_amms_from_checkpoint(
+                uniswap_v2_pools,
+                Some(current_block),
+                middleware.clone(),
+            )
+            .await,
+        );
     }
 
     //Sync all uniswap v3 pools from checkpoint
     if !uniswap_v3_pools.is_empty() {
-        handles.push(batch_sync_amms_from_checkpoint(uniswap_v3_pools, middleware.clone()).await);
+        handles.push(
+            batch_sync_amms_from_checkpoint(
+                uniswap_v3_pools,
+                Some(current_block),
+                middleware.clone(),
+            )
+            .await,
+        );
     }
 
     // TODO: Batch sync erc4626 pools from checkpoint
@@ -91,8 +103,8 @@ pub async fn sync_amms_from_checkpoint<M: 'static + Middleware>(
     handles.extend(
         get_new_amms_from_range(
             checkpoint.factories.clone(),
-            checkpoint.block_number.into(),
-            current_block.into(),
+            checkpoint.block_number,
+            current_block,
             step,
             middleware.clone(),
         )
@@ -117,7 +129,7 @@ pub async fn sync_amms_from_checkpoint<M: 'static + Middleware>(
     construct_checkpoint(
         checkpoint.factories.clone(),
         &aggregated_amms,
-        current_block.as_u64(),
+        current_block,
         path_to_checkpoint,
     );
 
@@ -126,8 +138,8 @@ pub async fn sync_amms_from_checkpoint<M: 'static + Middleware>(
 
 pub async fn get_new_amms_from_range<M: 'static + Middleware>(
     factories: Vec<Factory>,
-    from_block: BlockNumber,
-    to_block: BlockNumber,
+    from_block: u64,
+    to_block: u64,
     step: usize,
     middleware: Arc<M>,
 ) -> Vec<JoinHandle<Result<Vec<AMM>, DAMMError<M>>>> {
@@ -135,7 +147,7 @@ pub async fn get_new_amms_from_range<M: 'static + Middleware>(
     //Aggregate the populated pools from each thread
     let mut handles = vec![];
 
-    for factory in factories {
+    for factory in factories.into_iter() {
         let middleware = middleware.clone();
 
         //Spawn a new thread to get all pools and sync data for each dex
@@ -145,7 +157,7 @@ pub async fn get_new_amms_from_range<M: 'static + Middleware>(
                 .await?;
 
             factory
-                .populate_amm_data(&mut amms, middleware.clone())
+                .populate_amm_data(&mut amms, Some(to_block), middleware.clone())
                 .await?;
 
             //Clean empty pools
@@ -160,6 +172,7 @@ pub async fn get_new_amms_from_range<M: 'static + Middleware>(
 
 pub async fn batch_sync_amms_from_checkpoint<M: 'static + Middleware>(
     mut amms: Vec<AMM>,
+    block_number: Option<u64>,
     middleware: Arc<M>,
 ) -> JoinHandle<Result<Vec<AMM>, DAMMError<M>>> {
     let factory = match amms[0] {
@@ -182,7 +195,9 @@ pub async fn batch_sync_amms_from_checkpoint<M: 'static + Middleware>(
         if let Some(factory) = factory {
             if amms_are_congruent(&amms) {
                 //Get all pool data via batched calls
-                factory.populate_amm_data(&mut amms, middleware).await?;
+                factory
+                    .populate_amm_data(&mut amms, block_number, middleware)
+                    .await?;
 
                 //Clean empty pools
                 amms = sync::remove_empty_amms(amms);
@@ -215,8 +230,8 @@ pub fn sort_amms(amms: Vec<AMM>) -> (Vec<AMM>, Vec<AMM>, Vec<AMM>) {
 
 pub async fn get_new_pools_from_range<M: 'static + Middleware>(
     factories: Vec<Factory>,
-    from_block: BlockNumber,
-    to_block: BlockNumber,
+    from_block: u64,
+    to_block: u64,
     step: usize,
     middleware: Arc<M>,
 ) -> Vec<JoinHandle<Result<Vec<AMM>, DAMMError<M>>>> {
@@ -234,7 +249,7 @@ pub async fn get_new_pools_from_range<M: 'static + Middleware>(
                 .await?;
 
             factory
-                .populate_amm_data(&mut pools, middleware.clone())
+                .populate_amm_data(&mut pools, Some(to_block), middleware.clone())
                 .await?;
 
             //Clean empty pools

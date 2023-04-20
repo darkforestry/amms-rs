@@ -21,12 +21,14 @@ pub trait AutomatedMarketMakerFactory {
 
     async fn get_all_amms<M: Middleware>(
         &self,
+        to_block: Option<u64>,
         middleware: Arc<M>,
     ) -> Result<Vec<AMM>, DAMMError<M>>;
 
     async fn populate_amm_data<M: Middleware>(
         &self,
         amms: &mut [AMM],
+        block_number: Option<u64>,
         middleware: Arc<M>,
     ) -> Result<(), DAMMError<M>>;
 
@@ -43,7 +45,7 @@ pub trait AutomatedMarketMakerFactory {
     fn new_empty_amm_from_log(&self, log: Log) -> Result<AMM, ethers::abi::Error>;
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Factory {
     UniswapV2Factory(UniswapV2Factory),
     UniswapV3Factory(UniswapV3Factory),
@@ -85,22 +87,30 @@ impl AutomatedMarketMakerFactory for Factory {
 
     async fn get_all_amms<M: Middleware>(
         &self,
+        to_block: Option<u64>,
         middleware: Arc<M>,
     ) -> Result<Vec<AMM>, DAMMError<M>> {
         match self {
-            Factory::UniswapV2Factory(factory) => factory.get_all_amms(middleware).await,
-            Factory::UniswapV3Factory(factory) => factory.get_all_amms(middleware).await,
+            Factory::UniswapV2Factory(factory) => factory.get_all_amms(to_block, middleware).await,
+            Factory::UniswapV3Factory(factory) => factory.get_all_amms(to_block, middleware).await,
         }
     }
 
     async fn populate_amm_data<M: Middleware>(
         &self,
         amms: &mut [AMM],
+        block_number: Option<u64>,
         middleware: Arc<M>,
     ) -> Result<(), DAMMError<M>> {
         match self {
-            Factory::UniswapV2Factory(factory) => factory.populate_amm_data(amms, middleware).await,
-            Factory::UniswapV3Factory(factory) => factory.populate_amm_data(amms, middleware).await,
+            Factory::UniswapV2Factory(factory) => {
+                factory.populate_amm_data(amms, None, middleware).await
+            }
+            Factory::UniswapV3Factory(factory) => {
+                factory
+                    .populate_amm_data(amms, block_number, middleware)
+                    .await
+            }
         }
     }
 
@@ -114,22 +124,12 @@ impl AutomatedMarketMakerFactory for Factory {
 
 impl Factory {
     pub async fn get_all_pools_from_logs<M: 'static + Middleware>(
-        self,
-        from_block: BlockNumber,
-        to_block: BlockNumber,
+        &self,
+        from_block: u64,
+        to_block: u64,
         step: usize,
         middleware: Arc<M>,
     ) -> Result<Vec<AMM>, DAMMError<M>> {
-        //Unwrap can be used here because the creation block was verified within `Dex::new()`
-        let from_block = from_block
-            .as_number()
-            .expect("Error converting creation block as number")
-            .as_u64();
-        let to_block = to_block
-            .as_number()
-            .expect("Error converting current block as number")
-            .as_u64();
-
         let mut aggregated_amms: Vec<AMM> = vec![];
 
         //For each block within the range, get all pairs asynchronously

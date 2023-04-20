@@ -25,11 +25,12 @@ pub trait AutomatedMarketMaker {
     fn calculate_price(&self, base_token: H160) -> Result<f64, ArithmeticError>;
     async fn populate_data<M: Middleware>(
         &mut self,
+        block_number: Option<u64>,
         middleware: Arc<M>,
     ) -> Result<(), DAMMError<M>>;
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum AMM {
     UniswapV2Pool(UniswapV2Pool),
     UniswapV3Pool(UniswapV3Pool),
@@ -64,12 +65,13 @@ impl AutomatedMarketMaker for AMM {
 
     async fn populate_data<M: Middleware>(
         &mut self,
+        block_number: Option<u64>,
         middleware: Arc<M>,
     ) -> Result<(), DAMMError<M>> {
         match self {
-            AMM::UniswapV2Pool(pool) => pool.populate_data(middleware).await,
-            AMM::UniswapV3Pool(pool) => pool.populate_data(middleware).await,
-            AMM::ERC4626Vault(pool) => pool.populate_data(middleware).await,
+            AMM::UniswapV2Pool(pool) => pool.populate_data(None, middleware).await,
+            AMM::UniswapV3Pool(pool) => pool.populate_data(block_number, middleware).await,
+            AMM::ERC4626Vault(pool) => pool.populate_data(None, middleware).await,
         }
     }
 

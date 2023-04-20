@@ -114,6 +114,7 @@ abigen!(
 
 pub async fn get_v3_pool_data_batch_request<M: Middleware>(
     pool: &mut UniswapV3Pool,
+    block_number: Option<u64>,
     middleware: Arc<M>,
 ) -> Result<(), DAMMError<M>> {
     let constructor_args = Token::Tuple(vec![Token::Array(vec![Token::Address(pool.address)])]);
@@ -121,7 +122,11 @@ pub async fn get_v3_pool_data_batch_request<M: Middleware>(
     let deployer =
         IGetUniswapV3PoolDataBatchRequest::deploy(middleware.clone(), constructor_args).unwrap();
 
-    let return_data: Bytes = deployer.call_raw().await?;
+    let return_data: Bytes = if let Some(block_number) = block_number {
+        deployer.block(block_number).call_raw().await?
+    } else {
+        deployer.call_raw().await?
+    };
 
     let return_data_tokens = ethers::abi::decode(
         &[ParamType::Array(Box::new(ParamType::Tuple(vec![
@@ -310,6 +315,7 @@ pub async fn sync_v3_pool_batch_request<M: Middleware>(
 
 pub async fn get_amm_data_batch_request<M: Middleware>(
     amms: &mut [AMM],
+    block_number: u64,
     middleware: Arc<M>,
 ) -> Result<(), DAMMError<M>> {
     let mut target_addresses = vec![];
@@ -322,7 +328,7 @@ pub async fn get_amm_data_batch_request<M: Middleware>(
     let deployer =
         IGetUniswapV3PoolDataBatchRequest::deploy(middleware.clone(), constructor_args).unwrap();
 
-    let return_data: Bytes = deployer.call_raw().await?;
+    let return_data: Bytes = deployer.block(block_number).call_raw().await?;
 
     let return_data_tokens = ethers::abi::decode(
         &[ParamType::Array(Box::new(ParamType::Tuple(vec![
@@ -380,10 +386,6 @@ pub async fn get_amm_data_batch_request<M: Middleware>(
 
                             uniswap_v3_pool.fee =
                                 pool_data[8].to_owned().into_uint().unwrap().as_u64() as u32;
-
-                            uniswap_v3_pool.liquidity_net =
-                                I256::from_raw(pool_data[9].to_owned().into_int().unwrap())
-                                    .as_i128();
                         }
                     }
                     pool_idx += 1;

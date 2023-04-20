@@ -1,5 +1,3 @@
-use std::fmt;
-
 use ethers::prelude::{AbiError, ContractError};
 use ethers::providers::{Middleware, ProviderError};
 use ethers::types::{H160, U256};
@@ -44,19 +42,40 @@ where
     IncongruentAMMs,
     #[error("Invalid ERC4626 fee")]
     InvalidERC4626Fee,
+    #[error("Event log error")]
+    EventLogError(#[from] EventLogError),
+    #[error("Block number not found")]
+    BlockNumberNotFound,
+    #[error("Swap simulation error")]
+    SwapSimError(#[from] SwapSimError),
 }
 
 #[derive(Error, Debug)]
 pub enum ArithmeticError {
+    #[error("Shadow overflow")]
     ShadowOverflow(U256),
+    #[error("Rounding Error")]
     RoundingError,
+    #[error("Y is zero")]
     YIsZero,
+    #[error("Sqrt price overflow")]
     SqrtPriceOverflow,
+    #[error("Uniswap v3 math error")]
     UniswapV3MathError(#[from] UniswapV3MathError),
 }
 
-impl std::fmt::Display for ArithmeticError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "")
-    }
+#[derive(Error, Debug)]
+pub enum EventLogError {
+    #[error("Invalid event signature")]
+    InvalidEventSignature,
+    #[error("Log Block number not found")]
+    LogBlockNumberNotFound,
+    #[error("Eth abi error")]
+    EthABIError(#[from] ethers::abi::Error),
+}
+
+#[derive(Error, Debug)]
+pub enum SwapSimError {
+    #[error("Could not get next tick")]
+    InvalidTick,
 }

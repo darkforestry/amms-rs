@@ -14,10 +14,12 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     amm::AutomatedMarketMaker,
-    errors::{ArithmeticError, DAMMError},
+    errors::{ArithmeticError, DAMMError, EventLogError},
 };
 
 use ethers::prelude::abigen;
+
+use self::factory::PAIR_CREATED_EVENT_SIGNATURE;
 
 abigen!(
     IUniswapV2Pair,
@@ -42,7 +44,7 @@ pub const SYNC_EVENT_SIGNATURE: H256 = H256([
     199, 139, 229, 14, 6, 43, 3, 169, 255, 251, 186, 209,
 ]);
 
-#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct UniswapV2Pool {
     pub address: H160,
     pub token_a: H160,
@@ -68,6 +70,7 @@ impl AutomatedMarketMaker for UniswapV2Pool {
 
     async fn populate_data<M: Middleware>(
         &mut self,
+        _block_number: Option<u64>,
         middleware: Arc<M>,
     ) -> Result<(), DAMMError<M>> {
         batch_request::get_v2_pool_data_batch_request(self, middleware.clone()).await?;
@@ -130,7 +133,7 @@ impl UniswapV2Pool {
             fee,
         };
 
-        pool.populate_data(middleware.clone()).await?;
+        pool.populate_data(None, middleware.clone()).await?;
 
         if !pool.data_is_populated() {
             return Err(DAMMError::PoolDataError);
@@ -138,40 +141,62 @@ impl UniswapV2Pool {
 
         Ok(pool)
     }
-    pub async fn new_from_event_log<M: Middleware>(
+    pub async fn new_from_log<M: Middleware>(
         log: Log,
         fee: u32, //TODO: maybe find a way to dynamically get the fee without having to pass it in
         middleware: Arc<M>,
     ) -> Result<Self, DAMMError<M>> {
-        let tokens = ethers::abi::decode(&[ParamType::Address, ParamType::Uint(256)], &log.data)?;
-        let pair_address = tokens[0].to_owned().into_address().unwrap();
-        UniswapV2Pool::new_from_address(pair_address, fee, middleware).await
+        let event_signature = log.topics[0];
+
+        if event_signature == PAIR_CREATED_EVENT_SIGNATURE {
+            // let event_signature = log.topics
+            let tokens =
+                ethers::abi::decode(&[ParamType::Address, ParamType::Uint(256)], &log.data)?;
+            let pair_address = tokens[0].to_owned().into_address().unwrap();
+            UniswapV2Pool::new_from_address(pair_address, fee, middleware).await
+        } else {
+            Err(EventLogError::InvalidEventSignature)?
+        }
     }
 
-    pub fn new_empty_pool_from_event_log<M: Middleware>(log: Log) -> Result<Self, DAMMError<M>> {
-        let tokens = ethers::abi::decode(&[ParamType::Address, ParamType::Uint(256)], &log.data)?;
-        let token_a = H160::from(log.topics[0]);
-        let token_b = H160::from(log.topics[1]);
-        let address = tokens[0].to_owned().into_address().unwrap();
+    pub fn new_empty_pool_from_log(log: Log) -> Result<Self, EventLogError> {
+        let event_signature = log.topics[0];
 
-        Ok(UniswapV2Pool {
-            address,
-            token_a,
-            token_b,
-            token_a_decimals: 0,
-            token_b_decimals: 0,
-            reserve_0: 0,
-            reserve_1: 0,
-            fee: 0,
-        })
+        if event_signature == PAIR_CREATED_EVENT_SIGNATURE {
+            let tokens =
+                ethers::abi::decode(&[ParamType::Address, ParamType::Uint(256)], &log.data)?;
+            let token_a = H160::from(log.topics[0]);
+            let token_b = H160::from(log.topics[1]);
+            let address = tokens[0].to_owned().into_address().unwrap();
+
+            Ok(UniswapV2Pool {
+                address,
+                token_a,
+                token_b,
+                token_a_decimals: 0,
+                token_b_decimals: 0,
+                reserve_0: 0,
+                reserve_1: 0,
+                fee: 0,
+            })
+        } else {
+            Err(EventLogError::InvalidEventSignature)?
+        }
     }
 
     pub fn fee(&self) -> u32 {
         self.fee
     }
 
-    pub fn sync_from_log(&mut self, log: &Log) {
-        (self.reserve_0, self.reserve_1) = self.decode_sync_log(log);
+    pub fn sync_from_log(&mut self, log: &Log) -> Result<(), EventLogError> {
+        let event_signature = log.topics[0];
+
+        if event_signature == SYNC_EVENT_SIGNATURE {
+            (self.reserve_0, self.reserve_1) = self.decode_sync_log(log);
+            Ok(())
+        } else {
+            Err(EventLogError::InvalidEventSignature)
+        }
     }
 
     pub fn data_is_populated(&self) -> bool {
@@ -547,7 +572,7 @@ mod tests {
             ..Default::default()
         };
 
-        pool.populate_data(middleware).await.unwrap();
+        pool.populate_data(None, middleware.clone()).await.unwrap();
 
         assert_eq!(
             pool.address,
@@ -595,7 +620,7 @@ mod tests {
             ..Default::default()
         };
 
-        pool.populate_data(middleware.clone()).await.unwrap();
+        pool.populate_data(None, middleware.clone()).await.unwrap();
 
         pool.reserve_0 = 47092140895915;
         pool.reserve_1 = 28396598565590008529300;
@@ -618,7 +643,7 @@ mod tests {
             ..Default::default()
         };
 
-        pool.populate_data(middleware.clone()).await.unwrap();
+        pool.populate_data(None, middleware.clone()).await.unwrap();
 
         pool.reserve_0 = 47092140895915;
         pool.reserve_1 = 28396598565590008529300;

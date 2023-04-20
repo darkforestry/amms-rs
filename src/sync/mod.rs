@@ -12,17 +12,20 @@ use spinoff::{spinners, Color, Spinner};
 use std::{panic::resume_unwind, sync::Arc};
 pub mod checkpoint;
 
+//TODO: This needs to return the block that everything started syncing at
+
 pub async fn sync_amms<M: 'static + Middleware>(
     factories: Vec<Factory>,
     middleware: Arc<M>,
     checkpoint_path: Option<&str>,
-) -> Result<Vec<AMM>, DAMMError<M>> {
+) -> Result<(Vec<AMM>, u64), DAMMError<M>> {
     let spinner = Spinner::new(spinners::Dots, "Syncing AMMs...", Color::Blue);
 
     let current_block = middleware
         .get_block_number()
         .await
-        .map_err(DAMMError::MiddlewareError)?;
+        .map_err(DAMMError::MiddlewareError)?
+        .as_u64();
 
     //Aggregate the populated pools from each thread
     let mut aggregated_amms: Vec<AMM> = vec![];
@@ -35,8 +38,10 @@ pub async fn sync_amms<M: 'static + Middleware>(
         //Spawn a new thread to get all pools and sync data for each dex
         handles.push(tokio::spawn(async move {
             //Get all of the amms from the factory
-            let mut amms: Vec<AMM> = factory.get_all_amms(middleware.clone()).await?;
-            populate_amms(&mut amms, middleware.clone()).await?;
+            let mut amms: Vec<AMM> = factory
+                .get_all_amms(Some(current_block), middleware.clone())
+                .await?;
+            populate_amms(&mut amms, current_block, middleware.clone()).await?;
             //Clean empty pools
             amms = remove_empty_amms(amms);
 
@@ -65,21 +70,21 @@ pub async fn sync_amms<M: 'static + Middleware>(
         checkpoint::construct_checkpoint(
             factories,
             &aggregated_amms,
-            current_block.as_u64(),
+            current_block,
             checkpoint_path,
         )
     }
     spinner.success("AMMs synced");
 
     //Return the populated aggregated amms vec
-    Ok(aggregated_amms)
+    Ok((aggregated_amms, current_block))
 }
 
 pub fn amms_are_congruent(amms: &[AMM]) -> bool {
-    let expected_amm = amms[0];
+    let expected_amm = &amms[0];
 
     for amm in amms {
-        if std::mem::discriminant(&expected_amm) != std::mem::discriminant(amm) {
+        if std::mem::discriminant(expected_amm) != std::mem::discriminant(amm) {
             return false;
         }
     }
@@ -89,6 +94,7 @@ pub fn amms_are_congruent(amms: &[AMM]) -> bool {
 //Gets all pool data and sync reserves
 pub async fn populate_amms<M: Middleware>(
     amms: &mut [AMM],
+    block_number: u64,
     middleware: Arc<M>,
 ) -> Result<(), DAMMError<M>> {
     if amms_are_congruent(amms) {
@@ -109,6 +115,7 @@ pub async fn populate_amms<M: Middleware>(
                 for amm_chunk in amms.chunks_mut(step) {
                     uniswap_v3::batch_request::get_amm_data_batch_request(
                         amm_chunk,
+                        block_number,
                         middleware.clone(),
                     )
                     .await?;
@@ -118,7 +125,7 @@ pub async fn populate_amms<M: Middleware>(
             // TODO: Implement batch request
             AMM::ERC4626Vault(_) => {
                 for amm in amms {
-                    amm.populate_data(middleware.clone()).await?;
+                    amm.populate_data(None, middleware.clone()).await?;
                 }
             }
         }
@@ -133,19 +140,19 @@ pub async fn populate_amms<M: Middleware>(
 pub fn remove_empty_amms(amms: Vec<AMM>) -> Vec<AMM> {
     let mut cleaned_amms = vec![];
 
-    for amm in amms {
+    for amm in amms.into_iter() {
         match amm {
-            AMM::UniswapV2Pool(uniswap_v2_pool) => {
+            AMM::UniswapV2Pool(ref uniswap_v2_pool) => {
                 if !uniswap_v2_pool.token_a.is_zero() && !uniswap_v2_pool.token_b.is_zero() {
                     cleaned_amms.push(amm)
                 }
             }
-            AMM::UniswapV3Pool(uniswap_v3_pool) => {
+            AMM::UniswapV3Pool(ref uniswap_v3_pool) => {
                 if !uniswap_v3_pool.token_a.is_zero() && !uniswap_v3_pool.token_b.is_zero() {
                     cleaned_amms.push(amm)
                 }
             }
-            AMM::ERC4626Vault(erc4626_vault) => {
+            AMM::ERC4626Vault(ref erc4626_vault) => {
                 if !erc4626_vault.vault_token.is_zero() && !erc4626_vault.asset_token.is_zero() {
                     cleaned_amms.push(amm)
                 }

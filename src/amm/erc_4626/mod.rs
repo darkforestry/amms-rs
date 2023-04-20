@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     amm::AutomatedMarketMaker,
-    errors::{ArithmeticError, DAMMError},
+    errors::{ArithmeticError, DAMMError, EventLogError},
 };
 
 use ethers::prelude::abigen;
@@ -38,7 +38,7 @@ pub const WITHDRAW_EVENT_SIGNATURE: H256 = H256([
     74, 44, 117, 192, 31, 201, 102, 114, 50, 200, 219,
 ]);
 
-#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ERC4626Vault {
     pub vault_token: H160, // token received from depositing, i.e. shares token
     pub vault_token_decimals: u8,
@@ -76,6 +76,7 @@ impl AutomatedMarketMaker for ERC4626Vault {
 
     async fn populate_data<M: Middleware>(
         &mut self,
+        _block_number: Option<u64>,
         middleware: Arc<M>,
     ) -> Result<(), DAMMError<M>> {
         batch_request::get_4626_vault_data_batch_request(self, middleware.clone()).await?;
@@ -123,7 +124,7 @@ impl ERC4626Vault {
             withdraw_fee: 0,
         };
 
-        vault.populate_data(middleware.clone()).await?;
+        vault.populate_data(None, middleware.clone()).await?;
 
         if !vault.data_is_populated() {
             return Err(DAMMError::PoolDataError);
@@ -235,16 +236,21 @@ impl ERC4626Vault {
         amount_in * reserve_out / reserve_in * (10000 - fee) / 10000
     }
 
-    pub fn sync_from_log(&mut self, log: &Log) {
-        if log.topics[0] == DEPOSIT_EVENT_SIGNATURE {
+    pub fn sync_from_log(&mut self, log: &Log) -> Result<(), EventLogError> {
+        let event_signature = log.topics[0];
+        if event_signature == DEPOSIT_EVENT_SIGNATURE {
             let (assets_in, shares_in) = self.decode_deposit_log(log);
             self.asset_reserve += assets_in;
             self.vault_reserve += shares_in;
-        } else if log.topics[0] == WITHDRAW_EVENT_SIGNATURE {
+        } else if event_signature == WITHDRAW_EVENT_SIGNATURE {
             let (assets_out, shares_out) = self.decode_withdraw_log(log);
             self.asset_reserve -= assets_out;
             self.vault_reserve -= shares_out;
+        } else {
+            return Err(EventLogError::InvalidEventSignature);
         }
+
+        Ok(())
     }
 
     pub fn decode_deposit_log(&self, log: &Log) -> (U256, U256) {
@@ -321,7 +327,7 @@ mod tests {
             ..Default::default()
         };
 
-        vault.populate_data(middleware).await.unwrap();
+        vault.populate_data(None, middleware).await.unwrap();
 
         assert_eq!(vault.vault_token_decimals, 18);
         assert_eq!(
@@ -344,7 +350,7 @@ mod tests {
             ..Default::default()
         };
 
-        vault.populate_data(middleware).await.unwrap();
+        vault.populate_data(None, middleware).await.unwrap();
 
         vault.vault_reserve = U256::from_dec_str("501910315708981197269904").unwrap();
         vault.asset_token_decimals = 6;
@@ -368,7 +374,7 @@ mod tests {
             ..Default::default()
         };
 
-        vault.populate_data(middleware).await.unwrap();
+        vault.populate_data(None, middleware).await.unwrap();
 
         vault.vault_reserve = U256::from_dec_str("0").unwrap();
         vault.asset_reserve = U256::from_dec_str("0").unwrap();
@@ -391,7 +397,7 @@ mod tests {
             ..Default::default()
         };
 
-        vault.populate_data(middleware).await.unwrap();
+        vault.populate_data(None, middleware).await.unwrap();
 
         vault.vault_reserve = U256::from_dec_str("501910315708981197269904").unwrap();
         vault.asset_reserve = U256::from_dec_str("505434849031054568651911").unwrap();
@@ -414,7 +420,7 @@ mod tests {
             ..Default::default()
         };
 
-        vault.populate_data(middleware).await.unwrap();
+        vault.populate_data(None, middleware).await.unwrap();
 
         vault.vault_reserve = U256::from_dec_str("501910315708981197269904").unwrap();
         vault.asset_reserve = U256::from_dec_str("505434849031054568651911").unwrap();
@@ -437,7 +443,7 @@ mod tests {
             ..Default::default()
         };
 
-        vault.populate_data(middleware).await.unwrap();
+        vault.populate_data(None, middleware).await.unwrap();
 
         vault.vault_reserve = U256::from_dec_str("501910315708981197269904").unwrap();
         vault.asset_reserve = U256::from_dec_str("505434849031054568651911").unwrap();

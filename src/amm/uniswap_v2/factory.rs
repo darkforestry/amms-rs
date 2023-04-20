@@ -34,7 +34,7 @@ pub const PAIR_CREATED_EVENT_SIGNATURE: H256 = H256([
     131, 85, 205, 222, 253, 227, 26, 250, 40, 208, 233,
 ]);
 
-#[derive(Default, Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct UniswapV2Factory {
     pub address: H160,
     pub creation_block: u64,
@@ -51,7 +51,7 @@ impl UniswapV2Factory {
     }
 
     pub async fn get_all_pairs_via_batched_calls<M: Middleware>(
-        self,
+        &self,
         middleware: Arc<M>,
     ) -> Result<Vec<AMM>, DAMMError<M>> {
         let factory = IUniswapV2Factory::new(self.address, middleware.clone());
@@ -146,6 +146,7 @@ impl AutomatedMarketMakerFactory for UniswapV2Factory {
 
     async fn get_all_amms<M: Middleware>(
         &self,
+        _to_block: Option<u64>,
         middleware: Arc<M>,
     ) -> Result<Vec<AMM>, DAMMError<M>> {
         self.get_all_pairs_via_batched_calls(middleware).await
@@ -154,6 +155,7 @@ impl AutomatedMarketMakerFactory for UniswapV2Factory {
     async fn populate_amm_data<M: Middleware>(
         &self,
         amms: &mut [AMM],
+        _block_number: Option<u64>,
         middleware: Arc<M>,
     ) -> Result<(), DAMMError<M>> {
         let step = 127; //Max batch size for call
