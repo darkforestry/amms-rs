@@ -76,6 +76,7 @@ impl AutomatedMarketMaker for ERC4626Vault {
 
     async fn populate_data<M: Middleware>(
         &mut self,
+        _block_number: Option<u64>,
         middleware: Arc<M>,
     ) -> Result<(), DAMMError<M>> {
         batch_request::get_4626_vault_data_batch_request(self, middleware.clone()).await?;
@@ -123,7 +124,7 @@ impl ERC4626Vault {
             withdraw_fee: 0,
         };
 
-        vault.populate_data(middleware.clone()).await?;
+        vault.populate_data(None, middleware.clone()).await?;
 
         if !vault.data_is_populated() {
             return Err(DAMMError::PoolDataError);
@@ -326,7 +327,7 @@ mod tests {
             ..Default::default()
         };
 
-        vault.populate_data(middleware).await.unwrap();
+        vault.populate_data(None, middleware).await.unwrap();
 
         assert_eq!(vault.vault_token_decimals, 18);
         assert_eq!(
@@ -349,7 +350,7 @@ mod tests {
             ..Default::default()
         };
 
-        vault.populate_data(middleware).await.unwrap();
+        vault.populate_data(None, middleware).await.unwrap();
 
         vault.vault_reserve = U256::from_dec_str("501910315708981197269904").unwrap();
         vault.asset_token_decimals = 6;
@@ -373,7 +374,7 @@ mod tests {
             ..Default::default()
         };
 
-        vault.populate_data(middleware).await.unwrap();
+        vault.populate_data(None, middleware).await.unwrap();
 
         vault.vault_reserve = U256::from_dec_str("0").unwrap();
         vault.asset_reserve = U256::from_dec_str("0").unwrap();
@@ -396,7 +397,7 @@ mod tests {
             ..Default::default()
         };
 
-        vault.populate_data(middleware).await.unwrap();
+        vault.populate_data(None, middleware).await.unwrap();
 
         vault.vault_reserve = U256::from_dec_str("501910315708981197269904").unwrap();
         vault.asset_reserve = U256::from_dec_str("505434849031054568651911").unwrap();
@@ -421,7 +422,7 @@ mod tests {
             ..Default::default()
         };
 
-        vault.populate_data(middleware).await.unwrap();
+        vault.populate_data(None, middleware).await.unwrap();
 
         vault.vault_reserve = U256::from_dec_str("501910315708981197269904").unwrap();
         vault.asset_reserve = U256::from_dec_str("505434849031054568651911").unwrap();
@@ -444,7 +445,7 @@ mod tests {
             ..Default::default()
         };
 
-        vault.populate_data(middleware).await.unwrap();
+        vault.populate_data(None, middleware).await.unwrap();
 
         vault.vault_reserve = U256::from_dec_str("501910315708981197269904").unwrap();
         vault.asset_reserve = U256::from_dec_str("505434849031054568651911").unwrap();
@@ -467,7 +468,7 @@ mod tests {
             ..Default::default()
         };
 
-        vault.populate_data(middleware).await.unwrap();
+        vault.populate_data(None, middleware).await.unwrap();
 
         vault.vault_reserve = U256::from_dec_str("501910315708981197269904").unwrap();
         vault.asset_reserve = U256::from_dec_str("505434849031054568651911").unwrap();

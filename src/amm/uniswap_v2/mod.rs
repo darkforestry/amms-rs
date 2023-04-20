@@ -70,6 +70,7 @@ impl AutomatedMarketMaker for UniswapV2Pool {
 
     async fn populate_data<M: Middleware>(
         &mut self,
+        _block_number: Option<u64>,
         middleware: Arc<M>,
     ) -> Result<(), DAMMError<M>> {
         batch_request::get_v2_pool_data_batch_request(self, middleware.clone()).await?;
@@ -132,7 +133,7 @@ impl UniswapV2Pool {
             fee,
         };
 
-        pool.populate_data(middleware.clone()).await?;
+        pool.populate_data(None, middleware.clone()).await?;
 
         if !pool.data_is_populated() {
             return Err(DAMMError::PoolDataError);
@@ -571,7 +572,7 @@ mod tests {
             ..Default::default()
         };
 
-        pool.populate_data(middleware).await.unwrap();
+        pool.populate_data(None, middleware.clone()).await.unwrap();
 
         assert_eq!(
             pool.address,
@@ -619,7 +620,7 @@ mod tests {
             ..Default::default()
         };
 
-        pool.populate_data(middleware.clone()).await.unwrap();
+        pool.populate_data(None, middleware.clone()).await.unwrap();
 
         pool.reserve_0 = 47092140895915;
         pool.reserve_1 = 28396598565590008529300;
@@ -642,7 +643,7 @@ mod tests {
             ..Default::default()
         };
 
-        pool.populate_data(middleware.clone()).await.unwrap();
+        pool.populate_data(None, middleware.clone()).await.unwrap();
 
         pool.reserve_0 = 47092140895915;
         pool.reserve_1 = 28396598565590008529300;

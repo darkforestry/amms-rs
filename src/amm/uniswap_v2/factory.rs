@@ -155,6 +155,7 @@ impl AutomatedMarketMakerFactory for UniswapV2Factory {
     async fn populate_amm_data<M: Middleware>(
         &self,
         amms: &mut [AMM],
+        _block_number: Option<u64>,
         middleware: Arc<M>,
     ) -> Result<(), DAMMError<M>> {
         let step = 127; //Max batch size for call

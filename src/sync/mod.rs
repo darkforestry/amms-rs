@@ -41,7 +41,7 @@ pub async fn sync_amms<M: 'static + Middleware>(
             let mut amms: Vec<AMM> = factory
                 .get_all_amms(Some(current_block), middleware.clone())
                 .await?;
-            populate_amms(&mut amms, middleware.clone()).await?;
+            populate_amms(&mut amms, current_block, middleware.clone()).await?;
             //Clean empty pools
             amms = remove_empty_amms(amms);
 
@@ -94,6 +94,7 @@ pub fn amms_are_congruent(amms: &[AMM]) -> bool {
 //Gets all pool data and sync reserves
 pub async fn populate_amms<M: Middleware>(
     amms: &mut [AMM],
+    block_number: u64,
     middleware: Arc<M>,
 ) -> Result<(), DAMMError<M>> {
     if amms_are_congruent(amms) {
@@ -114,6 +115,7 @@ pub async fn populate_amms<M: Middleware>(
                 for amm_chunk in amms.chunks_mut(step) {
                     uniswap_v3::batch_request::get_amm_data_batch_request(
                         amm_chunk,
+                        block_number,
                         middleware.clone(),
                     )
                     .await?;
@@ -123,7 +125,7 @@ pub async fn populate_amms<M: Middleware>(
             // TODO: Implement batch request
             AMM::ERC4626Vault(_) => {
                 for amm in amms {
-                    amm.populate_data(middleware.clone()).await?;
+                    amm.populate_data(None, middleware.clone()).await?;
                 }
             }
         }

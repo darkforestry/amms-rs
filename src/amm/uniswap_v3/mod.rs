@@ -152,9 +152,11 @@ impl AutomatedMarketMaker for UniswapV3Pool {
     //TODO: document that this function will not populate the tick_bitmap and ticks, if you want to populate those, you must call populate_tick_data on an initialized pool.1.0001_f64
     async fn populate_data<M: Middleware>(
         &mut self,
+        block_number: Option<u64>,
         middleware: Arc<M>,
     ) -> Result<(), DAMMError<M>> {
-        batch_request::get_v3_pool_data_batch_request(self, middleware.clone()).await?;
+        batch_request::get_v3_pool_data_batch_request(self, block_number, middleware.clone())
+            .await?;
         Ok(())
     }
 }
@@ -217,9 +219,15 @@ impl UniswapV3Pool {
             ticks: HashMap::new(),
         };
 
+        //We need to get tick spacing before populating tick data because tick spacing can not be uninitialized when syncing burn and mint logs
+        pool.tick_spacing = pool.get_tick_spacing(middleware.clone()).await?;
+
+        let synced_block = pool
+            .populate_tick_data(creation_block, middleware.clone())
+            .await?;
+
         //TODO: break this into two threads so it can happen concurrently?
-        pool.populate_data(middleware.clone()).await?;
-        pool.populate_tick_data(creation_block, middleware).await?;
+        pool.populate_data(Some(synced_block), middleware).await?;
 
         if !pool.data_is_populated() {
             return Err(DAMMError::PoolDataError);
@@ -285,7 +293,7 @@ impl UniswapV3Pool {
         &'a mut self,
         creation_block: u64,
         middleware: Arc<M>,
-    ) -> Result<(), DAMMError<M>> {
+    ) -> Result<u64, DAMMError<M>> {
         let current_block = middleware
             .get_block_number()
             .await
@@ -334,7 +342,7 @@ impl UniswapV3Pool {
             self.sync_from_log(&log)?;
         }
 
-        Ok(())
+        Ok(current_block)
     }
 
     pub fn fee(&self) -> u32 {
@@ -456,108 +464,108 @@ impl UniswapV3Pool {
 
     pub fn sync_from_burn_log(&mut self, log: &Log) {
         let (tick_lower, tick_upper, amount) = self.decode_burn_log(&log);
-
-        if let Some(info_lower) = self.ticks.get_mut(&tick_lower) {
-            //We are decreasing the liquidity net of the lower tick by the amount of liquidity burned
-            info_lower.liquidity_net -= amount as i128;
-            if info_lower.liquidity_net < 0 {
-                info_lower.initialized = false;
-            } else {
-                //TODO: This is most likely redundant, confirm and remove. Otherwise, keep it and write a comment explaining
-                info_lower.initialized = true;
-            }
-        } else {
-            //NOTE: This should never happen, but in the case of asynchronomousity, we need to handle it
-            self.ticks
-                .insert(tick_lower, Info::new(false, -(amount as i128)));
-        }
-
-        if let Some(info_upper) = self.ticks.get_mut(&tick_upper) {
-            //We are increasing the liquidity net of the upper tick by the amount of liquidity burned
-            info_upper.liquidity_net += amount as i128;
-            if info_upper.liquidity_net > 0 {
-                info_upper.initialized = false;
-            } else {
-                //TODO: This is most likely redundant, confirm and remove. Otherwise, keep it and write a comment explaining
-                info_upper.initialized = true;
-            }
-        } else {
-            //NOTE: This should never happen, but in the case of asynchronomousity, we need to handle it
-            self.ticks
-                .insert(tick_upper, Info::new(false, amount as i128));
-        }
-
-        let compressed_lower = tick_lower / self.tick_spacing;
-        let compressed_upper = tick_upper / self.tick_spacing;
-
-        let (word_pos_lower, bit_pos_lower) =
-            uniswap_v3_math::tick_bitmap::position(compressed_lower);
-        let (word_pos_upper, bit_pos_upper) =
-            uniswap_v3_math::tick_bitmap::position(compressed_upper);
-
-        let mask_lower = U256::one() << bit_pos_lower;
-        let mask_upper = U256::one() << bit_pos_upper;
-
-        if let Some(word_lower) = self.tick_bitmap.get_mut(&word_pos_lower) {
-            *word_lower ^= mask_lower;
-        } else {
-            self.tick_bitmap
-                .insert(word_pos_lower, mask_lower);
-        }
-
-        if let Some(word_upper) = self.tick_bitmap.get_mut(&word_pos_upper) {
-            *word_upper ^= mask_upper;
-        } else {
-            self.tick_bitmap
-                .insert(word_pos_upper, mask_upper);
-        }
+        self.modify_position(tick_lower, tick_upper, -(amount as i128));
     }
+
     pub fn sync_from_mint_log(&mut self, log: &Log) {
         let (tick_lower, tick_upper, amount) = self.decode_mint_log(&log);
+        self.modify_position(tick_lower, tick_upper, amount as i128);
+    }
 
-        if let Some(info_lower) = self.ticks.get_mut(&tick_lower) {
-            //We are decreasing the liquidity net of the lower tick by the amount of liquidity burned
-            info_lower.liquidity_net += amount as i128;
-            info_lower.initialized = true;
-        } else {
-            //NOTE: This should never happen, but in the case of asynchronomousity, we need to handle it
-            self.ticks
-                .insert(tick_lower, Info::new(true, amount as i128));
+    pub fn modify_position(&self, tick_lower: i32, tick_upper: i32, liquidity_delta: i128) {
+        //We are only using this function when a mint or burn event is emitted, therefore we do not need to checkTicks as that has happened before the event is emitted
+        self.update_position(tick_lower, tick_upper, liquidity_delta);
+
+        if liquidity_delta != 0 {
+            //if the tick is between the tick lower and tick upper, update the liquidity between the ticks
+            if self.tick > tick_lower && self.tick < tick_upper {
+                self.liquidity = if liquidity_delta < 0 {
+                    self.liquidity - ((-liquidity_delta) as u128)
+                } else {
+                    self.liquidity + (liquidity_delta as u128)
+                }
+            }
+        }
+    }
+
+    pub fn update_position(&mut self, tick_lower: i32, tick_upper: i32, liquidity_delta: i128) {
+        let mut flipped_lower = false;
+        let mut flipped_upper = false;
+
+        if liquidity_delta != 0 {
+            flipped_lower = self.update_tick(tick_lower, self.tick, liquidity_delta, false);
+            flipped_upper = self.update_tick(tick_upper, self.tick, liquidity_delta, true);
+            if flipped_lower {
+                self.flip_tick(tick_lower, self.tick_spacing);
+            }
+            if flipped_upper {
+                self.flip_tick(tick_upper, self.tick_spacing);
+            }
         }
 
-        if let Some(info_upper) = self.ticks.get_mut(&tick_upper) {
-            //We are increasing the liquidity net of the upper tick by the amount of liquidity burned
-            info_upper.liquidity_net -= amount as i128;
-            info_upper.initialized = true;
+        if liquidity_delta < 0 {
+            if flipped_lower {
+                self.ticks.remove(&tick_lower);
+            }
+
+            if flipped_upper {
+                self.ticks.remove(&tick_upper);
+            }
+        }
+    }
+
+    pub fn update_tick(
+        &mut self,
+        tick: i32,
+        tick_current: i32,
+        liquidity_delta: i128,
+        upper: bool,
+    ) -> bool {
+        //TODO: sanity check this
+        let info = match self.ticks.get_mut(&tick) {
+            Some(info) => info,
+            None => {
+                let new_info = Info::default();
+                self.ticks.insert(tick, new_info);
+                self.ticks.get_mut(&tick).unwrap()
+            }
+        };
+
+        let liquidity_gross_before = info.liquidity_gross;
+
+        let liquidity_gross_after = if liquidity_delta < 0 {
+            liquidity_gross_before - ((-liquidity_delta) as u128)
         } else {
-            //NOTE: This should never happen, but in the case of asynchronomousity, we need to handle it
-            self.ticks
-                .insert(tick_upper, Info::new(true, -(amount as i128)));
+            liquidity_gross_before + (liquidity_delta as u128)
+        };
+
+        //we do not need to check if liqudity gross after > maxLiquidity because we are only calling update tick on a burn or mint log
+
+        let flipped = (liquidity_gross_after == 0) != (liquidity_gross_before == 0);
+
+        if liquidity_gross_before == 0 {
+            info.initialized = true;
         }
 
-        let compressed_lower = tick_lower / self.tick_spacing;
-        let compressed_upper = tick_upper / self.tick_spacing;
+        info.liquidity_gross = liquidity_gross_after;
 
-        let (word_pos_lower, bit_pos_lower) =
-            uniswap_v3_math::tick_bitmap::position(compressed_lower);
-        let (word_pos_upper, bit_pos_upper) =
-            uniswap_v3_math::tick_bitmap::position(compressed_upper);
-
-        let mask_lower = U256::one() << bit_pos_lower;
-        let mask_upper = U256::one() << bit_pos_upper;
-
-        if let Some(word_lower) = self.tick_bitmap.get_mut(&word_pos_lower) {
-            *word_lower ^= mask_lower;
+        info.liquidity_net = if upper {
+            info.liquidity_net - liquidity_delta
         } else {
-            self.tick_bitmap
-                .insert(word_pos_lower, mask_lower);
-        }
+            info.liquidity_net + liquidity_delta
+        };
 
-        if let Some(word_upper) = self.tick_bitmap.get_mut(&word_pos_upper) {
-            *word_upper ^= mask_upper;
-        } else {
-            self.tick_bitmap
-                .insert(word_pos_upper, U256::from(mask_upper));
+        flipped
+    }
+
+    pub fn flip_tick(&self, tick: i32, tick_spacing: i32) {
+        let (word_pos, bit_pos) = uniswap_v3_math::tick_bitmap::position(tick / tick_spacing);
+        let mask = U256::one() << bit_pos;
+
+        if let Some(word) = self.tick_bitmap.get_mut(&word_pos) {
+            *word ^= mask;
+        }else{
+            self.tick_bitmap.insert(word_pos, mask);
         }
     }
 
@@ -605,7 +613,11 @@ impl UniswapV3Pool {
         )
         .expect("Could not get log data");
 
-        let amount = log_data[0].to_owned().into_uint().expect(&String::from(log_data[0].to_string())).as_u128();
+        let amount = log_data[0]
+            .to_owned()
+            .into_uint()
+            .expect(&String::from(log_data[0].to_string()))
+            .as_u128();
 
         (tick_lower, tick_upper, amount)
     }
@@ -898,8 +910,7 @@ impl UniswapV3Pool {
                     current_state.tick,
                     self.tick_spacing,
                     zero_for_one,
-                )
-                .expect("Could not calculate next initialized tick"); //This should never hit ...
+                )?;
 
             // ensure that we do not overshoot the min/max tick, as the tick bitmap is not aware of these bounds
             //Note: this could be removed as we are clamping in the batch contract
@@ -1079,7 +1090,7 @@ mod test {
     #[allow(unused)]
     #[allow(unused)]
     use super::UniswapV3Pool;
-    use crate::amm::AutomatedMarketMaker;
+    use crate::{amm::AutomatedMarketMaker, errors::DAMMError};
 
     #[allow(unused)]
     use ethers::providers::Middleware;
@@ -1102,19 +1113,33 @@ mod test {
         function quoteExactInputSingle(address tokenIn, address tokenOut,uint24 fee, uint256 amountIn, uint160 sqrtPriceLimitX96) external returns (uint256 amountOut)
     ]"#;);
 
+    async fn initialize_test_pool<M: Middleware>(
+        middleware: Arc<M>,
+    ) -> Result<(UniswapV3Pool, u64), DAMMError<M>> {
+        let mut pool = UniswapV3Pool {
+            address: H160::from_str("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640").unwrap(),
+            ..Default::default()
+        };
+
+        let creation_block = 12369620;
+        pool.tick_spacing = pool.get_tick_spacing(middleware.clone()).await?;
+        let synced_block = pool
+            .populate_tick_data(creation_block, middleware.clone())
+            .await?;
+        pool.populate_data(Some(synced_block), middleware).await?;
+
+        Ok((pool, synced_block))
+    }
+
     #[tokio::test]
     async fn test_simulate_swap_0() {
         let rpc_endpoint =
             std::env::var("ETHEREUM_RPC_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
 
-        let pool = UniswapV3Pool::new_from_address(
-            H160::from_str("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640").unwrap(),
-            12376729,
-            middleware.clone(),
-        )
-        .await
-        .unwrap();
+        let (pool, synced_block) = initialize_test_pool(middleware.clone())
+            .await
+            .expect("could not initialize test pool");
 
         let quoter = IQuoter::new(
             H160::from_str("0xb27308f9f90d607463bb33ea1bebb41c27ce5ab6").unwrap(),
@@ -1123,9 +1148,7 @@ mod test {
 
         let amount_in = U256::from_dec_str("100000000").unwrap(); // 100 USDC
 
-        
         let amount_out = pool.simulate_swap(pool.token_a, amount_in).await.unwrap();
-        let current_block = middleware.get_block_number().await.unwrap();
         let expected_amount_out = quoter
             .quote_exact_input_single(
                 pool.token_a,
@@ -1134,10 +1157,11 @@ mod test {
                 amount_in,
                 U256::zero(),
             )
+            .block(synced_block)
             .call()
             .await
             .unwrap();
-        dbg!(&expected_amount_out, &amount_out);
+
         assert_eq!(amount_out, expected_amount_out);
     }
 
@@ -1146,17 +1170,10 @@ mod test {
         let rpc_endpoint =
             std::env::var("ETHEREUM_RPC_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
-        let topic =
-            H256::from_str("0x7a53080ba414158be7ec69b987b5fb7d07dee101fe85488f0853ae16239d0bde")
-                .unwrap();
-        dbg!(&topic.as_bytes());
-        let pool = UniswapV3Pool::new_from_address(
-            H160::from_str("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640").unwrap(),
-            12376729,
-            middleware.clone(),
-        )
-        .await
-        .unwrap();
+
+        let (pool, synced_block) = initialize_test_pool(middleware.clone())
+            .await
+            .expect("could not initialize test pool");
 
         let quoter = IQuoter::new(
             H160::from_str("0xb27308f9f90d607463bb33ea1bebb41c27ce5ab6").unwrap(),
@@ -1165,7 +1182,6 @@ mod test {
 
         let amount_in_1 = U256::from_dec_str("10000000000").unwrap(); // 10_000 USDC
 
-        let current_block = middleware.get_block_number().await.unwrap();
         let amount_out_1 = pool.simulate_swap(pool.token_a, amount_in_1).await.unwrap();
 
         let expected_amount_out_1 = quoter
@@ -1176,7 +1192,7 @@ mod test {
                 amount_in_1,
                 U256::zero(),
             )
-            .block(current_block)
+            .block(synced_block)
             .call()
             .await
             .unwrap();
@@ -1189,14 +1205,9 @@ mod test {
         let rpc_endpoint =
             std::env::var("ETHEREUM_RPC_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
-
-        let pool = UniswapV3Pool::new_from_address(
-            H160::from_str("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640").unwrap(),
-            12376729,
-            middleware.clone(),
-        )
-        .await
-        .unwrap();
+        let (pool, synced_block) = initialize_test_pool(middleware.clone())
+            .await
+            .expect("could not initialize test pool");
 
         let quoter = IQuoter::new(
             H160::from_str("0xb27308f9f90d607463bb33ea1bebb41c27ce5ab6").unwrap(),
@@ -1205,7 +1216,6 @@ mod test {
 
         let amount_in_2 = U256::from_dec_str("10000000000000").unwrap(); // 10_000_000 USDC
 
-        let current_block = middleware.get_block_number().await.unwrap();
         let amount_out_2 = pool.simulate_swap(pool.token_a, amount_in_2).await.unwrap();
 
         let expected_amount_out_2 = quoter
@@ -1216,7 +1226,7 @@ mod test {
                 amount_in_2,
                 U256::zero(),
             )
-            .block(current_block)
+            .block(synced_block)
             .call()
             .await
             .unwrap();
@@ -1230,13 +1240,9 @@ mod test {
             std::env::var("ETHEREUM_RPC_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
 
-        let pool = UniswapV3Pool::new_from_address(
-            H160::from_str("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640").unwrap(),
-            12376729,
-            middleware.clone(),
-        )
-        .await
-        .unwrap();
+        let (pool, synced_block) = initialize_test_pool(middleware.clone())
+            .await
+            .expect("could not initialize test pool");
 
         let quoter = IQuoter::new(
             H160::from_str("0xb27308f9f90d607463bb33ea1bebb41c27ce5ab6").unwrap(),
@@ -1245,10 +1251,6 @@ mod test {
 
         let amount_in_3 = U256::from_dec_str("100000000000000").unwrap(); // 100_000_000 USDC
 
-        dbg!(pool.tick);
-        dbg!(pool.tick_spacing);
-
-        let current_block = middleware.get_block_number().await.unwrap();
         let amount_out_3 = pool.simulate_swap(pool.token_a, amount_in_3).await.unwrap();
 
         let expected_amount_out_3 = quoter
@@ -1259,7 +1261,7 @@ mod test {
                 amount_in_3,
                 U256::zero(),
             )
-            .block(current_block)
+            .block(synced_block)
             .call()
             .await
             .unwrap();
@@ -1275,11 +1277,11 @@ mod test {
 
         let pool = UniswapV3Pool::new_from_address(
             H160::from_str("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640").unwrap(),
-            12376729,
+            12369620,
             middleware.clone(),
         )
         .await
-        .unwrap();
+        .expect("could not initialize uniswap v3 pool from address");
 
         assert_eq!(
             pool.address,
@@ -1306,12 +1308,9 @@ mod test {
             std::env::var("ETHEREUM_RPC_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
 
-        let mut pool = UniswapV3Pool {
-            address: H160::from_str("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640").unwrap(),
-            ..Default::default()
-        };
-
-        pool.populate_data(middleware).await.unwrap();
+        let (pool, _synced_block) = initialize_test_pool(middleware.clone())
+            .await
+            .expect("could not initialize test pool");
 
         assert_eq!(
             pool.address,
@@ -1359,7 +1358,7 @@ mod test {
             ..Default::default()
         };
 
-        pool.populate_data(middleware.clone()).await.unwrap();
+        pool.populate_data(None, middleware.clone()).await.unwrap();
 
         let pool_at_block = IUniswapV3Pool::new(
             H160::from_str("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640").unwrap(),
@@ -1407,7 +1406,7 @@ mod test {
             ..Default::default()
         };
 
-        pool.populate_data(middleware.clone()).await.unwrap();
+        pool.populate_data(None, middleware.clone()).await.unwrap();
 
         let block_pool = IUniswapV3Pool::new(
             H160::from_str("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640").unwrap(),

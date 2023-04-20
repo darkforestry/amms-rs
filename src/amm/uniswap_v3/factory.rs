@@ -88,14 +88,24 @@ impl AutomatedMarketMakerFactory for UniswapV3Factory {
     async fn populate_amm_data<M: Middleware>(
         &self,
         amms: &mut [AMM],
+        block_number: Option<u64>,
         middleware: Arc<M>,
     ) -> Result<(), DAMMError<M>> {
-        let step = 127; //Max batch size for call
-        for amm_chunk in amms.chunks_mut(step) {
-            batch_request::get_amm_data_batch_request(amm_chunk, middleware.clone()).await?;
+        if let Some(block_number) = block_number {
+            let step = 127; //Max batch size for call
+            for amm_chunk in amms.chunks_mut(step) {
+                batch_request::get_amm_data_batch_request(
+                    amm_chunk,
+                    block_number,
+                    middleware.clone(),
+                )
+                .await?;
 
-            //TODO: add back progress bars
-            // progress_bar.inc(step as u64);
+                //TODO: add back progress bars
+                // progress_bar.inc(step as u64);
+            }
+        } else {
+            return Err(DAMMError::BlockNumberNotFound);
         }
 
         Ok(())
