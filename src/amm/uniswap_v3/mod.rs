@@ -131,6 +131,22 @@ impl AutomatedMarketMaker for UniswapV3Pool {
         ]
     }
 
+    fn sync_from_log(&mut self, log: &Log) -> Result<(), EventLogError> {
+        let event_signature = log.topics[0];
+
+        if event_signature == BURN_EVENT_SIGNATURE {
+            self.sync_from_burn_log(log);
+        } else if event_signature == MINT_EVENT_SIGNATURE {
+            self.sync_from_mint_log(log);
+        } else if event_signature == SWAP_EVENT_SIGNATURE {
+            self.sync_from_swap_log(log);
+        } else {
+            Err(EventLogError::InvalidEventSignature)?
+        }
+
+        Ok(())
+    }
+
     fn tokens(&self) -> Vec<H160> {
         vec![self.token_a, self.token_b]
     }
@@ -442,22 +458,6 @@ impl UniswapV3Pool {
         middleware: Arc<M>,
     ) -> Result<U256, DAMMError<M>> {
         Ok(self.get_slot_0(middleware).await?.0)
-    }
-
-    pub fn sync_from_log(&mut self, log: &Log) -> Result<(), EventLogError> {
-        let event_signature = log.topics[0];
-
-        if event_signature == BURN_EVENT_SIGNATURE {
-            self.sync_from_burn_log(log);
-        } else if event_signature == MINT_EVENT_SIGNATURE {
-            self.sync_from_mint_log(log);
-        } else if event_signature == SWAP_EVENT_SIGNATURE {
-            self.sync_from_swap_log(log);
-        } else {
-            Err(EventLogError::InvalidEventSignature)?
-        }
-
-        Ok(())
     }
 
     pub fn sync_from_burn_log(&mut self, log: &Log) {

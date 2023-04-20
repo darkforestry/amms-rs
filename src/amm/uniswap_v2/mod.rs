@@ -82,6 +82,16 @@ impl AutomatedMarketMaker for UniswapV2Pool {
         vec![SYNC_EVENT_SIGNATURE]
     }
 
+    fn sync_from_log(&mut self, log: &Log) -> Result<(), EventLogError> {
+        let event_signature = log.topics[0];
+
+        if event_signature == SYNC_EVENT_SIGNATURE {
+            (self.reserve_0, self.reserve_1) = self.decode_sync_log(log);
+            Ok(())
+        } else {
+            Err(EventLogError::InvalidEventSignature)
+        }
+    }
     //Calculates base/quote, meaning the price of base token per quote (ie. exchange rate is X base per 1 quote)
     fn calculate_price(&self, base_token: H160) -> Result<f64, ArithmeticError> {
         Ok(q64_to_f64(self.calculate_price_64_x_64(base_token)?))
@@ -186,17 +196,6 @@ impl UniswapV2Pool {
 
     pub fn fee(&self) -> u32 {
         self.fee
-    }
-
-    pub fn sync_from_log(&mut self, log: &Log) -> Result<(), EventLogError> {
-        let event_signature = log.topics[0];
-
-        if event_signature == SYNC_EVENT_SIGNATURE {
-            (self.reserve_0, self.reserve_1) = self.decode_sync_log(log);
-            Ok(())
-        } else {
-            Err(EventLogError::InvalidEventSignature)
-        }
     }
 
     pub fn data_is_populated(&self) -> bool {
