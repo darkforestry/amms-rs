@@ -5,10 +5,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use ethers::{
-    providers::Middleware,
-    types::{H160},
-};
+use ethers::{providers::Middleware, types::H160};
 
 use serde::{Deserialize, Serialize};
 

@@ -1,5 +1,3 @@
-
-
 use ethers::prelude::{AbiError, ContractError};
 use ethers::providers::{Middleware, ProviderError};
 use ethers::types::{H160, U256};

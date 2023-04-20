@@ -1,7 +1,4 @@
-use std::{
-    collections::{HashMap},
-    sync::Arc,
-};
+use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
 use ethers::{
@@ -200,7 +197,6 @@ impl UniswapV3Factory {
             }
         }
 
-        Ok(aggregated_amms.into_values()
-            .collect::<Vec<AMM>>())
+        Ok(aggregated_amms.into_values().collect::<Vec<AMM>>())
     }
 }
