@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     amm::AutomatedMarketMaker,
-    errors::{ArithmeticError, DAMMError, EventLogError},
+    errors::{ArithmeticError, DAMMError, EventLogError, SwapSimulationError},
 };
 
 use ethers::prelude::abigen;
@@ -99,6 +99,36 @@ impl AutomatedMarketMaker for ERC4626Vault {
         batch_request::get_4626_vault_data_batch_request(self, middleware.clone()).await?;
 
         Ok(())
+    }
+
+    fn simulate_swap(&self, token_in: H160, amount_in: U256) -> Result<U256, SwapSimulationError> {
+        if self.vault_token == token_in {
+            Ok(self.get_amount_out(amount_in, self.vault_reserve, self.asset_reserve))
+        } else {
+            Ok(self.get_amount_out(amount_in, self.asset_reserve, self.vault_reserve))
+        }
+    }
+
+    fn simulate_swap_mut(
+        &mut self,
+        token_in: H160,
+        amount_in: U256,
+    ) -> Result<U256, SwapSimulationError> {
+        if self.vault_token == token_in {
+            let amount_out = self.get_amount_out(amount_in, self.vault_reserve, self.asset_reserve);
+
+            self.vault_reserve -= amount_in;
+            self.asset_reserve -= amount_out;
+
+            Ok(amount_out)
+        } else {
+            let amount_out = self.get_amount_out(amount_in, self.asset_reserve, self.vault_reserve);
+
+            self.asset_reserve += amount_in;
+            self.vault_reserve += amount_out;
+
+            Ok(amount_out)
+        }
     }
 }
 
@@ -206,32 +236,6 @@ impl ERC4626Vault {
             Ok(U128_0X10000000000000000)
         } else {
             Ok(div_uu(r_v, r_a)?)
-        }
-    }
-
-    pub fn simulate_swap(&self, token_in: H160, amount_in: U256) -> U256 {
-        if self.vault_token == token_in {
-            self.get_amount_out(amount_in, self.vault_reserve, self.asset_reserve)
-        } else {
-            self.get_amount_out(amount_in, self.asset_reserve, self.vault_reserve)
-        }
-    }
-
-    pub fn simulate_swap_mut(&mut self, token_in: H160, amount_in: U256) -> U256 {
-        if self.vault_token == token_in {
-            let amount_out = self.get_amount_out(amount_in, self.vault_reserve, self.asset_reserve);
-
-            self.vault_reserve -= amount_in;
-            self.asset_reserve -= amount_out;
-
-            amount_out
-        } else {
-            let amount_out = self.get_amount_out(amount_in, self.asset_reserve, self.vault_reserve);
-
-            self.asset_reserve += amount_in;
-            self.vault_reserve += amount_out;
-
-            amount_out
         }
     }
 
@@ -448,14 +452,18 @@ mod tests {
         vault.vault_reserve = U256::from_dec_str("501910315708981197269904").unwrap();
         vault.asset_reserve = U256::from_dec_str("505434849031054568651911").unwrap();
 
-        let assets_out = vault.simulate_swap(
-            vault.vault_token,
-            U256::from_dec_str("3000000000000000000").unwrap(),
-        );
-        let shares_out = vault.simulate_swap(
-            vault.asset_token,
-            U256::from_dec_str("3000000000000000000").unwrap(),
-        );
+        let assets_out = vault
+            .simulate_swap(
+                vault.vault_token,
+                U256::from_dec_str("3000000000000000000").unwrap(),
+            )
+            .unwrap();
+        let shares_out = vault
+            .simulate_swap(
+                vault.asset_token,
+                U256::from_dec_str("3000000000000000000").unwrap(),
+            )
+            .unwrap();
 
         assert_eq!(
             assets_out,
