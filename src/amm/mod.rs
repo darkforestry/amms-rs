@@ -8,11 +8,11 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use ethers::{
     providers::Middleware,
-    types::{Log, H160, H256},
+    types::{Log, H160, H256, U256},
 };
 use serde::{Deserialize, Serialize};
 
-use crate::errors::{ArithmeticError, DAMMError, EventLogError};
+use crate::errors::{ArithmeticError, DAMMError, EventLogError, SwapSimulationError};
 
 use self::{erc_4626::ERC4626Vault, uniswap_v2::UniswapV2Pool, uniswap_v3::UniswapV3Pool};
 
@@ -29,6 +29,14 @@ pub trait AutomatedMarketMaker {
         block_number: Option<u64>,
         middleware: Arc<M>,
     ) -> Result<(), DAMMError<M>>;
+
+    fn simulate_swap(&self, token_in: H160, amount_in: U256) -> Result<U256, SwapSimulationError>;
+    fn simulate_swap_mut(
+        &mut self,
+        token_in: H160,
+        amount_in: U256,
+    ) -> Result<U256, SwapSimulationError>;
+    fn get_token_out(&self, token_in: H160) -> H160;
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -69,6 +77,34 @@ impl AutomatedMarketMaker for AMM {
             AMM::UniswapV2Pool(pool) => pool.sync_from_log(log),
             AMM::UniswapV3Pool(pool) => pool.sync_from_log(log),
             AMM::ERC4626Vault(vault) => vault.sync_from_log(log),
+        }
+    }
+
+    fn simulate_swap(&self, token_in: H160, amount_in: U256) -> Result<U256, SwapSimulationError> {
+        match self {
+            AMM::UniswapV2Pool(pool) => pool.simulate_swap(token_in, amount_in),
+            AMM::UniswapV3Pool(pool) => pool.simulate_swap(token_in, amount_in),
+            AMM::ERC4626Vault(vault) => vault.simulate_swap(token_in, amount_in),
+        }
+    }
+
+    fn simulate_swap_mut(
+        &mut self,
+        token_in: H160,
+        amount_in: U256,
+    ) -> Result<U256, SwapSimulationError> {
+        match self {
+            AMM::UniswapV2Pool(pool) => pool.simulate_swap_mut(token_in, amount_in),
+            AMM::UniswapV3Pool(pool) => pool.simulate_swap_mut(token_in, amount_in),
+            AMM::ERC4626Vault(vault) => vault.simulate_swap_mut(token_in, amount_in),
+        }
+    }
+
+    fn get_token_out(&self, token_in: H160) -> H160 {
+        match self {
+            AMM::UniswapV2Pool(pool) => pool.get_token_out(token_in),
+            AMM::UniswapV3Pool(pool) => pool.get_token_out(token_in),
+            AMM::ERC4626Vault(vault) => vault.get_token_out(token_in),
         }
     }
 

@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     amm::AutomatedMarketMaker,
-    errors::{ArithmeticError, DAMMError, EventLogError},
+    errors::{ArithmeticError, DAMMError, EventLogError, SwapSimulationError},
 };
 
 use ethers::prelude::abigen;
@@ -99,6 +99,60 @@ impl AutomatedMarketMaker for UniswapV2Pool {
 
     fn tokens(&self) -> Vec<H160> {
         vec![self.token_a, self.token_b]
+    }
+
+    fn simulate_swap(&self, token_in: H160, amount_in: U256) -> Result<U256, SwapSimulationError> {
+        if self.token_a == token_in {
+            Ok(self.get_amount_out(
+                amount_in,
+                U256::from(self.reserve_0),
+                U256::from(self.reserve_1),
+            ))
+        } else {
+            Ok(self.get_amount_out(
+                amount_in,
+                U256::from(self.reserve_1),
+                U256::from(self.reserve_0),
+            ))
+        }
+    }
+
+    fn simulate_swap_mut(
+        &mut self,
+        token_in: H160,
+        amount_in: U256,
+    ) -> Result<U256, SwapSimulationError> {
+        if self.token_a == token_in {
+            let amount_out = self.get_amount_out(
+                amount_in,
+                U256::from(self.reserve_0),
+                U256::from(self.reserve_1),
+            );
+
+            self.reserve_0 += amount_in.as_u128();
+            self.reserve_1 -= amount_out.as_u128();
+
+            Ok(amount_out)
+        } else {
+            let amount_out = self.get_amount_out(
+                amount_in,
+                U256::from(self.reserve_1),
+                U256::from(self.reserve_0),
+            );
+
+            self.reserve_0 -= amount_out.as_u128();
+            self.reserve_1 += amount_in.as_u128();
+
+            Ok(amount_out)
+        }
+    }
+
+    fn get_token_out(&self, token_in: H160) -> H160 {
+        if self.token_a == token_in {
+            self.token_b
+        } else {
+            self.token_a
+        }
     }
 }
 
@@ -313,48 +367,6 @@ impl UniswapV2Pool {
                 .expect("Could not convert reserve1 in to uint")
                 .as_u128(),
         )
-    }
-
-    pub fn simulate_swap(&self, token_in: H160, amount_in: U256) -> U256 {
-        if self.token_a == token_in {
-            self.get_amount_out(
-                amount_in,
-                U256::from(self.reserve_0),
-                U256::from(self.reserve_1),
-            )
-        } else {
-            self.get_amount_out(
-                amount_in,
-                U256::from(self.reserve_1),
-                U256::from(self.reserve_0),
-            )
-        }
-    }
-
-    pub fn simulate_swap_mut(&mut self, token_in: H160, amount_in: U256) -> U256 {
-        if self.token_a == token_in {
-            let amount_out = self.get_amount_out(
-                amount_in,
-                U256::from(self.reserve_0),
-                U256::from(self.reserve_1),
-            );
-
-            self.reserve_0 += amount_in.as_u128();
-            self.reserve_1 -= amount_out.as_u128();
-
-            amount_out
-        } else {
-            let amount_out = self.get_amount_out(
-                amount_in,
-                U256::from(self.reserve_1),
-                U256::from(self.reserve_0),
-            );
-
-            self.reserve_0 -= amount_out.as_u128();
-            self.reserve_1 += amount_in.as_u128();
-
-            amount_out
-        }
     }
 
     pub fn get_amount_out(&self, amount_in: U256, reserve_in: U256, reserve_out: U256) -> U256 {

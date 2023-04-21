@@ -47,7 +47,7 @@ where
     #[error("Block number not found")]
     BlockNumberNotFound,
     #[error("Swap simulation error")]
-    SwapSimError(#[from] SwapSimError),
+    SwapSimulationError(#[from] SwapSimulationError),
 }
 
 #[derive(Error, Debug)]
@@ -75,7 +75,9 @@ pub enum EventLogError {
 }
 
 #[derive(Error, Debug)]
-pub enum SwapSimError {
+pub enum SwapSimulationError {
     #[error("Could not get next tick")]
     InvalidTick,
+    #[error("Uniswap v3 math error")]
+    UniswapV3MathError(#[from] UniswapV3MathError),
 }
