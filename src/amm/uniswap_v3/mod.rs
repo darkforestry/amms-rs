@@ -572,12 +572,8 @@ impl UniswapV3Pool {
             .as_u64();
 
         let step = 100000;
-        let mut handles = vec![];
-
         //For each block within the range, get all logs asynchronously in batches
         for from_block in (creation_block..=current_block).step_by(step) {
-            let middleware = middleware.clone();
-
             let to_block = from_block + step as u64;
             let filter = Filter::new()
                 .topic0(vec![BURN_EVENT_SIGNATURE, MINT_EVENT_SIGNATURE])
@@ -585,32 +581,13 @@ impl UniswapV3Pool {
                 .from_block(BlockNumber::Number(U64([from_block])))
                 .to_block(BlockNumber::Number(U64([to_block])));
 
-            handles.push(async move {
-                let logs = middleware
-                    .get_logs(&filter)
-                    .await
-                    .map_err(DAMMError::MiddlewareError)?;
-
-                Ok::<_, DAMMError<M>>(logs)
-            });
-        }
-
-        let results = join_all(handles).await;
-
-        let mut aggregated_logs = vec![];
-        for mut result in results {
-            match result {
-                Ok(ref mut logs) => {
-                    aggregated_logs.append(logs);
-                }
-                Err(err) => {
-                    return Err(err);
-                }
+            for log in middleware
+                .get_logs(&filter)
+                .await
+                .map_err(DAMMError::MiddlewareError)?
+            {
+                self.sync_from_log(&log)?;
             }
-        }
-
-        for log in aggregated_logs {
-            self.sync_from_log(&log)?;
         }
 
         Ok(current_block)

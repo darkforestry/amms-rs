@@ -1,0 +1,15 @@
+[
+  {
+    "UniswapV3Factory": {
+      "address": "0x1f98431c8ad98523631ae4a59f267346ea31f984",
+      "creation_block": 191
+    }
+  },
+  {
+    "UniswapV2Factory": {
+      "address": "0x8bcedd62dd46f1a76f8a1633d4f5b76e0cda521e",
+      "creation_block": 1287817,
+      "fee": 0
+    }
+  }
+]
