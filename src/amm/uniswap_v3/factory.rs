@@ -180,7 +180,12 @@ impl UniswapV3Factory {
                 //If the event sig is the pool created event sig, then the log is coming from the factory
                 if event_signature == POOL_CREATED_EVENT_SIGNATURE {
                     if log.address == self.address {
-                        let new_pool = self.new_empty_amm_from_log(log)?;
+                        let mut new_pool = self.new_empty_amm_from_log(log)?;
+
+                        if let AMM::UniswapV3Pool(ref mut pool) = new_pool {
+                            pool.tick_spacing = pool.get_tick_spacing(middleware.clone()).await?;
+                        }
+
                         aggregated_amms.insert(new_pool.address(), new_pool);
                     }
                 } else if event_signature == BURN_EVENT_SIGNATURE {
