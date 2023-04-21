@@ -130,6 +130,14 @@ impl AutomatedMarketMaker for ERC4626Vault {
             Ok(amount_out)
         }
     }
+
+    fn get_token_out(&self, token_in: H160) -> H160 {
+        if self.vault_token == token_in {
+            self.asset_token
+        } else {
+            self.vault_token
+        }
+    }
 }
 
 impl ERC4626Vault {

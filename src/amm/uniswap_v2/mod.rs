@@ -146,6 +146,14 @@ impl AutomatedMarketMaker for UniswapV2Pool {
             Ok(amount_out)
         }
     }
+
+    fn get_token_out(&self, token_in: H160) -> H160 {
+        if self.token_a == token_in {
+            self.token_b
+        } else {
+            self.token_a
+        }
+    }
 }
 
 impl UniswapV2Pool {

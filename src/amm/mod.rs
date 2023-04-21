@@ -36,6 +36,7 @@ pub trait AutomatedMarketMaker {
         token_in: H160,
         amount_in: U256,
     ) -> Result<U256, SwapSimulationError>;
+    fn get_token_out(&self, token_in: H160) -> H160;
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -96,6 +97,14 @@ impl AutomatedMarketMaker for AMM {
             AMM::UniswapV2Pool(pool) => pool.simulate_swap_mut(token_in, amount_in),
             AMM::UniswapV3Pool(pool) => pool.simulate_swap_mut(token_in, amount_in),
             AMM::ERC4626Vault(vault) => vault.simulate_swap_mut(token_in, amount_in),
+        }
+    }
+
+    fn get_token_out(&self, token_in: H160) -> H160 {
+        match self {
+            AMM::UniswapV2Pool(pool) => pool.get_token_out(token_in),
+            AMM::UniswapV3Pool(pool) => pool.get_token_out(token_in),
+            AMM::ERC4626Vault(vault) => vault.get_token_out(token_in),
         }
     }
 
