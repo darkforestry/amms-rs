@@ -13,8 +13,6 @@ use futures::future::join_all;
 use num_bigfloat::BigFloat;
 use serde::{Deserialize, Serialize};
 
-use uniswap_v3_math::error::UniswapV3MathError;
-
 use crate::{
     amm::AutomatedMarketMaker,
     errors::{ArithmeticError, DAMMError, EventLogError, SwapSimulationError},
