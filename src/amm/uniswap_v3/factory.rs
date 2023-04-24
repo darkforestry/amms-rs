@@ -3,7 +3,7 @@ use std::{collections::HashMap, sync::Arc};
 use async_trait::async_trait;
 use ethers::{
     abi::ParamType,
-    prelude::abigen,
+    prelude::{abigen, k256::sha2::digest::InvalidBufferSize},
     providers::Middleware,
     types::{BlockNumber, Filter, Log, H160, H256, U256, U64},
 };
@@ -188,14 +188,10 @@ impl UniswapV3Factory {
 
                         aggregated_amms.insert(new_pool.address(), new_pool);
                     }
-                } else if event_signature == BURN_EVENT_SIGNATURE {
+                } else if event_signature == BURN_EVENT_SIGNATURE || event_signature == MINT_EVENT_SIGNATURE {
                     //If the event sig is the BURN_EVENT_SIGNATURE log is coming from the pool
                     if let Some(AMM::UniswapV3Pool(pool)) = aggregated_amms.get_mut(&log.address) {
-                        pool.sync_from_burn_log(&log);
-                    }
-                } else if event_signature == MINT_EVENT_SIGNATURE {
-                    if let Some(AMM::UniswapV3Pool(pool)) = aggregated_amms.get_mut(&log.address) {
-                        pool.sync_from_mint_log(&log);
+                        pool.sync_from_log(&log)?;
                     }
                 }
             }

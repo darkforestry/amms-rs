@@ -44,6 +44,7 @@ pub async fn sync_amms<M: 'static + Middleware>(
             populate_amms(&mut amms, current_block, middleware.clone()).await?;
             //Clean empty pools
             amms = remove_empty_amms(amms);
+            
 
             Ok::<_, DAMMError<M>>(amms)
         }));
