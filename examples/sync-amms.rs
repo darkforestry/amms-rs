@@ -36,7 +36,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         //Add UniswapV3
         Factory::UniswapV3Factory(UniswapV3Factory::new(
             H160::from_str("0x1F98431c8aD98523631AE4a59f267346ea31F984").unwrap(),
-            185,
+            35,
         )),
     ];
 
