@@ -1087,7 +1087,7 @@ mod test {
         middleware: Arc<M>,
     ) -> Result<(UniswapV3Pool, u64), DAMMError<M>> {
         let mut pool = UniswapV3Pool {
-            address: H160::from_str("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640").unwrap(),
+            address: H160::from_str("0x2039f8c9cd32ba9cd2ea7e575d5b1abea93f7527").unwrap(),
             ..Default::default()
         };
 
@@ -1104,7 +1104,7 @@ mod test {
     #[tokio::test]
     async fn test_simulate_swap_0() {
         let rpc_endpoint =
-            std::env::var("ETHEREUM_RPC_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
+            std::env::var("ARBITRUM_MAINNET_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
 
         let (pool, synced_block) = initialize_test_pool(middleware.clone())
