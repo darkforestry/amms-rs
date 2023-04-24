@@ -1091,7 +1091,7 @@ mod test {
             ..Default::default()
         };
 
-        let creation_block = 12369620;
+        let creation_block = 35;
         pool.tick_spacing = pool.get_tick_spacing(middleware.clone()).await?;
         let synced_block = pool
             .populate_tick_data(creation_block, middleware.clone())
@@ -1131,7 +1131,7 @@ mod test {
             .call()
             .await
             .unwrap();
-
+        dbg!(amount_out, expected_amount_out);
         assert_eq!(amount_out, expected_amount_out);
         let amount_in_1 = U256::from_dec_str("10000000000").unwrap(); // 10_000 USDC
 
@@ -1149,7 +1149,7 @@ mod test {
             .call()
             .await
             .unwrap();
-
+        dbg!(amount_out_1, expected_amount_out_1);
         assert_eq!(amount_out_1, expected_amount_out_1);
 
         let amount_in_2 = U256::from_dec_str("10000000000000").unwrap(); // 10_000_000 USDC
@@ -1168,7 +1168,7 @@ mod test {
             .call()
             .await
             .unwrap();
-
+        dbg!(amount_out_2, expected_amount_out_2);
         assert_eq!(amount_out_2, expected_amount_out_2);
 
         let amount_in_3 = U256::from_dec_str("100000000000000").unwrap(); // 100_000_000 USDC
@@ -1187,7 +1187,7 @@ mod test {
             .call()
             .await
             .unwrap();
-
+        dbg!(amount_out_3, expected_amount_out_3);
         assert_eq!(amount_out_3, expected_amount_out_3);
     }
 
