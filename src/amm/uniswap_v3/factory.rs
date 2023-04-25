@@ -75,7 +75,7 @@ impl AutomatedMarketMakerFactory for UniswapV3Factory {
         middleware: Arc<M>,
     ) -> Result<Vec<AMM>, DAMMError<M>> {
         if let Some(block) = to_block {
-            self.get_all_pools_from_logs(block, 100000, middleware)
+            self.get_all_pools_from_logs(block, 10000, middleware)
                 .await
         } else {
             return Err(DAMMError::BlockNumberNotFound);
@@ -157,7 +157,7 @@ impl UniswapV3Factory {
             let provider = middleware.clone();
 
             //Get pair created event logs within the block range
-            let to_block = from_block + step as u64;
+            let to_block = from_block + step as u64 -1;
 
             let logs = provider
                 .get_logs(
@@ -196,7 +196,6 @@ impl UniswapV3Factory {
                 }
             }
         }
-
         Ok(aggregated_amms.into_values().collect::<Vec<AMM>>())
     }
 }
