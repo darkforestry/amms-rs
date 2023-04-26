@@ -93,7 +93,7 @@ pub struct UniswapV3Pool {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Info {
-    pub liquidity_gross: u128,
+    pub liquidity_gross: i128,
     pub liquidity_net: i128,
     pub initialized: bool,
 }
