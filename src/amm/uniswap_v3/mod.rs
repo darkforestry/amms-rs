@@ -93,7 +93,7 @@ pub struct UniswapV3Pool {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Info {
-    pub liquidity_gross: i128,
+    pub liquidity_gross: u128,
     pub liquidity_net: i128,
     pub initialized: bool,
 }
@@ -102,7 +102,6 @@ impl Info {
     pub fn new(liquidity_gross: u128, liquidity_net: i128, initialized: bool) -> Self {
         Info {
             liquidity_gross,
-
             liquidity_net,
             initialized,
         }
@@ -1187,8 +1186,8 @@ mod test {
 
     #[tokio::test]
     async fn test_get_new_from_address() {
-        let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")
-            .expect("Could not get ETHEREUM_RPC_ENDPOINT");
+        let rpc_endpoint =
+            std::env::var("ETHEREUM_RPC_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
 
         let pool = UniswapV3Pool::new_from_address(
