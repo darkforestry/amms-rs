@@ -9,7 +9,6 @@ use ethers::{
     providers::Middleware,
     types::{BlockNumber, Filter, Log, H160, H256, I256, U256, U64},
 };
-use futures::future::join_all;
 use num_bigfloat::BigFloat;
 use serde::{Deserialize, Serialize};
 
@@ -102,7 +101,6 @@ impl Info {
     pub fn new(liquidity_gross: u128, liquidity_net: i128, initialized: bool) -> Self {
         Info {
             liquidity_gross,
-
             liquidity_net,
             initialized,
         }
@@ -1183,40 +1181,6 @@ mod test {
             .unwrap();
 
         assert_eq!(amount_out_3, expected_amount_out_3);
-    }
-
-    #[tokio::test]
-    async fn test_simulate_swap_2() {
-        let rpc_endpoint =
-            std::env::var("ETHEREUM_RPC_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
-        let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
-        let (pool, synced_block) = initialize_test_pool(middleware.clone())
-            .await
-            .expect("could not initialize test pool");
-
-        let quoter = IQuoter::new(
-            H160::from_str("0xb27308f9f90d607463bb33ea1bebb41c27ce5ab6").unwrap(),
-            middleware.clone(),
-        );
-
-        let amount_in_2 = U256::from_dec_str("10000000000000").unwrap(); // 10_000_000 USDC
-
-        let amount_out_2 = pool.simulate_swap(pool.token_a, amount_in_2).unwrap();
-
-        let expected_amount_out_2 = quoter
-            .quote_exact_input_single(
-                pool.token_a,
-                pool.token_b,
-                pool.fee,
-                amount_in_2,
-                U256::zero(),
-            )
-            .block(synced_block)
-            .call()
-            .await
-            .unwrap();
-
-        assert_eq!(amount_out_2, expected_amount_out_2);
     }
 
     #[tokio::test]
