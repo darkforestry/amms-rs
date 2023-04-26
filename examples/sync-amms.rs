@@ -18,7 +18,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     //Add rpc endpoint here:
     let rpc_endpoint =
         std::env::var("ETHEREUM_RPC_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
-    let provider = Arc::new(Provider::<Http>::try_from("https://arb-mainnet.g.alchemy.com/v2/wnjMjLtVqyy-kpSYPIrPV3NzbX4azveG").unwrap());
+    let provider = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
 
     let factories = vec![
         // //UniswapV2
@@ -36,7 +36,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         //Add UniswapV3
         Factory::UniswapV3Factory(UniswapV3Factory::new(
             H160::from_str("0x1F98431c8aD98523631AE4a59f267346ea31F984").unwrap(),
-            35,
+            12369621,
         )),
     ];
 
