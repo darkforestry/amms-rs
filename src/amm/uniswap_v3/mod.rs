@@ -759,12 +759,6 @@ impl UniswapV3Pool {
         let liquidity_gross_before = info.liquidity_gross;
 
         let liquidity_gross_after = if liquidity_delta < 0 {
-            if (-liquidity_delta) as u128 > liquidity_gross_before {
-                dbg!(liquidity_delta);
-                dbg!(liquidity_gross_before);
-                dbg!(self.address);
-                panic!("liquidity delta is greater than liquidity gross");
-            }
             liquidity_gross_before - ((-liquidity_delta) as u128)
         } else {
             liquidity_gross_before + (liquidity_delta as u128)
