@@ -3,7 +3,7 @@ use std::{collections::HashMap, sync::Arc};
 use async_trait::async_trait;
 use ethers::{
     abi::ParamType,
-    prelude::{abigen, k256::sha2::digest::InvalidBufferSize},
+    prelude::{abigen},
     providers::Middleware,
     types::{BlockNumber, Filter, Log, H160, H256, U256, U64},
 };

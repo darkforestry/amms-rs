@@ -9,7 +9,6 @@ use ethers::{
     providers::Middleware,
     types::{BlockNumber, Filter, Log, H160, H256, I256, U256, U64},
 };
-use futures::future::join_all;
 use num_bigfloat::BigFloat;
 use serde::{Deserialize, Serialize};
 
