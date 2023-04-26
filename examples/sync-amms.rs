@@ -21,18 +21,18 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let provider = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
 
     let factories = vec![
-        // //UniswapV2
-        // Factory::UniswapV2Factory(UniswapV2Factory::new(
-        //     H160::from_str("0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f").unwrap(),
-        //     2638438,
-        //     300,
-        // )),
-        // //Add Sushiswap
-        // Factory::UniswapV2Factory(UniswapV2Factory::new(
-        //     H160::from_str("0xC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac").unwrap(),
-        //     10794229,
-        //     300,
-        // )),
+        //UniswapV2
+        Factory::UniswapV2Factory(UniswapV2Factory::new(
+            H160::from_str("0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f").unwrap(),
+            2638438,
+            300,
+        )),
+        //Add Sushiswap
+        Factory::UniswapV2Factory(UniswapV2Factory::new(
+            H160::from_str("0xC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac").unwrap(),
+            10794229,
+            300,
+        )),
         //Add UniswapV3
         Factory::UniswapV3Factory(UniswapV3Factory::new(
             H160::from_str("0x1F98431c8aD98523631AE4a59f267346ea31F984").unwrap(),

@@ -75,6 +75,7 @@ impl AutomatedMarketMakerFactory for UniswapV3Factory {
         middleware: Arc<M>,
     ) -> Result<Vec<AMM>, DAMMError<M>> {
         if let Some(block) = to_block {
+            //TODO: Bump this back to 100k
             self.get_all_pools_from_logs(block, 10000, middleware).await
         } else {
             return Err(DAMMError::BlockNumberNotFound);
@@ -187,12 +188,14 @@ impl UniswapV3Factory {
 
                         aggregated_amms.insert(new_pool.address(), new_pool);
                     }
-                } else if event_signature == BURN_EVENT_SIGNATURE
-                    || event_signature == MINT_EVENT_SIGNATURE
-                {
+                } else if event_signature == BURN_EVENT_SIGNATURE {
                     //If the event sig is the BURN_EVENT_SIGNATURE log is coming from the pool
                     if let Some(AMM::UniswapV3Pool(pool)) = aggregated_amms.get_mut(&log.address) {
-                        pool.sync_from_log(&log)?;
+                        pool.sync_from_burn_log(&log);
+                    }
+                } else if event_signature == MINT_EVENT_SIGNATURE {
+                    if let Some(AMM::UniswapV3Pool(pool)) = aggregated_amms.get_mut(&log.address) {
+                        pool.sync_from_mint_log(&log);
                     }
                 }
             }
