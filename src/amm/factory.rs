@@ -19,7 +19,7 @@ use super::{
 pub trait AutomatedMarketMakerFactory {
     fn address(&self) -> H160;
 
-    async fn get_all_amms<M: Middleware>(
+    async fn get_all_amms<M: Middleware + Send + Sync + 'static>(
         &self,
         to_block: Option<u64>,
         middleware: Arc<M>,
@@ -85,7 +85,7 @@ impl AutomatedMarketMakerFactory for Factory {
         }
     }
 
-    async fn get_all_amms<M: Middleware>(
+    async fn get_all_amms<M: Middleware + Send + Sync + 'static>(
         &self,
         to_block: Option<u64>,
         middleware: Arc<M>,

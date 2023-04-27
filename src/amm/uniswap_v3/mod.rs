@@ -92,13 +92,13 @@ pub struct UniswapV3Pool {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Info {
-    pub liquidity_gross: u128,
+    pub liquidity_gross: i128,
     pub liquidity_net: i128,
     pub initialized: bool,
 }
 
 impl Info {
-    pub fn new(liquidity_gross: u128, liquidity_net: i128, initialized: bool) -> Self {
+    pub fn new(liquidity_gross: i128, liquidity_net: i128, initialized: bool) -> Self {
         Info {
             liquidity_gross,
             liquidity_net,
@@ -757,9 +757,9 @@ impl UniswapV3Pool {
         let liquidity_gross_before = info.liquidity_gross;
 
         let liquidity_gross_after = if liquidity_delta < 0 {
-            liquidity_gross_before - ((-liquidity_delta) as u128)
+            liquidity_gross_before - (-liquidity_delta)
         } else {
-            liquidity_gross_before + (liquidity_delta as u128)
+            liquidity_gross_before + liquidity_delta
         };
 
         //we do not need to check if liqudity_gross_after > maxLiquidity because we are only calling update tick on a burn or mint log.

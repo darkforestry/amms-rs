@@ -1,4 +1,7 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
 
 use async_trait::async_trait;
 use ethers::{
@@ -7,6 +10,7 @@ use ethers::{
     providers::Middleware,
     types::{BlockNumber, Filter, Log, H160, H256, U256, U64},
 };
+use futures::{stream::FuturesUnordered, StreamExt};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -69,7 +73,7 @@ impl AutomatedMarketMakerFactory for UniswapV3Factory {
         }
     }
 
-    async fn get_all_amms<M: Middleware>(
+    async fn get_all_amms<M: Middleware + Send + Sync + 'static>(
         &self,
         to_block: Option<u64>,
         middleware: Arc<M>,
@@ -141,65 +145,86 @@ impl UniswapV3Factory {
     }
 
     //Function to get all pair created events for a given Dex factory address and sync pool data
-    pub async fn get_all_pools_from_logs<M: Middleware>(
+    pub async fn get_all_pools_from_logs<M: Middleware + Send + Sync + 'static>(
         self,
         to_block: u64,
         step: usize,
         middleware: Arc<M>,
     ) -> Result<Vec<AMM>, DAMMError<M>> {
-        //Unwrap can be used here because the creation block was verified within `Dex::new()`
         let from_block = self.creation_block;
 
-        let mut aggregated_amms: HashMap<H160, AMM> = HashMap::new();
+        let aggregated_amms: Arc<Mutex<HashMap<H160, AMM>>> = Arc::new(Mutex::new(HashMap::new()));
 
-        //For each block within the range, get all pairs asynchronously
+        let mut tasks = FuturesUnordered::new();
+
         for from_block in (from_block..=to_block).step_by(step) {
             let provider = middleware.clone();
+            let amms_clone = aggregated_amms.clone();
 
-            //Get pair created event logs within the block range
-            let to_block = from_block + step as u64 - 1;
+            let task = async move {
+                let to_block = from_block + step as u64 - 1;
 
-            let logs = provider
-                .get_logs(
-                    &Filter::new()
-                        .topic0(vec![
-                            POOL_CREATED_EVENT_SIGNATURE,
-                            BURN_EVENT_SIGNATURE,
-                            MINT_EVENT_SIGNATURE,
-                        ])
-                        .from_block(BlockNumber::Number(U64([from_block])))
-                        .to_block(BlockNumber::Number(U64([to_block]))),
-                )
-                .await
-                .map_err(DAMMError::MiddlewareError)?;
+                let logs = provider
+                    .get_logs(
+                        &Filter::new()
+                            .topic0(vec![
+                                POOL_CREATED_EVENT_SIGNATURE,
+                                BURN_EVENT_SIGNATURE,
+                                MINT_EVENT_SIGNATURE,
+                            ])
+                            .from_block(BlockNumber::Number(U64([from_block])))
+                            .to_block(BlockNumber::Number(U64([to_block]))),
+                    )
+                    .await
+                    .map_err(DAMMError::MiddlewareError)?;
 
-            //For each pair created log, create a new Pair type and add it to the pairs vec
-            for log in logs {
-                let event_signature = log.topics[0];
+                for log in logs {
+                    let event_signature = log.topics[0];
 
-                //If the event sig is the pool created event sig, then the log is coming from the factory
-                if event_signature == POOL_CREATED_EVENT_SIGNATURE {
-                    if log.address == self.address {
-                        let mut new_pool = self.new_empty_amm_from_log(log)?;
+                    if event_signature == POOL_CREATED_EVENT_SIGNATURE {
+                        if log.address == self.address {
+                            let mut new_pool = self.new_empty_amm_from_log(log)?;
 
-                        if let AMM::UniswapV3Pool(ref mut pool) = new_pool {
-                            pool.tick_spacing = pool.get_tick_spacing(middleware.clone()).await?;
+                            if let AMM::UniswapV3Pool(ref mut pool) = new_pool {
+                                pool.tick_spacing = pool.get_tick_spacing(provider.clone()).await?;
+                            }
+
+                            amms_clone
+                                .lock()
+                                .unwrap()
+                                .insert(new_pool.address(), new_pool);
                         }
-
-                        aggregated_amms.insert(new_pool.address(), new_pool);
-                    }
-                } else if event_signature == BURN_EVENT_SIGNATURE {
-                    //If the event sig is the BURN_EVENT_SIGNATURE log is coming from the pool
-                    if let Some(AMM::UniswapV3Pool(pool)) = aggregated_amms.get_mut(&log.address) {
-                        pool.sync_from_burn_log(&log);
-                    }
-                } else if event_signature == MINT_EVENT_SIGNATURE {
-                    if let Some(AMM::UniswapV3Pool(pool)) = aggregated_amms.get_mut(&log.address) {
-                        pool.sync_from_mint_log(&log);
+                    } else if event_signature == BURN_EVENT_SIGNATURE {
+                        if let Some(AMM::UniswapV3Pool(pool)) =
+                            amms_clone.lock().unwrap().get_mut(&log.address)
+                        {
+                            pool.sync_from_burn_log(&log);
+                        }
+                    } else if event_signature == MINT_EVENT_SIGNATURE {
+                        if let Some(AMM::UniswapV3Pool(pool)) =
+                            amms_clone.lock().unwrap().get_mut(&log.address)
+                        {
+                            pool.sync_from_mint_log(&log);
+                        }
                     }
                 }
-            }
+                Ok::<(), DAMMError<M>>(())
+            };
+
+            tasks.push(tokio::spawn(task));
         }
-        Ok(aggregated_amms.into_values().collect::<Vec<AMM>>())
+
+        while let Some(result) = tasks.next().await {
+            result??;
+        }
+
+        let result = aggregated_amms
+            .lock()
+            .unwrap()
+            .values()
+            .cloned()
+            .collect::<Vec<AMM>>();
+
+        Ok(result)
     }
 }
