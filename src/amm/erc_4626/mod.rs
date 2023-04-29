@@ -4,7 +4,8 @@ use std::{cmp::Ordering, sync::Arc};
 
 use async_trait::async_trait;
 use ethers::{
-    abi::ParamType,
+    abi::{ParamType, RawLog},
+    prelude::EthEvent,
     providers::Middleware,
     types::{Log, H160, H256, U256},
 };
@@ -25,7 +26,7 @@ abigen!(
         function totalAssets() external view returns (uint256)
         function totalSupply() external view returns (uint256)
         function decimals() external view returns (uint8)
-        event Withdraw(address indexed sender, address indexed receiver, address indexed owner, uint256 assets, uint256 share)
+        event Withdraw(address indexed sender, address indexed receiver, address indexed owner, uint256 assets, uint256 shares)
         event Deposit(address indexed sender,address indexed owner, uint256 assets, uint256 shares)
 
     ]"#;
@@ -80,15 +81,14 @@ impl AutomatedMarketMaker for ERC4626Vault {
     fn sync_from_log(&mut self, log: Log) -> Result<(), EventLogError> {
         let event_signature = log.topics[0];
         if event_signature == DEPOSIT_EVENT_SIGNATURE {
-            //TODO: need to add deposit event to abigen
-            let (assets_in, shares_in) = self.decode_deposit_log(log);
-            self.asset_reserve += assets_in;
-            self.vault_reserve += shares_in;
+            let deposit_event = DepositFilter::decode_log(&RawLog::from(log))?;
+
+            self.asset_reserve += deposit_event.assets;
+            self.vault_reserve += deposit_event.shares;
         } else if event_signature == WITHDRAW_EVENT_SIGNATURE {
-            //TODO: need to add withdraw event to abigen
-            let (assets_out, shares_out) = self.decode_withdraw_log(log);
-            self.asset_reserve -= assets_out;
-            self.vault_reserve -= shares_out;
+            let withdraw_filter = WithdrawFilter::decode_log(&RawLog::from(log))?;
+            self.asset_reserve -= withdraw_filter.assets;
+            self.vault_reserve -= withdraw_filter.shares;
         } else {
             return Err(EventLogError::InvalidEventSignature);
         }
