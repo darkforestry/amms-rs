@@ -74,13 +74,15 @@ impl AutomatedMarketMaker for ERC4626Vault {
         vec![DEPOSIT_EVENT_SIGNATURE, WITHDRAW_EVENT_SIGNATURE]
     }
 
-    fn sync_from_log(&mut self, log: &Log) -> Result<(), EventLogError> {
+    fn sync_from_log(&mut self, log: Log) -> Result<(), EventLogError> {
         let event_signature = log.topics[0];
         if event_signature == DEPOSIT_EVENT_SIGNATURE {
+            //TODO: need to add deposit event to abigen
             let (assets_in, shares_in) = self.decode_deposit_log(log);
             self.asset_reserve += assets_in;
             self.vault_reserve += shares_in;
         } else if event_signature == WITHDRAW_EVENT_SIGNATURE {
+            //TODO: need to add withdraw event to abigen
             let (assets_out, shares_out) = self.decode_withdraw_log(log);
             self.asset_reserve -= assets_out;
             self.vault_reserve -= shares_out;
@@ -263,55 +265,6 @@ impl ERC4626Vault {
         };
 
         amount_in * reserve_out / reserve_in * (10000 - fee) / 10000
-    }
-
-    pub fn decode_deposit_log(&self, log: &Log) -> (U256, U256) {
-        let data = ethers::abi::decode(
-            &[
-                ParamType::Address,
-                ParamType::Address,
-                ParamType::Uint(256),
-                ParamType::Uint(256),
-            ],
-            &log.data,
-        )
-        .expect("Could not get log data");
-
-        (
-            data[2]
-                .to_owned()
-                .into_uint()
-                .expect("Could not convert assets in to uint"),
-            data[3]
-                .to_owned()
-                .into_uint()
-                .expect("Could not convert shares in to uint"),
-        )
-    }
-
-    pub fn decode_withdraw_log(&self, log: &Log) -> (U256, U256) {
-        let data = ethers::abi::decode(
-            &[
-                ParamType::Address,
-                ParamType::Address,
-                ParamType::Address,
-                ParamType::Uint(256),
-                ParamType::Uint(256),
-            ],
-            &log.data,
-        )
-        .expect("Could not get log data");
-
-        (
-            data[3]
-                .to_owned()
-                .into_uint()
-                .expect("Could not convert assets in to uint"),
-            data[4]
-                .to_owned()
-                .into_uint()
-                .expect("Could not convert shares in to uint"),
-        )
     }
 }
 
