@@ -56,9 +56,8 @@ impl AutomatedMarketMakerFactory for UniswapV3Factory {
         log: Log,
         middleware: Arc<M>,
     ) -> Result<AMM, DAMMError<M>> {
-        let pool_created_filter = PoolCreatedFilter::decode_log(&RawLog::from(log))?;
-
         if let Some(block_number) = log.block_number {
+            let pool_created_filter = PoolCreatedFilter::decode_log(&RawLog::from(log))?;
             Ok(AMM::UniswapV3Pool(
                 UniswapV3Pool::new_from_address(
                     pool_created_filter.pool,
