@@ -87,9 +87,11 @@ impl AutomatedMarketMaker for UniswapV2Pool {
         let event_signature = log.topics[0];
 
         if event_signature == SYNC_EVENT_SIGNATURE {
-            let sync_event = SyncFilter::decode_log(&RawLog::from(log));
+            let sync_event = SyncFilter::decode_log(&RawLog::from(log))?;
 
-            (self.reserve_0, self.reserve_1) = self.decode_sync_log(log);
+            self.reserve_0 = sync_event.reserve_0;
+            self.reserve_1 = sync_event.reserve_1;
+
             Ok(())
         } else {
             Err(EventLogError::InvalidEventSignature)
@@ -216,30 +218,24 @@ impl UniswapV2Pool {
         let event_signature = log.topics[0];
 
         if event_signature == PAIR_CREATED_EVENT_SIGNATURE {
-            // let event_signature = log.topics
-            let tokens =
-                ethers::abi::decode(&[ParamType::Address, ParamType::Uint(256)], &log.data)?;
-            let pair_address = tokens[0].to_owned().into_address().unwrap();
-            UniswapV2Pool::new_from_address(pair_address, fee, middleware).await
+            let pair_created_event = factory::PairCreatedFilter::decode_log(&RawLog::from(log))?;
+            UniswapV2Pool::new_from_address(pair_created_event.pair, fee, middleware).await
         } else {
             Err(EventLogError::InvalidEventSignature)?
         }
     }
 
+    //TODO: decide whether or not to populate the fee
     pub fn new_empty_pool_from_log(log: Log) -> Result<Self, EventLogError> {
         let event_signature = log.topics[0];
 
         if event_signature == PAIR_CREATED_EVENT_SIGNATURE {
-            let tokens =
-                ethers::abi::decode(&[ParamType::Address, ParamType::Uint(256)], &log.data)?;
-            let token_a = H160::from(log.topics[0]);
-            let token_b = H160::from(log.topics[1]);
-            let address = tokens[0].to_owned().into_address().unwrap();
+            let pair_created_event = factory::PairCreatedFilter::decode_log(&RawLog::from(log))?;
 
             Ok(UniswapV2Pool {
-                address,
-                token_a,
-                token_b,
+                address: pair_created_event.pair,
+                token_a: pair_created_event.token_0,
+                token_b: pair_created_event.token_1,
                 token_a_decimals: 0,
                 token_b_decimals: 0,
                 reserve_0: 0,
@@ -345,31 +341,6 @@ impl UniswapV2Pool {
         } else {
             div_uu(r_0, r_1)
         }
-    }
-
-    //Returns reserve0, reserve1
-    pub fn decode_sync_log(&self, sync_log: &Log) -> (u128, u128) {
-        let data = ethers::abi::decode(
-            &[
-                ParamType::Uint(128), //reserve0
-                ParamType::Uint(128),
-            ],
-            &sync_log.data,
-        )
-        .expect("Could not get log data");
-
-        (
-            data[0]
-                .to_owned()
-                .into_uint()
-                .expect("Could not convert reserve0 in to uint")
-                .as_u128(),
-            data[1]
-                .to_owned()
-                .into_uint()
-                .expect("Could not convert reserve1 in to uint")
-                .as_u128(),
-        )
     }
 
     pub fn get_amount_out(&self, amount_in: U256, reserve_in: U256, reserve_out: U256) -> U256 {
