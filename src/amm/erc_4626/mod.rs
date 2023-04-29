@@ -4,7 +4,7 @@ use std::{cmp::Ordering, sync::Arc};
 
 use async_trait::async_trait;
 use ethers::{
-    abi::{ParamType, RawLog},
+    abi::{RawLog},
     prelude::EthEvent,
     providers::Middleware,
     types::{Log, H160, H256, U256},

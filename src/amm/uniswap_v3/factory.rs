@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
 use ethers::{
-    abi::{ParamType, RawLog},
+    abi::{RawLog},
     prelude::{abigen, EthEvent},
     providers::Middleware,
     types::{BlockNumber, Filter, Log, H160, H256, U256, U64},
