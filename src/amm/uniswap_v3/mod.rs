@@ -5,13 +5,15 @@ use std::{cmp::Ordering, collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
 use ethers::{
-    abi::{decode, ethabi::Bytes, ParamType, Token},
+    abi::{decode, ethabi::Bytes, ParamType, Token, RawLog},
     providers::Middleware,
     types::{BlockNumber, Filter, Log, H160, H256, I256, U256, U64},
 };
 use num_bigfloat::BigFloat;
 use serde::{Deserialize, Serialize};
-
+use ethers::{
+    prelude::EthEvent,
+};
 use crate::{
     amm::AutomatedMarketMaker,
     errors::{ArithmeticError, DAMMError, EventLogError, SwapSimulationError},
@@ -694,14 +696,16 @@ impl UniswapV3Pool {
         Ok(self.get_slot_0(middleware).await?.0)
     }
 
-    pub fn sync_from_burn_log(&mut self, log: &Log) {
-        let (tick_lower, tick_upper, amount) = self.decode_burn_log(log);
-        self.modify_position(tick_lower, tick_upper, -(amount as i128));
+    pub fn sync_from_burn_log(&mut self, log: &Log) -> Result<(), EventLogError> {
+        let event = BurnFilter::decode_log(&RawLog::from(log.clone()))?;
+        self.modify_position(event.tick_lower, event.tick_upper, -(event.amount as i128));
+        Ok(())
     }
 
-    pub fn sync_from_mint_log(&mut self, log: &Log) {
-        let (tick_lower, tick_upper, amount) = self.decode_mint_log(log);
-        self.modify_position(tick_lower, tick_upper, amount as i128);
+    pub fn sync_from_mint_log(&mut self, log: &Log) -> Result<(), EventLogError> {
+        let event = MintFilter::decode_log(&RawLog::from(log.clone()))?; 
+        self.modify_position(event.tick_lower, event.tick_upper, event.amount as i128);
+        Ok(())
     }
 
     pub fn modify_position(&mut self, tick_lower: i32, tick_upper: i32, liquidity_delta: i128) {
@@ -794,8 +798,10 @@ impl UniswapV3Pool {
         }
     }
 
-    pub fn sync_from_swap_log(&mut self, log: &Log) {
-        (_, _, self.sqrt_price, self.liquidity, self.tick) = self.decode_swap_log(log);
+    pub fn sync_from_swap_log(&mut self, log: &Log) -> Result<(), EventLogError> {
+        let event = SwapFilter::decode_log(&RawLog::from(log.clone()))?;
+        (self.sqrt_price, self.liquidity, self.tick) = (event.sqrt_price_x96, event.liquidity, event.tick);
+        Ok(())
     }
 
     //Returns reserve0, reserve1
