@@ -5,7 +5,8 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use ethers::{
-    abi::{ethabi::Bytes, ParamType, Token},
+    abi::{ethabi::Bytes, ParamType, RawLog, Token},
+    prelude::EthEvent,
     providers::Middleware,
     types::{Log, H160, H256, U256},
 };
@@ -82,10 +83,12 @@ impl AutomatedMarketMaker for UniswapV2Pool {
         vec![SYNC_EVENT_SIGNATURE]
     }
 
-    fn sync_from_log(&mut self, log: &Log) -> Result<(), EventLogError> {
+    fn sync_from_log(&mut self, log: Log) -> Result<(), EventLogError> {
         let event_signature = log.topics[0];
 
         if event_signature == SYNC_EVENT_SIGNATURE {
+            let sync_event = SyncFilter::decode_log(&RawLog::from(log));
+
             (self.reserve_0, self.reserve_1) = self.decode_sync_log(log);
             Ok(())
         } else {

@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use ethers::{
-    abi::ParamType,
+    abi::{ParamType, RawLog},
     prelude::EthEvent,
     providers::Middleware,
     types::{Log, H160, H256, U256},
@@ -119,7 +119,8 @@ impl AutomatedMarketMakerFactory for UniswapV2Factory {
         log: Log,
         middleware: Arc<M>,
     ) -> Result<AMM, DAMMError<M>> {
-        let pair_created_event: PairCreatedFilter = PairCreatedFilter::decode_log(&log.into())?;
+        let pair_created_event: PairCreatedFilter =
+            PairCreatedFilter::decode_log(&RawLog::from(log))?;
         Ok(AMM::UniswapV2Pool(
             UniswapV2Pool::new_from_address(pair_created_event.pair, self.fee, middleware).await?,
         ))
