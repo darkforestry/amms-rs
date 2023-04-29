@@ -25,6 +25,9 @@ abigen!(
         function totalAssets() external view returns (uint256)
         function totalSupply() external view returns (uint256)
         function decimals() external view returns (uint8)
+        event Withdraw(address indexed sender, address indexed receiver, address indexed owner, uint256 assets, uint256 share)
+        event Deposit(address indexed sender,address indexed owner, uint256 assets, uint256 shares)
+
     ]"#;
 );
 

@@ -56,13 +56,16 @@ impl AutomatedMarketMakerFactory for UniswapV3Factory {
         log: Log,
         middleware: Arc<M>,
     ) -> Result<AMM, DAMMError<M>> {
-        let tokens = ethers::abi::decode(&[ParamType::Uint(32), ParamType::Address], &log.data)?;
-        let pair_address = tokens[1].to_owned().into_address().unwrap();
+        let pool_created_filter = PoolCreatedFilter::decode_log(&RawLog::from(log))?;
 
         if let Some(block_number) = log.block_number {
             Ok(AMM::UniswapV3Pool(
-                UniswapV3Pool::new_from_address(pair_address, block_number.as_u64(), middleware)
-                    .await?,
+                UniswapV3Pool::new_from_address(
+                    pool_created_filter.pool,
+                    block_number.as_u64(),
+                    middleware,
+                )
+                .await?,
             ))
         } else {
             return Err(DAMMError::BlockNumberNotFound);

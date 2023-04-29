@@ -3,6 +3,10 @@ pub mod factory;
 
 use std::{cmp::Ordering, collections::HashMap, sync::Arc};
 
+use crate::{
+    amm::AutomatedMarketMaker,
+    errors::{ArithmeticError, DAMMError, EventLogError, SwapSimulationError},
+};
 use async_trait::async_trait;
 use ethers::{
     abi::{decode, ethabi::Bytes, ParamType, RawLog, Token},
@@ -12,11 +16,6 @@ use ethers::{
 };
 use num_bigfloat::BigFloat;
 use serde::{Deserialize, Serialize};
-
-use crate::{
-    amm::AutomatedMarketMaker,
-    errors::{ArithmeticError, DAMMError, EventLogError, SwapSimulationError},
-};
 
 use ethers::prelude::abigen;
 
