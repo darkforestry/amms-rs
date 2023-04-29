@@ -20,7 +20,7 @@ use crate::{
 
 use ethers::prelude::abigen;
 
-use super::uniswap_v2::factory::PAIR_CREATED_EVENT_SIGNATURE;
+use self::factory::POOL_CREATED_EVENT_SIGNATURE;
 
 abigen!(
 
@@ -515,14 +515,16 @@ impl UniswapV3Pool {
     ) -> Result<Self, DAMMError<M>> {
         let event_signature = log.topics[0];
 
-        if event_signature == PAIR_CREATED_EVENT_SIGNATURE {
-            let tokens =
-                ethers::abi::decode(&[ParamType::Uint(32), ParamType::Address], &log.data)?;
-            let pair_address = tokens[1].to_owned().into_address().unwrap();
-
+        if event_signature == POOL_CREATED_EVENT_SIGNATURE {
             if let Some(block_number) = log.block_number {
-                UniswapV3Pool::new_from_address(pair_address, block_number.as_u64(), middleware)
-                    .await
+                let pool_created_event = PoolCreatedFilter::decode_log(&RawLog::from(log))?;
+
+                UniswapV3Pool::new_from_address(
+                    pool_created_event.pool,
+                    block_number.as_u64(),
+                    middleware,
+                )
+                .await
             } else {
                 Err(EventLogError::LogBlockNumberNotFound)?
             }
@@ -534,21 +536,16 @@ impl UniswapV3Pool {
     pub fn new_empty_pool_from_log(log: Log) -> Result<Self, EventLogError> {
         let event_signature = log.topics[0];
 
-        if event_signature == PAIR_CREATED_EVENT_SIGNATURE {
-            let tokens =
-                ethers::abi::decode(&[ParamType::Uint(32), ParamType::Address], &log.data)?;
-            let token_a = H160::from(log.topics[0]);
-            let token_b = H160::from(log.topics[1]);
-            let fee = tokens[0].to_owned().into_uint().unwrap().as_u32();
-            let address = tokens[1].to_owned().into_address().unwrap();
+        if event_signature == POOL_CREATED_EVENT_SIGNATURE {
+            let pool_created_event = PoolCreatedFilter::decode_log(&RawLog::from(log))?;
 
             Ok(UniswapV3Pool {
-                address,
-                token_a,
-                token_b,
+                address: pool_created_event.pool,
+                token_a: pool_created_event.token_0,
+                token_b: pool_created_event.token_1,
                 token_a_decimals: 0,
                 token_b_decimals: 0,
-                fee,
+                fee: pool_created_event.fee,
                 liquidity: 0,
                 sqrt_price: U256::zero(),
                 tick_spacing: 0,
