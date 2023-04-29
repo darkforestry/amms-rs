@@ -1,0 +1,5 @@
+Need to update all event handling for all variants.
+
+- sync from log
+- new from log
+- new_empty_amm_from_log
