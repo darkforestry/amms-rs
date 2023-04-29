@@ -72,6 +72,8 @@ pub enum EventLogError {
     LogBlockNumberNotFound,
     #[error("Eth abi error")]
     EthABIError(#[from] ethers::abi::Error),
+    #[error("ABI error")]
+    ABIError(#[from] AbiError),
 }
 
 #[derive(Error, Debug)]

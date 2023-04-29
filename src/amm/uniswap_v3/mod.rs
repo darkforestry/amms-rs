@@ -133,11 +133,11 @@ impl AutomatedMarketMaker for UniswapV3Pool {
         let event_signature = log.topics[0];
 
         if event_signature == BURN_EVENT_SIGNATURE {
-            self.sync_from_burn_log(log);
+            self.sync_from_burn_log(log)?;
         } else if event_signature == MINT_EVENT_SIGNATURE {
-            self.sync_from_mint_log(log);
+            self.sync_from_mint_log(log)?;
         } else if event_signature == SWAP_EVENT_SIGNATURE {
-            self.sync_from_swap_log(log);
+            self.sync_from_swap_log(log)?;
         } else {
             Err(EventLogError::InvalidEventSignature)?
         }
