@@ -5,7 +5,7 @@ edition = "2021"
 
 
 [dependencies]
-ethers = { version = "2.0.3", default-features = true, features = ["abigen", "ws", "ipc", "rustls"] }
+ethers = { version = "2.0.4", default-features = true, features = ["abigen", "ws", "ipc", "rustls"] }
 tokio = { version = "1.21.0", features = ["full"] }
 futures = "0.3.24"
 indicatif = "0.17.1"
