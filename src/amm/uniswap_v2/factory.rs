@@ -2,7 +2,8 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use ethers::{
-    abi::ParamType,
+    abi::RawLog,
+    prelude::EthEvent,
     providers::Middleware,
     types::{Log, H160, H256, U256},
 };
@@ -118,29 +119,26 @@ impl AutomatedMarketMakerFactory for UniswapV2Factory {
         log: Log,
         middleware: Arc<M>,
     ) -> Result<AMM, DAMMError<M>> {
-        let tokens = ethers::abi::decode(&[ParamType::Address, ParamType::Uint(256)], &log.data)?;
-        let pair_address = tokens[0].to_owned().into_address().unwrap();
-
+        let pair_created_event: PairCreatedFilter =
+            PairCreatedFilter::decode_log(&RawLog::from(log))?;
         Ok(AMM::UniswapV2Pool(
-            UniswapV2Pool::new_from_address(pair_address, self.fee, middleware).await?,
+            UniswapV2Pool::new_from_address(pair_created_event.pair, self.fee, middleware).await?,
         ))
     }
 
+    //TODO: decide whether or not to populate the fee
     fn new_empty_amm_from_log(&self, log: Log) -> Result<AMM, ethers::abi::Error> {
-        let tokens = ethers::abi::decode(&[ParamType::Address, ParamType::Uint(256)], &log.data)?;
-        let token_a = H160::from(log.topics[0]);
-        let token_b = H160::from(log.topics[1]);
-        let address = tokens[0].to_owned().into_address().unwrap();
+        let pair_created_event = PairCreatedFilter::decode_log(&RawLog::from(log))?;
 
         Ok(AMM::UniswapV2Pool(UniswapV2Pool {
-            address,
-            token_a,
-            token_b,
+            address: pair_created_event.pair,
+            token_a: pair_created_event.token_0,
+            token_b: pair_created_event.token_1,
             token_a_decimals: 0,
             token_b_decimals: 0,
             reserve_0: 0,
             reserve_1: 0,
-            fee: 300,
+            fee: 0,
         }))
     }
 

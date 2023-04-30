@@ -2,8 +2,8 @@ use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
 use ethers::{
-    abi::ParamType,
-    prelude::abigen,
+    abi::RawLog,
+    prelude::{abigen, EthEvent},
     providers::Middleware,
     types::{BlockNumber, Filter, Log, H160, H256, U256, U64},
 };
@@ -21,8 +21,8 @@ abigen!(
     r#"[
         function getPool(address tokenA, address tokenB, uint24 fee) external view returns (address pool)
         event PoolCreated(address indexed token0, address indexed token1, uint24 indexed fee, int24 tickSpacing, address pool)
-        parameters() returns (address, address, uint24, int24)
-        feeAmountTickSpacing(uint24) returns (int24)
+        function parameters() returns (address, address, uint24, int24)
+        function feeAmountTickSpacing(uint24) returns (int24)
         ]"#;
 );
 
@@ -56,13 +56,15 @@ impl AutomatedMarketMakerFactory for UniswapV3Factory {
         log: Log,
         middleware: Arc<M>,
     ) -> Result<AMM, DAMMError<M>> {
-        let tokens = ethers::abi::decode(&[ParamType::Uint(32), ParamType::Address], &log.data)?;
-        let pair_address = tokens[1].to_owned().into_address().unwrap();
-
         if let Some(block_number) = log.block_number {
+            let pool_created_filter = PoolCreatedFilter::decode_log(&RawLog::from(log))?;
             Ok(AMM::UniswapV3Pool(
-                UniswapV3Pool::new_from_address(pair_address, block_number.as_u64(), middleware)
-                    .await?,
+                UniswapV3Pool::new_from_address(
+                    pool_created_filter.pool,
+                    block_number.as_u64(),
+                    middleware,
+                )
+                .await?,
             ))
         } else {
             return Err(DAMMError::BlockNumberNotFound);
@@ -109,19 +111,15 @@ impl AutomatedMarketMakerFactory for UniswapV3Factory {
     }
 
     fn new_empty_amm_from_log(&self, log: Log) -> Result<AMM, ethers::abi::Error> {
-        let tokens = ethers::abi::decode(&[ParamType::Uint(32), ParamType::Address], &log.data)?;
-        let token_a = H160::from(log.topics[0]);
-        let token_b = H160::from(log.topics[1]);
-        let fee = tokens[0].to_owned().into_uint().unwrap().as_u32();
-        let address = tokens[1].to_owned().into_address().unwrap();
+        let pool_created_event = PoolCreatedFilter::decode_log(&RawLog::from(log))?;
 
         Ok(AMM::UniswapV3Pool(UniswapV3Pool {
-            address,
-            token_a,
-            token_b,
+            address: pool_created_event.pool,
+            token_a: pool_created_event.token_0,
+            token_b: pool_created_event.token_1,
             token_a_decimals: 0,
             token_b_decimals: 0,
-            fee,
+            fee: pool_created_event.fee,
             liquidity: 0,
             sqrt_price: U256::zero(),
             tick_spacing: 0,
@@ -191,11 +189,11 @@ impl UniswapV3Factory {
                 } else if event_signature == BURN_EVENT_SIGNATURE {
                     //If the event sig is the BURN_EVENT_SIGNATURE log is coming from the pool
                     if let Some(AMM::UniswapV3Pool(pool)) = aggregated_amms.get_mut(&log.address) {
-                        pool.sync_from_burn_log(&log);
+                        pool.sync_from_burn_log(log)?;
                     }
                 } else if event_signature == MINT_EVENT_SIGNATURE {
                     if let Some(AMM::UniswapV3Pool(pool)) = aggregated_amms.get_mut(&log.address) {
-                        pool.sync_from_mint_log(&log);
+                        pool.sync_from_mint_log(log)?;
                     }
                 }
             }
