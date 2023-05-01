@@ -82,4 +82,6 @@ pub enum SwapSimulationError {
     InvalidTick,
     #[error("Uniswap v3 math error")]
     UniswapV3MathError(#[from] UniswapV3MathError),
+    #[error("Liquidity underflow")]
+    LiquidityUnderflow,
 }
