@@ -1,7 +1,11 @@
 pub mod batch_request;
 pub mod factory;
 
-use std::{cmp::Ordering, collections::HashMap, sync::Arc};
+use std::{
+    cmp::Ordering,
+    collections::{BTreeMap, HashMap},
+    sync::Arc,
+};
 
 use crate::{
     amm::AutomatedMarketMaker,
@@ -479,7 +483,7 @@ impl UniswapV3Pool {
     //TODO: document that this function will not populate the tick_bitmap and ticks, if you want to populate those, you must call populate_tick_data on an initialized pool.1.0001_f64
 
     //Creates a new instance of the pool from the pair address
-    pub async fn new_from_address<M: Middleware>(
+    pub async fn new_from_address<M: 'static + Middleware>(
         pair_address: H160,
         creation_block: u64,
         middleware: Arc<M>,
@@ -516,7 +520,7 @@ impl UniswapV3Pool {
         Ok(pool)
     }
 
-    pub async fn new_from_log<M: Middleware>(
+    pub async fn new_from_log<M: 'static + Middleware>(
         log: Log,
         middleware: Arc<M>,
     ) -> Result<Self, DAMMError<M>> {
@@ -565,9 +569,9 @@ impl UniswapV3Pool {
         }
     }
 
-    pub async fn populate_tick_data<M: Middleware>(
+    pub async fn populate_tick_data<M: 'static + Middleware>(
         &mut self,
-        creation_block: u64,
+        mut from_block: u64,
         middleware: Arc<M>,
     ) -> Result<u64, DAMMError<M>> {
         let current_block = middleware
@@ -576,31 +580,58 @@ impl UniswapV3Pool {
             .map_err(DAMMError::MiddlewareError)?
             .as_u64();
 
-        let step = 100000;
+        let step = 100000; //TODO: maybe make this a constant across the codebase where we set step
+        let pool_address: H160 = self.address;
 
-        let mut from_block = creation_block;
+        let mut handles = vec![];
         while from_block < current_block {
+            let middleware = middleware.clone();
+
             let mut target_block = from_block + step - 1;
             if target_block > current_block {
                 target_block = current_block;
             }
 
-            //TODO: ASYNC For each block within the range, get all logs asynchronously in batches
-            let filter = Filter::new()
-                .topic0(vec![BURN_EVENT_SIGNATURE, MINT_EVENT_SIGNATURE])
-                .address(self.address)
-                .from_block(BlockNumber::Number(U64([from_block])))
-                .to_block(BlockNumber::Number(U64([target_block])));
+            handles.push(tokio::spawn(async move {
+                let logs = middleware
+                    .get_logs(
+                        &Filter::new()
+                            .topic0(vec![BURN_EVENT_SIGNATURE, MINT_EVENT_SIGNATURE])
+                            .address(pool_address)
+                            .from_block(BlockNumber::Number(U64([from_block])))
+                            .to_block(BlockNumber::Number(U64([target_block]))),
+                    )
+                    .await
+                    .map_err(DAMMError::MiddlewareError)?;
 
-            for log in middleware
-                .get_logs(&filter)
-                .await
-                .map_err(DAMMError::MiddlewareError)?
-            {
-                self.sync_from_log(log)?;
-            }
+                Ok::<Vec<Log>, DAMMError<M>>(logs)
+            }));
 
             from_block = from_block + step;
+        }
+
+        // group the logs from each thread by block number and then sync the logs in chronological order
+        let mut ordered_logs: BTreeMap<U64, Vec<Log>> = BTreeMap::new();
+        for handle in handles {
+            let logs = handle.await??;
+
+            for log in logs {
+                if let Some(log_block_number) = log.block_number {
+                    if let Some(log_group) = ordered_logs.get_mut(&log_block_number) {
+                        log_group.push(log);
+                    } else {
+                        ordered_logs.insert(log_block_number, vec![log]);
+                    }
+                } else {
+                    return Err(EventLogError::LogBlockNumberNotFound)?;
+                }
+            }
+        }
+
+        for (_, log_group) in ordered_logs {
+            for log in log_group {
+                self.sync_from_log(log)?;
+            }
         }
 
         Ok(current_block)
@@ -1042,7 +1073,7 @@ mod test {
         function quoteExactInputSingle(address tokenIn, address tokenOut,uint24 fee, uint256 amountIn, uint160 sqrtPriceLimitX96) external returns (uint256 amountOut)
     ]"#;);
 
-    async fn initialize_test_pool<M: Middleware>(
+    async fn initialize_test_pool<M: 'static + Middleware>(
         middleware: Arc<M>,
     ) -> Result<(UniswapV3Pool, u64), DAMMError<M>> {
         let mut pool = UniswapV3Pool {

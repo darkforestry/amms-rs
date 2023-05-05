@@ -1,4 +1,7 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::{BTreeMap, HashMap},
+    sync::Arc,
+};
 
 use async_trait::async_trait;
 use ethers::{
@@ -11,7 +14,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     amm::{factory::AutomatedMarketMakerFactory, AutomatedMarketMaker, AMM},
-    errors::DAMMError,
+    errors::{DAMMError, EventLogError},
 };
 
 use super::{batch_request, UniswapV3Pool, BURN_EVENT_SIGNATURE, MINT_EVENT_SIGNATURE};
@@ -51,7 +54,7 @@ impl AutomatedMarketMakerFactory for UniswapV3Factory {
         POOL_CREATED_EVENT_SIGNATURE
     }
 
-    async fn new_amm_from_log<M: Middleware>(
+    async fn new_amm_from_log<M: 'static + Middleware>(
         &self,
         log: Log,
         middleware: Arc<M>,
@@ -71,7 +74,7 @@ impl AutomatedMarketMakerFactory for UniswapV3Factory {
         }
     }
 
-    async fn get_all_amms<M: Middleware>(
+    async fn get_all_amms<M: 'static + Middleware>(
         &self,
         to_block: Option<u64>,
         middleware: Arc<M>,
@@ -136,7 +139,7 @@ impl UniswapV3Factory {
     }
 
     //Function to get all pair created events for a given Dex factory address and sync pool data
-    pub async fn get_all_pools_from_logs<M: Middleware>(
+    pub async fn get_all_pools_from_logs<M: 'static + Middleware>(
         self,
         to_block: u64,
         step: u64,
@@ -149,9 +152,9 @@ impl UniswapV3Factory {
 
         dbg!(to_block);
 
+        let mut handles = vec![];
         while from_block < to_block {
-            //TODO: ASYNC check if we can make this async instead
-            let provider: Arc<M> = middleware.clone();
+            let middleware = middleware.clone();
 
             let mut target_block = from_block + step - 1;
             if target_block > to_block {
@@ -160,22 +163,47 @@ impl UniswapV3Factory {
 
             dbg!(target_block);
 
-            let logs = provider
-                .get_logs(
-                    &Filter::new()
-                        .topic0(vec![
-                            POOL_CREATED_EVENT_SIGNATURE,
-                            BURN_EVENT_SIGNATURE,
-                            MINT_EVENT_SIGNATURE,
-                        ])
-                        .from_block(BlockNumber::Number(U64([from_block])))
-                        .to_block(BlockNumber::Number(U64([target_block]))),
-                )
-                .await
-                .map_err(DAMMError::MiddlewareError)?;
+            handles.push(tokio::spawn(async move {
+                let logs = middleware
+                    .get_logs(
+                        &Filter::new()
+                            .topic0(vec![
+                                POOL_CREATED_EVENT_SIGNATURE,
+                                BURN_EVENT_SIGNATURE,
+                                MINT_EVENT_SIGNATURE,
+                            ])
+                            .from_block(BlockNumber::Number(U64([from_block])))
+                            .to_block(BlockNumber::Number(U64([target_block]))),
+                    )
+                    .await
+                    .map_err(DAMMError::MiddlewareError)?;
 
-            //For each pair created log, create a new Pair type and add it to the pairs vec
+                Ok::<Vec<Log>, DAMMError<M>>(logs)
+            }));
+
+            from_block = from_block + step;
+        }
+
+        // group the logs from each thread by block number and then sync the logs in chronological order
+        let mut ordered_logs: BTreeMap<U64, Vec<Log>> = BTreeMap::new();
+        for handle in handles {
+            let logs = handle.await??;
+
             for log in logs {
+                if let Some(log_block_number) = log.block_number {
+                    if let Some(log_group) = ordered_logs.get_mut(&log_block_number) {
+                        log_group.push(log);
+                    } else {
+                        ordered_logs.insert(log_block_number, vec![log]);
+                    }
+                } else {
+                    return Err(EventLogError::LogBlockNumberNotFound)?;
+                }
+            }
+        }
+
+        for (_, log_group) in ordered_logs {
+            for log in log_group {
                 let event_signature = log.topics[0];
 
                 //If the event sig is the pool created event sig, then the log is coming from the factory
@@ -200,9 +228,8 @@ impl UniswapV3Factory {
                     }
                 }
             }
-
-            from_block = from_block + step;
         }
+
         Ok(aggregated_amms.into_values().collect::<Vec<AMM>>())
     }
 }

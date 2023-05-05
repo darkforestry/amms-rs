@@ -19,7 +19,7 @@ use super::{
 pub trait AutomatedMarketMakerFactory {
     fn address(&self) -> H160;
 
-    async fn get_all_amms<M: Middleware>(
+    async fn get_all_amms<M: 'static + Middleware>(
         &self,
         to_block: Option<u64>,
         middleware: Arc<M>,
@@ -36,7 +36,7 @@ pub trait AutomatedMarketMakerFactory {
 
     fn creation_block(&self) -> u64;
 
-    async fn new_amm_from_log<M: Middleware>(
+    async fn new_amm_from_log<M: 'static + Middleware>(
         &self,
         log: Log,
         middleware: Arc<M>,
@@ -67,7 +67,7 @@ impl AutomatedMarketMakerFactory for Factory {
         }
     }
 
-    async fn new_amm_from_log<M: Middleware>(
+    async fn new_amm_from_log<M: 'static + Middleware>(
         &self,
         log: Log,
         middleware: Arc<M>,
@@ -85,7 +85,7 @@ impl AutomatedMarketMakerFactory for Factory {
         }
     }
 
-    async fn get_all_amms<M: Middleware>(
+    async fn get_all_amms<M: 'static + Middleware>(
         &self,
         to_block: Option<u64>,
         middleware: Arc<M>,
@@ -130,34 +130,43 @@ impl Factory {
         step: u64,
         middleware: Arc<M>,
     ) -> Result<Vec<AMM>, DAMMError<M>> {
-        let mut aggregated_amms: Vec<AMM> = vec![];
+        let factory_address = self.address();
+        let amm_created_event_signature = self.amm_created_event_signature();
 
-        //TODO: ASYNC For each block within the range, get all pairs asynchronously
-
+        let mut handles = vec![];
         while from_block < to_block {
-            let provider = middleware.clone();
+            let middleware = middleware.clone();
             let mut target_block = from_block + step - 1;
             if target_block > to_block {
                 target_block = to_block;
             }
 
-            let logs = provider
-                .get_logs(
-                    &Filter::new()
-                        .topic0(ValueOrArray::Value(self.amm_created_event_signature()))
-                        .address(self.address())
-                        .from_block(BlockNumber::Number(U64([from_block])))
-                        .to_block(BlockNumber::Number(U64([target_block]))),
-                )
-                .await
-                .map_err(DAMMError::MiddlewareError)?;
+            handles.push(tokio::spawn(async move {
+                let logs = middleware
+                    .get_logs(
+                        &Filter::new()
+                            .topic0(ValueOrArray::Value(amm_created_event_signature))
+                            .address(factory_address)
+                            .from_block(BlockNumber::Number(U64([from_block])))
+                            .to_block(BlockNumber::Number(U64([target_block]))),
+                    )
+                    .await
+                    .map_err(DAMMError::MiddlewareError)?;
 
-            for log in logs {
-                let amm = self.new_empty_amm_from_log(log)?;
-                aggregated_amms.push(amm);
-            }
+                Ok::<Vec<Log>, DAMMError<M>>(logs)
+            }));
 
             from_block = from_block + step;
+        }
+
+        let mut logs = vec![];
+        for handle in handles {
+            logs.extend(handle.await??);
+        }
+
+        let mut aggregated_amms: Vec<AMM> = vec![];
+        for log in logs {
+            aggregated_amms.push(self.new_empty_amm_from_log(log)?);
         }
 
         Ok(aggregated_amms)
