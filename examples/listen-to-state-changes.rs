@@ -16,35 +16,48 @@ use damms::{
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     //Add rpc endpoint here:
-    let rpc_endpoint =
-        std::env::var("ETHEREUM_RPC_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
-    let provider = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
-    let ws_provider = Arc::new(Provider::<Ws>::connect(rpc_endpoint).await.unwrap());
+
+    let provider = Arc::new(
+        Provider::<Http>::try_from(
+            "https://polygon-mainnet.g.alchemy.com/v2/shSb_DC29-HpDQ9rU8AYJFHAMD0EMA3Q",
+        )
+        .unwrap(),
+    );
+    let ws_provider = Arc::new(
+        Provider::<Ws>::connect(
+            "wss://polygon-mainnet.g.alchemy.com/v2/shSb_DC29-HpDQ9rU8AYJFHAMD0EMA3Q",
+        )
+        .await
+        .unwrap(),
+    );
 
     let factories = vec![
-        //UniswapV2
-        Factory::UniswapV2Factory(UniswapV2Factory::new(
-            H160::from_str("0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f").unwrap(),
-            2638438,
-            300,
-        )),
-        //Add Sushiswap
-        Factory::UniswapV2Factory(UniswapV2Factory::new(
-            H160::from_str("0xC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac").unwrap(),
-            10794229,
-            300,
-        )),
+        // //apeswapv2
+        // Factory::UniswapV2Factory(UniswapV2Factory::new(
+        //     H160::from_str("0xCf083Be4164828f00cAE704EC15a36D711491284").unwrap(),
+        //     15298801,
+        //     300,
+        // )),
         //Add UniswapV3
         Factory::UniswapV3Factory(UniswapV3Factory::new(
             H160::from_str("0x1F98431c8aD98523631AE4a59f267346ea31F984").unwrap(),
-            12369621,
+            22757547,
         )),
     ];
 
     //Sync pairs
-    let (amms, last_synced_block) = sync::sync_amms(factories, provider, None).await?;
+    let (amms, last_synced_block) = sync::sync_amms(factories, provider.clone(), None).await?;
 
     let state_space_manager = StateSpaceManager::new(amms, provider, ws_provider);
+
+    let (rx, handles) = state_space_manager
+        .listen_for_new_blocks(last_synced_block, 100)
+        .await
+        .expect("handle error");
+
+    for handle in handles {
+        handle.await.expect("hit an error").expect("error");
+    }
 
     Ok(())
 }
@@ -181,6 +194,7 @@ where
         let new_block_handle: JoinHandle<Result<(), StateSpaceError<M, S>>> =
             tokio::spawn(async move {
                 while let Some(block) = stream_rx.recv().await {
+                    dbg!(block.number);
                     if let Some(chain_head_block_number) = block.number {
                         let chain_head_block_number = chain_head_block_number.as_u64();
 

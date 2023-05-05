@@ -78,7 +78,7 @@ impl AutomatedMarketMakerFactory for UniswapV3Factory {
     ) -> Result<Vec<AMM>, DAMMError<M>> {
         if let Some(block) = to_block {
             //TODO: Bump this back to 100k
-            self.get_all_pools_from_logs(block, 10000, middleware).await
+            self.get_all_pools_from_logs(block, 1, middleware).await
         } else {
             return Err(DAMMError::BlockNumberNotFound);
         }
@@ -142,20 +142,23 @@ impl UniswapV3Factory {
     pub async fn get_all_pools_from_logs<M: Middleware>(
         self,
         to_block: u64,
-        step: usize,
+        step: u64,
         middleware: Arc<M>,
     ) -> Result<Vec<AMM>, DAMMError<M>> {
         //Unwrap can be used here because the creation block was verified within `Dex::new()`
-        let from_block = self.creation_block;
+        let mut from_block = self.creation_block;
 
         let mut aggregated_amms: HashMap<H160, AMM> = HashMap::new();
 
-        //For each block within the range, get all pairs asynchronously
-        for from_block in (from_block..=to_block).step_by(step) {
-            let provider = middleware.clone();
+        while from_block < to_block {
+            //TODO:FIXME: check if we can make this async instead
+            let provider: Arc<M> = middleware.clone();
 
-            //Get pair created event logs within the block range
-            let to_block = from_block + step as u64 - 1;
+            let target_block = if from_block + step > to_block {
+                to_block
+            } else {
+                from_block + step
+            };
 
             let logs = provider
                 .get_logs(
@@ -166,7 +169,7 @@ impl UniswapV3Factory {
                             MINT_EVENT_SIGNATURE,
                         ])
                         .from_block(BlockNumber::Number(U64([from_block])))
-                        .to_block(BlockNumber::Number(U64([to_block]))),
+                        .to_block(BlockNumber::Number(U64([target_block]))),
                 )
                 .await
                 .map_err(DAMMError::MiddlewareError)?;
@@ -197,6 +200,8 @@ impl UniswapV3Factory {
                     }
                 }
             }
+
+            from_block = from_block + step;
         }
         Ok(aggregated_amms.into_values().collect::<Vec<AMM>>())
     }
