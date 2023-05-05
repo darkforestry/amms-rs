@@ -579,11 +579,14 @@ impl UniswapV3Pool {
             .await
             .map_err(DAMMError::MiddlewareError)?
             .as_u64();
+        let mut ordered_logs: BTreeMap<U64, Vec<Log>> = BTreeMap::new();
 
         let step = 100000; //TODO: maybe make this a constant across the codebase where we set step
         let pool_address: H160 = self.address;
 
         let mut handles = vec![];
+        let mut tasks = 0;
+
         while from_block < current_block {
             let middleware = middleware.clone();
 
@@ -608,10 +611,32 @@ impl UniswapV3Pool {
             }));
 
             from_block = from_block + step;
+            tasks += 1;
+            //Here we are limiting the number of green threads that can be spun up to not have the node time out
+            if tasks == 10 {
+                // group the logs from each thread by block number and then sync the logs in chronological order
+                for handle in handles {
+                    let logs = handle.await??;
+
+                    for log in logs {
+                        if let Some(log_block_number) = log.block_number {
+                            if let Some(log_group) = ordered_logs.get_mut(&log_block_number) {
+                                log_group.push(log);
+                            } else {
+                                ordered_logs.insert(log_block_number, vec![log]);
+                            }
+                        } else {
+                            return Err(EventLogError::LogBlockNumberNotFound)?;
+                        }
+                    }
+                }
+
+                handles = vec![];
+                tasks = 0;
+            }
         }
 
         // group the logs from each thread by block number and then sync the logs in chronological order
-        let mut ordered_logs: BTreeMap<U64, Vec<Log>> = BTreeMap::new();
         for handle in handles {
             let logs = handle.await??;
 
