@@ -99,9 +99,6 @@ impl AutomatedMarketMakerFactory for UniswapV3Factory {
                     middleware.clone(),
                 )
                 .await?;
-
-                //TODO: add back progress bars
-                // progress_bar.inc(step as u64);
             }
         } else {
             return Err(DAMMError::BlockNumberNotFound);
@@ -151,7 +148,7 @@ impl UniswapV3Factory {
         let mut aggregated_amms: HashMap<H160, AMM> = HashMap::new();
 
         while from_block < to_block {
-            //TODO:FIXME: check if we can make this async instead
+            //TODO: ASYNC check if we can make this async instead
             let provider: Arc<M> = middleware.clone();
 
             let target_block = if from_block + step > to_block {

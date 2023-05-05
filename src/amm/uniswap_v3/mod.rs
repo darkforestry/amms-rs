@@ -577,14 +577,21 @@ impl UniswapV3Pool {
             .as_u64();
 
         let step = 100000;
-        //For each block within the range, get all logs asynchronously in batches
-        for from_block in (creation_block..=current_block).step_by(step) {
-            let to_block = from_block + step as u64;
+
+        let mut from_block = creation_block;
+        while from_block < current_block {
+            let target_block = if from_block + step > current_block {
+                current_block
+            } else {
+                from_block + step
+            };
+
+            //TODO: ASYNC For each block within the range, get all logs asynchronously in batches
             let filter = Filter::new()
                 .topic0(vec![BURN_EVENT_SIGNATURE, MINT_EVENT_SIGNATURE])
                 .address(self.address)
                 .from_block(BlockNumber::Number(U64([from_block])))
-                .to_block(BlockNumber::Number(U64([to_block])));
+                .to_block(BlockNumber::Number(U64([target_block])));
 
             for log in middleware
                 .get_logs(&filter)
@@ -593,6 +600,8 @@ impl UniswapV3Pool {
             {
                 self.sync_from_log(log)?;
             }
+
+            from_block = from_block + step;
         }
 
         Ok(current_block)

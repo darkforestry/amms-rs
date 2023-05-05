@@ -125,19 +125,23 @@ impl AutomatedMarketMakerFactory for Factory {
 impl Factory {
     pub async fn get_all_pools_from_logs<M: 'static + Middleware>(
         &self,
-        from_block: u64,
+        mut from_block: u64,
         to_block: u64,
-        step: usize,
+        step: u64,
         middleware: Arc<M>,
     ) -> Result<Vec<AMM>, DAMMError<M>> {
         let mut aggregated_amms: Vec<AMM> = vec![];
 
-        //For each block within the range, get all pairs asynchronously
-        for from_block in (from_block..=to_block).step_by(step) {
+        //TODO: ASYNC For each block within the range, get all pairs asynchronously
+
+        while from_block < to_block {
             let provider = middleware.clone();
 
-            //Get pair created event logs within the block range
-            let to_block = from_block + step as u64;
+            let target_block = if from_block + step > to_block {
+                to_block
+            } else {
+                from_block + step
+            };
 
             let logs = provider
                 .get_logs(
@@ -145,7 +149,7 @@ impl Factory {
                         .topic0(ValueOrArray::Value(self.amm_created_event_signature()))
                         .address(self.address())
                         .from_block(BlockNumber::Number(U64([from_block])))
-                        .to_block(BlockNumber::Number(U64([to_block]))),
+                        .to_block(BlockNumber::Number(U64([target_block]))),
                 )
                 .await
                 .map_err(DAMMError::MiddlewareError)?;
@@ -154,6 +158,8 @@ impl Factory {
                 let amm = self.new_empty_amm_from_log(log)?;
                 aggregated_amms.push(amm);
             }
+
+            from_block = from_block + step;
         }
 
         Ok(aggregated_amms)

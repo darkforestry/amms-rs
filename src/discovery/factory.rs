@@ -46,7 +46,7 @@ pub async fn discover_factories<M: Middleware>(
 
     let block_filter = Filter::new().topic0(event_signatures);
 
-    let from_block = 0;
+    let mut from_block = 0;
     let current_block = middleware
         .get_block_number()
         .await
@@ -59,16 +59,17 @@ pub async fn discover_factories<M: Middleware>(
     //Set up filter and events to filter each block you are searching by
     let mut identified_factories: HashMap<H160, (Factory, u64)> = HashMap::new();
 
-    for from_block in (from_block..=current_block).step_by(step) {
+    while from_block < current_block {
         //Get pair created event logs within the block range
-        let mut to_block = from_block + step as u64;
-        if to_block > current_block {
-            to_block = current_block;
-        }
+        let target_block = if from_block + step > current_block {
+            current_block
+        } else {
+            from_block + step
+        };
 
         let block_filter = block_filter.clone();
         let logs = middleware
-            .get_logs(&block_filter.from_block(from_block).to_block(to_block))
+            .get_logs(&block_filter.from_block(from_block).to_block(target_block))
             .await
             .map_err(DAMMError::MiddlewareError)?;
 
@@ -100,6 +101,8 @@ pub async fn discover_factories<M: Middleware>(
                 identified_factories.insert(log.address, (factory, 0));
             }
         }
+
+        from_block = from_block + step;
     }
 
     let mut filtered_factories = vec![];
