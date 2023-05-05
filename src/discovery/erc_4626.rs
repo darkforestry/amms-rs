@@ -13,6 +13,7 @@ use crate::{
 };
 
 // Returns a vec of empty factories that match one of the Factory interfaces specified by each DiscoverableFactory
+
 pub async fn discover_erc_4626_vaults<M: Middleware>(
     middleware: Arc<M>,
 ) -> Result<Vec<ERC4626Vault>, DAMMError<M>> {
@@ -39,6 +40,7 @@ pub async fn discover_erc_4626_vaults<M: Middleware>(
     let mut identified_addresses = HashSet::new();
 
     let mut from_block = 0;
+    //TODO: make this async
     while from_block < current_block {
         //Get pair created event logs within the block range
         let mut to_block = from_block + step - 1;

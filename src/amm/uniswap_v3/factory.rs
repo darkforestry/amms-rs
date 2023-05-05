@@ -1,6 +1,8 @@
 use std::{
     collections::{BTreeMap, HashMap},
     sync::Arc,
+    thread::sleep,
+    time::Duration,
 };
 
 use async_trait::async_trait;
@@ -81,7 +83,7 @@ impl AutomatedMarketMakerFactory for UniswapV3Factory {
     ) -> Result<Vec<AMM>, DAMMError<M>> {
         if let Some(block) = to_block {
             //TODO: Bump this back to 100k
-            self.get_all_pools_from_logs(block, 10000, middleware).await
+            self.get_all_pools_from_logs(block, 50000, middleware).await
         } else {
             return Err(DAMMError::BlockNumberNotFound);
         }
@@ -152,8 +154,15 @@ impl UniswapV3Factory {
 
         dbg!(to_block);
 
+        let mut i = 0;
         let mut handles = vec![];
         while from_block < to_block {
+            if i > 10 {
+                break;
+            } else {
+                i += 1;
+            }
+
             let middleware = middleware.clone();
 
             let mut target_block = from_block + step - 1;
