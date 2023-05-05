@@ -51,7 +51,7 @@ impl Checkpoint {
 //Get all pairs from last synced block and sync reserve values for each Dex in the `dexes` vec.
 pub async fn sync_amms_from_checkpoint<M: 'static + Middleware>(
     path_to_checkpoint: &str,
-    step: usize,
+    step: u64,
     middleware: Arc<M>,
 ) -> Result<(Vec<Factory>, Vec<AMM>), DAMMError<M>> {
     let current_block = middleware
@@ -140,7 +140,7 @@ pub async fn get_new_amms_from_range<M: 'static + Middleware>(
     factories: Vec<Factory>,
     from_block: u64,
     to_block: u64,
-    step: usize,
+    step: u64,
     middleware: Arc<M>,
 ) -> Vec<JoinHandle<Result<Vec<AMM>, DAMMError<M>>>> {
     //Create the filter with all the pair created events
@@ -232,7 +232,7 @@ pub async fn get_new_pools_from_range<M: 'static + Middleware>(
     factories: Vec<Factory>,
     from_block: u64,
     to_block: u64,
-    step: usize,
+    step: u64,
     middleware: Arc<M>,
 ) -> Vec<JoinHandle<Result<Vec<AMM>, DAMMError<M>>>> {
     //Create the filter with all the pair created events
