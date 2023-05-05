@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 
 use async_trait::async_trait;
 use ethers::{
@@ -7,7 +7,7 @@ use ethers::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::errors::DAMMError;
+use crate::errors::{DAMMError, EventLogError};
 
 use super::{
     uniswap_v2::factory::{UniswapV2Factory, PAIR_CREATED_EVENT_SIGNATURE},
@@ -132,8 +132,11 @@ impl Factory {
     ) -> Result<Vec<AMM>, DAMMError<M>> {
         let factory_address = self.address();
         let amm_created_event_signature = self.amm_created_event_signature();
-
+        let mut log_group = vec![];
         let mut handles = vec![];
+        let mut tasks = 0;
+        let mut aggregated_amms: Vec<AMM> = vec![];
+
         while from_block < to_block {
             let middleware = middleware.clone();
             let mut target_block = from_block + step - 1;
@@ -157,15 +160,20 @@ impl Factory {
             }));
 
             from_block = from_block + step;
+            tasks += 1;
+            if tasks == 10 {
+                for handle in handles {
+                    let logs = handle.await??;
+                    for log in logs {
+                        log_group.push(log);
+                    }
+                }
+                handles = vec![];
+                tasks = 0;
+            }
         }
 
-        let mut logs = vec![];
-        for handle in handles {
-            logs.extend(handle.await??);
-        }
-
-        let mut aggregated_amms: Vec<AMM> = vec![];
-        for log in logs {
+        for log in log_group {
             aggregated_amms.push(self.new_empty_amm_from_log(log)?);
         }
 
