@@ -580,11 +580,10 @@ impl UniswapV3Pool {
 
         let mut from_block = creation_block;
         while from_block < current_block {
-            let target_block = if from_block + step > current_block {
-                current_block
-            } else {
-                from_block + step
-            };
+            let mut target_block = from_block + step - 1;
+            if target_block > current_block {
+                target_block = current_block;
+            }
 
             //TODO: ASYNC For each block within the range, get all logs asynchronously in batches
             let filter = Filter::new()

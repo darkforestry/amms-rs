@@ -78,7 +78,7 @@ impl AutomatedMarketMakerFactory for UniswapV3Factory {
     ) -> Result<Vec<AMM>, DAMMError<M>> {
         if let Some(block) = to_block {
             //TODO: Bump this back to 100k
-            self.get_all_pools_from_logs(block, 1, middleware).await
+            self.get_all_pools_from_logs(block, 10000, middleware).await
         } else {
             return Err(DAMMError::BlockNumberNotFound);
         }
@@ -147,15 +147,18 @@ impl UniswapV3Factory {
 
         let mut aggregated_amms: HashMap<H160, AMM> = HashMap::new();
 
+        dbg!(to_block);
+
         while from_block < to_block {
             //TODO: ASYNC check if we can make this async instead
             let provider: Arc<M> = middleware.clone();
 
-            let target_block = if from_block + step > to_block {
-                to_block
-            } else {
-                from_block + step
-            };
+            let mut target_block = from_block + step - 1;
+            if target_block > to_block {
+                target_block = to_block;
+            }
+
+            dbg!(target_block);
 
             let logs = provider
                 .get_logs(

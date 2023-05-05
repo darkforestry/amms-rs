@@ -61,11 +61,10 @@ pub async fn discover_factories<M: Middleware>(
 
     while from_block < current_block {
         //Get pair created event logs within the block range
-        let target_block = if from_block + step > current_block {
-            current_block
-        } else {
-            from_block + step
-        };
+        let mut target_block = from_block + step - 1;
+        if target_block > current_block {
+            target_block = current_block;
+        }
 
         let block_filter = block_filter.clone();
         let logs = middleware

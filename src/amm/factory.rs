@@ -136,12 +136,10 @@ impl Factory {
 
         while from_block < to_block {
             let provider = middleware.clone();
-
-            let target_block = if from_block + step > to_block {
-                to_block
-            } else {
-                from_block + step
-            };
+            let mut target_block = from_block + step - 1;
+            if target_block > to_block {
+                target_block = to_block;
+            }
 
             let logs = provider
                 .get_logs(
