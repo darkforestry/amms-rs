@@ -26,6 +26,8 @@ use tokio::task::JoinHandle;
 
 use self::factory::POOL_CREATED_EVENT_SIGNATURE;
 
+use super::factory::TASK_LIMIT;
+
 abigen!(
 
     IUniswapV3Factory,
@@ -113,8 +115,6 @@ impl Info {
         }
     }
 }
-
-const TASK_LIMIT: usize = 10;
 
 #[async_trait]
 impl AutomatedMarketMaker for UniswapV3Pool {

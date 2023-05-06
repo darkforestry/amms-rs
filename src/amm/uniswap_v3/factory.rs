@@ -14,7 +14,10 @@ use serde::{Deserialize, Serialize};
 use tokio::task::JoinHandle;
 
 use crate::{
-    amm::{factory::AutomatedMarketMakerFactory, AutomatedMarketMaker, AMM},
+    amm::{
+        factory::{AutomatedMarketMakerFactory, TASK_LIMIT},
+        AutomatedMarketMaker, AMM,
+    },
     errors::{DAMMError, EventLogError},
 };
 
@@ -40,8 +43,6 @@ pub struct UniswapV3Factory {
     pub address: H160,
     pub creation_block: u64,
 }
-
-const TASK_LIMIT: usize = 10;
 
 #[async_trait]
 impl AutomatedMarketMakerFactory for UniswapV3Factory {
