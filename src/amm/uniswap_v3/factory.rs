@@ -11,6 +11,7 @@ use ethers::{
     types::{BlockNumber, Filter, Log, H160, H256, U256, U64},
 };
 use serde::{Deserialize, Serialize};
+use tokio::task::JoinHandle;
 
 use crate::{
     amm::{factory::AutomatedMarketMakerFactory, AutomatedMarketMaker, AMM},
@@ -184,44 +185,15 @@ impl UniswapV3Factory {
             tasks += 1;
             //Here we are limiting the number of green threads that can be spun up to not have the node time out
             if tasks == 10 {
-                // group the logs from each thread by block number and then sync the logs in chronological order
-                for handle in handles {
-                    let logs = handle.await??;
-
-                    for log in logs {
-                        if let Some(log_block_number) = log.block_number {
-                            if let Some(log_group) = ordered_logs.get_mut(&log_block_number) {
-                                log_group.push(log);
-                            } else {
-                                ordered_logs.insert(log_block_number, vec![log]);
-                            }
-                        } else {
-                            return Err(EventLogError::LogBlockNumberNotFound)?;
-                        }
-                    }
-                }
-
+                self.process_logs_from_handles(handles, &mut ordered_logs)
+                    .await?;
                 handles = vec![];
                 tasks = 0;
             }
         }
 
-        // group the logs from each thread by block number and then sync the logs in chronological order
-        for handle in handles {
-            let logs = handle.await??;
-
-            for log in logs {
-                if let Some(log_block_number) = log.block_number {
-                    if let Some(log_group) = ordered_logs.get_mut(&log_block_number) {
-                        log_group.push(log);
-                    } else {
-                        ordered_logs.insert(log_block_number, vec![log]);
-                    }
-                } else {
-                    return Err(EventLogError::LogBlockNumberNotFound)?;
-                }
-            }
-        }
+        self.process_logs_from_handles(handles, &mut ordered_logs)
+            .await?;
 
         for (_, log_group) in ordered_logs {
             for log in log_group {
@@ -252,5 +224,29 @@ impl UniswapV3Factory {
         }
 
         Ok(aggregated_amms.into_values().collect::<Vec<AMM>>())
+    }
+
+    async fn process_logs_from_handles<M: Middleware>(
+        &self,
+        handles: Vec<JoinHandle<Result<Vec<Log>, DAMMError<M>>>>,
+        ordered_logs: &mut BTreeMap<U64, Vec<Log>>,
+    ) -> Result<(), DAMMError<M>> {
+        // group the logs from each thread by block number and then sync the logs in chronological order
+        for handle in handles {
+            let logs = handle.await??;
+
+            for log in logs {
+                if let Some(log_block_number) = log.block_number {
+                    if let Some(log_group) = ordered_logs.get_mut(&log_block_number) {
+                        log_group.push(log);
+                    } else {
+                        ordered_logs.insert(log_block_number, vec![log]);
+                    }
+                } else {
+                    return Err(EventLogError::LogBlockNumberNotFound)?;
+                }
+            }
+        }
+        Ok(())
     }
 }
