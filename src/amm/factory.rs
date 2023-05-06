@@ -16,6 +16,8 @@ use super::{
     AMM,
 };
 
+const TASK_LIMIT: usize = 10;
+
 #[async_trait]
 pub trait AutomatedMarketMakerFactory {
     fn address(&self) -> H160;
@@ -162,7 +164,7 @@ impl Factory {
 
             from_block += step;
             tasks += 1;
-            if tasks == 10 {
+            if tasks == TASK_LIMIT {
                 self.process_logs_from_handles(handles, &mut log_group)
                     .await?;
 

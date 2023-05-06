@@ -41,6 +41,8 @@ pub struct UniswapV3Factory {
     pub creation_block: u64,
 }
 
+const TASK_LIMIT: usize = 10;
+
 #[async_trait]
 impl AutomatedMarketMakerFactory for UniswapV3Factory {
     fn address(&self) -> H160 {
@@ -184,7 +186,7 @@ impl UniswapV3Factory {
 
             tasks += 1;
             //Here we are limiting the number of green threads that can be spun up to not have the node time out
-            if tasks == 10 {
+            if tasks == TASK_LIMIT {
                 self.process_logs_from_handles(handles, &mut ordered_logs)
                     .await?;
                 handles = vec![];
