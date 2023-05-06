@@ -1,4 +1,4 @@
-use std::{sync::Arc};
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use ethers::{
@@ -6,8 +6,9 @@ use ethers::{
     types::{BlockNumber, Filter, Log, ValueOrArray, H160, H256, U64},
 };
 use serde::{Deserialize, Serialize};
+use tokio::task::JoinHandle;
 
-use crate::errors::{DAMMError};
+use crate::errors::DAMMError;
 
 use super::{
     uniswap_v2::factory::{UniswapV2Factory, PAIR_CREATED_EVENT_SIGNATURE},
@@ -162,29 +163,36 @@ impl Factory {
             from_block += step;
             tasks += 1;
             if tasks == 10 {
-                for handle in handles {
-                    let logs = handle.await??;
-                    for log in logs {
-                        log_group.push(log);
-                    }
-                }
+                self.process_logs_from_handles(handles, &mut log_group)
+                    .await?;
+
                 handles = vec![];
                 tasks = 0;
             }
         }
 
-        for handle in handles {
-            let logs = handle.await??;
-            for log in logs {
-                log_group.push(log);
-            }
-        }
+        self.process_logs_from_handles(handles, &mut log_group)
+            .await?;
 
         for log in log_group {
             aggregated_amms.push(self.new_empty_amm_from_log(log)?);
         }
 
         Ok(aggregated_amms)
+    }
+
+    async fn process_logs_from_handles<M: Middleware>(
+        &self,
+        handles: Vec<JoinHandle<Result<Vec<Log>, DAMMError<M>>>>,
+        log_group: &mut Vec<Log>,
+    ) -> Result<(), DAMMError<M>> {
+        for handle in handles {
+            let logs = handle.await??;
+            for log in logs {
+                log_group.push(log);
+            }
+        }
+        Ok(())
     }
 
     pub fn new_empty_factory_from_event_signature(event_signature: H256) -> Self {
