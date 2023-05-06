@@ -1,8 +1,6 @@
 use std::{
     collections::{BTreeMap, HashMap},
     sync::Arc,
-    thread::sleep,
-    time::Duration,
 };
 
 use async_trait::async_trait;
@@ -181,7 +179,7 @@ impl UniswapV3Factory {
                 Ok::<Vec<Log>, DAMMError<M>>(logs)
             }));
 
-            from_block = from_block + step;
+            from_block += step;
 
             tasks += 1;
             //Here we are limiting the number of green threads that can be spun up to not have the node time out

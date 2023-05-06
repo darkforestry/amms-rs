@@ -102,7 +102,7 @@ pub async fn discover_factories<M: Middleware>(
             }
         }
 
-        from_block = from_block + step;
+        from_block += step;
     }
 
     let mut filtered_factories = vec![];

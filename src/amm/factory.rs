@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, sync::Arc};
+use std::{sync::Arc};
 
 use async_trait::async_trait;
 use ethers::{
@@ -7,7 +7,7 @@ use ethers::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::errors::{DAMMError, EventLogError};
+use crate::errors::{DAMMError};
 
 use super::{
     uniswap_v2::factory::{UniswapV2Factory, PAIR_CREATED_EVENT_SIGNATURE},
@@ -159,7 +159,7 @@ impl Factory {
                 Ok::<Vec<Log>, DAMMError<M>>(logs)
             }));
 
-            from_block = from_block + step;
+            from_block += step;
             tasks += 1;
             if tasks == 10 {
                 for handle in handles {
