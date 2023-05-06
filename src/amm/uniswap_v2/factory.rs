@@ -114,7 +114,7 @@ impl AutomatedMarketMakerFactory for UniswapV2Factory {
         PAIR_CREATED_EVENT_SIGNATURE
     }
 
-    async fn new_amm_from_log<M: Middleware>(
+    async fn new_amm_from_log<M: 'static + Middleware>(
         &self,
         log: Log,
         middleware: Arc<M>,

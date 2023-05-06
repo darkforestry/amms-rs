@@ -6,6 +6,7 @@ use ethers::{
     types::{BlockNumber, Filter, Log, ValueOrArray, H160, H256, U64},
 };
 use serde::{Deserialize, Serialize};
+use tokio::task::JoinHandle;
 
 use crate::errors::DAMMError;
 
@@ -15,11 +16,13 @@ use super::{
     AMM,
 };
 
+pub const TASK_LIMIT: usize = 10;
+
 #[async_trait]
 pub trait AutomatedMarketMakerFactory {
     fn address(&self) -> H160;
 
-    async fn get_all_amms<M: Middleware>(
+    async fn get_all_amms<M: 'static + Middleware>(
         &self,
         to_block: Option<u64>,
         middleware: Arc<M>,
@@ -36,7 +39,7 @@ pub trait AutomatedMarketMakerFactory {
 
     fn creation_block(&self) -> u64;
 
-    async fn new_amm_from_log<M: Middleware>(
+    async fn new_amm_from_log<M: 'static + Middleware>(
         &self,
         log: Log,
         middleware: Arc<M>,
@@ -67,7 +70,7 @@ impl AutomatedMarketMakerFactory for Factory {
         }
     }
 
-    async fn new_amm_from_log<M: Middleware>(
+    async fn new_amm_from_log<M: 'static + Middleware>(
         &self,
         log: Log,
         middleware: Arc<M>,
@@ -85,7 +88,7 @@ impl AutomatedMarketMakerFactory for Factory {
         }
     }
 
-    async fn get_all_amms<M: Middleware>(
+    async fn get_all_amms<M: 'static + Middleware>(
         &self,
         to_block: Option<u64>,
         middleware: Arc<M>,
@@ -125,38 +128,73 @@ impl AutomatedMarketMakerFactory for Factory {
 impl Factory {
     pub async fn get_all_pools_from_logs<M: 'static + Middleware>(
         &self,
-        from_block: u64,
+        mut from_block: u64,
         to_block: u64,
-        step: usize,
+        step: u64,
         middleware: Arc<M>,
     ) -> Result<Vec<AMM>, DAMMError<M>> {
+        let factory_address = self.address();
+        let amm_created_event_signature = self.amm_created_event_signature();
+        let mut log_group = vec![];
+        let mut handles = vec![];
+        let mut tasks = 0;
         let mut aggregated_amms: Vec<AMM> = vec![];
 
-        //For each block within the range, get all pairs asynchronously
-        for from_block in (from_block..=to_block).step_by(step) {
-            let provider = middleware.clone();
+        while from_block < to_block {
+            let middleware = middleware.clone();
+            let mut target_block = from_block + step - 1;
+            if target_block > to_block {
+                target_block = to_block;
+            }
 
-            //Get pair created event logs within the block range
-            let to_block = from_block + step as u64;
+            handles.push(tokio::spawn(async move {
+                let logs = middleware
+                    .get_logs(
+                        &Filter::new()
+                            .topic0(ValueOrArray::Value(amm_created_event_signature))
+                            .address(factory_address)
+                            .from_block(BlockNumber::Number(U64([from_block])))
+                            .to_block(BlockNumber::Number(U64([target_block]))),
+                    )
+                    .await
+                    .map_err(DAMMError::MiddlewareError)?;
 
-            let logs = provider
-                .get_logs(
-                    &Filter::new()
-                        .topic0(ValueOrArray::Value(self.amm_created_event_signature()))
-                        .address(self.address())
-                        .from_block(BlockNumber::Number(U64([from_block])))
-                        .to_block(BlockNumber::Number(U64([to_block]))),
-                )
-                .await
-                .map_err(DAMMError::MiddlewareError)?;
+                Ok::<Vec<Log>, DAMMError<M>>(logs)
+            }));
 
-            for log in logs {
-                let amm = self.new_empty_amm_from_log(log)?;
-                aggregated_amms.push(amm);
+            from_block += step;
+            tasks += 1;
+            if tasks == TASK_LIMIT {
+                self.process_logs_from_handles(handles, &mut log_group)
+                    .await?;
+
+                handles = vec![];
+                tasks = 0;
             }
         }
 
+        self.process_logs_from_handles(handles, &mut log_group)
+            .await?;
+
+        for log in log_group {
+            aggregated_amms.push(self.new_empty_amm_from_log(log)?);
+        }
+
         Ok(aggregated_amms)
+    }
+
+    async fn process_logs_from_handles<M: Middleware>(
+        &self,
+        handles: Vec<JoinHandle<Result<Vec<Log>, DAMMError<M>>>>,
+        log_group: &mut Vec<Log>,
+    ) -> Result<(), DAMMError<M>> {
+        for handle in handles {
+            let logs = handle.await??;
+            for log in logs {
+                log_group.push(log);
+            }
+        }
+        Ok(())
     }
 
     pub fn new_empty_factory_from_event_signature(event_signature: H256) -> Self {

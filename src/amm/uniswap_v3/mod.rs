@@ -1,7 +1,11 @@
 pub mod batch_request;
 pub mod factory;
 
-use std::{cmp::Ordering, collections::HashMap, sync::Arc};
+use std::{
+    cmp::Ordering,
+    collections::{BTreeMap, HashMap},
+    sync::Arc,
+};
 
 use crate::{
     amm::AutomatedMarketMaker,
@@ -18,8 +22,11 @@ use num_bigfloat::BigFloat;
 use serde::{Deserialize, Serialize};
 
 use ethers::prelude::abigen;
+use tokio::task::JoinHandle;
 
 use self::factory::POOL_CREATED_EVENT_SIGNATURE;
+
+use super::factory::TASK_LIMIT;
 
 abigen!(
 
@@ -479,7 +486,7 @@ impl UniswapV3Pool {
     //TODO: document that this function will not populate the tick_bitmap and ticks, if you want to populate those, you must call populate_tick_data on an initialized pool.1.0001_f64
 
     //Creates a new instance of the pool from the pair address
-    pub async fn new_from_address<M: Middleware>(
+    pub async fn new_from_address<M: 'static + Middleware>(
         pair_address: H160,
         creation_block: u64,
         middleware: Arc<M>,
@@ -516,7 +523,7 @@ impl UniswapV3Pool {
         Ok(pool)
     }
 
-    pub async fn new_from_log<M: Middleware>(
+    pub async fn new_from_log<M: 'static + Middleware>(
         log: Log,
         middleware: Arc<M>,
     ) -> Result<Self, DAMMError<M>> {
@@ -565,9 +572,9 @@ impl UniswapV3Pool {
         }
     }
 
-    pub async fn populate_tick_data<M: Middleware>(
+    pub async fn populate_tick_data<M: 'static + Middleware>(
         &mut self,
-        creation_block: u64,
+        mut from_block: u64,
         middleware: Arc<M>,
     ) -> Result<u64, DAMMError<M>> {
         let current_block = middleware
@@ -575,27 +582,82 @@ impl UniswapV3Pool {
             .await
             .map_err(DAMMError::MiddlewareError)?
             .as_u64();
+        let mut ordered_logs: BTreeMap<U64, Vec<Log>> = BTreeMap::new();
 
-        let step = 100000;
-        //For each block within the range, get all logs asynchronously in batches
-        for from_block in (creation_block..=current_block).step_by(step) {
-            let to_block = from_block + step as u64;
-            let filter = Filter::new()
-                .topic0(vec![BURN_EVENT_SIGNATURE, MINT_EVENT_SIGNATURE])
-                .address(self.address)
-                .from_block(BlockNumber::Number(U64([from_block])))
-                .to_block(BlockNumber::Number(U64([to_block])));
+        let step = 100000; //TODO: maybe make this a constant across the codebase where we set step
+        let pool_address: H160 = self.address;
 
-            for log in middleware
-                .get_logs(&filter)
-                .await
-                .map_err(DAMMError::MiddlewareError)?
-            {
+        let mut handles = vec![];
+        let mut tasks = 0;
+
+        while from_block < current_block {
+            let middleware = middleware.clone();
+
+            let mut target_block = from_block + step - 1;
+            if target_block > current_block {
+                target_block = current_block;
+            }
+
+            handles.push(tokio::spawn(async move {
+                let logs = middleware
+                    .get_logs(
+                        &Filter::new()
+                            .topic0(vec![BURN_EVENT_SIGNATURE, MINT_EVENT_SIGNATURE])
+                            .address(pool_address)
+                            .from_block(BlockNumber::Number(U64([from_block])))
+                            .to_block(BlockNumber::Number(U64([target_block]))),
+                    )
+                    .await
+                    .map_err(DAMMError::MiddlewareError)?;
+
+                Ok::<Vec<Log>, DAMMError<M>>(logs)
+            }));
+
+            from_block += step;
+            tasks += 1;
+            //Here we are limiting the number of green threads that can be spun up to not have the node time out
+            if tasks == TASK_LIMIT {
+                self.process_logs_from_handles(handles, &mut ordered_logs)
+                    .await?;
+                handles = vec![];
+                tasks = 0;
+            }
+        }
+
+        self.process_logs_from_handles(handles, &mut ordered_logs)
+            .await?;
+
+        for (_, log_group) in ordered_logs {
+            for log in log_group {
                 self.sync_from_log(log)?;
             }
         }
 
         Ok(current_block)
+    }
+
+    async fn process_logs_from_handles<M: Middleware>(
+        &self,
+        handles: Vec<JoinHandle<Result<Vec<Log>, DAMMError<M>>>>,
+        ordered_logs: &mut BTreeMap<U64, Vec<Log>>,
+    ) -> Result<(), DAMMError<M>> {
+        // group the logs from each thread by block number and then sync the logs in chronological order
+        for handle in handles {
+            let logs = handle.await??;
+
+            for log in logs {
+                if let Some(log_block_number) = log.block_number {
+                    if let Some(log_group) = ordered_logs.get_mut(&log_block_number) {
+                        log_group.push(log);
+                    } else {
+                        ordered_logs.insert(log_block_number, vec![log]);
+                    }
+                } else {
+                    return Err(EventLogError::LogBlockNumberNotFound)?;
+                }
+            }
+        }
+        Ok(())
     }
 
     pub fn fee(&self) -> u32 {
@@ -1034,7 +1096,7 @@ mod test {
         function quoteExactInputSingle(address tokenIn, address tokenOut,uint24 fee, uint256 amountIn, uint160 sqrtPriceLimitX96) external returns (uint256 amountOut)
     ]"#;);
 
-    async fn initialize_test_pool<M: Middleware>(
+    async fn initialize_test_pool<M: 'static + Middleware>(
         middleware: Arc<M>,
     ) -> Result<(UniswapV3Pool, u64), DAMMError<M>> {
         let mut pool = UniswapV3Pool {

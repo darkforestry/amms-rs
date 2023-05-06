@@ -1,4 +1,7 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::{BTreeMap, HashMap},
+    sync::Arc,
+};
 
 use async_trait::async_trait;
 use ethers::{
@@ -8,10 +11,14 @@ use ethers::{
     types::{BlockNumber, Filter, Log, H160, H256, U256, U64},
 };
 use serde::{Deserialize, Serialize};
+use tokio::task::JoinHandle;
 
 use crate::{
-    amm::{factory::AutomatedMarketMakerFactory, AutomatedMarketMaker, AMM},
-    errors::DAMMError,
+    amm::{
+        factory::{AutomatedMarketMakerFactory, TASK_LIMIT},
+        AutomatedMarketMaker, AMM,
+    },
+    errors::{DAMMError, EventLogError},
 };
 
 use super::{batch_request, UniswapV3Pool, BURN_EVENT_SIGNATURE, MINT_EVENT_SIGNATURE};
@@ -51,7 +58,7 @@ impl AutomatedMarketMakerFactory for UniswapV3Factory {
         POOL_CREATED_EVENT_SIGNATURE
     }
 
-    async fn new_amm_from_log<M: Middleware>(
+    async fn new_amm_from_log<M: 'static + Middleware>(
         &self,
         log: Log,
         middleware: Arc<M>,
@@ -71,7 +78,7 @@ impl AutomatedMarketMakerFactory for UniswapV3Factory {
         }
     }
 
-    async fn get_all_amms<M: Middleware>(
+    async fn get_all_amms<M: 'static + Middleware>(
         &self,
         to_block: Option<u64>,
         middleware: Arc<M>,
@@ -99,9 +106,6 @@ impl AutomatedMarketMakerFactory for UniswapV3Factory {
                     middleware.clone(),
                 )
                 .await?;
-
-                //TODO: add back progress bars
-                // progress_bar.inc(step as u64);
             }
         } else {
             return Err(DAMMError::BlockNumberNotFound);
@@ -139,40 +143,63 @@ impl UniswapV3Factory {
     }
 
     //Function to get all pair created events for a given Dex factory address and sync pool data
-    pub async fn get_all_pools_from_logs<M: Middleware>(
+    pub async fn get_all_pools_from_logs<M: 'static + Middleware>(
         self,
         to_block: u64,
-        step: usize,
+        step: u64,
         middleware: Arc<M>,
     ) -> Result<Vec<AMM>, DAMMError<M>> {
         //Unwrap can be used here because the creation block was verified within `Dex::new()`
-        let from_block = self.creation_block;
-
+        let mut from_block = self.creation_block;
         let mut aggregated_amms: HashMap<H160, AMM> = HashMap::new();
+        let mut ordered_logs: BTreeMap<U64, Vec<Log>> = BTreeMap::new();
 
-        //For each block within the range, get all pairs asynchronously
-        for from_block in (from_block..=to_block).step_by(step) {
-            let provider = middleware.clone();
+        let mut handles = vec![];
 
-            //Get pair created event logs within the block range
-            let to_block = from_block + step as u64 - 1;
+        let mut tasks = 0;
+        while from_block < to_block {
+            let middleware = middleware.clone();
 
-            let logs = provider
-                .get_logs(
-                    &Filter::new()
-                        .topic0(vec![
-                            POOL_CREATED_EVENT_SIGNATURE,
-                            BURN_EVENT_SIGNATURE,
-                            MINT_EVENT_SIGNATURE,
-                        ])
-                        .from_block(BlockNumber::Number(U64([from_block])))
-                        .to_block(BlockNumber::Number(U64([to_block]))),
-                )
-                .await
-                .map_err(DAMMError::MiddlewareError)?;
+            let mut target_block = from_block + step - 1;
+            if target_block > to_block {
+                target_block = to_block;
+            }
 
-            //For each pair created log, create a new Pair type and add it to the pairs vec
-            for log in logs {
+            handles.push(tokio::spawn(async move {
+                let logs = middleware
+                    .get_logs(
+                        &Filter::new()
+                            .topic0(vec![
+                                POOL_CREATED_EVENT_SIGNATURE,
+                                BURN_EVENT_SIGNATURE,
+                                MINT_EVENT_SIGNATURE,
+                            ])
+                            .from_block(BlockNumber::Number(U64([from_block])))
+                            .to_block(BlockNumber::Number(U64([target_block]))),
+                    )
+                    .await
+                    .map_err(DAMMError::MiddlewareError)?;
+
+                Ok::<Vec<Log>, DAMMError<M>>(logs)
+            }));
+
+            from_block += step;
+
+            tasks += 1;
+            //Here we are limiting the number of green threads that can be spun up to not have the node time out
+            if tasks == TASK_LIMIT {
+                self.process_logs_from_handles(handles, &mut ordered_logs)
+                    .await?;
+                handles = vec![];
+                tasks = 0;
+            }
+        }
+
+        self.process_logs_from_handles(handles, &mut ordered_logs)
+            .await?;
+
+        for (_, log_group) in ordered_logs {
+            for log in log_group {
                 let event_signature = log.topics[0];
 
                 //If the event sig is the pool created event sig, then the log is coming from the factory
@@ -198,6 +225,31 @@ impl UniswapV3Factory {
                 }
             }
         }
+
         Ok(aggregated_amms.into_values().collect::<Vec<AMM>>())
+    }
+
+    async fn process_logs_from_handles<M: Middleware>(
+        &self,
+        handles: Vec<JoinHandle<Result<Vec<Log>, DAMMError<M>>>>,
+        ordered_logs: &mut BTreeMap<U64, Vec<Log>>,
+    ) -> Result<(), DAMMError<M>> {
+        // group the logs from each thread by block number and then sync the logs in chronological order
+        for handle in handles {
+            let logs = handle.await??;
+
+            for log in logs {
+                if let Some(log_block_number) = log.block_number {
+                    if let Some(log_group) = ordered_logs.get_mut(&log_block_number) {
+                        log_group.push(log);
+                    } else {
+                        ordered_logs.insert(log_block_number, vec![log]);
+                    }
+                } else {
+                    return Err(EventLogError::LogBlockNumberNotFound)?;
+                }
+            }
+        }
+        Ok(())
     }
 }
