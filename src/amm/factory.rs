@@ -173,6 +173,13 @@ impl Factory {
             }
         }
 
+        for handle in handles {
+            let logs = handle.await??;
+            for log in logs {
+                log_group.push(log);
+            }
+        }
+
         for log in log_group {
             aggregated_amms.push(self.new_empty_amm_from_log(log)?);
         }
