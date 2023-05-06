@@ -83,7 +83,7 @@ impl AutomatedMarketMakerFactory for UniswapV3Factory {
     ) -> Result<Vec<AMM>, DAMMError<M>> {
         if let Some(block) = to_block {
             //TODO: Bump this back to 100k
-            self.get_all_pools_from_logs(block, 50000, middleware).await
+            self.get_all_pools_from_logs(block, 10000, middleware).await
         } else {
             return Err(DAMMError::BlockNumberNotFound);
         }
@@ -149,28 +149,19 @@ impl UniswapV3Factory {
     ) -> Result<Vec<AMM>, DAMMError<M>> {
         //Unwrap can be used here because the creation block was verified within `Dex::new()`
         let mut from_block = self.creation_block;
-
         let mut aggregated_amms: HashMap<H160, AMM> = HashMap::new();
+        let mut ordered_logs: BTreeMap<U64, Vec<Log>> = BTreeMap::new();
 
-        dbg!(to_block);
-
-        let mut i = 0;
         let mut handles = vec![];
-        while from_block < to_block {
-            if i > 10 {
-                break;
-            } else {
-                i += 1;
-            }
 
+        let mut tasks = 0;
+        while from_block < to_block {
             let middleware = middleware.clone();
 
             let mut target_block = from_block + step - 1;
             if target_block > to_block {
                 target_block = to_block;
             }
-
-            dbg!(target_block);
 
             handles.push(tokio::spawn(async move {
                 let logs = middleware
@@ -191,10 +182,33 @@ impl UniswapV3Factory {
             }));
 
             from_block = from_block + step;
+
+            tasks += 1;
+            //Here we are limiting the number of green threads that can be spun up to not have the node time out
+            if tasks == 10 {
+                // group the logs from each thread by block number and then sync the logs in chronological order
+                for handle in handles {
+                    let logs = handle.await??;
+
+                    for log in logs {
+                        if let Some(log_block_number) = log.block_number {
+                            if let Some(log_group) = ordered_logs.get_mut(&log_block_number) {
+                                log_group.push(log);
+                            } else {
+                                ordered_logs.insert(log_block_number, vec![log]);
+                            }
+                        } else {
+                            return Err(EventLogError::LogBlockNumberNotFound)?;
+                        }
+                    }
+                }
+
+                handles = vec![];
+                tasks = 0;
+            }
         }
 
         // group the logs from each thread by block number and then sync the logs in chronological order
-        let mut ordered_logs: BTreeMap<U64, Vec<Log>> = BTreeMap::new();
         for handle in handles {
             let logs = handle.await??;
 
