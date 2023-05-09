@@ -342,12 +342,10 @@ impl UniswapV2Pool {
             } else {
                 div_uu(r_1, r_0)
             }
+        } else if r_1.is_zero() {
+            Ok(U128_0X10000000000000000)
         } else {
-            if r_1.is_zero() {
-                Ok(U128_0X10000000000000000)
-            } else {
-                div_uu(r_0, r_1)
-            }
+            div_uu(r_0, r_1)
         }
     }
 
