@@ -21,7 +21,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         ],
         number_of_amms_threshold,
         provider,
-        100000
+        100000,
     )
     .await?;
 

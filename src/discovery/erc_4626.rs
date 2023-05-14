@@ -16,7 +16,7 @@ use crate::{
 
 pub async fn discover_erc_4626_vaults<M: Middleware>(
     middleware: Arc<M>,
-    step: u64
+    step: u64,
 ) -> Result<Vec<ERC4626Vault>, DAMMError<M>> {
     let spinner = Spinner::new(
         spinners::Dots,

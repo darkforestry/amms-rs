@@ -96,8 +96,12 @@ impl AutomatedMarketMakerFactory for Factory {
         step: u64,
     ) -> Result<Vec<AMM>, DAMMError<M>> {
         match self {
-            Factory::UniswapV2Factory(factory) => factory.get_all_amms(to_block, middleware, step).await,
-            Factory::UniswapV3Factory(factory) => factory.get_all_amms(to_block, middleware, step).await,
+            Factory::UniswapV2Factory(factory) => {
+                factory.get_all_amms(to_block, middleware, step).await
+            }
+            Factory::UniswapV3Factory(factory) => {
+                factory.get_all_amms(to_block, middleware, step).await
+            }
         }
     }
 
