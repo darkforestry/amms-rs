@@ -82,10 +82,11 @@ impl AutomatedMarketMakerFactory for UniswapV3Factory {
         &self,
         to_block: Option<u64>,
         middleware: Arc<M>,
+        step: u64,
     ) -> Result<Vec<AMM>, DAMMError<M>> {
         if let Some(block) = to_block {
             //TODO: Bump this back to 100k
-            self.get_all_pools_from_logs(block, 10000, middleware).await
+            self.get_all_pools_from_logs(block, step, middleware).await
         } else {
             return Err(DAMMError::BlockNumberNotFound);
         }

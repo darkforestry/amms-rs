@@ -26,6 +26,7 @@ pub trait AutomatedMarketMakerFactory {
         &self,
         to_block: Option<u64>,
         middleware: Arc<M>,
+        step: u64,
     ) -> Result<Vec<AMM>, DAMMError<M>>;
 
     async fn populate_amm_data<M: Middleware>(
@@ -92,10 +93,11 @@ impl AutomatedMarketMakerFactory for Factory {
         &self,
         to_block: Option<u64>,
         middleware: Arc<M>,
+        step: u64,
     ) -> Result<Vec<AMM>, DAMMError<M>> {
         match self {
-            Factory::UniswapV2Factory(factory) => factory.get_all_amms(to_block, middleware).await,
-            Factory::UniswapV3Factory(factory) => factory.get_all_amms(to_block, middleware).await,
+            Factory::UniswapV2Factory(factory) => factory.get_all_amms(to_block, middleware, step).await,
+            Factory::UniswapV3Factory(factory) => factory.get_all_amms(to_block, middleware, step).await,
         }
     }
 

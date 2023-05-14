@@ -1108,7 +1108,7 @@ mod test {
         middleware: Arc<M>,
     ) -> Result<(UniswapV3Pool, u64), DAMMError<M>> {
         let mut pool = UniswapV3Pool {
-            address: H160::from_str("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640").unwrap(),
+            address: H160::from_str("0x11950d141EcB863F01007AdD7D1A342041227b58").unwrap(),
             ..Default::default()
         };
 
@@ -1139,11 +1139,11 @@ mod test {
 
         let amount_in = U256::from_dec_str("100000000").unwrap(); // 100 USDC
 
-        let amount_out = pool.simulate_swap(pool.token_a, amount_in).unwrap();
+        let amount_out = pool.simulate_swap(pool.token_b, amount_in).unwrap();
         let expected_amount_out = quoter
             .quote_exact_input_single(
-                pool.token_a,
                 pool.token_b,
+                pool.token_a,
                 pool.fee,
                 amount_in,
                 U256::zero(),
@@ -1192,7 +1192,7 @@ mod test {
 
         assert_eq!(amount_out_2, expected_amount_out_2);
 
-        let amount_in_3 = U256::from_dec_str("100000000000000").unwrap(); // 100_000_000 USDC
+        let amount_in_3 = U256::from_dec_str("1000000000000000000000").unwrap(); // 100_000_000 USDC
 
         let amount_out_3 = pool.simulate_swap(pool.token_a, amount_in_3).unwrap();
 

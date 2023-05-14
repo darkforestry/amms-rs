@@ -39,7 +39,7 @@ pub async fn sync_amms<M: 'static + Middleware>(
         handles.push(tokio::spawn(async move {
             //Get all of the amms from the factory
             let mut amms: Vec<AMM> = factory
-                .get_all_amms(Some(current_block), middleware.clone())
+                .get_all_amms(Some(current_block), middleware.clone(), 100000)
                 .await?;
             populate_amms(&mut amms, current_block, middleware.clone()).await?;
             //Clean empty pools

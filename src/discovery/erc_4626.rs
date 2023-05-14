@@ -16,6 +16,7 @@ use crate::{
 
 pub async fn discover_erc_4626_vaults<M: Middleware>(
     middleware: Arc<M>,
+    step: u64
 ) -> Result<Vec<ERC4626Vault>, DAMMError<M>> {
     let spinner = Spinner::new(
         spinners::Dots,
@@ -31,9 +32,6 @@ pub async fn discover_erc_4626_vaults<M: Middleware>(
         .await
         .map_err(DAMMError::MiddlewareError)?
         .as_u64();
-
-    //For each block within the range, get all pairs asynchronously
-    let step = 100000;
 
     let mut adheres_to_withdraw_event = HashSet::new();
     let mut adheres_to_deposit_event = HashSet::new();
