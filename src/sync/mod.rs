@@ -18,6 +18,7 @@ pub async fn sync_amms<M: 'static + Middleware>(
     factories: Vec<Factory>,
     middleware: Arc<M>,
     checkpoint_path: Option<&str>,
+    step: u64,
 ) -> Result<(Vec<AMM>, u64), DAMMError<M>> {
     let spinner = Spinner::new(spinners::Dots, "Syncing AMMs...", Color::Blue);
 
@@ -39,7 +40,7 @@ pub async fn sync_amms<M: 'static + Middleware>(
         handles.push(tokio::spawn(async move {
             //Get all of the amms from the factory
             let mut amms: Vec<AMM> = factory
-                .get_all_amms(Some(current_block), middleware.clone(), 100000)
+                .get_all_amms(Some(current_block), middleware.clone(), step)
                 .await?;
             populate_amms(&mut amms, current_block, middleware.clone()).await?;
             //Clean empty pools
