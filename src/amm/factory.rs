@@ -11,6 +11,7 @@ use tokio::task::JoinHandle;
 use crate::errors::DAMMError;
 
 use super::{
+    izumi::factory::{IziSwapFactory, IZI_POOL_CREATED_EVENT_SIGNATURE},
     uniswap_v2::factory::{UniswapV2Factory, PAIR_CREATED_EVENT_SIGNATURE},
     uniswap_v3::factory::{UniswapV3Factory, POOL_CREATED_EVENT_SIGNATURE},
     AMM,
@@ -53,6 +54,7 @@ pub trait AutomatedMarketMakerFactory {
 pub enum Factory {
     UniswapV2Factory(UniswapV2Factory),
     UniswapV3Factory(UniswapV3Factory),
+    IziSwapFactory(IziSwapFactory),
 }
 
 #[async_trait]
@@ -61,6 +63,7 @@ impl AutomatedMarketMakerFactory for Factory {
         match self {
             Factory::UniswapV2Factory(factory) => factory.address(),
             Factory::UniswapV3Factory(factory) => factory.address(),
+            Factory::IziSwapFactory(factory) => factory.address(),
         }
     }
 
@@ -68,6 +71,7 @@ impl AutomatedMarketMakerFactory for Factory {
         match self {
             Factory::UniswapV2Factory(factory) => factory.amm_created_event_signature(),
             Factory::UniswapV3Factory(factory) => factory.amm_created_event_signature(),
+            Factory::IziSwapFactory(factory) => factory.amm_created_event_signature(),
         }
     }
 
@@ -79,6 +83,7 @@ impl AutomatedMarketMakerFactory for Factory {
         match self {
             Factory::UniswapV2Factory(factory) => factory.new_amm_from_log(log, middleware).await,
             Factory::UniswapV3Factory(factory) => factory.new_amm_from_log(log, middleware).await,
+            Factory::IziSwapFactory(factory) => factory.new_amm_from_log(log, middleware).await,
         }
     }
 
@@ -86,6 +91,7 @@ impl AutomatedMarketMakerFactory for Factory {
         match self {
             Factory::UniswapV2Factory(factory) => factory.new_empty_amm_from_log(log),
             Factory::UniswapV3Factory(factory) => factory.new_empty_amm_from_log(log),
+            Factory::IziSwapFactory(factory) => factory.new_empty_amm_from_log(log),
         }
     }
 
@@ -100,6 +106,9 @@ impl AutomatedMarketMakerFactory for Factory {
                 factory.get_all_amms(to_block, middleware, step).await
             }
             Factory::UniswapV3Factory(factory) => {
+                factory.get_all_amms(to_block, middleware, step).await
+            }
+            Factory::IziSwapFactory(factory) => {
                 factory.get_all_amms(to_block, middleware, step).await
             }
         }
@@ -120,6 +129,11 @@ impl AutomatedMarketMakerFactory for Factory {
                     .populate_amm_data(amms, block_number, middleware)
                     .await
             }
+            Factory::IziSwapFactory(factory) => {
+                factory
+                    .populate_amm_data(amms, block_number, middleware)
+                    .await
+            }
         }
     }
 
@@ -127,6 +141,7 @@ impl AutomatedMarketMakerFactory for Factory {
         match self {
             Factory::UniswapV2Factory(uniswap_v2_factory) => uniswap_v2_factory.creation_block,
             Factory::UniswapV3Factory(uniswap_v3_factory) => uniswap_v3_factory.creation_block,
+            Factory::IziSwapFactory(izi_swap_factory) => izi_swap_factory.creation_block,
         }
     }
 }
@@ -208,6 +223,8 @@ impl Factory {
             Factory::UniswapV2Factory(UniswapV2Factory::default())
         } else if event_signature == POOL_CREATED_EVENT_SIGNATURE {
             Factory::UniswapV3Factory(UniswapV3Factory::default())
+        } else if event_signature == IZI_POOL_CREATED_EVENT_SIGNATURE {
+            Factory::IziSwapFactory(IziSwapFactory::default())
         } else {
             //TODO: handle this error
             panic!("Unrecognized event signature")
