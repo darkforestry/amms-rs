@@ -1,5 +1,6 @@
 pub mod erc_4626;
 pub mod factory;
+pub mod izumi;
 pub mod uniswap_v2;
 pub mod uniswap_v3;
 
@@ -14,7 +15,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::errors::{ArithmeticError, DAMMError, EventLogError, SwapSimulationError};
 
-use self::{erc_4626::ERC4626Vault, uniswap_v2::UniswapV2Pool, uniswap_v3::UniswapV3Pool};
+use self::{
+    erc_4626::ERC4626Vault, izumi::IZiSwapPool, uniswap_v2::UniswapV2Pool,
+    uniswap_v3::UniswapV3Pool,
+};
 
 #[async_trait]
 pub trait AutomatedMarketMaker {
@@ -44,6 +48,7 @@ pub enum AMM {
     UniswapV2Pool(UniswapV2Pool),
     UniswapV3Pool(UniswapV3Pool),
     ERC4626Vault(ERC4626Vault),
+    IZiSwapPool(IZiSwapPool),
 }
 
 #[async_trait]
@@ -53,6 +58,7 @@ impl AutomatedMarketMaker for AMM {
             AMM::UniswapV2Pool(pool) => pool.address,
             AMM::UniswapV3Pool(pool) => pool.address,
             AMM::ERC4626Vault(vault) => vault.vault_token,
+            AMM::IZiSwapPool(pool) => pool.address,
         }
     }
 
@@ -61,6 +67,7 @@ impl AutomatedMarketMaker for AMM {
             AMM::UniswapV2Pool(pool) => pool.sync(middleware).await,
             AMM::UniswapV3Pool(pool) => pool.sync(middleware).await,
             AMM::ERC4626Vault(vault) => vault.sync(middleware).await,
+            AMM::IZiSwapPool(pool) => pool.sync(middleware).await,
         }
     }
 
@@ -69,6 +76,7 @@ impl AutomatedMarketMaker for AMM {
             AMM::UniswapV2Pool(pool) => pool.sync_on_event_signatures(),
             AMM::UniswapV3Pool(pool) => pool.sync_on_event_signatures(),
             AMM::ERC4626Vault(vault) => vault.sync_on_event_signatures(),
+            AMM::IZiSwapPool(pool) => pool.sync_on_event_signatures(),
         }
     }
 
@@ -77,6 +85,7 @@ impl AutomatedMarketMaker for AMM {
             AMM::UniswapV2Pool(pool) => pool.sync_from_log(log),
             AMM::UniswapV3Pool(pool) => pool.sync_from_log(log),
             AMM::ERC4626Vault(vault) => vault.sync_from_log(log),
+            AMM::IZiSwapPool(pool) => pool.sync_from_log(log),
         }
     }
 
@@ -85,6 +94,7 @@ impl AutomatedMarketMaker for AMM {
             AMM::UniswapV2Pool(pool) => pool.simulate_swap(token_in, amount_in),
             AMM::UniswapV3Pool(pool) => pool.simulate_swap(token_in, amount_in),
             AMM::ERC4626Vault(vault) => vault.simulate_swap(token_in, amount_in),
+            AMM::IZiSwapPool(pool) => pool.simulate_swap(token_in, amount_in),
         }
     }
 
@@ -97,6 +107,7 @@ impl AutomatedMarketMaker for AMM {
             AMM::UniswapV2Pool(pool) => pool.simulate_swap_mut(token_in, amount_in),
             AMM::UniswapV3Pool(pool) => pool.simulate_swap_mut(token_in, amount_in),
             AMM::ERC4626Vault(vault) => vault.simulate_swap_mut(token_in, amount_in),
+            AMM::IZiSwapPool(pool) => pool.simulate_swap_mut(token_in, amount_in),
         }
     }
 
@@ -105,6 +116,7 @@ impl AutomatedMarketMaker for AMM {
             AMM::UniswapV2Pool(pool) => pool.get_token_out(token_in),
             AMM::UniswapV3Pool(pool) => pool.get_token_out(token_in),
             AMM::ERC4626Vault(vault) => vault.get_token_out(token_in),
+            AMM::IZiSwapPool(pool) => pool.get_token_out(token_in),
         }
     }
 
@@ -117,6 +129,7 @@ impl AutomatedMarketMaker for AMM {
             AMM::UniswapV2Pool(pool) => pool.populate_data(None, middleware).await,
             AMM::UniswapV3Pool(pool) => pool.populate_data(block_number, middleware).await,
             AMM::ERC4626Vault(vault) => vault.populate_data(None, middleware).await,
+            AMM::IZiSwapPool(pool) => pool.populate_data(block_number, middleware).await,
         }
     }
 
@@ -125,6 +138,7 @@ impl AutomatedMarketMaker for AMM {
             AMM::UniswapV2Pool(pool) => pool.tokens(),
             AMM::UniswapV3Pool(pool) => pool.tokens(),
             AMM::ERC4626Vault(vault) => vault.tokens(),
+            AMM::IZiSwapPool(pool) => pool.tokens(),
         }
     }
 
@@ -133,6 +147,7 @@ impl AutomatedMarketMaker for AMM {
             AMM::UniswapV2Pool(pool) => pool.calculate_price(base_token),
             AMM::UniswapV3Pool(pool) => pool.calculate_price(base_token),
             AMM::ERC4626Vault(vault) => vault.calculate_price(base_token),
+            AMM::IZiSwapPool(pool) => pool.calculate_price(base_token),
         }
     }
 }

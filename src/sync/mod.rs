@@ -129,6 +129,12 @@ pub async fn populate_amms<M: Middleware>(
                     amm.populate_data(None, middleware.clone()).await?;
                 }
             }
+
+            AMM::IZiSwapPool(_) => {
+                for amm in amms {
+                    amm.populate_data(None, middleware.clone()).await?;
+                }
+            }
         }
     } else {
         return Err(DAMMError::IncongruentAMMs);
@@ -155,6 +161,11 @@ pub fn remove_empty_amms(amms: Vec<AMM>) -> Vec<AMM> {
             }
             AMM::ERC4626Vault(ref erc4626_vault) => {
                 if !erc4626_vault.vault_token.is_zero() && !erc4626_vault.asset_token.is_zero() {
+                    cleaned_amms.push(amm)
+                }
+            }
+            AMM::IZiSwapPool(ref izi_swap_pool) => {
+                if !izi_swap_pool.token_a.is_zero() && !izi_swap_pool.token_b.is_zero() {
                     cleaned_amms.push(amm)
                 }
             }

@@ -97,6 +97,14 @@ pub async fn discover_factories<M: Middleware>(
                             .expect("Could not get block number from log")
                             .as_u64();
                     }
+                    Factory::IZiSwapFactory(izi_swap_factory) => {
+                        izi_swap_factory.address = log.address;
+                        izi_swap_factory.creation_block = log
+                            .block_number
+                            .expect("Could not get block number from log")
+                            .as_u64();
+                    }
+
                 }
 
                 identified_factories.insert(log.address, (factory, 0));
