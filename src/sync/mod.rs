@@ -1,7 +1,7 @@
 use crate::{
     amm::{
         factory::{AutomatedMarketMakerFactory, Factory},
-        uniswap_v2, uniswap_v3, AutomatedMarketMaker, AMM, izumi,
+        izumi, uniswap_v2, uniswap_v3, AutomatedMarketMaker, AMM,
     },
     errors::DAMMError,
 };
@@ -41,7 +41,7 @@ pub async fn sync_amms<M: 'static + Middleware>(
             //Get all of the amms from the factory
             let mut amms: Vec<AMM> = factory
                 .get_all_amms(Some(current_block), middleware.clone(), step)
-                .await?;            
+                .await?;
             populate_amms(&mut amms, current_block, middleware.clone()).await?;
             //Clean empty pools
             amms = remove_empty_amms(amms);

@@ -12,7 +12,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let provider = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
 
     //discover vaults
-    let _vaults = discovery::erc_4626::discover_erc_4626_vaults(provider,30000).await?;
+    let _vaults = discovery::erc_4626::discover_erc_4626_vaults(provider, 30000).await?;
 
     Ok(())
 }

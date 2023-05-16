@@ -14,7 +14,7 @@ use crate::{
 pub enum DiscoverableFactory {
     UniswapV2Factory,
     UniswapV3Factory,
-    IziSwapFactory
+    IziSwapFactory,
 }
 
 impl DiscoverableFactory {
@@ -30,7 +30,6 @@ impl DiscoverableFactory {
             DiscoverableFactory::IziSwapFactory => {
                 amm::izumi::factory::IZI_POOL_CREATED_EVENT_SIGNATURE
             }
-
         }
     }
 }

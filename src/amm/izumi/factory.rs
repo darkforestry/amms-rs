@@ -30,38 +30,8 @@ abigen!(
 );
 
 pub const IZI_POOL_CREATED_EVENT_SIGNATURE: H256 = H256([
-    240,
-    77,
-    166,
-    119,
-    85,
-    173,
-    245,
-    135,
-    57,
-    100,
-    158,
-    47,
-    185,
-    148,
-    154,
-    99,
-    40,
-    81,
-    129,
-    65,
-    183,
-    172,
-    158,
-    68,
-    170,
-    16,
-    50,
-    6,
-    136,
-    176,
-    73,
-    0,
+    240, 77, 166, 119, 85, 173, 245, 135, 57, 100, 158, 47, 185, 148, 154, 99, 40, 81, 129, 65,
+    183, 172, 158, 68, 170, 16, 50, 6, 136, 176, 73, 0,
 ]);
 
 #[derive(Default, Debug, Clone, Copy, Serialize, Deserialize)]
@@ -141,7 +111,7 @@ impl AutomatedMarketMakerFactory for IziSwapFactory {
     }
 
     fn new_empty_amm_from_log(&self, log: Log) -> Result<AMM, ethers::abi::Error> {
-        let pool_created_event = NewPoolFilter::decode_log(&RawLog::from(log.clone()))?;
+        let pool_created_event = NewPoolFilter::decode_log(&RawLog::from(log))?;
 
         Ok(AMM::IziSwapPool(IziSwapPool {
             address: pool_created_event.pool,
@@ -227,7 +197,9 @@ impl IziSwapFactory {
                 let event_signature = log.topics[0];
 
                 //If the event sig is the pool created event sig, then the log is coming from the factory
-                if event_signature == IZI_POOL_CREATED_EVENT_SIGNATURE && log.address == self.address {
+                if event_signature == IZI_POOL_CREATED_EVENT_SIGNATURE
+                    && log.address == self.address
+                {
                     let new_pool = self.new_empty_amm_from_log(log)?;
 
                     aggregated_amms.insert(new_pool.address(), new_pool);

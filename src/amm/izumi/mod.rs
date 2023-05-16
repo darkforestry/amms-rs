@@ -334,15 +334,11 @@ impl IziSwapPool {
 
 #[cfg(test)]
 mod test {
-    use crate::{
-        amm::{izumi::IziSwapPool, AutomatedMarketMaker},
-        errors::DAMMError,
-    };
+    use crate::amm::{izumi::IziSwapPool, AutomatedMarketMaker};
 
     #[allow(unused)]
     use ethers::providers::Middleware;
 
-    use ethers::types::H256;
     #[allow(unused)]
     use ethers::{
         prelude::abigen,
@@ -405,11 +401,10 @@ mod test {
         .await
         .expect("Could not initialize pool");
 
-
-
         let current_block = middleware.get_block_number().await.unwrap().as_u64();
-        pool.populate_data(Some(current_block), middleware).await.expect("Failed");
-
+        pool.populate_data(Some(current_block), middleware)
+            .await
+            .expect("Failed");
 
         assert_eq!(
             pool.address,
@@ -444,7 +439,6 @@ mod test {
         .await
         .expect("Could not initialize pool");
 
-        
         dbg!(pool.address);
 
         pool.sync(middleware).await.expect("Could not sync pool");

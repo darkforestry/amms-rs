@@ -154,8 +154,8 @@ pub async fn get_amm_data_batch_request<M: Middleware>(
     }
 
     let constructor_args = Token::Tuple(vec![Token::Array(target_addresses)]);
-    let deployer =
-        IGetiZiPoolDataBatchRequest::deploy(middleware.clone(), constructor_args).expect("Could not initialize batch request deployer");
+    let deployer = IGetiZiPoolDataBatchRequest::deploy(middleware.clone(), constructor_args)
+        .expect("Could not initialize batch request deployer");
 
     let return_data: Bytes = deployer.block(block_number).call_raw().await?;
 
@@ -178,8 +178,7 @@ pub async fn get_amm_data_batch_request<M: Middleware>(
 
     let mut pool_idx = 0;
 
-
-dbg!("Getting here");
+    dbg!("Getting here");
     //Update pool data
     for tokens in return_data_tokens {
         if let Some(tokens_arr) = tokens.into_array() {
