@@ -7,10 +7,10 @@ use damms::discovery::factory::{discover_factories, DiscoverableFactory};
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     let factories_filename = "fantom_factories.json";
-    let number_of_amms_threshold = 50;
+    let number_of_amms_threshold = 10;
 
     //Add rpc endpoint here:
-    let rpc_endpoint = "https://rpc.ankr.com/fantom/c922039faf67b4cd4df65d69244b9562caf4477652c7d9d6654b8e3ecc38b445";
+    let rpc_endpoint = "https://arb-mainnet.g.alchemy.com/v2/wnjMjLtVqyy-kpSYPIrPV3NzbX4azveG";
 
     let provider = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
 
@@ -18,10 +18,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
         vec![
             DiscoverableFactory::UniswapV2Factory,
             DiscoverableFactory::UniswapV3Factory,
+            DiscoverableFactory::IZiSwapFactory
         ],
         number_of_amms_threshold,
         provider,
-        1000,
+        100000,
     )
     .await?;
 
