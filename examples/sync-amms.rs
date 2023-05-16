@@ -41,7 +41,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     ];
 
     //Sync pairs
-    sync::sync_amms(factories, provider, None).await?;
+    sync::sync_amms(factories, provider, None, 30000).await?;
 
     Ok(())
 }

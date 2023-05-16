@@ -1,12 +1,12 @@
-use std::{cmp::Ordering, collections::BTreeMap, str::FromStr, sync::Arc, thread::JoinHandle};
+use std::{cmp::Ordering, str::FromStr, sync::Arc};
 
 use async_trait::async_trait;
 use ethers::{
     abi::{
-        ethabi::{AbiError, Bytes},
+        ethabi::{Bytes},
         RawLog, Token,
     },
-    prelude::{abigen, k256::elliptic_curve::bigint::U64, EthEvent},
+    prelude::{abigen, EthEvent},
     providers::Middleware,
     types::{Log, H160, H256, I256, U256},
 };
@@ -97,7 +97,7 @@ impl AutomatedMarketMaker for IZiSwapPool {
             Ok(1.0 / price)
         }
     }
-    fn sync_from_log(&mut self, log: ethers::types::Log) -> Result<(), EventLogError> {
+    fn sync_from_log(&mut self, _log: ethers::types::Log) -> Result<(), EventLogError> {
         Ok(())
     }
     async fn populate_data<M: Middleware>(
@@ -109,13 +109,13 @@ impl AutomatedMarketMaker for IZiSwapPool {
             .await?;
         Ok(())
     }
-    fn simulate_swap(&self, token_in: H160, amount_in: U256) -> Result<U256, SwapSimulationError> {
+    fn simulate_swap(&self, _token_in: H160, _amount_in: U256) -> Result<U256, SwapSimulationError> {
         Ok(U256::zero())
     }
     fn simulate_swap_mut(
         &mut self,
-        token_in: H160,
-        amount_in: U256,
+        _token_in: H160,
+        _amount_in: U256,
     ) -> Result<U256, SwapSimulationError> {
         Ok(U256::zero())
     }
@@ -166,7 +166,7 @@ impl IZiSwapPool {
     //Creates a new instance of the pool from the pair address
     pub async fn new_from_address<M: 'static + Middleware>(
         pair_address: H160,
-        creation_block: u64,
+        _creation_block: u64,
         middleware: Arc<M>,
     ) -> Result<Self, DAMMError<M>> {
         let mut pool = IZiSwapPool {

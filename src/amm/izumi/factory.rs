@@ -196,12 +196,10 @@ impl IZiSwapFactory {
                 let event_signature = log.topics[0];
 
                 //If the event sig is the pool created event sig, then the log is coming from the factory
-                if event_signature == IZI_POOL_CREATED_EVENT_SIGNATURE {
-                    if log.address == self.address {
-                        let new_pool = self.new_empty_amm_from_log(log)?;
+                if event_signature == IZI_POOL_CREATED_EVENT_SIGNATURE && log.address == self.address {
+                    let new_pool = self.new_empty_amm_from_log(log)?;
 
-                        aggregated_amms.insert(new_pool.address(), new_pool);
-                    }
+                    aggregated_amms.insert(new_pool.address(), new_pool);
                 }
             }
         }
