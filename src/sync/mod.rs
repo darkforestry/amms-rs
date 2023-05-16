@@ -1,7 +1,7 @@
 use crate::{
     amm::{
         factory::{AutomatedMarketMakerFactory, Factory},
-        uniswap_v2, uniswap_v3, AutomatedMarketMaker, AMM,
+        uniswap_v2, uniswap_v3, AutomatedMarketMaker, AMM, izumi,
     },
     errors::DAMMError,
 };
@@ -41,7 +41,7 @@ pub async fn sync_amms<M: 'static + Middleware>(
             //Get all of the amms from the factory
             let mut amms: Vec<AMM> = factory
                 .get_all_amms(Some(current_block), middleware.clone(), step)
-                .await?;
+                .await?;            
             populate_amms(&mut amms, current_block, middleware.clone()).await?;
             //Clean empty pools
             amms = remove_empty_amms(amms);
@@ -131,8 +131,14 @@ pub async fn populate_amms<M: Middleware>(
             }
 
             AMM::IziSwapPool(_) => {
-                for amm in amms {
-                    amm.populate_data(None, middleware.clone()).await?;
+                let step = 120; //Max batch size for call
+                for amm_chunk in amms.chunks_mut(step) {
+                    izumi::batch_request::get_amm_data_batch_request(
+                        amm_chunk,
+                        block_number,
+                        middleware.clone(),
+                    )
+                    .await?;
                 }
             }
         }

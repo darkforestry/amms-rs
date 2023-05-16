@@ -101,10 +101,10 @@ pub async fn sync_izi_pool_batch_request<M: Middleware>(
     pool: &mut IziSwapPool,
     middleware: Arc<M>,
 ) -> Result<(), DAMMError<M>> {
-    let constructor_args = Token::Tuple(vec![Token::Address(pool.address)]);
+    let constructor_args = Token::Tuple(vec![Token::Array(vec![Token::Address(pool.address)])]);
 
-    let deployer =
-        ISynciZiPoolDataBatchRequest::deploy(middleware.clone(), constructor_args).expect("Could not deploy");
+    let deployer = ISynciZiPoolDataBatchRequest::deploy(middleware.clone(), constructor_args)
+        .expect("Could not deploy");
 
     let return_data: Bytes = deployer.call_raw().await?;
     let return_data_tokens = ethers::abi::decode(
@@ -117,21 +117,24 @@ pub async fn sync_izi_pool_batch_request<M: Middleware>(
         ])],
         &return_data,
     )?;
-    dbg!("Getting here");
 
     for tokens in return_data_tokens {
-        if let Some(pool_data) = tokens.into_tuple() {
-            //If the sqrt_price is not zero, signaling that the pool data was populated
-            if !pool_data[1].to_owned().into_uint().unwrap().is_zero() {
-                //Update the pool data
-                pool.liquidity = pool_data[0].to_owned().into_uint().unwrap().as_u128();
-                pool.sqrt_price = pool_data[1].to_owned().into_uint().unwrap();
-                pool.liquidity_x = pool_data[2].to_owned().into_uint().unwrap().as_u128();
-                pool.liquidity_y = pool_data[3].to_owned().into_uint().unwrap().as_u128();
-                pool.current_point =
-                I256::from_raw(pool_data[4].to_owned().into_int().unwrap()).as_i32();
-            } else {
-                return Err(DAMMError::SyncError(pool.address));
+        if let Some(tokens_arr) = tokens.into_array() {
+            for tup in tokens_arr {
+                if let Some(pool_data) = tup.into_tuple() {
+                    //If the sqrt_price is not zero, signaling that the pool data was populated
+                    if !pool_data[1].to_owned().into_uint().unwrap().is_zero() {
+                        //Update the pool data
+                        pool.liquidity = pool_data[0].to_owned().into_uint().unwrap().as_u128();
+                        pool.sqrt_price = pool_data[1].to_owned().into_uint().unwrap();
+                        pool.liquidity_x = pool_data[2].to_owned().into_uint().unwrap().as_u128();
+                        pool.liquidity_y = pool_data[3].to_owned().into_uint().unwrap().as_u128();
+                        pool.current_point =
+                            I256::from_raw(pool_data[4].to_owned().into_int().unwrap()).as_i32();
+                    } else {
+                        return Err(DAMMError::SyncError(pool.address));
+                    }
+                }
             }
         }
     }
@@ -152,7 +155,7 @@ pub async fn get_amm_data_batch_request<M: Middleware>(
 
     let constructor_args = Token::Tuple(vec![Token::Array(target_addresses)]);
     let deployer =
-        IGetiZiPoolDataBatchRequest::deploy(middleware.clone(), constructor_args).unwrap();
+        IGetiZiPoolDataBatchRequest::deploy(middleware.clone(), constructor_args).expect("Could not initialize batch request deployer");
 
     let return_data: Bytes = deployer.block(block_number).call_raw().await?;
 
@@ -175,6 +178,8 @@ pub async fn get_amm_data_batch_request<M: Middleware>(
 
     let mut pool_idx = 0;
 
+
+dbg!("Getting here");
     //Update pool data
     for tokens in return_data_tokens {
         if let Some(tokens_arr) = tokens.into_array() {
@@ -208,11 +213,11 @@ pub async fn get_amm_data_batch_request<M: Middleware>(
                                 I256::from_raw(pool_data[8].to_owned().into_int().unwrap())
                                     .as_i32();
                             izi_pool.point_delta =
-                                I256::from_raw(pool_data[8].to_owned().into_int().unwrap())
+                                I256::from_raw(pool_data[9].to_owned().into_int().unwrap())
                                     .as_i32();
 
                             izi_pool.fee =
-                                pool_data[9].to_owned().into_uint().unwrap().as_u64() as u32;
+                                pool_data[10].to_owned().into_uint().unwrap().as_u64() as u32;
                         }
                     }
                     pool_idx += 1;

@@ -404,8 +404,13 @@ mod test {
         )
         .await
         .expect("Could not initialize pool");
+
+
+
         let current_block = middleware.get_block_number().await.unwrap().as_u64();
-        pool.populate_data(Some(current_block), middleware);
+        pool.populate_data(Some(current_block), middleware).await.expect("Failed");
+
+
         assert_eq!(
             pool.address,
             H160::from_str("0x6336e3F52d196b4f63eE512455237c934B3355eB").unwrap()
@@ -428,7 +433,7 @@ mod test {
     #[tokio::test]
     async fn test_sync_pool() {
         let rpc_endpoint = std::env::var("ARBITRUM_MAINNET_ENDPOINT")
-            .expect("Could not get ETHEREUM_RPC_ENDPOINT");
+            .expect("Could not get ARBITRUM_MAINNET_ENDPOINT");
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
 
         let mut pool = IziSwapPool::new_from_address(
@@ -442,7 +447,7 @@ mod test {
         
         dbg!(pool.address);
 
-        pool.sync(middleware).await;
+        pool.sync(middleware).await.expect("Could not sync pool");
 
         //TODO: need to assert values
     }

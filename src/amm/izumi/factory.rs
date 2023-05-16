@@ -111,7 +111,6 @@ impl AutomatedMarketMakerFactory for IziSwapFactory {
         step: u64,
     ) -> Result<Vec<AMM>, DAMMError<M>> {
         if let Some(block) = to_block {
-            //TODO: Bump this back to 100k
             self.get_all_pools_from_logs(block, step, middleware).await
         } else {
             return Err(DAMMError::BlockNumberNotFound);
@@ -145,7 +144,7 @@ impl AutomatedMarketMakerFactory for IziSwapFactory {
         let pool_created_event = NewPoolFilter::decode_log(&RawLog::from(log.clone()))?;
 
         Ok(AMM::IziSwapPool(IziSwapPool {
-            address: log.address,
+            address: pool_created_event.pool,
             token_a: pool_created_event.token_x,
             token_b: pool_created_event.token_y,
             token_a_decimals: 0,
@@ -179,6 +178,8 @@ impl IziSwapFactory {
         //Unwrap can be used here because the creation block was verified within `Dex::new()`
         let mut from_block = self.creation_block;
         let mut aggregated_amms: HashMap<H160, AMM> = HashMap::new();
+
+        //TODO: NOTE: we do not currently need to use a btreemap but if we are to do local simulation we will need burn and mint logs. For this reason, we are leaving the sync arch to be the same as uniswapV3
         let mut ordered_logs: BTreeMap<U64, Vec<Log>> = BTreeMap::new();
 
         let mut handles = vec![];
