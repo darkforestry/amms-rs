@@ -1108,7 +1108,7 @@ mod test {
         middleware: Arc<M>,
     ) -> Result<(UniswapV3Pool, u64), DAMMError<M>> {
         let mut pool = UniswapV3Pool {
-            address: H160::from_str("0x11950d141EcB863F01007AdD7D1A342041227b58").unwrap(),
+            address: H160::from_str("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640").unwrap(),
             ..Default::default()
         };
 

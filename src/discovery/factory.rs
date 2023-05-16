@@ -14,6 +14,7 @@ use crate::{
 pub enum DiscoverableFactory {
     UniswapV2Factory,
     UniswapV3Factory,
+    IziSwapFactory,
 }
 
 impl DiscoverableFactory {
@@ -26,6 +27,9 @@ impl DiscoverableFactory {
             DiscoverableFactory::UniswapV3Factory => {
                 amm::uniswap_v3::factory::POOL_CREATED_EVENT_SIGNATURE
             }
+            DiscoverableFactory::IziSwapFactory => {
+                amm::izumi::factory::IZI_POOL_CREATED_EVENT_SIGNATURE
+            }
         }
     }
 }
@@ -35,6 +39,7 @@ pub async fn discover_factories<M: Middleware>(
     factories: Vec<DiscoverableFactory>,
     number_of_amms_threshold: u64,
     middleware: Arc<M>,
+    step: u64,
 ) -> Result<Vec<Factory>, DAMMError<M>> {
     let spinner = Spinner::new(spinners::Dots, "Discovering new factories...", Color::Blue);
 
@@ -54,7 +59,7 @@ pub async fn discover_factories<M: Middleware>(
         .as_u64();
 
     //For each block within the range, get all pairs asynchronously
-    let step = 100000;
+    // let step = 100000;
 
     //Set up filter and events to filter each block you are searching by
     let mut identified_factories: HashMap<H160, (Factory, u64)> = HashMap::new();
@@ -92,6 +97,13 @@ pub async fn discover_factories<M: Middleware>(
                     Factory::UniswapV3Factory(uniswap_v3_factory) => {
                         uniswap_v3_factory.address = log.address;
                         uniswap_v3_factory.creation_block = log
+                            .block_number
+                            .expect("Could not get block number from log")
+                            .as_u64();
+                    }
+                    Factory::IziSwapFactory(izi_swap_factory) => {
+                        izi_swap_factory.address = log.address;
+                        izi_swap_factory.creation_block = log
                             .block_number
                             .expect("Could not get block number from log")
                             .as_u64();

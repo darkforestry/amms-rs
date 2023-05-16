@@ -1,7 +1,7 @@
 use crate::{
     amm::{
         factory::{AutomatedMarketMakerFactory, Factory},
-        uniswap_v2, uniswap_v3, AutomatedMarketMaker, AMM,
+        izumi, uniswap_v2, uniswap_v3, AutomatedMarketMaker, AMM,
     },
     errors::DAMMError,
 };
@@ -129,6 +129,18 @@ pub async fn populate_amms<M: Middleware>(
                     amm.populate_data(None, middleware.clone()).await?;
                 }
             }
+
+            AMM::IziSwapPool(_) => {
+                let step = 120; //Max batch size for call
+                for amm_chunk in amms.chunks_mut(step) {
+                    izumi::batch_request::get_amm_data_batch_request(
+                        amm_chunk,
+                        block_number,
+                        middleware.clone(),
+                    )
+                    .await?;
+                }
+            }
         }
     } else {
         return Err(DAMMError::IncongruentAMMs);
@@ -155,6 +167,11 @@ pub fn remove_empty_amms(amms: Vec<AMM>) -> Vec<AMM> {
             }
             AMM::ERC4626Vault(ref erc4626_vault) => {
                 if !erc4626_vault.vault_token.is_zero() && !erc4626_vault.asset_token.is_zero() {
+                    cleaned_amms.push(amm)
+                }
+            }
+            AMM::IziSwapPool(ref izi_swap_pool) => {
+                if !izi_swap_pool.token_a.is_zero() && !izi_swap_pool.token_b.is_zero() {
                     cleaned_amms.push(amm)
                 }
             }
