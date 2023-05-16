@@ -15,7 +15,7 @@ cargo doc --open
 | Curve Pools | ❌||
 | Balancer Pools | ❌||
 | Bancor Pools | ❌||
-| Izumi Pools | ❌||
+| Izumi Pools | ✅||
 | ERC4626 Vaults | ✅||
 
 
