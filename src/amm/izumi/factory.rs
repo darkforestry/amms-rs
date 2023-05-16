@@ -20,7 +20,7 @@ use ethers::{
 use serde::{Deserialize, Serialize};
 use tokio::task::JoinHandle;
 
-use super::{batch_request, IZiSwapPool};
+use super::{batch_request, IziSwapPool};
 
 abigen!(
     IiZiSwapFactory,
@@ -65,13 +65,13 @@ pub const IZI_POOL_CREATED_EVENT_SIGNATURE: H256 = H256([
 ]);
 
 #[derive(Default, Debug, Clone, Copy, Serialize, Deserialize)]
-pub struct IZiSwapFactory {
+pub struct IziSwapFactory {
     pub address: H160,
     pub creation_block: u64,
 }
 
 #[async_trait]
-impl AutomatedMarketMakerFactory for IZiSwapFactory {
+impl AutomatedMarketMakerFactory for IziSwapFactory {
     fn address(&self) -> H160 {
         self.address
     }
@@ -91,8 +91,8 @@ impl AutomatedMarketMakerFactory for IZiSwapFactory {
     ) -> Result<AMM, DAMMError<M>> {
         if let Some(block_number) = log.block_number {
             let pool_created_filter = NewPoolFilter::decode_log(&RawLog::from(log))?;
-            Ok(AMM::IZiSwapPool(
-                IZiSwapPool::new_from_address(
+            Ok(AMM::IziSwapPool(
+                IziSwapPool::new_from_address(
                     pool_created_filter.pool,
                     block_number.as_u64(),
                     middleware,
@@ -144,7 +144,7 @@ impl AutomatedMarketMakerFactory for IZiSwapFactory {
     fn new_empty_amm_from_log(&self, log: Log) -> Result<AMM, ethers::abi::Error> {
         let pool_created_event = NewPoolFilter::decode_log(&RawLog::from(log.clone()))?;
 
-        Ok(AMM::IZiSwapPool(IZiSwapPool {
+        Ok(AMM::IziSwapPool(IziSwapPool {
             address: log.address,
             token_a: pool_created_event.token_x,
             token_b: pool_created_event.token_y,
@@ -161,9 +161,9 @@ impl AutomatedMarketMakerFactory for IZiSwapFactory {
     }
 }
 
-impl IZiSwapFactory {
-    pub fn new(address: H160, creation_block: u64) -> IZiSwapFactory {
-        IZiSwapFactory {
+impl IziSwapFactory {
+    pub fn new(address: H160, creation_block: u64) -> IziSwapFactory {
+        IziSwapFactory {
             address,
             creation_block,
         }

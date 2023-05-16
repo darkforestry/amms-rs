@@ -11,7 +11,7 @@ use crate::{
     errors::DAMMError,
 };
 
-use super::IZiSwapPool;
+use super::IziSwapPool;
 
 use ethers::prelude::abigen;
 
@@ -24,7 +24,7 @@ abigen!(
 );
 
 pub async fn get_izi_pool_data_batch_request<M: Middleware>(
-    pool: &mut IZiSwapPool,
+    pool: &mut IziSwapPool,
     block_number: Option<u64>,
     middleware: Arc<M>,
 ) -> Result<(), DAMMError<M>> {
@@ -98,25 +98,26 @@ pub async fn get_izi_pool_data_batch_request<M: Middleware>(
 }
 
 pub async fn sync_izi_pool_batch_request<M: Middleware>(
-    pool: &mut IZiSwapPool,
+    pool: &mut IziSwapPool,
     middleware: Arc<M>,
 ) -> Result<(), DAMMError<M>> {
     let constructor_args = Token::Tuple(vec![Token::Address(pool.address)]);
 
     let deployer =
-        ISynciZiPoolDataBatchRequest::deploy(middleware.clone(), constructor_args).unwrap();
+        ISynciZiPoolDataBatchRequest::deploy(middleware.clone(), constructor_args).expect("Could not deploy");
 
     let return_data: Bytes = deployer.call_raw().await?;
     let return_data_tokens = ethers::abi::decode(
         &[ParamType::Tuple(vec![
             ParamType::Uint(128), // liquidity
             ParamType::Uint(160), // sqrtPrice
-            ParamType::Uint(128), // la
-            ParamType::Uint(128), // lb
+            ParamType::Uint(128), // liquidityA
+            ParamType::Uint(128), // liquidityB
             ParamType::Int(24),   // currentPoint
         ])],
         &return_data,
     )?;
+    dbg!("Getting here");
 
     for tokens in return_data_tokens {
         if let Some(pool_data) = tokens.into_tuple() {
@@ -128,7 +129,7 @@ pub async fn sync_izi_pool_batch_request<M: Middleware>(
                 pool.liquidity_x = pool_data[2].to_owned().into_uint().unwrap().as_u128();
                 pool.liquidity_y = pool_data[3].to_owned().into_uint().unwrap().as_u128();
                 pool.current_point =
-                    I256::from_raw(pool_data[4].to_owned().into_int().unwrap()).as_i32();
+                I256::from_raw(pool_data[4].to_owned().into_int().unwrap()).as_i32();
             } else {
                 return Err(DAMMError::SyncError(pool.address));
             }
@@ -182,7 +183,7 @@ pub async fn get_amm_data_batch_request<M: Middleware>(
                     //If the pool token A is not zero, signaling that the pool data was populated
                     if !pool_data[0].to_owned().into_address().unwrap().is_zero() {
                         //Update the pool data
-                        if let AMM::IZiSwapPool(izi_pool) = amms.get_mut(pool_idx).unwrap() {
+                        if let AMM::IziSwapPool(izi_pool) = amms.get_mut(pool_idx).unwrap() {
                             izi_pool.token_a = pool_data[0].to_owned().into_address().unwrap();
 
                             izi_pool.token_a_decimals =

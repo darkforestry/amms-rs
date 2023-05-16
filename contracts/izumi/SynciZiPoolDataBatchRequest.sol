@@ -2,9 +2,7 @@
 pragma solidity ^0.8.0;
 
 interface IiZiSwapPool {
-    function liquidity(
-        bytes32 key
-    )
+    function liquidity(bytes32 key)
         external
         view
         returns (
@@ -14,21 +12,16 @@ interface IiZiSwapPool {
             uint256 tokenOwedX,
             uint256 tokenOwedY
         );
-
+    
     function tokenX() external view returns (address);
-
     function tokenY() external view returns (address);
 
-    function sqrtRate_96() external view returns (uint160);
-
+    function sqrtRate_96() external view returns(uint160);
     function fee() external view returns (uint24);
-
     function pointDelta() external view returns (int24);
-
     function state()
-        external
-        view
-        returns (
+        external view
+        returns(
             uint160 sqrtPrice_96,
             int24 currentPoint,
             uint16 observationCurrentIndex,
@@ -79,6 +72,7 @@ contract GetUniswapV3PoolDataBatchRequest {
             poolData.liquidity = liquidity;
             poolData.liquidityA = liquidityX;
             poolData.liquidityB = liquidity - liquidityX;
+            allPoolData[i] = poolData;
         }
 
         bytes memory _abiEncodedData = abi.encode(allPoolData);

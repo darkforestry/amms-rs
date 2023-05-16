@@ -19,7 +19,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         vec![
             DiscoverableFactory::UniswapV2Factory,
             DiscoverableFactory::UniswapV3Factory,
-            DiscoverableFactory::IZiSwapFactory
+            DiscoverableFactory::IziSwapFactory
         ],
         number_of_amms_threshold,
         provider,

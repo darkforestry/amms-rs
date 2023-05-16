@@ -130,7 +130,7 @@ pub async fn populate_amms<M: Middleware>(
                 }
             }
 
-            AMM::IZiSwapPool(_) => {
+            AMM::IziSwapPool(_) => {
                 for amm in amms {
                     amm.populate_data(None, middleware.clone()).await?;
                 }
@@ -164,7 +164,7 @@ pub fn remove_empty_amms(amms: Vec<AMM>) -> Vec<AMM> {
                     cleaned_amms.push(amm)
                 }
             }
-            AMM::IZiSwapPool(ref izi_swap_pool) => {
+            AMM::IziSwapPool(ref izi_swap_pool) => {
                 if !izi_swap_pool.token_a.is_zero() && !izi_swap_pool.token_b.is_zero() {
                     cleaned_amms.push(amm)
                 }

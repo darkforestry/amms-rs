@@ -2,10 +2,7 @@ use std::{cmp::Ordering, str::FromStr, sync::Arc};
 
 use async_trait::async_trait;
 use ethers::{
-    abi::{
-        ethabi::{Bytes},
-        RawLog, Token,
-    },
+    abi::{ethabi::Bytes, RawLog, Token},
     prelude::{abigen, EthEvent},
     providers::Middleware,
     types::{Log, H160, H256, I256, U256},
@@ -55,7 +52,7 @@ pub const MIN_PT: i32 = -800000;
 pub const MAX_PT: i32 = 800000;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct IZiSwapPool {
+pub struct IziSwapPool {
     pub address: H160,
     pub token_a: H160,
     pub token_a_decimals: u8,
@@ -70,7 +67,7 @@ pub struct IZiSwapPool {
     pub point_delta: i32,
 }
 #[async_trait]
-impl AutomatedMarketMaker for IZiSwapPool {
+impl AutomatedMarketMaker for IziSwapPool {
     fn address(&self) -> H160 {
         self.address
     }
@@ -98,7 +95,7 @@ impl AutomatedMarketMaker for IZiSwapPool {
         }
     }
     fn sync_from_log(&mut self, _log: ethers::types::Log) -> Result<(), EventLogError> {
-        Ok(())
+        todo!("Not yet implemented");
     }
     async fn populate_data<M: Middleware>(
         &mut self,
@@ -109,15 +106,19 @@ impl AutomatedMarketMaker for IZiSwapPool {
             .await?;
         Ok(())
     }
-    fn simulate_swap(&self, _token_in: H160, _amount_in: U256) -> Result<U256, SwapSimulationError> {
-        Ok(U256::zero())
+    fn simulate_swap(
+        &self,
+        _token_in: H160,
+        _amount_in: U256,
+    ) -> Result<U256, SwapSimulationError> {
+        todo!("Not yet implemented");
     }
     fn simulate_swap_mut(
         &mut self,
         _token_in: H160,
         _amount_in: U256,
     ) -> Result<U256, SwapSimulationError> {
-        Ok(U256::zero())
+        todo!("Not yet implemented");
     }
 
     fn get_token_out(&self, token_in: H160) -> H160 {
@@ -129,7 +130,7 @@ impl AutomatedMarketMaker for IZiSwapPool {
     }
 }
 
-impl IZiSwapPool {
+impl IziSwapPool {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         address: H160,
@@ -144,8 +145,8 @@ impl IZiSwapPool {
         liquidity_y: u128,
         current_point: i32,
         point_delta: i32,
-    ) -> IZiSwapPool {
-        IZiSwapPool {
+    ) -> IziSwapPool {
+        IziSwapPool {
             address,
             token_a,
             token_a_decimals,
@@ -169,7 +170,7 @@ impl IZiSwapPool {
         _creation_block: u64,
         middleware: Arc<M>,
     ) -> Result<Self, DAMMError<M>> {
-        let mut pool = IZiSwapPool {
+        let mut pool = IziSwapPool {
             address: pair_address,
             token_a: H160::zero(),
             token_a_decimals: 0,
@@ -204,7 +205,7 @@ impl IZiSwapPool {
             if let Some(block_number) = log.block_number {
                 let pool_created_event = NewPoolFilter::decode_log(&RawLog::from(log))?;
 
-                IZiSwapPool::new_from_address(
+                IziSwapPool::new_from_address(
                     pool_created_event.pool,
                     block_number.as_u64(),
                     middleware,
@@ -224,7 +225,7 @@ impl IZiSwapPool {
         if event_signature == IZI_POOL_CREATED_EVENT_SIGNATURE {
             let pool_created_event = NewPoolFilter::decode_log(&RawLog::from(log))?;
 
-            Ok(IZiSwapPool {
+            Ok(IziSwapPool {
                 address: pool_created_event.pool,
                 token_a: pool_created_event.token_x,
                 token_b: pool_created_event.token_y,
@@ -329,4 +330,137 @@ impl IZiSwapPool {
                 .expect("Could not encode swap calldata")
         }
     }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::{
+        amm::{izumi::IziSwapPool, AutomatedMarketMaker},
+        errors::DAMMError,
+    };
+
+    #[allow(unused)]
+    use ethers::providers::Middleware;
+
+    use ethers::types::H256;
+    #[allow(unused)]
+    use ethers::{
+        prelude::abigen,
+        providers::{Http, Provider},
+        types::{H160, U256},
+    };
+    #[allow(unused)]
+    use std::error::Error;
+    #[allow(unused)]
+    use std::{str::FromStr, sync::Arc};
+    abigen!(
+        IQuoter,
+    r#"[
+        function quoteExactInputSingle(address tokenIn, address tokenOut,uint24 fee, uint256 amountIn, uint160 sqrtPriceLimitX96) external returns (uint256 amountOut)
+    ]"#;);
+
+    #[tokio::test]
+    async fn test_get_new_from_address() {
+        let rpc_endpoint = std::env::var("ARBITRUM_MAINNET_ENDPOINT")
+            .expect("Could not get ETHEREUM_RPC_ENDPOINT");
+        let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
+
+        let pool = IziSwapPool::new_from_address(
+            H160::from_str("0x6336e3F52d196b4f63eE512455237c934B3355eB").unwrap(),
+            29420590,
+            middleware.clone(),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(
+            pool.address,
+            H160::from_str("0x6336e3F52d196b4f63eE512455237c934B3355eB").unwrap()
+        );
+        assert_eq!(
+            pool.token_a,
+            H160::from_str("0x82af49447d8a07e3bd95bd0d56f35241523fbab1").unwrap()
+        );
+        assert_eq!(pool.token_a_decimals, 18);
+        assert_eq!(
+            pool.token_b,
+            H160::from_str("0xff970a61a04b1ca14834a43f5de4533ebddb5cc8").unwrap()
+        );
+        assert_eq!(pool.token_b_decimals, 6);
+        assert_eq!(pool.fee, 2000);
+        assert_eq!(pool.point_delta, 40);
+    }
+
+    #[tokio::test]
+    async fn test_get_pool_data() {
+        let rpc_endpoint = std::env::var("ARBITRUM_MAINNET_ENDPOINT")
+            .expect("Could not get ETHEREUM_RPC_ENDPOINT");
+        let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
+
+        let mut pool = IziSwapPool::new_from_address(
+            H160::from_str("0x6336e3F52d196b4f63eE512455237c934B3355eB").unwrap(),
+            29420590,
+            middleware.clone(),
+        )
+        .await
+        .expect("Could not initialize pool");
+        let current_block = middleware.get_block_number().await.unwrap().as_u64();
+        pool.populate_data(Some(current_block), middleware);
+        assert_eq!(
+            pool.address,
+            H160::from_str("0x6336e3F52d196b4f63eE512455237c934B3355eB").unwrap()
+        );
+        assert_eq!(
+            pool.token_a,
+            H160::from_str("0x82af49447d8a07e3bd95bd0d56f35241523fbab1").unwrap()
+        );
+        assert_eq!(pool.token_a_decimals, 18);
+        assert_eq!(
+            pool.token_b,
+            H160::from_str("0xff970a61a04b1ca14834a43f5de4533ebddb5cc8").unwrap()
+        );
+        assert_eq!(pool.token_b_decimals, 6);
+        assert_eq!(pool.fee, 2000);
+        assert_eq!(pool.point_delta, 40);
+        assert!(pool.sqrt_price != U256::zero());
+    }
+
+    #[tokio::test]
+    async fn test_sync_pool() {
+        let rpc_endpoint = std::env::var("ARBITRUM_MAINNET_ENDPOINT")
+            .expect("Could not get ETHEREUM_RPC_ENDPOINT");
+        let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
+
+        let mut pool = IziSwapPool::new_from_address(
+            H160::from_str("0x6336e3F52d196b4f63eE512455237c934B3355eB").unwrap(),
+            29420590,
+            middleware.clone(),
+        )
+        .await
+        .expect("Could not initialize pool");
+
+        
+        dbg!(pool.address);
+
+        pool.sync(middleware).await;
+
+        //TODO: need to assert values
+    }
+
+    // #[tokio::test]
+    // async fn test_calculate_price() {
+    //     let rpc_endpoint = std::env::var("ARBITRUM_MAINNET_ENDPOINT")
+    //         .expect("Could not get ETHEREUM_RPC_ENDPOINT");
+    //     let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
+
+    //     let mut pool = IziSwapPool {
+    //         address: H160::from_str("0x6336e3F52d196b4f63eE512455237c934B3355eB").unwrap(),
+    //         ..Default::default()
+    //     };
+
+    //     pool.populate_data(None, middleware.clone()).await.unwrap();
+
+    //     let sqrt_price = block_pool.slot_0().block(16515398).call().await.unwrap().0;
+    //     pool.sqrt_price = sqrt_price;
+    // }
 }

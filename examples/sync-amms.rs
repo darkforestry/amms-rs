@@ -8,7 +8,7 @@ use ethers::{
 use damms::{
     amm::{
         factory::Factory, uniswap_v2::factory::UniswapV2Factory,
-        uniswap_v3::factory::UniswapV3Factory, izumi::factory::IZiSwapFactory,
+        uniswap_v3::factory::UniswapV3Factory, izumi::factory::IziSwapFactory,
     },
     sync,
 };
@@ -34,11 +34,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
         //     300,
         // )),
         //Add UniswapV3
-        Factory::UniswapV3Factory(UniswapV3Factory::new(
-            H160::from_str("0x1F98431c8aD98523631AE4a59f267346ea31F984").unwrap(),
-            185,
-        )),
-        Factory::IZiSwapFactory(IZiSwapFactory::new(
+        // Factory::UniswapV3Factory(UniswapV3Factory::new(
+        //     H160::from_str("0x1F98431c8aD98523631AE4a59f267346ea31F984").unwrap(),
+        //     185,
+        // )),
+        Factory::IziSwapFactory(IziSwapFactory::new(
             H160::from_str("0x45e5f26451cdb01b0fa1f8582e0aad9a6f27c218").unwrap(),
             26815159,
         ))

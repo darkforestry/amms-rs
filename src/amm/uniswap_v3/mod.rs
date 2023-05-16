@@ -1125,11 +1125,7 @@ mod test {
 
     #[tokio::test]
     async fn test_simulate_swap_0() {
-        dbg!(
-            H256::from_str("0xf04da67755adf58739649e2fb9949a6328518141b7ac9e44aa10320688b04900")
-                .unwrap()
-                .as_bytes()
-        );
+        
         let rpc_endpoint =
             std::env::var("ETHEREUM_RPC_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());

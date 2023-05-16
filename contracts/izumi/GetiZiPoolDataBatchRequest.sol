@@ -36,7 +36,7 @@ interface IiZiSwapPool {
  @dev This contract is not meant to be deployed. Instead, use a static call with the
       deployment bytecode as payload.
  */
-contract GetUniswapV3PoolDataBatchRequest {
+contract GetiZiPoolDataBatchRequest {
     struct PoolData {
         address tokenA;
         uint8 tokenADecimals;
@@ -132,7 +132,7 @@ contract GetUniswapV3PoolDataBatchRequest {
             poolData.liquidity = liquidity;
             poolData.liquidityA = liquidityX;
             poolData.liquidityB = liquidity - liquidityX;
-            
+            allPoolData[i] = poolData;
         }
 
         bytes memory _abiEncodedData = abi.encode(allPoolData);

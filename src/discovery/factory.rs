@@ -14,7 +14,7 @@ use crate::{
 pub enum DiscoverableFactory {
     UniswapV2Factory,
     UniswapV3Factory,
-    IZiSwapFactory
+    IziSwapFactory
 }
 
 impl DiscoverableFactory {
@@ -27,7 +27,7 @@ impl DiscoverableFactory {
             DiscoverableFactory::UniswapV3Factory => {
                 amm::uniswap_v3::factory::POOL_CREATED_EVENT_SIGNATURE
             }
-            DiscoverableFactory::IZiSwapFactory => {
+            DiscoverableFactory::IziSwapFactory => {
                 amm::izumi::factory::IZI_POOL_CREATED_EVENT_SIGNATURE
             }
 
@@ -102,7 +102,7 @@ pub async fn discover_factories<M: Middleware>(
                             .expect("Could not get block number from log")
                             .as_u64();
                     }
-                    Factory::IZiSwapFactory(izi_swap_factory) => {
+                    Factory::IziSwapFactory(izi_swap_factory) => {
                         izi_swap_factory.address = log.address;
                         izi_swap_factory.creation_block = log
                             .block_number
