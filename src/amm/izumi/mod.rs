@@ -256,7 +256,7 @@ impl IZiSwapPool {
         _log: Log,
         middleware: Arc<M>,
     ) -> Result<(), DAMMError<M>> {
-        batch_request::sync_izi_pool_batch_request(self, middleware);
+        batch_request::sync_izi_pool_batch_request(self, middleware).await?;
         Ok(())
     }
 
