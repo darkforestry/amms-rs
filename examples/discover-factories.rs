@@ -10,8 +10,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let number_of_amms_threshold = 10;
 
     //Add rpc endpoint here:
-    let rpc_endpoint = "https://arb-mainnet.g.alchemy.com/v2/wnjMjLtVqyy-kpSYPIrPV3NzbX4azveG";
-
+    let rpc_endpoint =
+        std::env::var("ARBITRUM_MAINNET_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
+   
     let provider = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
 
     let factories = discover_factories(
