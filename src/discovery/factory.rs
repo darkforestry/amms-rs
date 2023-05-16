@@ -35,6 +35,7 @@ pub async fn discover_factories<M: Middleware>(
     factories: Vec<DiscoverableFactory>,
     number_of_amms_threshold: u64,
     middleware: Arc<M>,
+    step: u64,
 ) -> Result<Vec<Factory>, DAMMError<M>> {
     let spinner = Spinner::new(spinners::Dots, "Discovering new factories...", Color::Blue);
 
@@ -54,7 +55,7 @@ pub async fn discover_factories<M: Middleware>(
         .as_u64();
 
     //For each block within the range, get all pairs asynchronously
-    let step = 100000;
+    // let step = 100000;
 
     //Set up filter and events to filter each block you are searching by
     let mut identified_factories: HashMap<H160, (Factory, u64)> = HashMap::new();

@@ -6,11 +6,11 @@ use damms::discovery::factory::{discover_factories, DiscoverableFactory};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let factories_filename = "fantom_factories.json";
+    let factories_filename = "iotex_factories.json";
     let number_of_amms_threshold = 50;
 
     //Add rpc endpoint here:
-    let rpc_endpoint = "https://rpc.ankr.com/fantom/c922039faf67b4cd4df65d69244b9562caf4477652c7d9d6654b8e3ecc38b445";
+    let rpc_endpoint = "https://rpc.ankr.com/iotex/c922039faf67b4cd4df65d69244b9562caf4477652c7d9d6654b8e3ecc38b445";
 
     let provider = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
 

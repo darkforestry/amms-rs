@@ -1088,6 +1088,7 @@ mod test {
     #[allow(unused)]
     use ethers::providers::Middleware;
 
+    use ethers::types::H256;
     #[allow(unused)]
     use ethers::{
         prelude::abigen,
@@ -1124,6 +1125,7 @@ mod test {
 
     #[tokio::test]
     async fn test_simulate_swap_0() {
+        dbg!(H256::from_str("0xe7779a36a28ae0e49bcbd9fcf57286fb607699c0c339c202e92495640505613e").unwrap().as_bytes());
         let rpc_endpoint =
             std::env::var("ETHEREUM_RPC_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());

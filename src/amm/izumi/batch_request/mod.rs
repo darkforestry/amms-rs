@@ -1,0 +1,95 @@
+use std::{sync::Arc, vec};
+
+use ethers::{
+    abi::{ParamType, Token},
+    providers::Middleware,
+    types::{Bytes, I256, U256, U64},
+};
+
+use crate::{
+    amm::{AutomatedMarketMaker, AMM},
+    errors::DAMMError,
+};
+
+use super::UniswapV3Pool;
+
+use ethers::prelude::abigen;
+
+abigen!(
+    IGetiZiPoolDataBatchRequest,
+    "src/amm/izumi/batch_request/GetiZiPoolDataBatchRequest.json";
+
+);
+
+pub async fn get_izi_pool_data_batch_request<M: Middleware>(
+    pool: &mut iZiSwapPool,
+    block_number: Option<u64>,
+    middleware: Arc<M>,
+) -> Result<(), DAMMError<M>> {
+    let constructor_args = Token::Tuple(vec![Token::Array(vec![Token::Address(pool.address)])]);
+
+    let deployer =
+    IGetiZiPoolDataBatchRequest::deploy(middleware.clone(), constructor_args).unwrap();
+
+    let return_data: Bytes = if let Some(block_number) = block_number {
+        deployer.block(block_number).call_raw().await?
+    } else {
+        deployer.call_raw().await?
+    };
+
+    let return_data_tokens = ethers::abi::decode(
+        &[ParamType::Array(Box::new(ParamType::Tuple(vec![
+            ParamType::Address,   // token a
+            ParamType::Uint(8),   // token a decimals
+            ParamType::Address,   // token b
+            ParamType::Uint(8),   // token b decimals
+            ParamType::Uint(128), // liquidity
+            ParamType::Uint(160), // sqrtPrice
+            ParamType::Uint(128),   // liquidityA
+            ParamType::Uint(128),   // liquidityB
+            ParamType::Int(24),  // currentPoint
+            ParamType::Int(24),  // pointDelta
+            ParamType::Uint(24)    //fee                    
+        ])))],
+        &return_data,
+    )?;
+
+    //Update pool data
+    for tokens in return_data_tokens {
+        if let Some(tokens_arr) = tokens.into_array() {
+            for tup in tokens_arr {
+                if let Some(pool_data) = tup.into_tuple() {
+                    //If the pool token A is not zero, signaling that the pool data was populated
+                    if !pool_data[0].to_owned().into_address().unwrap().is_zero() {
+                        //Update the pool data
+                        pool.token_a = pool_data[0].to_owned().into_address().unwrap();
+
+                        pool.token_a_decimals =
+                            pool_data[1].to_owned().into_uint().unwrap().as_u32() as u8;
+
+                        pool.token_b = pool_data[2].to_owned().into_address().unwrap();
+
+                        pool.token_b_decimals =
+                            pool_data[3].to_owned().into_uint().unwrap().as_u32() as u8;
+
+                        pool.liquidity = pool_data[4].to_owned().into_uint().unwrap().as_u128();
+
+                        pool.sqrt_price = pool_data[5].to_owned().into_uint().unwrap();
+
+                        pool.liquidity_x =
+                            I256::from_raw(pool_data[6].to_owned().into_uint().unwrap()).as_u128();
+
+                        pool.liquidity_y =
+                            I256::from_raw(pool_data[7].to_owned().into_uint().unwrap()).as_u128();
+
+                        pool.current_point = pool_data[8].to_owned().into_int().unwrap().as_i64() as i32;
+                        pool.point_delta = pool_data[9].to_owned().into_int().unwrap().as_i64() as i32;
+                        pool.fee = pool_data[10].to_owned().into_uint().unwrap().as_u64() as u32;
+
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
+}
