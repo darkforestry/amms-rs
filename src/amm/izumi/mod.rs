@@ -1,3 +1,6 @@
+pub mod batch_request;
+pub mod factory;
+
 pub const SWAP_EVENT_SIGNATURE: H256 = H256([
     231, 119, 154, 54, 162, 138, 224, 228, 155, 203, 217, 252, 245, 114, 134, 251, 96, 118, 153,
     192, 195, 57, 194, 2, 233, 36, 149, 100, 5, 5, 97, 62,
@@ -23,7 +26,7 @@ impl AutomatedMarketMaker for iZiPool {
         self.address
     }
     async fn sync<M: Middleware>(&mut self, middleware: Arc<M>) -> Result<(), DAMMError<M>> {
-        todo!()
+        batch_request::sync_izi_pool_batch_request(self, middleware.clone()).await?;
     }
     fn sync_on_event_signatures(&self) -> Vec<H256> {
         vec![SWAP_EVENT_SIGNATURE]
@@ -60,10 +63,16 @@ impl AutomatedMarketMaker for iZiPool {
         block_number: Option<u64>,
         middleware: Arc<M>,
     ) -> Result<(), DAMMError<M>> {
-        todo!()
+        batch_request::get_izi_pool_data_batch_request(self, block_number, middleware.clone())
+            .await?;
+        Ok(())
     }
 
     fn get_token_out(&self, token_in: H160) -> H160 {
-        todo!()
+        if self.token_a == token_in {
+            self.token_b
+        } else {
+            self.token_a
+        }
     }
 }

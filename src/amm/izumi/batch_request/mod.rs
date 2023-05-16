@@ -18,6 +18,8 @@ use ethers::prelude::abigen;
 abigen!(
     IGetiZiPoolDataBatchRequest,
     "src/amm/izumi/batch_request/GetiZiPoolDataBatchRequest.json";
+    ISynciZiPoolDataBatchRequest,
+    "src/amm/izumi/batch_request/SynciZiPoolDataBatchRequest.json";
 
 );
 
@@ -29,7 +31,7 @@ pub async fn get_izi_pool_data_batch_request<M: Middleware>(
     let constructor_args = Token::Tuple(vec![Token::Array(vec![Token::Address(pool.address)])]);
 
     let deployer =
-    IGetiZiPoolDataBatchRequest::deploy(middleware.clone(), constructor_args).unwrap();
+        IGetiZiPoolDataBatchRequest::deploy(middleware.clone(), constructor_args).unwrap();
 
     let return_data: Bytes = if let Some(block_number) = block_number {
         deployer.block(block_number).call_raw().await?
@@ -45,11 +47,11 @@ pub async fn get_izi_pool_data_batch_request<M: Middleware>(
             ParamType::Uint(8),   // token b decimals
             ParamType::Uint(128), // liquidity
             ParamType::Uint(160), // sqrtPrice
-            ParamType::Uint(128),   // liquidityA
-            ParamType::Uint(128),   // liquidityB
-            ParamType::Int(24),  // currentPoint
-            ParamType::Int(24),  // pointDelta
-            ParamType::Uint(24)    //fee                    
+            ParamType::Uint(128), // liquidityA
+            ParamType::Uint(128), // liquidityB
+            ParamType::Int(24),   // currentPoint
+            ParamType::Int(24),   // pointDelta
+            ParamType::Uint(24),  //fee
         ])))],
         &return_data,
     )?;
@@ -82,14 +84,55 @@ pub async fn get_izi_pool_data_batch_request<M: Middleware>(
                         pool.liquidity_y =
                             I256::from_raw(pool_data[7].to_owned().into_uint().unwrap()).as_u128();
 
-                        pool.current_point = pool_data[8].to_owned().into_int().unwrap().as_i64() as i32;
-                        pool.point_delta = pool_data[9].to_owned().into_int().unwrap().as_i64() as i32;
+                        pool.current_point =
+                            pool_data[8].to_owned().into_int().unwrap().as_i64() as i32;
+                        pool.point_delta =
+                            pool_data[9].to_owned().into_int().unwrap().as_i64() as i32;
                         pool.fee = pool_data[10].to_owned().into_uint().unwrap().as_u64() as u32;
-
                     }
                 }
             }
         }
     }
+    Ok(())
+}
+
+pub async fn sync_izi_pool_batch_request<M: Middleware>(
+    pool: &mut UniswapV3Pool,
+    middleware: Arc<M>,
+) -> Result<(), DAMMError<M>> {
+    let constructor_args = Token::Tuple(vec![Token::Address(pool.address)]);
+
+    let deployer =
+        ISyncUniswapV3PoolBatchRequest::deploy(middleware.clone(), constructor_args).unwrap();
+
+    let return_data: Bytes = deployer.call_raw().await?;
+    let return_data_tokens = ethers::abi::decode(
+        &[ParamType::Tuple(vec![
+            ParamType::Uint(128), // liquidity
+            ParamType::Uint(160), // sqrtPrice
+            ParamType::Uint(128), // la
+            ParamType::Uint(128), // lb
+            ParamType::Int(24),   // currentPoint
+        ])],
+        &return_data,
+    )?;
+
+    for tokens in return_data_tokens {
+        if let Some(pool_data) = tokens.into_tuple() {
+            //If the sqrt_price is not zero, signaling that the pool data was populated
+            if !pool_data[1].to_owned().into_uint().unwrap().is_zero() {
+                //Update the pool data
+                pool.liquidity = pool_data[0].to_owned().into_uint().unwrap().as_u128();
+                pool.sqrt_price = pool_data[1].to_owned().into_uint().unwrap();
+                pool.liquidity_x = pool_data[2].to_owned().into_uint().unwrap().as_u128();
+                pool.liquidity_y = pool_data[3].to_owned().into_uint().unwrap().as_u128();
+                pool.current_point = pool_data[4].to_owned().into_int().unwrap().as_i32();
+            } else {
+                return Err(DAMMError::SyncError(pool.address));
+            }
+        }
+    }
+
     Ok(())
 }
