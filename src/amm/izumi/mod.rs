@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, collections::BTreeMap, sync::Arc, thread::JoinHandle, str::FromStr};
+use std::{cmp::Ordering, collections::BTreeMap, str::FromStr, sync::Arc, thread::JoinHandle};
 
 use async_trait::async_trait;
 use ethers::{
@@ -51,8 +51,8 @@ pub const SWAP_EVENT_SIGNATURE: H256 = H256([
     192, 195, 57, 194, 2, 233, 36, 149, 100, 5, 5, 97, 62,
 ]);
 
-pub const MIN_PT:i32 = -800000;
-pub const MAX_PT:i32 = 800000;
+pub const MIN_PT: i32 = -800000;
+pub const MAX_PT: i32 = 800000;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct IZiSwapPool {
@@ -277,17 +277,26 @@ impl IZiSwapPool {
         Ok((token_a_decimals, token_b_decimals))
     }
 
-    pub async fn simulate_swap_async<M:Middleware>(&self, token_in: H160, amount_in: u128, quoter: &str, middleware: Arc<M>) -> Result<U256, DAMMError<M>> {
-        let quoter = IQuoter::new(
-            H160::from_str(quoter).unwrap(),
-            middleware.clone(),
-        );
+    pub async fn simulate_swap_async<M: Middleware>(
+        &self,
+        token_in: H160,
+        amount_in: u128,
+        quoter: &str,
+        middleware: Arc<M>,
+    ) -> Result<U256, DAMMError<M>> {
+        let quoter = IQuoter::new(H160::from_str(quoter).unwrap(), middleware.clone());
 
         if token_in == self.token_a {
-            let (amount_out, _) = quoter.swap_x2y(token_in, self.token_b, self.fee, amount_in, MIN_PT).call().await?;
+            let (amount_out, _) = quoter
+                .swap_x2y(token_in, self.token_b, self.fee, amount_in, MIN_PT)
+                .call()
+                .await?;
             Ok(amount_out)
-        }else {
-            let (amount_out, _) = quoter.swap_y2x(token_in, self.token_a, self.fee, amount_in, MAX_PT).call().await?;
+        } else {
+            let (amount_out, _) = quoter
+                .swap_y2x(token_in, self.token_a, self.fee, amount_in, MAX_PT)
+                .call()
+                .await?;
             Ok(amount_out)
         }
     }

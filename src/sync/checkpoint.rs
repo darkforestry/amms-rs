@@ -14,9 +14,10 @@ use tokio::task::JoinHandle;
 use crate::{
     amm::{
         factory::{AutomatedMarketMakerFactory, Factory},
+        izumi::factory::IZiSwapFactory,
         uniswap_v2::factory::UniswapV2Factory,
         uniswap_v3::factory::UniswapV3Factory,
-        AMM, izumi::factory::{IZiSwapFactory},
+        AMM,
     },
     errors::DAMMError,
     sync,
@@ -191,7 +192,7 @@ pub async fn batch_sync_amms_from_checkpoint<M: 'static + Middleware>(
         AMM::IZiSwapPool(_) => Some(Factory::IZiSwapFactory(IZiSwapFactory::new(
             H160::zero(),
             0,
-          ))),
+        ))),
     };
 
     //Spawn a new thread to get all pools and sync data for each dex
@@ -220,7 +221,7 @@ pub fn sort_amms(amms: Vec<AMM>) -> (Vec<AMM>, Vec<AMM>, Vec<AMM>) {
     let mut uniswap_v2_pools = vec![];
     let mut uniswap_v3_pools = vec![];
     let mut erc_4626_vaults = vec![];
-    let mut izi_swap_pools=vec![];
+    let mut izi_swap_pools = vec![];
     for amm in amms {
         match amm {
             AMM::UniswapV2Pool(_) => uniswap_v2_pools.push(amm),

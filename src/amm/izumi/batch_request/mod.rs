@@ -85,9 +85,9 @@ pub async fn get_izi_pool_data_batch_request<M: Middleware>(
                             I256::from_raw(pool_data[7].to_owned().into_uint().unwrap()).as_u128();
 
                         pool.current_point =
-                        I256::from_raw(pool_data[8].to_owned().into_int().unwrap()).as_i32();
+                            I256::from_raw(pool_data[8].to_owned().into_int().unwrap()).as_i32();
                         pool.point_delta =
-                        I256::from_raw(pool_data[9].to_owned().into_int().unwrap()).as_i32();
+                            I256::from_raw(pool_data[9].to_owned().into_int().unwrap()).as_i32();
                         pool.fee = pool_data[10].to_owned().into_uint().unwrap().as_u64() as u32;
                     }
                 }
@@ -127,7 +127,8 @@ pub async fn sync_izi_pool_batch_request<M: Middleware>(
                 pool.sqrt_price = pool_data[1].to_owned().into_uint().unwrap();
                 pool.liquidity_x = pool_data[2].to_owned().into_uint().unwrap().as_u128();
                 pool.liquidity_y = pool_data[3].to_owned().into_uint().unwrap().as_u128();
-                pool.current_point = I256::from_raw(pool_data[4].to_owned().into_int().unwrap()).as_i32();
+                pool.current_point =
+                    I256::from_raw(pool_data[4].to_owned().into_int().unwrap()).as_i32();
             } else {
                 return Err(DAMMError::SyncError(pool.address));
             }

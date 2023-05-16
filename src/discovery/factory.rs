@@ -104,7 +104,6 @@ pub async fn discover_factories<M: Middleware>(
                             .expect("Could not get block number from log")
                             .as_u64();
                     }
-
                 }
 
                 identified_factories.insert(log.address, (factory, 0));
