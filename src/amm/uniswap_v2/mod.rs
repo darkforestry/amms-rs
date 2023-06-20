@@ -353,8 +353,8 @@ impl UniswapV2Pool {
         if amount_in.is_zero() || reserve_in.is_zero() || reserve_out.is_zero() {
             return U256::zero();
         }
-
-        let amount_in_with_fee = amount_in * U256::from(997);
+        let fee = (10000 - (self.fee / 10)) / 10; //Fee of 300 => (10,000 - 30) / 10  = 997
+        let amount_in_with_fee = amount_in * U256::from(fee);
         let numerator = amount_in_with_fee * reserve_out;
         let denominator = reserve_in * U256::from(1000) + amount_in_with_fee;
 
