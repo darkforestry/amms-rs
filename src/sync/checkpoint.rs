@@ -292,7 +292,7 @@ pub fn construct_checkpoint(
 }
 
 //Deconstructs the checkpoint into a Vec<AMM>
-pub fn deconstruct_checkpoint(checkpoint_path: &str) -> Vec<AMM> {
+pub fn deconstruct_checkpoint(checkpoint_path: &str) -> (Vec<AMM>, u64) {
     let checkpoint: Checkpoint = serde_json::from_str(
         read_to_string(checkpoint_path)
             .expect("Error when reading in checkpoint json")
@@ -300,5 +300,5 @@ pub fn deconstruct_checkpoint(checkpoint_path: &str) -> Vec<AMM> {
     )
     .expect("Error when converting checkpoint file contents to serde_json::Value");
 
-    checkpoint.amms
+    (checkpoint.amms, checkpoint.block_number)
 }
