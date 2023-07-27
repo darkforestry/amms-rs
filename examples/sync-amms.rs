@@ -5,7 +5,7 @@ use ethers::{
     types::H160,
 };
 
-use damms::{
+use amms::{
     amm::{factory::Factory, izumi::factory::IziSwapFactory},
     sync,
 };

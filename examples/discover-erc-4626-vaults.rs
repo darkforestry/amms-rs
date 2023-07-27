@@ -2,7 +2,7 @@ use std::{error::Error, sync::Arc};
 
 use ethers::providers::{Http, Provider};
 
-use damms::discovery;
+use amms::discovery;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {

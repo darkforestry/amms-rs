@@ -5,7 +5,7 @@ The recommended way to read this document is to fully read through the entire wa
 
 ## Adding a new AMM
 
-`damms` was written with modularity in mind. The following is a straightforward walkthrough on how to add a new `AMM`. Note that this might seem complex at first, but this walkthrough is designed to make the integration process simple and easy. Just keep reading through the walkthrough, and you will have your new AMM integrated in no time! Once you are familiar with the codebase, building on top of the existing framework should be a breeze. Below is a quick overview of the steps to add a new AMM.
+`amms` was written with modularity in mind. The following is a straightforward walkthrough on how to add a new `AMM`. Note that this might seem complex at first, but this walkthrough is designed to make the integration process simple and easy. Just keep reading through the walkthrough, and you will have your new AMM integrated in no time! Once you are familiar with the codebase, building on top of the existing framework should be a breeze. Below is a quick overview of the steps to add a new AMM.
 
 - Create a new module for your AMM
 - Create a new AMM type
@@ -14,7 +14,7 @@ The recommended way to read this document is to fully read through the entire wa
 - Add peripheral functions
 - Add tests
 
-Most AMMs will have a factory that is responsible for deploying the AMM. This factory allows `damms` to identify all of the AMMs from a given protocol, however some AMMs might not have a factory. If your AMM does have a factory, make sure to add a factory type with the following steps below.
+Most AMMs will have a factory that is responsible for deploying the AMM. This factory allows `amms` to identify all of the AMMs from a given protocol, however some AMMs might not have a factory. If your AMM does have a factory, make sure to add a factory type with the following steps below.
 
 - Create a factory type
 - Implement the `AutomatedMarketMakerFactory` trait for the factory
@@ -132,7 +132,7 @@ pub enum AMM {
 }
 ```
 
-And all of a sudden, red everywhere. You will notice that after adding your AMM variant, many things break. Fear not, this is a feature not a bug. `damms` uses exhaustive pattern matching for the `AMM` enum so that you know exactly where to add your new variant throughout the codebase. Let's take a look at each spot.
+And all of a sudden, red everywhere. You will notice that after adding your AMM variant, many things break. Fear not, this is a feature not a bug. `amms` uses exhaustive pattern matching for the `AMM` enum so that you know exactly where to add your new variant throughout the codebase. Let's take a look at each spot.
 
 The first spot we need to add code is the `AutomatedMarketMaker` implementation for the `AMM` enum. We use an enum dispatch so that we can put all `AMM` variants in a collection and call any of the `AutomatedMarketMaker` methods on the `AMM` enum itself without having to match on the inner types.
 
@@ -401,7 +401,7 @@ Last but not least, make sure to add tests for all of the new functions introduc
 
 ## Adding a new AMM factory
 
-Many AMMs will have a factory that is responsible for deploying / managing automated market makers associated with a protocol. Some AMMs might not have a factor however, it is very typical for DEXs and other CFMMs to have one. In the case that your AMM has a factory, we will add it to `damms` to enable identification of all AMMs related to that factory. An example of this is the UniswapV2Factory. This contract deploys all of the UniswapV2 pools and through the factory, we can identify every pool within the UniswapV2 ecosystem. In the following sections, we will walk through creating a factory type,k implementing the `AutomatedMarketMakerFactory` trait, adding the factory to the `Factory` enum, adding peripheral functions, adding tests and lastly adding the factory to the discovery module. This process is very similar to creating a new AMM by design. Let's get started.
+Many AMMs will have a factory that is responsible for deploying / managing automated market makers associated with a protocol. Some AMMs might not have a factor however, it is very typical for DEXs and other CFMMs to have one. In the case that your AMM has a factory, we will add it to `amms` to enable identification of all AMMs related to that factory. An example of this is the UniswapV2Factory. This contract deploys all of the UniswapV2 pools and through the factory, we can identify every pool within the UniswapV2 ecosystem. In the following sections, we will walk through creating a factory type,k implementing the `AutomatedMarketMakerFactory` trait, adding the factory to the `Factory` enum, adding peripheral functions, adding tests and lastly adding the factory to the discovery module. This process is very similar to creating a new AMM by design. Let's get started.
 
 
 <br>

@@ -51,6 +51,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "amms"
+version = "0.5.2"
+dependencies = [
+ "async-trait",
+ "ethers",
+ "futures",
+ "indicatif 0.17.2",
+ "num-bigfloat",
+ "regex",
+ "serde",
+ "serde_json",
+ "spinoff",
+ "thiserror",
+ "tokio",
+ "uniswap_v3_math",
+]
+
+[[package]]
 name = "anyhow"
 version = "1.0.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -603,24 +621,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0369ee1ad671834580515889b80f2ea915f23b8be8d0daa4bbaf2ac5c7590835"
 dependencies = [
  "cipher 0.4.3",
-]
-
-[[package]]
-name = "damms"
-version = "0.5.2"
-dependencies = [
- "async-trait",
- "ethers",
- "futures",
- "indicatif 0.17.2",
- "num-bigfloat",
- "regex",
- "serde",
- "serde_json",
- "spinoff",
- "thiserror",
- "tokio",
- "uniswap_v3_math",
 ]
 
 [[package]]
