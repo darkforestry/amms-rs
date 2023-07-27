@@ -467,7 +467,7 @@ pub async fn handle_state_changes_from_logs<M: Middleware>(
     state: Arc<RwLock<StateSpace>>,
     state_change_cache: Arc<RwLock<StateChangeCache>>,
     logs: Vec<Log>,
-    middleware: Arc<M>,
+    _middleware: Arc<M>,
 ) -> Result<Vec<H160>, StateChangeError> {
     let mut updated_amms_set = HashSet::new();
     let mut updated_amms = vec![];
