@@ -1,10 +1,3 @@
-use std::{error::Error, str::FromStr, sync::Arc};
-
-use ethers::{
-    providers::{Http, Provider},
-    types::H160,
-};
-
 use amms::{
     amm::{
         factory::Factory, uniswap_v2::factory::UniswapV2Factory,
@@ -12,6 +5,11 @@ use amms::{
     },
     sync,
 };
+use ethers::{
+    providers::{Http, Provider},
+    types::H160,
+};
+use std::{error::Error, str::FromStr, sync::Arc};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
