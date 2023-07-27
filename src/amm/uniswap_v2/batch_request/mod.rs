@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use crate::{
     amm::{AutomatedMarketMaker, AMM},
-    errors::DAMMError,
+    errors::AMMError,
 };
 
 use ethers::prelude::abigen;
@@ -23,12 +23,23 @@ abigen!(
         "src/amm/uniswap_v2/batch_request/GetUniswapV2PoolDataBatchRequestABI.json";
 );
 
+fn populate_pool_data_from_tokens(mut pool: UniswapV2Pool, tokens: Vec<Token>) -> UniswapV2Pool {
+    pool.token_a = tokens[0].to_owned().into_address().unwrap();
+    pool.token_a_decimals = tokens[1].to_owned().into_uint().unwrap().as_u32() as u8;
+    pool.token_b = tokens[2].to_owned().into_address().unwrap();
+    pool.token_b_decimals = tokens[3].to_owned().into_uint().unwrap().as_u32() as u8;
+    pool.reserve_0 = tokens[4].to_owned().into_uint().unwrap().as_u128();
+    pool.reserve_1 = tokens[5].to_owned().into_uint().unwrap().as_u128();
+    pool.fee = 300;
+    pool
+}
+
 pub async fn get_pairs_batch_request<M: Middleware>(
     factory: H160,
     from: U256,
     step: U256,
     middleware: Arc<M>,
-) -> Result<Vec<H160>, DAMMError<M>> {
+) -> Result<Vec<H160>, AMMError<M>> {
     let mut pairs = vec![];
 
     let constructor_args = Token::Tuple(vec![
@@ -63,7 +74,7 @@ pub async fn get_pairs_batch_request<M: Middleware>(
 pub async fn get_amm_data_batch_request<M: Middleware>(
     amms: &mut [AMM],
     middleware: Arc<M>,
-) -> Result<(), DAMMError<M>> {
+) -> Result<(), AMMError<M>> {
     let mut target_addresses = vec![];
     for amm in amms.iter() {
         target_addresses.push(Token::Address(amm.address()));
@@ -98,20 +109,10 @@ pub async fn get_amm_data_batch_request<M: Middleware>(
                         //Update the pool data
                         if let AMM::UniswapV2Pool(uniswap_v2_pool) = amms.get_mut(pool_idx).unwrap()
                         {
-                            uniswap_v2_pool.token_a =
-                                pool_data[0].to_owned().into_address().unwrap();
-                            uniswap_v2_pool.token_a_decimals =
-                                pool_data[1].to_owned().into_uint().unwrap().as_u32() as u8;
-                            uniswap_v2_pool.token_b =
-                                pool_data[2].to_owned().into_address().unwrap();
-                            uniswap_v2_pool.token_b_decimals =
-                                pool_data[3].to_owned().into_uint().unwrap().as_u32() as u8;
-                            uniswap_v2_pool.reserve_0 =
-                                pool_data[4].to_owned().into_uint().unwrap().as_u128();
-                            uniswap_v2_pool.reserve_1 =
-                                pool_data[5].to_owned().into_uint().unwrap().as_u128();
-
-                            uniswap_v2_pool.fee = 300;
+                            *uniswap_v2_pool = populate_pool_data_from_tokens(
+                                uniswap_v2_pool.to_owned(),
+                                pool_data,
+                            );
                         }
                     }
                     pool_idx += 1;
@@ -126,7 +127,7 @@ pub async fn get_amm_data_batch_request<M: Middleware>(
 pub async fn get_v2_pool_data_batch_request<M: Middleware>(
     pool: &mut UniswapV2Pool,
     middleware: Arc<M>,
-) -> Result<(), DAMMError<M>> {
+) -> Result<(), AMMError<M>> {
     let constructor_args = Token::Tuple(vec![Token::Array(vec![Token::Address(pool.address)])]);
 
     let deployer =
@@ -152,16 +153,7 @@ pub async fn get_v2_pool_data_batch_request<M: Middleware>(
                     //If the pool token A is not zero, signaling that the pool data was populated
                     if !pool_data[0].to_owned().into_address().unwrap().is_zero() {
                         //Update the pool data
-                        pool.token_a = pool_data[0].to_owned().into_address().unwrap();
-                        pool.token_a_decimals =
-                            pool_data[1].to_owned().into_uint().unwrap().as_u32() as u8;
-                        pool.token_b = pool_data[2].to_owned().into_address().unwrap();
-                        pool.token_b_decimals =
-                            pool_data[3].to_owned().into_uint().unwrap().as_u32() as u8;
-                        pool.reserve_0 = pool_data[4].to_owned().into_uint().unwrap().as_u128();
-                        pool.reserve_1 = pool_data[5].to_owned().into_uint().unwrap().as_u128();
-
-                        pool.fee = 300;
+                        *pool = populate_pool_data_from_tokens(pool.to_owned(), pool_data);
                     }
                 }
             }

@@ -8,7 +8,7 @@ use ethers::{
 use serde::{Deserialize, Serialize};
 use tokio::task::JoinHandle;
 
-use crate::errors::DAMMError;
+use crate::errors::AMMError;
 
 use super::{
     izumi::factory::{IziSwapFactory, IZI_POOL_CREATED_EVENT_SIGNATURE},
@@ -28,14 +28,14 @@ pub trait AutomatedMarketMakerFactory {
         to_block: Option<u64>,
         middleware: Arc<M>,
         step: u64,
-    ) -> Result<Vec<AMM>, DAMMError<M>>;
+    ) -> Result<Vec<AMM>, AMMError<M>>;
 
     async fn populate_amm_data<M: Middleware>(
         &self,
         amms: &mut [AMM],
         block_number: Option<u64>,
         middleware: Arc<M>,
-    ) -> Result<(), DAMMError<M>>;
+    ) -> Result<(), AMMError<M>>;
 
     fn amm_created_event_signature(&self) -> H256;
 
@@ -45,7 +45,7 @@ pub trait AutomatedMarketMakerFactory {
         &self,
         log: Log,
         middleware: Arc<M>,
-    ) -> Result<AMM, DAMMError<M>>;
+    ) -> Result<AMM, AMMError<M>>;
 
     fn new_empty_amm_from_log(&self, log: Log) -> Result<AMM, ethers::abi::Error>;
 }
@@ -79,7 +79,7 @@ impl AutomatedMarketMakerFactory for Factory {
         &self,
         log: Log,
         middleware: Arc<M>,
-    ) -> Result<AMM, DAMMError<M>> {
+    ) -> Result<AMM, AMMError<M>> {
         match self {
             Factory::UniswapV2Factory(factory) => factory.new_amm_from_log(log, middleware).await,
             Factory::UniswapV3Factory(factory) => factory.new_amm_from_log(log, middleware).await,
@@ -100,7 +100,7 @@ impl AutomatedMarketMakerFactory for Factory {
         to_block: Option<u64>,
         middleware: Arc<M>,
         step: u64,
-    ) -> Result<Vec<AMM>, DAMMError<M>> {
+    ) -> Result<Vec<AMM>, AMMError<M>> {
         match self {
             Factory::UniswapV2Factory(factory) => {
                 factory.get_all_amms(to_block, middleware, step).await
@@ -119,7 +119,7 @@ impl AutomatedMarketMakerFactory for Factory {
         amms: &mut [AMM],
         block_number: Option<u64>,
         middleware: Arc<M>,
-    ) -> Result<(), DAMMError<M>> {
+    ) -> Result<(), AMMError<M>> {
         match self {
             Factory::UniswapV2Factory(factory) => {
                 factory.populate_amm_data(amms, None, middleware).await
@@ -153,7 +153,7 @@ impl Factory {
         to_block: u64,
         step: u64,
         middleware: Arc<M>,
-    ) -> Result<Vec<AMM>, DAMMError<M>> {
+    ) -> Result<Vec<AMM>, AMMError<M>> {
         let factory_address = self.address();
         let amm_created_event_signature = self.amm_created_event_signature();
         let mut log_group = vec![];
@@ -178,9 +178,9 @@ impl Factory {
                             .to_block(BlockNumber::Number(U64([target_block]))),
                     )
                     .await
-                    .map_err(DAMMError::MiddlewareError)?;
+                    .map_err(AMMError::MiddlewareError)?;
 
-                Ok::<Vec<Log>, DAMMError<M>>(logs)
+                Ok::<Vec<Log>, AMMError<M>>(logs)
             }));
 
             from_block += step;
@@ -206,9 +206,9 @@ impl Factory {
 
     async fn process_logs_from_handles<M: Middleware>(
         &self,
-        handles: Vec<JoinHandle<Result<Vec<Log>, DAMMError<M>>>>,
+        handles: Vec<JoinHandle<Result<Vec<Log>, AMMError<M>>>>,
         log_group: &mut Vec<Log>,
-    ) -> Result<(), DAMMError<M>> {
+    ) -> Result<(), AMMError<M>> {
         for handle in handles {
             let logs = handle.await??;
             for log in logs {

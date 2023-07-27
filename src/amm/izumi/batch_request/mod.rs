@@ -8,7 +8,7 @@ use ethers::{
 
 use crate::{
     amm::{AutomatedMarketMaker, AMM},
-    errors::DAMMError,
+    errors::AMMError,
 };
 
 use super::IziSwapPool;
@@ -27,7 +27,7 @@ pub async fn get_izi_pool_data_batch_request<M: Middleware>(
     pool: &mut IziSwapPool,
     block_number: Option<u64>,
     middleware: Arc<M>,
-) -> Result<(), DAMMError<M>> {
+) -> Result<(), AMMError<M>> {
     let constructor_args = Token::Tuple(vec![Token::Array(vec![Token::Address(pool.address)])]);
 
     let deployer =
@@ -100,7 +100,7 @@ pub async fn get_izi_pool_data_batch_request<M: Middleware>(
 pub async fn sync_izi_pool_batch_request<M: Middleware>(
     pool: &mut IziSwapPool,
     middleware: Arc<M>,
-) -> Result<(), DAMMError<M>> {
+) -> Result<(), AMMError<M>> {
     let constructor_args = Token::Tuple(vec![Token::Array(vec![Token::Address(pool.address)])]);
 
     let deployer = ISynciZiPoolDataBatchRequest::deploy(middleware.clone(), constructor_args)
@@ -132,7 +132,7 @@ pub async fn sync_izi_pool_batch_request<M: Middleware>(
                         pool.current_point =
                             I256::from_raw(pool_data[4].to_owned().into_int().unwrap()).as_i32();
                     } else {
-                        return Err(DAMMError::SyncError(pool.address));
+                        return Err(AMMError::SyncError(pool.address));
                     }
                 }
             }
@@ -146,7 +146,7 @@ pub async fn get_amm_data_batch_request<M: Middleware>(
     amms: &mut [AMM],
     block_number: u64,
     middleware: Arc<M>,
-) -> Result<(), DAMMError<M>> {
+) -> Result<(), AMMError<M>> {
     let mut target_addresses = vec![];
 
     for amm in amms.iter() {

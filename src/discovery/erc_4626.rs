@@ -9,7 +9,7 @@ use spinoff::{spinners, Color, Spinner};
 
 use crate::{
     amm::erc_4626::{ERC4626Vault, DEPOSIT_EVENT_SIGNATURE, WITHDRAW_EVENT_SIGNATURE},
-    errors::DAMMError,
+    errors::AMMError,
 };
 
 // Returns a vec of empty factories that match one of the Factory interfaces specified by each DiscoverableFactory
@@ -17,7 +17,7 @@ use crate::{
 pub async fn discover_erc_4626_vaults<M: Middleware>(
     middleware: Arc<M>,
     step: u64,
-) -> Result<Vec<ERC4626Vault>, DAMMError<M>> {
+) -> Result<Vec<ERC4626Vault>, AMMError<M>> {
     let spinner = Spinner::new(
         spinners::Dots,
         "Discovering new ERC 4626 vaults...",
@@ -30,7 +30,7 @@ pub async fn discover_erc_4626_vaults<M: Middleware>(
     let current_block = middleware
         .get_block_number()
         .await
-        .map_err(DAMMError::MiddlewareError)?
+        .map_err(AMMError::MiddlewareError)?
         .as_u64();
 
     let mut adheres_to_withdraw_event = HashSet::new();
@@ -68,7 +68,7 @@ pub async fn discover_erc_4626_vaults<M: Middleware>(
                     .collect::<Vec<U256>>();
 
                 if block_range.is_empty() {
-                    return Err(DAMMError::MiddlewareError(err));
+                    return Err(AMMError::MiddlewareError(err));
                 } else {
                     let logs = middleware
                         .get_logs(
@@ -77,7 +77,7 @@ pub async fn discover_erc_4626_vaults<M: Middleware>(
                                 .to_block(block_range[1].as_u64()),
                         )
                         .await
-                        .map_err(DAMMError::MiddlewareError)?;
+                        .map_err(AMMError::MiddlewareError)?;
 
                     from_block = block_range[1].as_u64();
 

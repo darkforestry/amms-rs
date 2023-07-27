@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     amm::{factory::AutomatedMarketMakerFactory, AMM},
-    errors::DAMMError,
+    errors::AMMError,
 };
 
 use super::{batch_request, UniswapV2Pool};
@@ -54,7 +54,7 @@ impl UniswapV2Factory {
     pub async fn get_all_pairs_via_batched_calls<M: Middleware>(
         &self,
         middleware: Arc<M>,
-    ) -> Result<Vec<AMM>, DAMMError<M>> {
+    ) -> Result<Vec<AMM>, AMMError<M>> {
         let factory = IUniswapV2Factory::new(self.address, middleware.clone());
 
         let pairs_length: U256 = factory.all_pairs_length().call().await?;
@@ -118,7 +118,7 @@ impl AutomatedMarketMakerFactory for UniswapV2Factory {
         &self,
         log: Log,
         middleware: Arc<M>,
-    ) -> Result<AMM, DAMMError<M>> {
+    ) -> Result<AMM, AMMError<M>> {
         let pair_created_event: PairCreatedFilter =
             PairCreatedFilter::decode_log(&RawLog::from(log))?;
         Ok(AMM::UniswapV2Pool(
@@ -147,7 +147,7 @@ impl AutomatedMarketMakerFactory for UniswapV2Factory {
         _to_block: Option<u64>,
         middleware: Arc<M>,
         _step: u64,
-    ) -> Result<Vec<AMM>, DAMMError<M>> {
+    ) -> Result<Vec<AMM>, AMMError<M>> {
         self.get_all_pairs_via_batched_calls(middleware).await
     }
 
@@ -156,7 +156,7 @@ impl AutomatedMarketMakerFactory for UniswapV2Factory {
         amms: &mut [AMM],
         _block_number: Option<u64>,
         middleware: Arc<M>,
-    ) -> Result<(), DAMMError<M>> {
+    ) -> Result<(), AMMError<M>> {
         let step = 127; //Max batch size for call
         for amm_chunk in amms.chunks_mut(step) {
             batch_request::get_amm_data_batch_request(amm_chunk, middleware.clone()).await?;

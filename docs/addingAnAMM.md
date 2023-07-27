@@ -5,7 +5,7 @@ The recommended way to read this document is to fully read through the entire wa
 
 ## Adding a new AMM
 
-`damms` was written with modularity in mind. The following is a straightforward walkthrough on how to add a new `AMM`. Note that this might seem complex at first, but this walkthrough is designed to make the integration process simple and easy. Just keep reading through the walkthrough, and you will have your new AMM integrated in no time! Once you are familiar with the codebase, building on top of the existing framework should be a breeze. Below is a quick overview of the steps to add a new AMM.
+`amms` was written with modularity in mind. The following is a straightforward walkthrough on how to add a new `AMM`. Note that this might seem complex at first, but this walkthrough is designed to make the integration process simple and easy. Just keep reading through the walkthrough, and you will have your new AMM integrated in no time! Once you are familiar with the codebase, building on top of the existing framework should be a breeze. Below is a quick overview of the steps to add a new AMM.
 
 - Create a new module for your AMM
 - Create a new AMM type
@@ -14,7 +14,7 @@ The recommended way to read this document is to fully read through the entire wa
 - Add peripheral functions
 - Add tests
 
-Most AMMs will have a factory that is responsible for deploying the AMM. This factory allows `damms` to identify all of the AMMs from a given protocol, however some AMMs might not have a factory. If your AMM does have a factory, make sure to add a factory type with the following steps below.
+Most AMMs will have a factory that is responsible for deploying the AMM. This factory allows `amms` to identify all of the AMMs from a given protocol, however some AMMs might not have a factory. If your AMM does have a factory, make sure to add a factory type with the following steps below.
 
 - Create a factory type
 - Implement the `AutomatedMarketMakerFactory` trait for the factory
@@ -93,14 +93,14 @@ Now we will need to implement the `AutomatedMarketMaker` on your newly created s
 #[async_trait]
 pub trait AutomatedMarketMaker {
     fn address(&self) -> H160;
-    async fn sync<M: Middleware>(&mut self, middleware: Arc<M>) -> Result<(), DAMMError<M>>;
+    async fn sync<M: Middleware>(&mut self, middleware: Arc<M>) -> Result<(), AMMError<M>>;
     fn sync_on_event_signatures(&self) -> Vec<H256>;
     fn tokens(&self) -> Vec<H160>;
     fn calculate_price(&self, base_token: H160) -> Result<f64, ArithmeticError>;
     async fn populate_data<M: Middleware>(
         &mut self,
         middleware: Arc<M>,
-    ) -> Result<(), DAMMError<M>>;
+    ) -> Result<(), AMMError<M>>;
 }
 
 ```
@@ -132,7 +132,7 @@ pub enum AMM {
 }
 ```
 
-And all of a sudden, red everywhere. You will notice that after adding your AMM variant, many things break. Fear not, this is a feature not a bug. `damms` uses exhaustive pattern matching for the `AMM` enum so that you know exactly where to add your new variant throughout the codebase. Let's take a look at each spot.
+And all of a sudden, red everywhere. You will notice that after adding your AMM variant, many things break. Fear not, this is a feature not a bug. `amms` uses exhaustive pattern matching for the `AMM` enum so that you know exactly where to add your new variant throughout the codebase. Let's take a look at each spot.
 
 The first spot we need to add code is the `AutomatedMarketMaker` implementation for the `AMM` enum. We use an enum dispatch so that we can put all `AMM` variants in a collection and call any of the `AutomatedMarketMaker` methods on the `AMM` enum itself without having to match on the inner types.
 
@@ -149,7 +149,7 @@ impl AutomatedMarketMaker for AMM {
         }
     }
 
-    async fn sync<M: Middleware>(&mut self, middleware: Arc<M>) -> Result<(), DAMMError<M>> {
+    async fn sync<M: Middleware>(&mut self, middleware: Arc<M>) -> Result<(), AMMError<M>> {
         match self {
             AMM::UniswapV2Pool(pool) => pool.sync(middleware).await,
             AMM::UniswapV3Pool(pool) => pool.sync(middleware).await,
@@ -184,7 +184,7 @@ impl AutomatedMarketMaker for AMM {
     async fn populate_data<M: Middleware>(
         &mut self,
         middleware: Arc<M>,
-    ) -> Result<(), DAMMError<M>> {
+    ) -> Result<(), AMMError<M>> {
         match self {
             AMM::UniswapV2Pool(pool) => pool.populate_data(middleware).await,
             AMM::UniswapV3Pool(pool) => pool.populate_data(middleware).await,
@@ -267,7 +267,7 @@ In the same file, you will need to add your `AMM` to the match statement within 
 pub async fn batch_sync_amms_from_checkpoint<M: 'static + Middleware>(
     mut amms: Vec<AMM>,
     middleware: Arc<M>,
-) -> JoinHandle<Result<Vec<AMM>, DAMMError<M>>> {
+) -> JoinHandle<Result<Vec<AMM>, AMMError<M>>> {
     let factory = match amms[0] {
         AMM::UniswapV2Pool(_) => Some(Factory::UniswapV2Factory(UniswapV2Factory::new(
             H160::zero(),
@@ -297,7 +297,7 @@ In the case that the AMM you are adding does not have a factory, you can just ad
 pub async fn batch_sync_amms_from_checkpoint<M: 'static + Middleware>(
     mut amms: Vec<AMM>,
     middleware: Arc<M>,
-) -> JoinHandle<Result<Vec<AMM>, DAMMError<M>>> {
+) -> JoinHandle<Result<Vec<AMM>, AMMError<M>>> {
     let factory = match amms[0] {
         AMM::UniswapV2Pool(_) => Some(Factory::UniswapV2Factory(UniswapV2Factory::new(
             H160::zero(),
@@ -325,7 +325,7 @@ The last stop on our tour is the `populate_amms` function in `src/sync/mod.rs`. 
 pub async fn populate_amms<M: Middleware>(
     amms: &mut [AMM],
     middleware: Arc<M>,
-) -> Result<(), DAMMError<M>> {
+) -> Result<(), AMMError<M>> {
     if amms_are_congruent(amms) {
         match amms[0] {
             AMM::UniswapV2Pool(_) => {
@@ -358,7 +358,7 @@ pub async fn populate_amms<M: Middleware>(
             }
         }
     } else {
-        return Err(DAMMError::IncongruentAMMs);
+        return Err(AMMError::IncongruentAMMs);
     }
 
     //For each pair in the pairs vec, get the pool data
@@ -385,7 +385,7 @@ Now that your new AMM is integrated into the `AMM` enum, its time to add periphe
 
 - `pub fn swap_calldata(&self, args) -> Bytes`: This function takes in all of the arguments necessary for swapping tokens and returns the calldata that could be passed into a transaction or multicall.
 
-- `pub fn sync_from_log(&self, log: &Log) -> Result<(), DAMMError<M>>`: Handles any logs and syncs the AMM accordingly. It is possible that an AMM needs to listen for multiple logs. If this is the case, this function should have pattern matching for each event signature and handle the log accordingly. This function should return an error if the log passed in does not match any signatures related to the AMM.
+- `pub fn sync_from_log(&self, log: &Log) -> Result<(), AMMError<M>>`: Handles any logs and syncs the AMM accordingly. It is possible that an AMM needs to listen for multiple logs. If this is the case, this function should have pattern matching for each event signature and handle the log accordingly. This function should return an error if the log passed in does not match any signatures related to the AMM.
 
 In addition to the functions above, feel free to write any other functions that might be useful like helper functions, calculations, etc.
 
@@ -401,7 +401,7 @@ Last but not least, make sure to add tests for all of the new functions introduc
 
 ## Adding a new AMM factory
 
-Many AMMs will have a factory that is responsible for deploying / managing automated market makers associated with a protocol. Some AMMs might not have a factor however, it is very typical for DEXs and other CFMMs to have one. In the case that your AMM has a factory, we will add it to `damms` to enable identification of all AMMs related to that factory. An example of this is the UniswapV2Factory. This contract deploys all of the UniswapV2 pools and through the factory, we can identify every pool within the UniswapV2 ecosystem. In the following sections, we will walk through creating a factory type,k implementing the `AutomatedMarketMakerFactory` trait, adding the factory to the `Factory` enum, adding peripheral functions, adding tests and lastly adding the factory to the discovery module. This process is very similar to creating a new AMM by design. Let's get started.
+Many AMMs will have a factory that is responsible for deploying / managing automated market makers associated with a protocol. Some AMMs might not have a factor however, it is very typical for DEXs and other CFMMs to have one. In the case that your AMM has a factory, we will add it to `amms` to enable identification of all AMMs related to that factory. An example of this is the UniswapV2Factory. This contract deploys all of the UniswapV2 pools and through the factory, we can identify every pool within the UniswapV2 ecosystem. In the following sections, we will walk through creating a factory type,k implementing the `AutomatedMarketMakerFactory` trait, adding the factory to the `Factory` enum, adding peripheral functions, adding tests and lastly adding the factory to the discovery module. This process is very similar to creating a new AMM by design. Let's get started.
 
 
 <br>
@@ -450,18 +450,18 @@ pub trait AutomatedMarketMakerFactory {
         &self,
         log: Log,
         middleware: Arc<M>,
-    ) -> Result<AMM, DAMMError<M>>;
+    ) -> Result<AMM, AMMError<M>>;
 
     async fn get_all_amms<M: Middleware>(
         &self,
         middleware: Arc<M>,
-    ) -> Result<Vec<AMM>, DAMMError<M>>;
+    ) -> Result<Vec<AMM>, AMMError<M>>;
 
     async fn populate_amm_data<M: Middleware>(
         &self,
         amms: &mut [AMM],
         middleware: Arc<M>,
-    ) -> Result<(), DAMMError<M>>;
+    ) -> Result<(), AMMError<M>>;
 }
 ```
 
@@ -524,7 +524,7 @@ impl AutomatedMarketMakerFactory for Factory {
         &self,
         log: Log,
         middleware: Arc<M>,
-    ) -> Result<AMM, DAMMError<M>> {
+    ) -> Result<AMM, AMMError<M>> {
         match self {
             Factory::UniswapV2Factory(factory) => factory.new_amm_from_log(log, middleware).await,
             Factory::UniswapV3Factory(factory) => factory.new_amm_from_log(log, middleware).await,
@@ -544,7 +544,7 @@ impl AutomatedMarketMakerFactory for Factory {
     async fn get_all_amms<M: Middleware>(
         &self,
         middleware: Arc<M>,
-    ) -> Result<Vec<AMM>, DAMMError<M>> {
+    ) -> Result<Vec<AMM>, AMMError<M>> {
         match self {
             Factory::UniswapV2Factory(factory) => factory.get_all_amms(middleware).await,
             Factory::UniswapV3Factory(factory) => factory.get_all_amms(middleware).await,
@@ -556,7 +556,7 @@ impl AutomatedMarketMakerFactory for Factory {
         &self,
         amms: &mut [AMM],
         middleware: Arc<M>,
-    ) -> Result<(), DAMMError<M>> {
+    ) -> Result<(), AMMError<M>> {
         match self {
             Factory::UniswapV2Factory(factory) => factory.populate_amm_data(amms, middleware).await,
             Factory::UniswapV3Factory(factory) => factory.populate_amm_data(amms, middleware).await,

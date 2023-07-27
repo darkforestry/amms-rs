@@ -8,7 +8,7 @@ use ethers::{
 
 use crate::{
     amm::{AutomatedMarketMaker, AMM},
-    errors::DAMMError,
+    errors::AMMError,
 };
 
 use super::UniswapV3Pool;
@@ -25,11 +25,24 @@ abigen!(
 
 );
 
+fn populate_pool_data_from_tokens(mut pool: UniswapV3Pool, tokens: Vec<Token>) -> UniswapV3Pool {
+    pool.token_a = tokens[0].to_owned().into_address().unwrap();
+    pool.token_a_decimals = tokens[1].to_owned().into_uint().unwrap().as_u32() as u8;
+    pool.token_b = tokens[2].to_owned().into_address().unwrap();
+    pool.token_b_decimals = tokens[3].to_owned().into_uint().unwrap().as_u32() as u8;
+    pool.liquidity = tokens[4].to_owned().into_uint().unwrap().as_u128();
+    pool.sqrt_price = tokens[5].to_owned().into_uint().unwrap();
+    pool.tick = I256::from_raw(tokens[6].to_owned().into_int().unwrap()).as_i32();
+    pool.tick_spacing = I256::from_raw(tokens[7].to_owned().into_int().unwrap()).as_i32();
+    pool.fee = tokens[8].to_owned().into_uint().unwrap().as_u64() as u32;
+    pool
+}
+
 pub async fn get_v3_pool_data_batch_request<M: Middleware>(
     pool: &mut UniswapV3Pool,
     block_number: Option<u64>,
     middleware: Arc<M>,
-) -> Result<(), DAMMError<M>> {
+) -> Result<(), AMMError<M>> {
     let constructor_args = Token::Tuple(vec![Token::Array(vec![Token::Address(pool.address)])]);
 
     let deployer =
@@ -64,28 +77,7 @@ pub async fn get_v3_pool_data_batch_request<M: Middleware>(
                 if let Some(pool_data) = tup.into_tuple() {
                     //If the pool token A is not zero, signaling that the pool data was populated
                     if !pool_data[0].to_owned().into_address().unwrap().is_zero() {
-                        //Update the pool data
-                        pool.token_a = pool_data[0].to_owned().into_address().unwrap();
-
-                        pool.token_a_decimals =
-                            pool_data[1].to_owned().into_uint().unwrap().as_u32() as u8;
-
-                        pool.token_b = pool_data[2].to_owned().into_address().unwrap();
-
-                        pool.token_b_decimals =
-                            pool_data[3].to_owned().into_uint().unwrap().as_u32() as u8;
-
-                        pool.liquidity = pool_data[4].to_owned().into_uint().unwrap().as_u128();
-
-                        pool.sqrt_price = pool_data[5].to_owned().into_uint().unwrap();
-
-                        pool.tick =
-                            I256::from_raw(pool_data[6].to_owned().into_int().unwrap()).as_i32();
-
-                        pool.tick_spacing =
-                            I256::from_raw(pool_data[7].to_owned().into_int().unwrap()).as_i32();
-
-                        pool.fee = pool_data[8].to_owned().into_uint().unwrap().as_u64() as u32;
+                        *pool = populate_pool_data_from_tokens(pool.to_owned(), pool_data);
                     }
                 }
             }
@@ -107,7 +99,7 @@ pub async fn get_uniswap_v3_tick_data_batch_request<M: Middleware>(
     num_ticks: u16,
     block_number: Option<U64>,
     middleware: Arc<M>,
-) -> Result<(Vec<UniswapV3TickData>, U64), DAMMError<M>> {
+) -> Result<(Vec<UniswapV3TickData>, U64), AMMError<M>> {
     let constructor_args = Token::Tuple(vec![
         Token::Address(pool.address),
         Token::Bool(zero_for_one),
@@ -187,7 +179,7 @@ pub async fn get_uniswap_v3_tick_data_batch_request<M: Middleware>(
 pub async fn sync_v3_pool_batch_request<M: Middleware>(
     pool: &mut UniswapV3Pool,
     middleware: Arc<M>,
-) -> Result<(), DAMMError<M>> {
+) -> Result<(), AMMError<M>> {
     let constructor_args = Token::Tuple(vec![Token::Address(pool.address)]);
 
     let deployer =
@@ -213,7 +205,7 @@ pub async fn sync_v3_pool_batch_request<M: Middleware>(
                 pool.sqrt_price = pool_data[1].to_owned().into_uint().unwrap();
                 pool.tick = I256::from_raw(pool_data[2].to_owned().into_int().unwrap()).as_i32();
             } else {
-                return Err(DAMMError::SyncError(pool.address));
+                return Err(AMMError::SyncError(pool.address));
             }
         }
     }
@@ -225,7 +217,7 @@ pub async fn get_amm_data_batch_request<M: Middleware>(
     amms: &mut [AMM],
     block_number: u64,
     middleware: Arc<M>,
-) -> Result<(), DAMMError<M>> {
+) -> Result<(), AMMError<M>> {
     let mut target_addresses = vec![];
 
     for amm in amms.iter() {
@@ -266,34 +258,10 @@ pub async fn get_amm_data_batch_request<M: Middleware>(
                         //Update the pool data
                         if let AMM::UniswapV3Pool(uniswap_v3_pool) = amms.get_mut(pool_idx).unwrap()
                         {
-                            uniswap_v3_pool.token_a =
-                                pool_data[0].to_owned().into_address().unwrap();
-
-                            uniswap_v3_pool.token_a_decimals =
-                                pool_data[1].to_owned().into_uint().unwrap().as_u32() as u8;
-
-                            uniswap_v3_pool.token_b =
-                                pool_data[2].to_owned().into_address().unwrap();
-
-                            uniswap_v3_pool.token_b_decimals =
-                                pool_data[3].to_owned().into_uint().unwrap().as_u32() as u8;
-
-                            uniswap_v3_pool.liquidity =
-                                pool_data[4].to_owned().into_uint().unwrap().as_u128();
-
-                            uniswap_v3_pool.sqrt_price =
-                                pool_data[5].to_owned().into_uint().unwrap();
-
-                            uniswap_v3_pool.tick =
-                                I256::from_raw(pool_data[6].to_owned().into_int().unwrap())
-                                    .as_i32();
-
-                            uniswap_v3_pool.tick_spacing =
-                                I256::from_raw(pool_data[7].to_owned().into_int().unwrap())
-                                    .as_i32();
-
-                            uniswap_v3_pool.fee =
-                                pool_data[8].to_owned().into_uint().unwrap().as_u64() as u32;
+                            *uniswap_v3_pool = populate_pool_data_from_tokens(
+                                uniswap_v3_pool.to_owned(),
+                                pool_data,
+                            );
                         }
                     }
                     pool_idx += 1;

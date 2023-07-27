@@ -9,7 +9,7 @@ use std::{
 
 use crate::{
     amm::AutomatedMarketMaker,
-    errors::{ArithmeticError, DAMMError, EventLogError, SwapSimulationError},
+    errors::{AMMError, ArithmeticError, EventLogError, SwapSimulationError},
 };
 use async_trait::async_trait;
 use ethers::{
@@ -122,7 +122,7 @@ impl AutomatedMarketMaker for UniswapV3Pool {
         self.address
     }
 
-    async fn sync<M: Middleware>(&mut self, middleware: Arc<M>) -> Result<(), DAMMError<M>> {
+    async fn sync<M: Middleware>(&mut self, middleware: Arc<M>) -> Result<(), AMMError<M>> {
         batch_request::sync_v3_pool_batch_request(self, middleware.clone()).await?;
         Ok(())
     }
@@ -177,7 +177,7 @@ impl AutomatedMarketMaker for UniswapV3Pool {
         &mut self,
         block_number: Option<u64>,
         middleware: Arc<M>,
-    ) -> Result<(), DAMMError<M>> {
+    ) -> Result<(), AMMError<M>> {
         batch_request::get_v3_pool_data_batch_request(self, block_number, middleware.clone())
             .await?;
         Ok(())
@@ -498,7 +498,7 @@ impl UniswapV3Pool {
         pair_address: H160,
         creation_block: u64,
         middleware: Arc<M>,
-    ) -> Result<Self, DAMMError<M>> {
+    ) -> Result<Self, AMMError<M>> {
         let mut pool = UniswapV3Pool {
             address: pair_address,
             token_a: H160::zero(),
@@ -525,7 +525,7 @@ impl UniswapV3Pool {
         pool.populate_data(Some(synced_block), middleware).await?;
 
         if !pool.data_is_populated() {
-            return Err(DAMMError::PoolDataError);
+            return Err(AMMError::PoolDataError);
         }
 
         Ok(pool)
@@ -534,7 +534,7 @@ impl UniswapV3Pool {
     pub async fn new_from_log<M: 'static + Middleware>(
         log: Log,
         middleware: Arc<M>,
-    ) -> Result<Self, DAMMError<M>> {
+    ) -> Result<Self, AMMError<M>> {
         let event_signature = log.topics[0];
 
         if event_signature == POOL_CREATED_EVENT_SIGNATURE {
@@ -584,11 +584,11 @@ impl UniswapV3Pool {
         &mut self,
         mut from_block: u64,
         middleware: Arc<M>,
-    ) -> Result<u64, DAMMError<M>> {
+    ) -> Result<u64, AMMError<M>> {
         let current_block = middleware
             .get_block_number()
             .await
-            .map_err(DAMMError::MiddlewareError)?
+            .map_err(AMMError::MiddlewareError)?
             .as_u64();
         let mut ordered_logs: BTreeMap<U64, Vec<Log>> = BTreeMap::new();
 
@@ -616,9 +616,9 @@ impl UniswapV3Pool {
                             .to_block(BlockNumber::Number(U64([target_block]))),
                     )
                     .await
-                    .map_err(DAMMError::MiddlewareError)?;
+                    .map_err(AMMError::MiddlewareError)?;
 
-                Ok::<Vec<Log>, DAMMError<M>>(logs)
+                Ok::<Vec<Log>, AMMError<M>>(logs)
             }));
 
             from_block += step;
@@ -646,9 +646,9 @@ impl UniswapV3Pool {
 
     async fn process_logs_from_handles<M: Middleware>(
         &self,
-        handles: Vec<JoinHandle<Result<Vec<Log>, DAMMError<M>>>>,
+        handles: Vec<JoinHandle<Result<Vec<Log>, AMMError<M>>>>,
         ordered_logs: &mut BTreeMap<U64, Vec<Log>>,
-    ) -> Result<(), DAMMError<M>> {
+    ) -> Result<(), AMMError<M>> {
         // group the logs from each thread by block number and then sync the logs in chronological order
         for handle in handles {
             let logs = handle.await??;
@@ -680,7 +680,7 @@ impl UniswapV3Pool {
         &self,
         tick: i32,
         middleware: Arc<M>,
-    ) -> Result<U256, DAMMError<M>> {
+    ) -> Result<U256, AMMError<M>> {
         let v3_pool = IUniswapV3Pool::new(self.address, middleware);
         let (word_position, _) = uniswap_v3_math::tick_bitmap::position(tick);
         Ok(v3_pool.tick_bitmap(word_position).call().await?)
@@ -690,7 +690,7 @@ impl UniswapV3Pool {
         &self,
         word_position: i16,
         middleware: Arc<M>,
-    ) -> Result<U256, DAMMError<M>> {
+    ) -> Result<U256, AMMError<M>> {
         let v3_pool = IUniswapV3Pool::new(self.address, middleware);
         Ok(v3_pool.tick_bitmap(word_position).call().await?)
     }
@@ -698,12 +698,12 @@ impl UniswapV3Pool {
     pub async fn get_tick_spacing<M: Middleware>(
         &self,
         middleware: Arc<M>,
-    ) -> Result<i32, DAMMError<M>> {
+    ) -> Result<i32, AMMError<M>> {
         let v3_pool = IUniswapV3Pool::new(self.address, middleware);
         Ok(v3_pool.tick_spacing().call().await?)
     }
 
-    pub async fn get_tick<M: Middleware>(&self, middleware: Arc<M>) -> Result<i32, DAMMError<M>> {
+    pub async fn get_tick<M: Middleware>(&self, middleware: Arc<M>) -> Result<i32, AMMError<M>> {
         Ok(self.get_slot_0(middleware).await?.1)
     }
 
@@ -711,7 +711,7 @@ impl UniswapV3Pool {
         &self,
         tick: i32,
         middleware: Arc<M>,
-    ) -> Result<(u128, i128, U256, U256, i64, U256, u32, bool), DAMMError<M>> {
+    ) -> Result<(u128, i128, U256, U256, i64, U256, u32, bool), AMMError<M>> {
         let v3_pool = IUniswapV3Pool::new(self.address, middleware.clone());
 
         let tick_info = v3_pool.ticks(tick).call().await?;
@@ -732,7 +732,7 @@ impl UniswapV3Pool {
         &self,
         tick: i32,
         middleware: Arc<M>,
-    ) -> Result<i128, DAMMError<M>> {
+    ) -> Result<i128, AMMError<M>> {
         let tick_info = self.get_tick_info(tick, middleware).await?;
         Ok(tick_info.1)
     }
@@ -741,7 +741,7 @@ impl UniswapV3Pool {
         &self,
         tick: i32,
         middleware: Arc<M>,
-    ) -> Result<bool, DAMMError<M>> {
+    ) -> Result<bool, AMMError<M>> {
         let tick_info = self.get_tick_info(tick, middleware).await?;
         Ok(tick_info.7)
     }
@@ -749,7 +749,7 @@ impl UniswapV3Pool {
     pub async fn get_slot_0<M: Middleware>(
         &self,
         middleware: Arc<M>,
-    ) -> Result<(U256, i32, u16, u16, u16, u8, bool), DAMMError<M>> {
+    ) -> Result<(U256, i32, u16, u16, u16, u8, bool), AMMError<M>> {
         let v3_pool = IUniswapV3Pool::new(self.address, middleware);
         Ok(v3_pool.slot_0().call().await?)
     }
@@ -757,7 +757,7 @@ impl UniswapV3Pool {
     pub async fn get_liquidity<M: Middleware>(
         &self,
         middleware: Arc<M>,
-    ) -> Result<u128, DAMMError<M>> {
+    ) -> Result<u128, AMMError<M>> {
         let v3_pool = IUniswapV3Pool::new(self.address, middleware);
         Ok(v3_pool.liquidity().call().await?)
     }
@@ -765,7 +765,7 @@ impl UniswapV3Pool {
     pub async fn get_sqrt_price<M: Middleware>(
         &self,
         middleware: Arc<M>,
-    ) -> Result<U256, DAMMError<M>> {
+    ) -> Result<U256, AMMError<M>> {
         Ok(self.get_slot_0(middleware).await?.0)
     }
 
@@ -896,7 +896,7 @@ impl UniswapV3Pool {
     pub async fn get_token_decimals<M: Middleware>(
         &mut self,
         middleware: Arc<M>,
-    ) -> Result<(u8, u8), DAMMError<M>> {
+    ) -> Result<(u8, u8), AMMError<M>> {
         let token_a_decimals = IErc20::new(self.token_a, middleware.clone())
             .decimals()
             .call()
@@ -910,10 +910,7 @@ impl UniswapV3Pool {
         Ok((token_a_decimals, token_b_decimals))
     }
 
-    pub async fn get_fee<M: Middleware>(
-        &mut self,
-        middleware: Arc<M>,
-    ) -> Result<u32, DAMMError<M>> {
+    pub async fn get_fee<M: Middleware>(&mut self, middleware: Arc<M>) -> Result<u32, AMMError<M>> {
         let fee = IUniswapV3Pool::new(self.address, middleware)
             .fee()
             .call()
@@ -925,12 +922,12 @@ impl UniswapV3Pool {
     pub async fn get_token_0<M: Middleware>(
         &self,
         middleware: Arc<M>,
-    ) -> Result<H160, DAMMError<M>> {
+    ) -> Result<H160, AMMError<M>> {
         let v3_pool = IUniswapV3Pool::new(self.address, middleware);
 
         let token_0 = match v3_pool.token_0().call().await {
             Ok(result) => result,
-            Err(contract_error) => return Err(DAMMError::ContractError(contract_error)),
+            Err(contract_error) => return Err(AMMError::ContractError(contract_error)),
         };
 
         Ok(token_0)
@@ -939,12 +936,12 @@ impl UniswapV3Pool {
     pub async fn get_token_1<M: Middleware>(
         &self,
         middleware: Arc<M>,
-    ) -> Result<H160, DAMMError<M>> {
+    ) -> Result<H160, AMMError<M>> {
         let v3_pool = IUniswapV3Pool::new(self.address, middleware);
 
         let token_1 = match v3_pool.token_1().call().await {
             Ok(result) => result,
-            Err(contract_error) => return Err(DAMMError::ContractError(contract_error)),
+            Err(contract_error) => return Err(AMMError::ContractError(contract_error)),
         };
 
         Ok(token_1)
@@ -990,7 +987,7 @@ impl UniswapV3Pool {
         word_pos: i16,
         block_number: Option<U64>,
         middleware: Arc<M>,
-    ) -> Result<U256, DAMMError<M>> {
+    ) -> Result<U256, AMMError<M>> {
         if block_number.is_some() {
             //TODO: in the future, create a batch call to get this and liquidity net within the same call
 
@@ -1083,7 +1080,7 @@ mod test {
     #[allow(unused)]
     #[allow(unused)]
     use super::UniswapV3Pool;
-    use crate::{amm::AutomatedMarketMaker, errors::DAMMError};
+    use crate::{amm::AutomatedMarketMaker, errors::AMMError};
 
     #[allow(unused)]
     use ethers::providers::Middleware;
@@ -1106,7 +1103,7 @@ mod test {
 
     async fn initialize_test_pool<M: 'static + Middleware>(
         middleware: Arc<M>,
-    ) -> Result<(UniswapV3Pool, u64), DAMMError<M>> {
+    ) -> Result<(UniswapV3Pool, u64), AMMError<M>> {
         let mut pool = UniswapV3Pool {
             address: H160::from_str("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640").unwrap(),
             ..Default::default()

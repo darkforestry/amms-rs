@@ -9,7 +9,7 @@ use ethers::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::errors::{ArithmeticError, DAMMError, EventLogError, SwapSimulationError};
+use crate::errors::{AMMError, ArithmeticError, EventLogError, SwapSimulationError};
 
 use self::factory::{NewPoolFilter, IZI_POOL_CREATED_EVENT_SIGNATURE};
 
@@ -71,7 +71,7 @@ impl AutomatedMarketMaker for IziSwapPool {
     fn address(&self) -> H160 {
         self.address
     }
-    async fn sync<M: Middleware>(&mut self, middleware: Arc<M>) -> Result<(), DAMMError<M>> {
+    async fn sync<M: Middleware>(&mut self, middleware: Arc<M>) -> Result<(), AMMError<M>> {
         batch_request::sync_izi_pool_batch_request(self, middleware.clone()).await?;
         Ok(())
     }
@@ -101,7 +101,7 @@ impl AutomatedMarketMaker for IziSwapPool {
         &mut self,
         block_number: Option<u64>,
         middleware: Arc<M>,
-    ) -> Result<(), DAMMError<M>> {
+    ) -> Result<(), AMMError<M>> {
         batch_request::get_izi_pool_data_batch_request(self, block_number, middleware.clone())
             .await?;
         Ok(())
@@ -169,7 +169,7 @@ impl IziSwapPool {
         pair_address: H160,
         _creation_block: u64,
         middleware: Arc<M>,
-    ) -> Result<Self, DAMMError<M>> {
+    ) -> Result<Self, AMMError<M>> {
         let mut pool = IziSwapPool {
             address: pair_address,
             token_a: H160::zero(),
@@ -189,7 +189,7 @@ impl IziSwapPool {
         pool.populate_data(None, middleware).await?;
 
         if !pool.data_is_populated() {
-            return Err(DAMMError::PoolDataError);
+            return Err(AMMError::PoolDataError);
         }
 
         Ok(pool)
@@ -198,7 +198,7 @@ impl IziSwapPool {
     pub async fn new_from_log<M: 'static + Middleware>(
         log: Log,
         middleware: Arc<M>,
-    ) -> Result<Self, DAMMError<M>> {
+    ) -> Result<Self, AMMError<M>> {
         let event_signature = log.topics[0];
 
         if event_signature == IZI_POOL_CREATED_EVENT_SIGNATURE {
@@ -256,7 +256,7 @@ impl IziSwapPool {
         &mut self,
         _log: Log,
         middleware: Arc<M>,
-    ) -> Result<(), DAMMError<M>> {
+    ) -> Result<(), AMMError<M>> {
         batch_request::sync_izi_pool_batch_request(self, middleware).await?;
         Ok(())
     }
@@ -264,7 +264,7 @@ impl IziSwapPool {
     pub async fn get_token_decimals<M: Middleware>(
         &mut self,
         middleware: Arc<M>,
-    ) -> Result<(u8, u8), DAMMError<M>> {
+    ) -> Result<(u8, u8), AMMError<M>> {
         let token_a_decimals = IErc20::new(self.token_a, middleware.clone())
             .decimals()
             .call()
@@ -284,7 +284,7 @@ impl IziSwapPool {
         amount_in: u128,
         quoter: &str,
         middleware: Arc<M>,
-    ) -> Result<U256, DAMMError<M>> {
+    ) -> Result<U256, AMMError<M>> {
         let quoter = IQuoter::new(H160::from_str(quoter).unwrap(), middleware.clone());
 
         if token_in == self.token_a {

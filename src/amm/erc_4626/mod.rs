@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     amm::AutomatedMarketMaker,
-    errors::{ArithmeticError, DAMMError, EventLogError, SwapSimulationError},
+    errors::{AMMError, ArithmeticError, EventLogError, SwapSimulationError},
 };
 
 use ethers::prelude::abigen;
@@ -68,7 +68,7 @@ impl AutomatedMarketMaker for ERC4626Vault {
         Ok(q64_to_f64(self.calculate_price_64_x_64(base_token)?))
     }
 
-    async fn sync<M: Middleware>(&mut self, middleware: Arc<M>) -> Result<(), DAMMError<M>> {
+    async fn sync<M: Middleware>(&mut self, middleware: Arc<M>) -> Result<(), AMMError<M>> {
         (self.vault_reserve, self.asset_reserve) = self.get_reserves(middleware).await?;
 
         Ok(())
@@ -100,7 +100,7 @@ impl AutomatedMarketMaker for ERC4626Vault {
         &mut self,
         _block_number: Option<u64>,
         middleware: Arc<M>,
-    ) -> Result<(), DAMMError<M>> {
+    ) -> Result<(), AMMError<M>> {
         batch_request::get_4626_vault_data_batch_request(self, middleware.clone()).await?;
 
         Ok(())
@@ -172,7 +172,7 @@ impl ERC4626Vault {
     pub async fn new_from_address<M: Middleware>(
         vault_token: H160,
         middleware: Arc<M>,
-    ) -> Result<Self, DAMMError<M>> {
+    ) -> Result<Self, AMMError<M>> {
         let mut vault = ERC4626Vault {
             vault_token,
             vault_token_decimals: 0,
@@ -187,7 +187,7 @@ impl ERC4626Vault {
         vault.populate_data(None, middleware.clone()).await?;
 
         if !vault.data_is_populated() {
-            return Err(DAMMError::PoolDataError);
+            return Err(AMMError::PoolDataError);
         }
 
         Ok(vault)
@@ -203,18 +203,18 @@ impl ERC4626Vault {
     pub async fn get_reserves<M: Middleware>(
         &self,
         middleware: Arc<M>,
-    ) -> Result<(U256, U256), DAMMError<M>> {
+    ) -> Result<(U256, U256), AMMError<M>> {
         //Initialize a new instance of the vault
         let vault = IERC4626Vault::new(self.vault_token, middleware);
         // Get the total assets in the vault
         let total_assets = match vault.total_assets().call().await {
             Ok(total_assets) => total_assets,
-            Err(e) => return Err(DAMMError::ContractError(e)),
+            Err(e) => return Err(AMMError::ContractError(e)),
         };
         // Get the total supply of the vault token
         let total_supply = match vault.total_supply().call().await {
             Ok(total_supply) => total_supply,
-            Err(e) => return Err(DAMMError::ContractError(e)),
+            Err(e) => return Err(AMMError::ContractError(e)),
         };
 
         Ok((total_supply, total_assets))
