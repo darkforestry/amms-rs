@@ -48,6 +48,8 @@ where
     BlockNumberNotFound,
     #[error("Swap simulation error")]
     SwapSimulationError(#[from] SwapSimulationError),
+    #[error("Invalid data from batch request")]
+    BatchRequestError(H160),
 }
 
 #[derive(Error, Debug)]

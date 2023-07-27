@@ -1034,7 +1034,7 @@ impl UniswapV3Pool {
 
         IUNISWAPV3POOL_ABI
             .function("swap")
-            .e()
+            .expect("TODO: handle this")
             .encode_input(&input_tokens)
             .expect("Could not encode swap calldata")
     }
@@ -1079,6 +1079,7 @@ mod test {
     #[allow(unused)]
     #[allow(unused)]
     use super::UniswapV3Pool;
+    use crate::amm::AMM;
     use crate::{amm::AutomatedMarketMaker, errors::AMMError};
 
     #[allow(unused)]
@@ -1102,7 +1103,7 @@ mod test {
 
     async fn initialize_test_pool<M: 'static + Middleware>(
         middleware: Arc<M>,
-    ) -> Result<(UniswapV3Pool, u64), AMMError<M>> {
+    ) -> eyre::Result<(UniswapV3Pool, u64)> {
         let mut pool = UniswapV3Pool {
             address: H160::from_str("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640")?,
             ..Default::default()

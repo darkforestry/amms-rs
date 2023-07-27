@@ -430,21 +430,13 @@ mod tests {
             vault.vault_token,
             U256::from_dec_str("3000000000000000000")?,
         )?;
-        let shares_out = vault
-            .simulate_swap(
-                vault.asset_token,
-                U256::from_dec_str("3000000000000000000")?,
-            )
-            ?;?
+        let shares_out = vault.simulate_swap(
+            vault.asset_token,
+            U256::from_dec_str("3000000000000000000")?,
+        )?;
 
-        assert_eq!(
-            assets_out,
-            U256::from_dec_str("3021066711791496478")?
-        );
-        assert_eq!(
-            shares_out,
-            U256::from_dec_str("2979080192063348487")?
-        );
+        assert_eq!(assets_out, U256::from_dec_str("3021066711791496478")?);
+        assert_eq!(shares_out, U256::from_dec_str("2979080192063348487")?);
 
         Ok(())
     }
