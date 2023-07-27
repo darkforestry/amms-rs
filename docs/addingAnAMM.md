@@ -1,6 +1,6 @@
 
 ## Foreword
-The recommended way to read this document is to fully read through the entire walkthrough once, without writing any code. This will allow you to grok the moving parts of the library as well as the architecture of the code without having to worry about AMM design before you know how everything fits together. The first read should be slow and steady, taking about 30 min. Then when you have reached the end of the walkthrough, you should pass through it again but adding code for the new AMM this time. The second pass through will allow you to fully focus on your AMM implementation instead of library architecture. As always, feel free to ask any questions in the DF discord if you run into any challenges.
+The recommended way to read this document is to fully read through the entire walkthrough once, without writing any code. This will allow you to grok the moving parts of the library as well as the architecture of the code without having to worry about AMM design before you know how everything fits together. The first read should be slow and steady, taking about 30 min. Then when you have reached the end of the walkthrough, you should pass through it again but adding code for the new AMM this time. The second pass through will allow you to fully focus on your AMM implementation instead of library architecture. As always, feel free to ask any questions by opening an issue if you run into any challenges.
 
 
 ## Adding a new AMM
@@ -76,7 +76,7 @@ pub struct UniswapV2Pool {
 ```
 
 Make sure that you have an `address` field in your struct as this will come in handy later. Also, make sure to implement the traits defined above the `UniswapV2Pool` (`#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
-`) on your struct as these will also be important later during syncing. Make sure that the struct is as lean as possible, but don't compromise simplicity. If it makes swap simulation much easier to store a specific attribute in your struct at the cost of size, it probably makes sense to do so. If you are unsure, feel free to get some feedback in the DF discord channel. 
+`) on your struct as these will also be important later during syncing. Make sure that the struct is as lean as possible, but don't compromise simplicity. If it makes swap simulation much easier to store a specific attribute in your struct at the cost of size, it probably makes sense to do so. If you are unsure, feel free to get some feedback in the discussions, or by opening an issue. 
 
 Now that we have a newly created struct, let's head to the next section.
 
