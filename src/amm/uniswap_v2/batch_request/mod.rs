@@ -166,7 +166,6 @@ pub async fn get_v2_pool_data_batch_request<M: Middleware>(
                     .into_tuple()
                     .ok_or(AMMError::BatchRequestError(pool.address))?;
 
-                //If the pool token A is not zero, signaling that the pool data was populated
                 *pool = populate_pool_data_from_tokens(pool.to_owned(), pool_data)
                     .ok_or(AMMError::BatchRequestError(pool.address))?;
             }
