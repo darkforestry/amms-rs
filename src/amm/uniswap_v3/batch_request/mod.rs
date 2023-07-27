@@ -1,9 +1,9 @@
-use std::{collections::HashMap, sync::Arc, vec};
+use std::{sync::Arc, vec};
 
 use ethers::{
     abi::{ParamType, Token},
     providers::Middleware,
-    types::{Bytes, H160, I256, U256, U64},
+    types::{Bytes, I256, U256, U64},
 };
 
 use crate::{
