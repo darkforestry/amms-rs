@@ -8,7 +8,7 @@ use spinoff::{spinners, Color, Spinner};
 
 use crate::{
     amm::{self, factory::Factory},
-    errors::DAMMError,
+    errors::AMMError,
 };
 
 pub enum DiscoverableFactory {
@@ -40,7 +40,7 @@ pub async fn discover_factories<M: Middleware>(
     number_of_amms_threshold: u64,
     middleware: Arc<M>,
     step: u64,
-) -> Result<Vec<Factory>, DAMMError<M>> {
+) -> Result<Vec<Factory>, AMMError<M>> {
     let spinner = Spinner::new(spinners::Dots, "Discovering new factories...", Color::Blue);
 
     let mut event_signatures = vec![];
@@ -55,7 +55,7 @@ pub async fn discover_factories<M: Middleware>(
     let current_block = middleware
         .get_block_number()
         .await
-        .map_err(DAMMError::MiddlewareError)?
+        .map_err(AMMError::MiddlewareError)?
         .as_u64();
 
     //For each block within the range, get all pairs asynchronously
@@ -76,7 +76,7 @@ pub async fn discover_factories<M: Middleware>(
         let logs = middleware
             .get_logs(&block_filter.from_block(from_block).to_block(target_block))
             .await
-            .map_err(DAMMError::MiddlewareError)?;
+            .map_err(AMMError::MiddlewareError)?;
 
         for log in logs {
             if let Some((_, amms_length)) = identified_factories.get_mut(&log.address) {

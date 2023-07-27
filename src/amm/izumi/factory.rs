@@ -8,7 +8,7 @@ use crate::{
         factory::{AutomatedMarketMakerFactory, TASK_LIMIT},
         AutomatedMarketMaker, AMM,
     },
-    errors::{DAMMError, EventLogError},
+    errors::{AMMError, EventLogError},
 };
 use async_trait::async_trait;
 use ethers::{
@@ -58,7 +58,7 @@ impl AutomatedMarketMakerFactory for IziSwapFactory {
         &self,
         log: Log,
         middleware: Arc<M>,
-    ) -> Result<AMM, DAMMError<M>> {
+    ) -> Result<AMM, AMMError<M>> {
         if let Some(block_number) = log.block_number {
             let pool_created_filter = NewPoolFilter::decode_log(&RawLog::from(log))?;
             Ok(AMM::IziSwapPool(
@@ -70,7 +70,7 @@ impl AutomatedMarketMakerFactory for IziSwapFactory {
                 .await?,
             ))
         } else {
-            return Err(DAMMError::BlockNumberNotFound);
+            return Err(AMMError::BlockNumberNotFound);
         }
     }
 
@@ -79,11 +79,11 @@ impl AutomatedMarketMakerFactory for IziSwapFactory {
         to_block: Option<u64>,
         middleware: Arc<M>,
         step: u64,
-    ) -> Result<Vec<AMM>, DAMMError<M>> {
+    ) -> Result<Vec<AMM>, AMMError<M>> {
         if let Some(block) = to_block {
             self.get_all_pools_from_logs(block, step, middleware).await
         } else {
-            return Err(DAMMError::BlockNumberNotFound);
+            return Err(AMMError::BlockNumberNotFound);
         }
     }
 
@@ -92,7 +92,7 @@ impl AutomatedMarketMakerFactory for IziSwapFactory {
         amms: &mut [AMM],
         block_number: Option<u64>,
         middleware: Arc<M>,
-    ) -> Result<(), DAMMError<M>> {
+    ) -> Result<(), AMMError<M>> {
         if let Some(block_number) = block_number {
             let step = 127; //Max batch size for call
             for amm_chunk in amms.chunks_mut(step) {
@@ -104,7 +104,7 @@ impl AutomatedMarketMakerFactory for IziSwapFactory {
                 .await?;
             }
         } else {
-            return Err(DAMMError::BlockNumberNotFound);
+            return Err(AMMError::BlockNumberNotFound);
         }
 
         Ok(())
@@ -144,7 +144,7 @@ impl IziSwapFactory {
         to_block: u64,
         step: u64,
         middleware: Arc<M>,
-    ) -> Result<Vec<AMM>, DAMMError<M>> {
+    ) -> Result<Vec<AMM>, AMMError<M>> {
         //Unwrap can be used here because the creation block was verified within `Dex::new()`
         let mut from_block = self.creation_block;
         let mut aggregated_amms: HashMap<H160, AMM> = HashMap::new();
@@ -172,9 +172,9 @@ impl IziSwapFactory {
                             .to_block(BlockNumber::Number(U64([target_block]))),
                     )
                     .await
-                    .map_err(DAMMError::MiddlewareError)?;
+                    .map_err(AMMError::MiddlewareError)?;
 
-                Ok::<Vec<Log>, DAMMError<M>>(logs)
+                Ok::<Vec<Log>, AMMError<M>>(logs)
             }));
 
             from_block += step;
@@ -212,9 +212,9 @@ impl IziSwapFactory {
 
     async fn process_logs_from_handles<M: Middleware>(
         &self,
-        handles: Vec<JoinHandle<Result<Vec<Log>, DAMMError<M>>>>,
+        handles: Vec<JoinHandle<Result<Vec<Log>, AMMError<M>>>>,
         ordered_logs: &mut BTreeMap<U64, Vec<Log>>,
-    ) -> Result<(), DAMMError<M>> {
+    ) -> Result<(), AMMError<M>> {
         // group the logs from each thread by block number and then sync the logs in chronological order
         for handle in handles {
             let logs = handle.await??;

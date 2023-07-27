@@ -6,7 +6,7 @@ use tokio::task::JoinError;
 use uniswap_v3_math::error::UniswapV3MathError;
 
 #[derive(Error, Debug)]
-pub enum DAMMError<M>
+pub enum AMMError<M>
 where
     M: Middleware,
 {

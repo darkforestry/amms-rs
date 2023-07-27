@@ -13,7 +13,7 @@ use ethers::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::errors::{ArithmeticError, DAMMError, EventLogError, SwapSimulationError};
+use crate::errors::{ArithmeticError, AMMError, EventLogError, SwapSimulationError};
 
 use self::{
     erc_4626::ERC4626Vault, izumi::IziSwapPool, uniswap_v2::UniswapV2Pool,
@@ -23,7 +23,7 @@ use self::{
 #[async_trait]
 pub trait AutomatedMarketMaker {
     fn address(&self) -> H160;
-    async fn sync<M: Middleware>(&mut self, middleware: Arc<M>) -> Result<(), DAMMError<M>>;
+    async fn sync<M: Middleware>(&mut self, middleware: Arc<M>) -> Result<(), AMMError<M>>;
     fn sync_on_event_signatures(&self) -> Vec<H256>;
     fn tokens(&self) -> Vec<H160>;
     fn calculate_price(&self, base_token: H160) -> Result<f64, ArithmeticError>;
@@ -32,7 +32,7 @@ pub trait AutomatedMarketMaker {
         &mut self,
         block_number: Option<u64>,
         middleware: Arc<M>,
-    ) -> Result<(), DAMMError<M>>;
+    ) -> Result<(), AMMError<M>>;
 
     fn simulate_swap(&self, token_in: H160, amount_in: U256) -> Result<U256, SwapSimulationError>;
     fn simulate_swap_mut(
@@ -62,7 +62,7 @@ impl AutomatedMarketMaker for AMM {
         }
     }
 
-    async fn sync<M: Middleware>(&mut self, middleware: Arc<M>) -> Result<(), DAMMError<M>> {
+    async fn sync<M: Middleware>(&mut self, middleware: Arc<M>) -> Result<(), AMMError<M>> {
         match self {
             AMM::UniswapV2Pool(pool) => pool.sync(middleware).await,
             AMM::UniswapV3Pool(pool) => pool.sync(middleware).await,
@@ -124,7 +124,7 @@ impl AutomatedMarketMaker for AMM {
         &mut self,
         block_number: Option<u64>,
         middleware: Arc<M>,
-    ) -> Result<(), DAMMError<M>> {
+    ) -> Result<(), AMMError<M>> {
         match self {
             AMM::UniswapV2Pool(pool) => pool.populate_data(None, middleware).await,
             AMM::UniswapV3Pool(pool) => pool.populate_data(block_number, middleware).await,

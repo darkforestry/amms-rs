@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     amm::AutomatedMarketMaker,
-    errors::{ArithmeticError, DAMMError, EventLogError, SwapSimulationError},
+    errors::{ArithmeticError, AMMError, EventLogError, SwapSimulationError},
 };
 
 use ethers::prelude::abigen;
@@ -63,7 +63,7 @@ impl AutomatedMarketMaker for UniswapV2Pool {
         self.address
     }
 
-    async fn sync<M: Middleware>(&mut self, middleware: Arc<M>) -> Result<(), DAMMError<M>> {
+    async fn sync<M: Middleware>(&mut self, middleware: Arc<M>) -> Result<(), AMMError<M>> {
         (self.reserve_0, self.reserve_1) = self.get_reserves(middleware).await?;
 
         Ok(())
@@ -73,7 +73,7 @@ impl AutomatedMarketMaker for UniswapV2Pool {
         &mut self,
         _block_number: Option<u64>,
         middleware: Arc<M>,
-    ) -> Result<(), DAMMError<M>> {
+    ) -> Result<(), AMMError<M>> {
         batch_request::get_v2_pool_data_batch_request(self, middleware.clone()).await?;
 
         Ok(())
@@ -190,7 +190,7 @@ impl UniswapV2Pool {
         pair_address: H160,
         fee: u32,
         middleware: Arc<M>,
-    ) -> Result<Self, DAMMError<M>> {
+    ) -> Result<Self, AMMError<M>> {
         let mut pool = UniswapV2Pool {
             address: pair_address,
             token_a: H160::zero(),
@@ -205,7 +205,7 @@ impl UniswapV2Pool {
         pool.populate_data(None, middleware.clone()).await?;
 
         if !pool.data_is_populated() {
-            return Err(DAMMError::PoolDataError);
+            return Err(AMMError::PoolDataError);
         }
 
         Ok(pool)
@@ -214,7 +214,7 @@ impl UniswapV2Pool {
         log: Log,
         fee: u32, //TODO: maybe find a way to dynamically get the fee without having to pass it in
         middleware: Arc<M>,
-    ) -> Result<Self, DAMMError<M>> {
+    ) -> Result<Self, AMMError<M>> {
         let event_signature = log.topics[0];
 
         if event_signature == PAIR_CREATED_EVENT_SIGNATURE {
@@ -261,13 +261,13 @@ impl UniswapV2Pool {
     pub async fn get_reserves<M: Middleware>(
         &self,
         middleware: Arc<M>,
-    ) -> Result<(u128, u128), DAMMError<M>> {
+    ) -> Result<(u128, u128), AMMError<M>> {
         //Initialize a new instance of the Pool
         let v2_pair = IUniswapV2Pair::new(self.address, middleware);
         // Make a call to get the reserves
         let (reserve_0, reserve_1, _) = match v2_pair.get_reserves().call().await {
             Ok(result) => result,
-            Err(contract_error) => return Err(DAMMError::ContractError(contract_error)),
+            Err(contract_error) => return Err(AMMError::ContractError(contract_error)),
         };
 
         Ok((reserve_0, reserve_1))
@@ -276,7 +276,7 @@ impl UniswapV2Pool {
     pub async fn get_token_decimals<M: Middleware>(
         &mut self,
         middleware: Arc<M>,
-    ) -> Result<(u8, u8), DAMMError<M>> {
+    ) -> Result<(u8, u8), AMMError<M>> {
         let token_a_decimals = IErc20::new(self.token_a, middleware.clone())
             .decimals()
             .call()
@@ -294,12 +294,12 @@ impl UniswapV2Pool {
         &self,
         pair_address: H160,
         middleware: Arc<M>,
-    ) -> Result<H160, DAMMError<M>> {
+    ) -> Result<H160, AMMError<M>> {
         let v2_pair = IUniswapV2Pair::new(pair_address, middleware);
 
         let token0 = match v2_pair.token_0().call().await {
             Ok(result) => result,
-            Err(contract_error) => return Err(DAMMError::ContractError(contract_error)),
+            Err(contract_error) => return Err(AMMError::ContractError(contract_error)),
         };
 
         Ok(token0)
@@ -309,12 +309,12 @@ impl UniswapV2Pool {
         &self,
         pair_address: H160,
         middleware: Arc<M>,
-    ) -> Result<H160, DAMMError<M>> {
+    ) -> Result<H160, AMMError<M>> {
         let v2_pair = IUniswapV2Pair::new(pair_address, middleware);
 
         let token1 = match v2_pair.token_1().call().await {
             Ok(result) => result,
-            Err(contract_error) => return Err(DAMMError::ContractError(contract_error)),
+            Err(contract_error) => return Err(AMMError::ContractError(contract_error)),
         };
 
         Ok(token1)

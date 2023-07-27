@@ -19,7 +19,7 @@ use crate::{
         uniswap_v3::factory::UniswapV3Factory,
         AMM,
     },
-    errors::DAMMError,
+    errors::AMMError,
     sync,
 };
 
@@ -54,11 +54,11 @@ pub async fn sync_amms_from_checkpoint<M: 'static + Middleware>(
     path_to_checkpoint: &str,
     step: u64,
     middleware: Arc<M>,
-) -> Result<(Vec<Factory>, Vec<AMM>), DAMMError<M>> {
+) -> Result<(Vec<Factory>, Vec<AMM>), AMMError<M>> {
     let current_block = middleware
         .get_block_number()
         .await
-        .map_err(DAMMError::MiddlewareError)?
+        .map_err(AMMError::MiddlewareError)?
         .as_u64();
 
     let checkpoint: Checkpoint = serde_json::from_str(
@@ -143,7 +143,7 @@ pub async fn get_new_amms_from_range<M: 'static + Middleware>(
     to_block: u64,
     step: u64,
     middleware: Arc<M>,
-) -> Vec<JoinHandle<Result<Vec<AMM>, DAMMError<M>>>> {
+) -> Vec<JoinHandle<Result<Vec<AMM>, AMMError<M>>>> {
     //Create the filter with all the pair created events
     //Aggregate the populated pools from each thread
     let mut handles = vec![];
@@ -164,7 +164,7 @@ pub async fn get_new_amms_from_range<M: 'static + Middleware>(
             //Clean empty pools
             amms = sync::remove_empty_amms(amms);
 
-            Ok::<_, DAMMError<M>>(amms)
+            Ok::<_, AMMError<M>>(amms)
         }));
     }
 
@@ -175,7 +175,7 @@ pub async fn batch_sync_amms_from_checkpoint<M: 'static + Middleware>(
     mut amms: Vec<AMM>,
     block_number: Option<u64>,
     middleware: Arc<M>,
-) -> JoinHandle<Result<Vec<AMM>, DAMMError<M>>> {
+) -> JoinHandle<Result<Vec<AMM>, AMMError<M>>> {
     let factory = match amms[0] {
         AMM::UniswapV2Pool(_) => Some(Factory::UniswapV2Factory(UniswapV2Factory::new(
             H160::zero(),
@@ -207,12 +207,12 @@ pub async fn batch_sync_amms_from_checkpoint<M: 'static + Middleware>(
                 //Clean empty pools
                 amms = sync::remove_empty_amms(amms);
 
-                Ok::<_, DAMMError<M>>(amms)
+                Ok::<_, AMMError<M>>(amms)
             } else {
-                Err(DAMMError::IncongruentAMMs)
+                Err(AMMError::IncongruentAMMs)
             }
         } else {
-            Ok::<_, DAMMError<M>>(vec![])
+            Ok::<_, AMMError<M>>(vec![])
         }
     })
 }
@@ -240,7 +240,7 @@ pub async fn get_new_pools_from_range<M: 'static + Middleware>(
     to_block: u64,
     step: u64,
     middleware: Arc<M>,
-) -> Vec<JoinHandle<Result<Vec<AMM>, DAMMError<M>>>> {
+) -> Vec<JoinHandle<Result<Vec<AMM>, AMMError<M>>>> {
     //Create the filter with all the pair created events
     //Aggregate the populated pools from each thread
     let mut handles = vec![];
@@ -261,7 +261,7 @@ pub async fn get_new_pools_from_range<M: 'static + Middleware>(
             //Clean empty pools
             pools = sync::remove_empty_amms(pools);
 
-            Ok::<_, DAMMError<M>>(pools)
+            Ok::<_, AMMError<M>>(pools)
         }));
     }
 

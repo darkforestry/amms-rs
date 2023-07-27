@@ -5,7 +5,7 @@ use ethers::{
 };
 use std::sync::Arc;
 
-use crate::errors::DAMMError;
+use crate::errors::AMMError;
 
 use ethers::prelude::abigen;
 
@@ -19,7 +19,7 @@ abigen!(
 pub async fn get_4626_vault_data_batch_request<M: Middleware>(
     vault: &mut ERC4626Vault,
     middleware: Arc<M>,
-) -> Result<(), DAMMError<M>> {
+) -> Result<(), AMMError<M>> {
     let constructor_args =
         Token::Tuple(vec![Token::Array(vec![Token::Address(vault.vault_token)])]);
 
@@ -78,7 +78,7 @@ pub async fn get_4626_vault_data_batch_request<M: Middleware>(
                             .as_u32();
                         } else {
                             // If not a relative fee or zero, ignore vault
-                            return Err(DAMMError::InvalidERC4626Fee);
+                            return Err(AMMError::InvalidERC4626Fee);
                         }
 
                         // If both deltas are zero, the fee is zero
@@ -92,7 +92,7 @@ pub async fn get_4626_vault_data_batch_request<M: Middleware>(
                             .as_u32();
                         } else {
                             // If not a relative fee or zero, ignore vault
-                            return Err(DAMMError::InvalidERC4626Fee);
+                            return Err(AMMError::InvalidERC4626Fee);
                         }
                     }
                 }

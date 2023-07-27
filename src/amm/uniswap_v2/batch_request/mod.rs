@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use crate::{
     amm::{AutomatedMarketMaker, AMM},
-    errors::DAMMError,
+    errors::AMMError,
 };
 
 use ethers::prelude::abigen;
@@ -28,7 +28,7 @@ pub async fn get_pairs_batch_request<M: Middleware>(
     from: U256,
     step: U256,
     middleware: Arc<M>,
-) -> Result<Vec<H160>, DAMMError<M>> {
+) -> Result<Vec<H160>, AMMError<M>> {
     let mut pairs = vec![];
 
     let constructor_args = Token::Tuple(vec![
@@ -63,7 +63,7 @@ pub async fn get_pairs_batch_request<M: Middleware>(
 pub async fn get_amm_data_batch_request<M: Middleware>(
     amms: &mut [AMM],
     middleware: Arc<M>,
-) -> Result<(), DAMMError<M>> {
+) -> Result<(), AMMError<M>> {
     let mut target_addresses = vec![];
     for amm in amms.iter() {
         target_addresses.push(Token::Address(amm.address()));
@@ -126,7 +126,7 @@ pub async fn get_amm_data_batch_request<M: Middleware>(
 pub async fn get_v2_pool_data_batch_request<M: Middleware>(
     pool: &mut UniswapV2Pool,
     middleware: Arc<M>,
-) -> Result<(), DAMMError<M>> {
+) -> Result<(), AMMError<M>> {
     let constructor_args = Token::Tuple(vec![Token::Array(vec![Token::Address(pool.address)])]);
 
     let deployer =

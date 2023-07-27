@@ -8,7 +8,7 @@ use ethers::{
 
 use crate::{
     amm::{AutomatedMarketMaker, AMM},
-    errors::DAMMError,
+    errors::AMMError,
 };
 
 use super::UniswapV3Pool;
@@ -29,7 +29,7 @@ pub async fn get_v3_pool_data_batch_request<M: Middleware>(
     pool: &mut UniswapV3Pool,
     block_number: Option<u64>,
     middleware: Arc<M>,
-) -> Result<(), DAMMError<M>> {
+) -> Result<(), AMMError<M>> {
     let constructor_args = Token::Tuple(vec![Token::Array(vec![Token::Address(pool.address)])]);
 
     let deployer =
@@ -107,7 +107,7 @@ pub async fn get_uniswap_v3_tick_data_batch_request<M: Middleware>(
     num_ticks: u16,
     block_number: Option<U64>,
     middleware: Arc<M>,
-) -> Result<(Vec<UniswapV3TickData>, U64), DAMMError<M>> {
+) -> Result<(Vec<UniswapV3TickData>, U64), AMMError<M>> {
     let constructor_args = Token::Tuple(vec![
         Token::Address(pool.address),
         Token::Bool(zero_for_one),
@@ -187,7 +187,7 @@ pub async fn get_uniswap_v3_tick_data_batch_request<M: Middleware>(
 pub async fn sync_v3_pool_batch_request<M: Middleware>(
     pool: &mut UniswapV3Pool,
     middleware: Arc<M>,
-) -> Result<(), DAMMError<M>> {
+) -> Result<(), AMMError<M>> {
     let constructor_args = Token::Tuple(vec![Token::Address(pool.address)]);
 
     let deployer =
@@ -213,7 +213,7 @@ pub async fn sync_v3_pool_batch_request<M: Middleware>(
                 pool.sqrt_price = pool_data[1].to_owned().into_uint().unwrap();
                 pool.tick = I256::from_raw(pool_data[2].to_owned().into_int().unwrap()).as_i32();
             } else {
-                return Err(DAMMError::SyncError(pool.address));
+                return Err(AMMError::SyncError(pool.address));
             }
         }
     }
@@ -225,7 +225,7 @@ pub async fn get_amm_data_batch_request<M: Middleware>(
     amms: &mut [AMM],
     block_number: u64,
     middleware: Arc<M>,
-) -> Result<(), DAMMError<M>> {
+) -> Result<(), AMMError<M>> {
     let mut target_addresses = vec![];
 
     for amm in amms.iter() {

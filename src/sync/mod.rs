@@ -3,7 +3,7 @@ use crate::{
         factory::{AutomatedMarketMakerFactory, Factory},
         izumi, uniswap_v2, uniswap_v3, AutomatedMarketMaker, AMM,
     },
-    errors::DAMMError,
+    errors::AMMError,
 };
 
 use ethers::providers::Middleware;
@@ -19,13 +19,13 @@ pub async fn sync_amms<M: 'static + Middleware>(
     middleware: Arc<M>,
     checkpoint_path: Option<&str>,
     step: u64,
-) -> Result<(Vec<AMM>, u64), DAMMError<M>> {
+) -> Result<(Vec<AMM>, u64), AMMError<M>> {
     let spinner = Spinner::new(spinners::Dots, "Syncing AMMs...", Color::Blue);
 
     let current_block = middleware
         .get_block_number()
         .await
-        .map_err(DAMMError::MiddlewareError)?
+        .map_err(AMMError::MiddlewareError)?
         .as_u64();
 
     //Aggregate the populated pools from each thread
@@ -46,7 +46,7 @@ pub async fn sync_amms<M: 'static + Middleware>(
             //Clean empty pools
             amms = remove_empty_amms(amms);
 
-            Ok::<_, DAMMError<M>>(amms)
+            Ok::<_, AMMError<M>>(amms)
         }));
     }
 
@@ -97,7 +97,7 @@ pub async fn populate_amms<M: Middleware>(
     amms: &mut [AMM],
     block_number: u64,
     middleware: Arc<M>,
-) -> Result<(), DAMMError<M>> {
+) -> Result<(), AMMError<M>> {
     if amms_are_congruent(amms) {
         match amms[0] {
             AMM::UniswapV2Pool(_) => {
@@ -143,7 +143,7 @@ pub async fn populate_amms<M: Middleware>(
             }
         }
     } else {
-        return Err(DAMMError::IncongruentAMMs);
+        return Err(AMMError::IncongruentAMMs);
     }
 
     //For each pair in the pairs vec, get the pool data
