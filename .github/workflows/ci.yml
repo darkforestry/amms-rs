@@ -8,6 +8,7 @@ on:
 
 env:
   ETHEREUM_RPC_ENDPOINT: ${{ secrets.ETHEREUM_RPC_ENDPOINT }}
+  ETHEREUM_WS_ENDPOINT: ${{ secrets.ETHEREUM_WS_ENDPOINT }}
 
 name: CI
 
