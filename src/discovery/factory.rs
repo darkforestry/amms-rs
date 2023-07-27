@@ -26,7 +26,6 @@ impl DiscoverableFactory {
             DiscoverableFactory::UniswapV3Factory => {
                 amm::uniswap_v3::factory::POOL_CREATED_EVENT_SIGNATURE
             }
-
         }
     }
 }
@@ -98,7 +97,6 @@ pub async fn discover_factories<M: Middleware>(
                             .expect("Could not get block number from log")
                             .as_u64();
                     }
-
                 }
 
                 identified_factories.insert(log.address, (factory, 0));

@@ -1,7 +1,7 @@
 use crate::{
     amm::{
         factory::{AutomatedMarketMakerFactory, Factory},
- uniswap_v2, uniswap_v3, AutomatedMarketMaker, AMM,
+        uniswap_v2, uniswap_v3, AutomatedMarketMaker, AMM,
     },
     errors::AMMError,
 };
@@ -129,7 +129,6 @@ pub async fn populate_amms<M: Middleware>(
                     amm.populate_data(None, middleware.clone()).await?;
                 }
             }
-
         }
     } else {
         return Err(AMMError::IncongruentAMMs);
@@ -159,7 +158,6 @@ pub fn remove_empty_amms(amms: Vec<AMM>) -> Vec<AMM> {
                     cleaned_amms.push(amm)
                 }
             }
-
         }
     }
 

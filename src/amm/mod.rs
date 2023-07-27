@@ -14,10 +14,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::errors::{AMMError, ArithmeticError, EventLogError, SwapSimulationError};
 
-use self::{
-    erc_4626::ERC4626Vault,  uniswap_v2::UniswapV2Pool,
-    uniswap_v3::UniswapV3Pool,
-};
+use self::{erc_4626::ERC4626Vault, uniswap_v2::UniswapV2Pool, uniswap_v3::UniswapV3Pool};
 
 #[async_trait]
 pub trait AutomatedMarketMaker {
