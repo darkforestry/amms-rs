@@ -131,7 +131,7 @@ pub async fn sync_amms_from_checkpoint<M: 'static + Middleware>(
         &aggregated_amms,
         current_block,
         path_to_checkpoint,
-    );
+    )?;
 
     Ok((checkpoint.factories, aggregated_amms))
 }

@@ -1079,8 +1079,8 @@ mod test {
     #[allow(unused)]
     #[allow(unused)]
     use super::UniswapV3Pool;
-    use crate::amm::AMM;
-    use crate::{amm::AutomatedMarketMaker, errors::AMMError};
+    
+    use crate::{amm::AutomatedMarketMaker};
 
     #[allow(unused)]
     use ethers::providers::Middleware;
