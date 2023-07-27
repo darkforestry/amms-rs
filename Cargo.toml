@@ -18,7 +18,7 @@ uniswap_v3_math = "0.4.0"
 regex = "1.7.1"
 spinoff = "0.7.0"
 
-[[features]]
+[features]
 default = ["filters", "state-space"]
 filters = []
 state-space = []

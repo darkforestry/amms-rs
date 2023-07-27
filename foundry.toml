@@ -1,7 +1,7 @@
 [profile.default]
 src = 'contracts'
-out = 'contracts/out'
-libs = ['contracts/lib']
+out = 'out'
+libs = ['lib']
 
 
 optimizer = false
