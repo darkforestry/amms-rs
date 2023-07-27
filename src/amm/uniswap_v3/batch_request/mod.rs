@@ -25,23 +25,17 @@ abigen!(
 
 );
 
-impl From<Vec<Token>> for UniswapV3Pool {
-    fn from(tokens: Vec<Token>) -> Self {
-        UniswapV3Pool {
-            address: H160::zero(),
-            token_a: tokens[0].to_owned().into_address().unwrap(),
-            token_a_decimals: tokens[1].to_owned().into_uint().unwrap().as_u32() as u8,
-            token_b: tokens[2].to_owned().into_address().unwrap(),
-            token_b_decimals: tokens[3].to_owned().into_uint().unwrap().as_u32() as u8,
-            liquidity: tokens[4].to_owned().into_uint().unwrap().as_u128(),
-            sqrt_price: tokens[5].to_owned().into_uint().unwrap(),
-            tick_bitmap: HashMap::new(),
-            ticks: HashMap::new(),
-            tick: I256::from_raw(tokens[6].to_owned().into_int().unwrap()).as_i32(),
-            tick_spacing: I256::from_raw(tokens[7].to_owned().into_int().unwrap()).as_i32(),
-            fee: tokens[8].to_owned().into_uint().unwrap().as_u64() as u32,
-        }
-    }
+fn populate_pool_data_from_tokens(mut pool: UniswapV3Pool, tokens: Vec<Token>) -> UniswapV3Pool {
+    pool.token_a = tokens[0].to_owned().into_address().unwrap();
+    pool.token_a_decimals = tokens[1].to_owned().into_uint().unwrap().as_u32() as u8;
+    pool.token_b = tokens[2].to_owned().into_address().unwrap();
+    pool.token_b_decimals = tokens[3].to_owned().into_uint().unwrap().as_u32() as u8;
+    pool.liquidity = tokens[4].to_owned().into_uint().unwrap().as_u128();
+    pool.sqrt_price = tokens[5].to_owned().into_uint().unwrap();
+    pool.tick = I256::from_raw(tokens[6].to_owned().into_int().unwrap()).as_i32();
+    pool.tick_spacing = I256::from_raw(tokens[7].to_owned().into_int().unwrap()).as_i32();
+    pool.fee = tokens[8].to_owned().into_uint().unwrap().as_u64() as u32;
+    pool
 }
 
 pub async fn get_v3_pool_data_batch_request<M: Middleware>(
@@ -83,11 +77,7 @@ pub async fn get_v3_pool_data_batch_request<M: Middleware>(
                 if let Some(pool_data) = tup.into_tuple() {
                     //If the pool token A is not zero, signaling that the pool data was populated
                     if !pool_data[0].to_owned().into_address().unwrap().is_zero() {
-                        let mut pool_data = UniswapV3Pool::from(pool_data);
-                        pool_data.address = pool.address;
-                        pool_data.tick_bitmap = pool.tick_bitmap.clone();
-                        pool_data.ticks = pool.ticks.clone();
-                        *pool = pool_data;
+                        *pool = populate_pool_data_from_tokens(pool.to_owned(), pool_data);
                     }
                 }
             }
@@ -268,11 +258,10 @@ pub async fn get_amm_data_batch_request<M: Middleware>(
                         //Update the pool data
                         if let AMM::UniswapV3Pool(uniswap_v3_pool) = amms.get_mut(pool_idx).unwrap()
                         {
-                            let mut pool_data = UniswapV3Pool::from(pool_data);
-                            pool_data.address = uniswap_v3_pool.address;
-                            pool_data.tick_bitmap = uniswap_v3_pool.tick_bitmap.clone();
-                            pool_data.ticks = uniswap_v3_pool.ticks.clone();
-                            *uniswap_v3_pool = pool_data;
+                            *uniswap_v3_pool = populate_pool_data_from_tokens(
+                                uniswap_v3_pool.to_owned(),
+                                pool_data,
+                            );
                         }
                     }
                     pool_idx += 1;
