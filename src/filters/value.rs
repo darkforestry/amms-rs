@@ -182,7 +182,7 @@ async fn get_weth_value_in_amm_batch_request<M: Middleware>(
         Token::Uint(weth_value_in_token_to_weth_pool_threshold),
     ]);
 
-    let deployer = GetWethValueInAMMBatchRequest::deploy(middleware, constructor_args).unwrap();
+    let deployer = GetWethValueInAMMBatchRequest::deploy(middleware, constructor_args)?;
     let return_data: Bytes = deployer.call_raw().await?;
 
     let return_data_tokens = ethers::abi::decode(

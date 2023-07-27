@@ -1,13 +1,12 @@
 use amms::discovery::factory::{discover_factories, DiscoverableFactory};
 use ethers::providers::{Http, Provider};
-use std::{error::Error, sync::Arc};
+use std::sync::Arc;
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
-    let rpc_endpoint =
-        std::env::var("ETHEREUM_RPC_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
+async fn main() -> eyre::Result<()> {
+    let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
 
-    let provider = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
+    let provider = Arc::new(Provider::<Http>::try_from(rpc_endpoint)?);
 
     // Find all UniswapV2 and UniswapV3 compatible factories and filter out matches with less than 1000 AMMs
     let number_of_amms_threshold = 1000;
