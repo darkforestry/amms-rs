@@ -89,8 +89,7 @@ where
         Filter::new().topic0(event_signatures)
     }
 
-    //listens to new blocks and handles state changes, sending an h256 block hash when a new block is produced
-    //pub fn listen_for_new_blocks()-> Result<Receiver<H256>, StateSpaceError<M>> {}
+    //TODO: Update this comment
     pub async fn listen_for_updates(
         &self,
         mut last_synced_block: u64,
@@ -183,7 +182,6 @@ where
     }
 
     //listens to new blocks and handles state changes, sending an h256 block hash when a new block is produced
-    //pub fn listen_for_new_blocks()-> Result<Receiver<H256>, StateSpaceError<M>> {}
     pub async fn listen_for_new_blocks(
         &self,
         mut last_synced_block: u64,
@@ -417,7 +415,6 @@ async fn unwind_state_changes(
 ) -> Result<(), StateChangeError> {
     let mut state_change_cache = state_change_cache.write().await;
 
-    //TODO: update this to use a range and not a loop
     loop {
         //check if the most recent state change block is >= the block to unwind,
         if let Some(state_change) = state_change_cache.get(0) {
