@@ -2,6 +2,4 @@
 src = 'contracts'
 out = 'out'
 libs = ['lib']
-
-
 optimizer = false
