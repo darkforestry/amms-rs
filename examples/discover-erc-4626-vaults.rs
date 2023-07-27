@@ -1,8 +1,6 @@
-use std::{error::Error, sync::Arc};
-
-use ethers::providers::{Http, Provider};
-
 use amms::discovery;
+use ethers::providers::{Http, Provider};
+use std::{error::Error, sync::Arc};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
