@@ -7,14 +7,12 @@ use ethers::{
     providers::{Http, Provider, Ws},
     types::H160,
 };
-use std::{error::Error, str::FromStr, sync::Arc};
+use std::{str::FromStr, sync::Arc};
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
-    let rpc_endpoint =
-        std::env::var("ETHEREUM_RPC_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
-    let ws_endpoint =
-        std::env::var("ETHEREUM_WS_ENDPOINT").expect("Could not get ETHEREUM_WS_ENDPOINT");
+async fn main() -> eyre::Result<()> {
+    let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
+    let ws_endpoint = std::env::var("ETHEREUM_WS_ENDPOINT")?;
 
     // Initialize middleware
     let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint)?);
@@ -24,13 +22,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let factories = vec![
         //UniswapV2
         Factory::UniswapV2Factory(UniswapV2Factory::new(
-            H160::from_str("0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f").unwrap(),
+            H160::from_str("0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f")?,
             2638438,
             300,
         )),
         //Add Sushiswap
         Factory::UniswapV2Factory(UniswapV2Factory::new(
-            H160::from_str("0xC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac").unwrap(),
+            H160::from_str("0xC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac")?,
             10794229,
             300,
         )),

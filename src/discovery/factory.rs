@@ -80,21 +80,21 @@ pub async fn discover_factories<M: Middleware>(
             } else {
                 //TODO: conduct interface checks for the given factory
 
-                let mut factory = Factory::new_empty_factory_from_event_signature(log.topics[0]);
+                let mut factory = Factory::new_empty_factory_from_event_signature(log.topics[0])?;
 
                 match &mut factory {
                     Factory::UniswapV2Factory(uniswap_v2_factory) => {
                         uniswap_v2_factory.address = log.address;
                         uniswap_v2_factory.creation_block = log
                             .block_number
-                            .expect("Could not get block number from log")
+                            .ok_or(AMMError::BlockNumberNotFound)?
                             .as_u64();
                     }
                     Factory::UniswapV3Factory(uniswap_v3_factory) => {
                         uniswap_v3_factory.address = log.address;
                         uniswap_v3_factory.creation_block = log
                             .block_number
-                            .expect("Could not get block number from log")
+                            .ok_or(AMMError::BlockNumberNotFound)?
                             .as_u64();
                     }
                 }
