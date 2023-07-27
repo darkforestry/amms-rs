@@ -5,7 +5,7 @@ use ethers::{
 };
 use std::sync::Arc;
 
-use crate::errors::AMMError;
+use crate::{amm::AutomatedMarketMaker, errors::AMMError};
 
 use ethers::prelude::abigen;
 
@@ -16,6 +16,53 @@ abigen!(
         "src/amm/erc_4626/batch_request/GetERC4626VaultDataBatchRequestABI.json";
 );
 
+fn populate_vault_data_from_tokens(
+    mut vault: ERC4626Vault,
+    tokens: Vec<Token>,
+) -> Option<ERC4626Vault> {
+    vault.vault_token = tokens[0].to_owned().into_address()?;
+    vault.vault_token_decimals = tokens[1].to_owned().into_uint()?.as_u32() as u8;
+    vault.asset_token = tokens[2].to_owned().into_address()?;
+    vault.asset_token_decimals = tokens[3].to_owned().into_uint()?.as_u32() as u8;
+    vault.vault_reserve = tokens[4].to_owned().into_uint()?;
+    vault.asset_reserve = tokens[5].to_owned().into_uint()?;
+
+    let deposit_fee_delta_1 = tokens[6].to_owned().into_uint()?;
+    let deposit_fee_delta_2 = tokens[7].to_owned().into_uint()?;
+    let deposit_no_fee = tokens[8].to_owned().into_uint()?;
+    let withdraw_fee_delta_1 = tokens[9].to_owned().into_uint()?;
+    let withdraw_fee_delta_2 = tokens[10].to_owned().into_uint()?;
+    let withdraw_no_fee = tokens[11].to_owned().into_uint()?;
+
+    // If both deltas are zero, the fee is zero
+    if deposit_fee_delta_1.is_zero() && deposit_fee_delta_2.is_zero() {
+        vault.deposit_fee = 0;
+    // Assuming 18 decimals, if the delta of 1e20 is half the delta of 2e20, relative fee.
+    // Delta / (amount without fee / 10000) to give us the fee in basis points
+    } else if deposit_fee_delta_1 * 2 == deposit_fee_delta_2 {
+        vault.deposit_fee =
+            (deposit_fee_delta_1 / (deposit_no_fee / U256::from("0x2710"))).as_u32();
+    } else {
+        // If not a relative fee or zero, ignore vault
+        return None;
+    }
+
+    // If both deltas are zero, the fee is zero
+    if withdraw_fee_delta_1.is_zero() && withdraw_fee_delta_2.is_zero() {
+        vault.withdraw_fee = 0;
+    // Assuming 18 decimals, if the delta of 1e20 is half the delta of 2e20, relative fee.
+    // Delta / (amount without fee / 10000) to give us the fee in basis points
+    } else if withdraw_fee_delta_1 * 2 == withdraw_fee_delta_2 {
+        vault.withdraw_fee =
+            (withdraw_fee_delta_1 / (withdraw_no_fee / U256::from("0x2710"))).as_u32();
+    } else {
+        // If not a relative fee or zero, ignore vault
+        return None;
+    }
+
+    Some(vault)
+}
+
 pub async fn get_4626_vault_data_batch_request<M: Middleware>(
     vault: &mut ERC4626Vault,
     middleware: Arc<M>,
@@ -23,8 +70,7 @@ pub async fn get_4626_vault_data_batch_request<M: Middleware>(
     let constructor_args =
         Token::Tuple(vec![Token::Array(vec![Token::Address(vault.vault_token)])]);
 
-    let deployer =
-        IGetERC4626VaultDataBatchRequest::deploy(middleware.clone(), constructor_args).unwrap();
+    let deployer = IGetERC4626VaultDataBatchRequest::deploy(middleware.clone(), constructor_args)?;
 
     let return_data: Bytes = deployer.call_raw().await?;
     let return_data_tokens = ethers::abi::decode(
@@ -48,54 +94,12 @@ pub async fn get_4626_vault_data_batch_request<M: Middleware>(
     for tokens in return_data_tokens {
         if let Some(tokens_arr) = tokens.into_array() {
             for tup in tokens_arr {
-                if let Some(vault_data) = tup.into_tuple() {
-                    // If the vault token is not zero, signalling that the vault data was populated
-                    if !vault_data[0].to_owned().into_address().unwrap().is_zero() {
-                        vault.vault_token = vault_data[0].to_owned().into_address().unwrap();
-                        vault.vault_token_decimals =
-                            vault_data[1].to_owned().into_uint().unwrap().as_u32() as u8;
-                        vault.asset_token = vault_data[2].to_owned().into_address().unwrap();
-                        vault.asset_token_decimals =
-                            vault_data[3].to_owned().into_uint().unwrap().as_u32() as u8;
-                        vault.vault_reserve = vault_data[4].to_owned().into_uint().unwrap();
-                        vault.asset_reserve = vault_data[5].to_owned().into_uint().unwrap();
+                let vault_data = tup
+                    .into_tuple()
+                    .ok_or(AMMError::BatchRequestError(vault.address()))?;
 
-                        let deposit_fee_delta_1 = vault_data[6].to_owned().into_uint().unwrap();
-                        let deposit_fee_delta_2 = vault_data[7].to_owned().into_uint().unwrap();
-                        let deposit_no_fee = vault_data[8].to_owned().into_uint().unwrap();
-                        let withdraw_fee_delta_1 = vault_data[9].to_owned().into_uint().unwrap();
-                        let withdraw_fee_delta_2 = vault_data[10].to_owned().into_uint().unwrap();
-                        let withdraw_no_fee = vault_data[11].to_owned().into_uint().unwrap();
-
-                        // If both deltas are zero, the fee is zero
-                        if deposit_fee_delta_1.is_zero() && deposit_fee_delta_2.is_zero() {
-                            vault.deposit_fee = 0;
-                        // Assuming 18 decimals, if the delta of 1e20 is half the delta of 2e20, relative fee.
-                        // Delta / (amount without fee / 10000) to give us the fee in basis points
-                        } else if deposit_fee_delta_1 * 2 == deposit_fee_delta_2 {
-                            vault.deposit_fee = (deposit_fee_delta_1
-                                / (deposit_no_fee / U256::from("0x2710")))
-                            .as_u32();
-                        } else {
-                            // If not a relative fee or zero, ignore vault
-                            return Err(AMMError::InvalidERC4626Fee);
-                        }
-
-                        // If both deltas are zero, the fee is zero
-                        if withdraw_fee_delta_1.is_zero() && withdraw_fee_delta_2.is_zero() {
-                            vault.withdraw_fee = 0;
-                        // Assuming 18 decimals, if the delta of 1e20 is half the delta of 2e20, relative fee.
-                        // Delta / (amount without fee / 10000) to give us the fee in basis points
-                        } else if withdraw_fee_delta_1 * 2 == withdraw_fee_delta_2 {
-                            vault.withdraw_fee = (withdraw_fee_delta_1
-                                / (withdraw_no_fee / U256::from("0x2710")))
-                            .as_u32();
-                        } else {
-                            // If not a relative fee or zero, ignore vault
-                            return Err(AMMError::InvalidERC4626Fee);
-                        }
-                    }
-                }
+                *vault = populate_vault_data_from_tokens(vault.to_owned(), vault_data)
+                    .ok_or(AMMError::BatchRequestError(vault.address()))?;
             }
         }
     }
