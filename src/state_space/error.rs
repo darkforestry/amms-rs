@@ -1,4 +1,4 @@
-use damms::errors::{ArithmeticError, DAMMError, EventLogError};
+use crate::errors::{AMMError, ArithmeticError, EventLogError};
 
 use ethers::prelude::{AbiError, ContractError};
 
@@ -8,7 +8,7 @@ use ethers::signers::WalletError;
 use ethers::types::{Block, H160, H256};
 use thiserror::Error;
 
-use crate::state::MiddlewarePubsub;
+use super::state::MiddlewarePubsub;
 
 #[derive(Error, Debug)]
 pub enum StateSpaceError<M, P>
@@ -28,8 +28,8 @@ where
     ABICodecError(#[from] AbiError),
     #[error("Eth ABI error")]
     EthABIError(#[from] ethers::abi::Error),
-    #[error("CFMM error")]
-    DAMMError(#[from] DAMMError<M>),
+    #[error("AMM error")]
+    AMMError(#[from] AMMError<M>),
     #[error("Arithmetic error")]
     ArithmeticError(#[from] ArithmeticError),
     #[error("Wallet error")]
@@ -60,7 +60,6 @@ pub enum StateChangeError {
     CapacityError,
     #[error("Event log error")]
     EventLogError(#[from] EventLogError),
-
     #[error("TODO: remove this once Iziswap is local")]
     MiddlewareError,
 }

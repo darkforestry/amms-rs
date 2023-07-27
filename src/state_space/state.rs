@@ -3,11 +3,11 @@ use std::{
     sync::Arc,
 };
 
-use arraydeque::ArrayDeque;
-use damms::{
+use crate::{
     amm::{AutomatedMarketMaker, AMM},
     errors::EventLogError,
 };
+use arraydeque::ArrayDeque;
 use ethers::{
     prelude::gas_oracle::middleware,
     providers::{spoof::State, Middleware, PubsubClient, StreamExt},
@@ -21,7 +21,7 @@ use tokio::{
     task::JoinHandle,
 };
 
-use crate::error::{StateChangeError, StateSpaceError};
+use super::error::{StateChangeError, StateSpaceError};
 
 pub type StateSpace = HashMap<H160, AMM>;
 pub type StateChangeCache = ArrayDeque<StateChange, 150>;
@@ -548,7 +548,7 @@ pub fn get_block_number_from_log(log: &Log) -> Result<u64, EventLogError> {
     if let Some(block_number) = log.block_number {
         Ok(block_number.as_u64())
     } else {
-        Err(damms::errors::EventLogError::LogBlockNumberNotFound)
+        Err(EventLogError::LogBlockNumberNotFound)
     }
 }
 
@@ -556,7 +556,7 @@ pub fn get_block_number_from_log(log: &Log) -> Result<u64, EventLogError> {
 mod tests {
     use std::{default, sync::Arc};
 
-    use damms::amm::{uniswap_v2::UniswapV2Pool, AMM};
+    use crate::amm::{uniswap_v2::UniswapV2Pool, AMM};
     use ethers::{
         providers::{Http, Provider, Ws},
         types::H160,
@@ -564,7 +564,7 @@ mod tests {
     use tokio::sync::RwLock;
 
     use super::StateSpaceManager;
-    use crate::state::{
+    use crate::state_space::state::{
         add_state_change_to_cache, unwind_state_changes, StateChange, StateChangeCache,
     };
 
