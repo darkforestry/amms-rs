@@ -1,7 +1,7 @@
 use crate::{
     amm::{
         factory::{AutomatedMarketMakerFactory, Factory},
-        izumi, uniswap_v2, uniswap_v3, AutomatedMarketMaker, AMM,
+ uniswap_v2, uniswap_v3, AutomatedMarketMaker, AMM,
     },
     errors::AMMError,
 };
@@ -130,17 +130,6 @@ pub async fn populate_amms<M: Middleware>(
                 }
             }
 
-            AMM::IziSwapPool(_) => {
-                let step = 120; //Max batch size for call
-                for amm_chunk in amms.chunks_mut(step) {
-                    izumi::batch_request::get_amm_data_batch_request(
-                        amm_chunk,
-                        block_number,
-                        middleware.clone(),
-                    )
-                    .await?;
-                }
-            }
         }
     } else {
         return Err(AMMError::IncongruentAMMs);
@@ -170,11 +159,7 @@ pub fn remove_empty_amms(amms: Vec<AMM>) -> Vec<AMM> {
                     cleaned_amms.push(amm)
                 }
             }
-            AMM::IziSwapPool(ref izi_swap_pool) => {
-                if !izi_swap_pool.token_a.is_zero() && !izi_swap_pool.token_b.is_zero() {
-                    cleaned_amms.push(amm)
-                }
-            }
+
         }
     }
 

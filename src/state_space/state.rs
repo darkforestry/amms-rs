@@ -77,7 +77,6 @@ where
                 AMM::UniswapV2Pool(_) => 0,
                 AMM::UniswapV3Pool(_) => 1,
                 AMM::ERC4626Vault(_) => 2,
-                AMM::IziSwapPool(_) => 3,
             };
 
             if !amm_variants.contains(&variant) {
@@ -498,10 +497,6 @@ pub async fn handle_state_changes_from_logs<M: Middleware>(
                 AMM::UniswapV2Pool(pool) => pool.sync_from_log(log)?,
                 AMM::UniswapV3Pool(pool) => pool.sync_from_log(log)?,
                 AMM::ERC4626Vault(vault) => vault.sync_from_log(log)?,
-                AMM::IziSwapPool(pool) => pool
-                    .sync_from_swap_log(log, middleware.clone())
-                    .await
-                    .map_err(|_| StateChangeError::MiddlewareError)?,
             }
         }
 
