@@ -16,6 +16,7 @@ use spinoff::{spinners, Color, Spinner};
 pub const U256_10_POW_18: U256 = U256([1000000000000000000, 0, 0, 0]);
 pub const U256_10_POW_6: U256 = U256([1000000, 0, 0, 0]);
 
+#[allow(clippy::too_many_arguments)]
 //Filter that removes AMMs with that contain less than a specified usd value
 pub async fn filter_amms_below_usd_threshold<M: Middleware>(
     amms: Vec<AMM>,
