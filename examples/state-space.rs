@@ -16,7 +16,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let rpc_endpoint =
         std::env::var("ETHEREUM_RPC_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
     let ws_endpoint =
-        std::env::var("ETHEREUM_WS_ENPOINT").expect("Could not get ETHEREUM_WS_ENPOINT");
+        std::env::var("ETHEREUM_WS_ENDPOINT").expect("Could not get ETHEREUM_WS_ENDPOINT");
 
     // Initialize middleware
     let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint)?);
