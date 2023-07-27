@@ -11,10 +11,8 @@ use std::{str::FromStr, sync::Arc};
 
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
-    let rpc_endpoint =
-        std::env::var("ETHEREUM_RPC_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
-    let ws_endpoint =
-        std::env::var("ETHEREUM_WS_ENDPOINT").expect("Could not get ETHEREUM_WS_ENDPOINT");
+    let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
+    let ws_endpoint = std::env::var("ETHEREUM_WS_ENDPOINT")?;
 
     // Initialize middleware
     let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint)?);

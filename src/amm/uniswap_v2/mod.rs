@@ -367,7 +367,7 @@ impl UniswapV2Pool {
         amount_1_out: U256,
         to: H160,
         calldata: Vec<u8>,
-    ) -> Bytes {
+    ) -> Result<Bytes, ethers::abi::Error> {
         let input_tokens = vec![
             Token::Uint(amount_0_out),
             Token::Uint(amount_1_out),
@@ -375,11 +375,9 @@ impl UniswapV2Pool {
             Token::Bytes(calldata),
         ];
 
-        IUNISWAPV2PAIR_ABI
-            .function("swap")
-            .expect("propagate this")
-            .encode_input(&input_tokens)
-            .expect("Could not encode swap calldata")
+        Ok(IUNISWAPV2PAIR_ABI
+            .function("swap")?
+            .encode_input(&input_tokens)?)
     }
 }
 
@@ -525,8 +523,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_new_from_address() -> eyre::Result<()> {
-        let rpc_endpoint =
-            std::env::var("ETHEREUM_RPC_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
+        let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint)?);
 
         let pool = UniswapV2Pool::new_from_address(
@@ -557,8 +554,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_pool_data() -> eyre::Result<()> {
-        let rpc_endpoint =
-            std::env::var("ETHEREUM_RPC_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
+        let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint)?);
 
         let mut pool = UniswapV2Pool {
@@ -609,8 +605,7 @@ mod tests {
     }
     #[tokio::test]
     async fn test_calculate_price() -> eyre::Result<()> {
-        let rpc_endpoint =
-            std::env::var("ETHEREUM_RPC_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
+        let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint)?);
 
         let mut pool = UniswapV2Pool {
@@ -634,8 +629,7 @@ mod tests {
     }
     #[tokio::test]
     async fn test_calculate_price_64_x_64() -> eyre::Result<()> {
-        let rpc_endpoint =
-            std::env::var("ETHEREUM_RPC_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
+        let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint)?);
 
         let mut pool = UniswapV2Pool {

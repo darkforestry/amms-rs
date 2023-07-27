@@ -135,8 +135,7 @@ pub async fn get_uniswap_v3_tick_data_batch_request<M: Middleware>(
     let tick_data_array = return_data_tokens[0]
         .to_owned()
         .into_array()
-        .expect("Failed to convert initialized_ticks from Vec<Token> to Vec<i128>");
-
+        .ok_or(AMMError::BatchRequestError(pool.address))?;
     let mut tick_data = vec![];
 
     for tokens in tick_data_array {
@@ -144,13 +143,13 @@ pub async fn get_uniswap_v3_tick_data_batch_request<M: Middleware>(
             let initialized = tick_data_tuple[0]
                 .to_owned()
                 .into_bool()
-                .expect("Could not convert token to bool");
+                .ok_or(AMMError::BatchRequestError(pool.address))?;
 
             let initialized_tick = I256::from_raw(
                 tick_data_tuple[1]
                     .to_owned()
                     .into_int()
-                    .expect("Could not convert token to int"),
+                    .ok_or(AMMError::BatchRequestError(pool.address))?,
             )
             .as_i32();
 
@@ -158,7 +157,7 @@ pub async fn get_uniswap_v3_tick_data_batch_request<M: Middleware>(
                 tick_data_tuple[2]
                     .to_owned()
                     .into_int()
-                    .expect("Could not convert token to int"),
+                    .ok_or(AMMError::BatchRequestError(pool.address))?,
             )
             .as_i128();
 
@@ -173,7 +172,7 @@ pub async fn get_uniswap_v3_tick_data_batch_request<M: Middleware>(
     let block_number = return_data_tokens[1]
         .to_owned()
         .into_uint()
-        .expect("Failed to convert block_number from Token to U64");
+        .ok_or(AMMError::BatchRequestError(pool.address))?;
 
     Ok((tick_data, U64::from(block_number.as_u64())))
 }

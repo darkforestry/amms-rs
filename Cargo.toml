@@ -19,6 +19,7 @@ regex = "1.9.1"
 spinoff = "0.7.0"
 arraydeque = {version = "0.5.1", optional = true}
 eyre = "0.6.8"
+lazy_static = "1.4.0"
 
 
 [features]

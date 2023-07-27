@@ -69,6 +69,7 @@ dependencies = [
  "eyre",
  "futures",
  "indicatif 0.17.5",
+ "lazy_static",
  "num-bigfloat",
  "regex",
  "serde",

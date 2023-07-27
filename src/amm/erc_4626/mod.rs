@@ -286,8 +286,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_vault_data() -> eyre::Result<()> {
-        let rpc_endpoint =
-            std::env::var("ETHEREUM_RPC_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
+        let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint)?);
 
         let mut vault = ERC4626Vault {
@@ -311,8 +310,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_calculate_price_varying_decimals() -> eyre::Result<()> {
-        let rpc_endpoint =
-            std::env::var("ETHEREUM_RPC_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
+        let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint)?);
 
         let mut vault = ERC4626Vault {
@@ -337,8 +335,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_calculate_price_zero_reserve() -> eyre::Result<()> {
-        let rpc_endpoint =
-            std::env::var("ETHEREUM_RPC_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
+        let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint)?);
 
         let mut vault = ERC4626Vault {
@@ -362,8 +359,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_calculate_price() -> eyre::Result<()> {
-        let rpc_endpoint =
-            std::env::var("ETHEREUM_RPC_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
+        let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint)?);
 
         let mut vault = ERC4626Vault {
@@ -387,8 +383,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_calculate_price_64_x_64() -> eyre::Result<()> {
-        let rpc_endpoint =
-            std::env::var("ETHEREUM_RPC_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
+        let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint)?);
 
         let mut vault = ERC4626Vault {
@@ -412,8 +407,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_simulate_swap() -> eyre::Result<()> {
-        let rpc_endpoint =
-            std::env::var("ETHEREUM_RPC_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
+        let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint)?);
 
         let mut vault = ERC4626Vault {

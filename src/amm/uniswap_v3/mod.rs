@@ -841,7 +841,9 @@ impl UniswapV3Pool {
             Some(info) => info,
             None => {
                 self.ticks.insert(tick, Info::default());
-                self.ticks.get_mut(&tick).expect("Tick should exist")
+                self.ticks
+                    .get_mut(&tick)
+                    .expect("Tick does not exist in ticks")
             }
         };
 
@@ -975,10 +977,10 @@ impl UniswapV3Pool {
         Ok((
             reserve_0
                 .to_u128()
-                .expect("Could not convert reserve_0 to uint128"),
+                .ok_or(ArithmeticError::U128ConversionError)?,
             reserve_1
                 .to_u128()
-                .expect("Could not convert reserve_1 to uint128"),
+                .ok_or(ArithmeticError::U128ConversionError)?,
         ))
     }
 
@@ -1023,7 +1025,7 @@ impl UniswapV3Pool {
         amount_specified: I256,
         sqrt_price_limit_x_96: U256,
         calldata: Vec<u8>,
-    ) -> Bytes {
+    ) -> Result<Bytes, ethers::abi::Error> {
         let input_tokens = vec![
             Token::Address(recipient),
             Token::Bool(zero_for_one),
@@ -1032,11 +1034,9 @@ impl UniswapV3Pool {
             Token::Bytes(calldata),
         ];
 
-        IUNISWAPV3POOL_ABI
-            .function("swap")
-            .expect("TODO: handle this")
-            .encode_input(&input_tokens)
-            .expect("Could not encode swap calldata")
+        Ok(IUNISWAPV3POOL_ABI
+            .function("swap")?
+            .encode_input(&input_tokens)?)
     }
 }
 
@@ -1079,8 +1079,8 @@ mod test {
     #[allow(unused)]
     #[allow(unused)]
     use super::UniswapV3Pool;
-    
-    use crate::{amm::AutomatedMarketMaker};
+
+    use crate::amm::AutomatedMarketMaker;
 
     #[allow(unused)]
     use ethers::providers::Middleware;
@@ -1122,12 +1122,11 @@ mod test {
     // #[tokio::test]
     // async fn test_simulate_swap_0() -> eyre::Result<()> {
     //     let rpc_endpoint =
-    //         std::env::var("ETHEREUM_RPC_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
+    //         std::env::var("ETHEREUM_RPC_ENDPOINT")?;
     //     let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint)?);
 
     //     let (pool, synced_block) = initialize_test_pool(middleware.clone())
-    //         .await
-    //         .expect("could not initialize test pool");
+    //         .await?;
 
     //     let quoter = IQuoter::new(
     //         H160::from_str("0xb27308f9f90d607463bb33ea1bebb41c27ce5ab6")?,
@@ -1147,8 +1146,7 @@ mod test {
     //         )
     //         .block(synced_block)
     //         .call()
-    //         .await
-    //         ?;
+    //         .await?;
 
     //     assert_eq!(amount_out, expected_amount_out);
     //     let amount_in_1 = U256::from_dec_str("10000000000")?; // 10_000 USDC
@@ -1213,8 +1211,7 @@ mod test {
 
     #[tokio::test]
     async fn test_get_new_from_address() -> eyre::Result<()> {
-        let rpc_endpoint =
-            std::env::var("ETHEREUM_RPC_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
+        let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint)?);
 
         let pool = UniswapV3Pool::new_from_address(
@@ -1222,8 +1219,7 @@ mod test {
             12369620,
             middleware.clone(),
         )
-        .await
-        .expect("could not initialize uniswap v3 pool from address");
+        .await?;
 
         assert_eq!(
             pool.address,
@@ -1248,14 +1244,10 @@ mod test {
 
     #[tokio::test]
     async fn test_get_pool_data() -> eyre::Result<()> {
-        let rpc_endpoint =
-            std::env::var("ETHEREUM_RPC_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
+        let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint)?);
 
-        let (pool, _synced_block) = initialize_test_pool(middleware.clone())
-            .await
-            .expect("could not initialize test pool");
-
+        let (pool, _synced_block) = initialize_test_pool(middleware.clone()).await?;
         assert_eq!(
             pool.address,
             H160::from_str("0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640")?
@@ -1279,8 +1271,7 @@ mod test {
 
     #[tokio::test]
     async fn test_sync_pool() -> eyre::Result<()> {
-        let rpc_endpoint =
-            std::env::var("ETHEREUM_RPC_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
+        let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint)?);
 
         let mut pool = UniswapV3Pool {
@@ -1297,8 +1288,7 @@ mod test {
 
     #[tokio::test]
     async fn test_calculate_virtual_reserves() -> eyre::Result<()> {
-        let rpc_endpoint =
-            std::env::var("ETHEREUM_RPC_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
+        let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint)?);
 
         let mut pool = UniswapV3Pool {
@@ -1322,10 +1312,7 @@ mod test {
         dbg!(pool.sqrt_price);
         dbg!(pool.liquidity);
 
-        let (r_0, r_1) = pool
-            .calculate_virtual_reserves()
-            .expect("Could not calculate virtual reserves");
-
+        let (r_0, r_1) = pool.calculate_virtual_reserves()?;
         dbg!(r_0, r_1);
 
         assert_eq!(1067543429906214, r_0);
@@ -1336,8 +1323,7 @@ mod test {
 
     #[tokio::test]
     async fn test_calculate_price() -> eyre::Result<()> {
-        let rpc_endpoint =
-            std::env::var("ETHEREUM_RPC_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
+        let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint)?);
 
         let mut pool = UniswapV3Pool {
@@ -1355,14 +1341,8 @@ mod test {
         let sqrt_price = block_pool.slot_0().block(16515398).call().await?.0;
         pool.sqrt_price = sqrt_price;
 
-        let float_price_a = pool
-            .calculate_price(pool.token_a)
-            .expect("error when calculating price");
-
-        let float_price_b = pool
-            .calculate_price(pool.token_b)
-            .expect("error when calculating price");
-
+        let float_price_a = pool.calculate_price(pool.token_a)?;
+        let float_price_b = pool.calculate_price(pool.token_b)?;
         dbg!(pool);
 
         assert_eq!(float_price_a, 0.0006081236083117488);

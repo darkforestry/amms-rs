@@ -87,14 +87,14 @@ pub async fn discover_factories<M: Middleware>(
                         uniswap_v2_factory.address = log.address;
                         uniswap_v2_factory.creation_block = log
                             .block_number
-                            .expect("Could not get block number from log")
+                            .ok_or(AMMError::BlockNumberNotFound)?
                             .as_u64();
                     }
                     Factory::UniswapV3Factory(uniswap_v3_factory) => {
                         uniswap_v3_factory.address = log.address;
                         uniswap_v3_factory.creation_block = log
                             .block_number
-                            .expect("Could not get block number from log")
+                            .ok_or(AMMError::BlockNumberNotFound)?
                             .as_u64();
                     }
                 }

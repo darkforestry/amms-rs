@@ -60,12 +60,8 @@ pub async fn sync_amms_from_checkpoint<M: 'static + Middleware>(
         .map_err(AMMError::MiddlewareError)?
         .as_u64();
 
-    let checkpoint: Checkpoint = serde_json::from_str(
-        read_to_string(path_to_checkpoint)
-            .expect("Error when reading in checkpoint json")
-            .as_str(),
-    )
-    .expect("Error when converting checkpoint file contents to serde_json::Value");
+    let checkpoint: Checkpoint =
+        serde_json::from_str(read_to_string(path_to_checkpoint)?.as_str())?;
 
     //Sort all of the pools from the checkpoint into uniswap_v2_pools and uniswap_v3_pools pools so we can sync them concurrently
     let (uniswap_v2_pools, uniswap_v3_pools, _erc_4626_pools) = sort_amms(checkpoint.amms);
@@ -280,13 +276,7 @@ pub fn construct_checkpoint(
 }
 
 //Deconstructs the checkpoint into a Vec<AMM>
-pub fn deconstruct_checkpoint(checkpoint_path: &str) -> (Vec<AMM>, u64) {
-    let checkpoint: Checkpoint = serde_json::from_str(
-        read_to_string(checkpoint_path)
-            .expect("Error when reading in checkpoint json")
-            .as_str(),
-    )
-    .expect("Error when converting checkpoint file contents to serde_json::Value");
-
-    (checkpoint.amms, checkpoint.block_number)
+pub fn deconstruct_checkpoint(checkpoint_path: &str) -> Result<(Vec<AMM>, u64), CheckpointError> {
+    let checkpoint: Checkpoint = serde_json::from_str(read_to_string(checkpoint_path)?.as_str())?;
+    Ok((checkpoint.amms, checkpoint.block_number))
 }

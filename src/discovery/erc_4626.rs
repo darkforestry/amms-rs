@@ -12,8 +12,11 @@ use crate::{
     errors::AMMError,
 };
 
-// Returns a vec of empty factories that match one of the Factory interfaces specified by each DiscoverableFactory
+lazy_static::lazy_static! {
+    static ref HEX_REGEX: Regex = Regex::new(r"0x[0-9a-fA-F]+").expect("Could not compile regex");
+}
 
+// Returns a vec of empty factories that match one of the Factory interfaces specified by each DiscoverableFactory
 pub async fn discover_erc_4626_vaults<M: Middleware>(
     middleware: Arc<M>,
     step: u64,
@@ -59,13 +62,11 @@ pub async fn discover_erc_4626_vaults<M: Middleware>(
                 logs
             }
             Err(err) => {
-                let hex_pattern = Regex::new(r"0x[0-9a-fA-F]+").expect("TODO: make this constant");
-                let block_range = hex_pattern
-                    .find_iter(&err.to_string())
-                    .map(|m| {
-                        U256::from_str(m.as_str()).expect("Could not convert hex number to U256")
-                    })
-                    .collect::<Vec<U256>>();
+                let mut block_range = Vec::new();
+                for m in HEX_REGEX.find_iter(&err.to_string()) {
+                    let value = U256::from_str(m.as_str()).map_err(|_| AMMError::FromHexError)?;
+                    block_range.push(value);
+                }
 
                 if block_range.is_empty() {
                     return Err(AMMError::MiddlewareError(err));

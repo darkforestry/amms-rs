@@ -23,6 +23,12 @@ where
     EthABIError(#[from] ethers::abi::Error),
     #[error("Join error")]
     JoinError(#[from] JoinError),
+    #[error("Serde json error")]
+    SerdeJsonError(#[from] serde_json::error::Error),
+    #[error("IO error")]
+    IOError(#[from] std::io::Error),
+    #[error("Error when converting from hex to U256")]
+    FromHexError,
     #[error("Uniswap V3 math error")]
     UniswapV3MathError(#[from] UniswapV3MathError),
     #[error("Pair for token_a/token_b does not exist in provided dexes")]
@@ -65,6 +71,8 @@ pub enum ArithmeticError {
     YIsZero,
     #[error("Sqrt price overflow")]
     SqrtPriceOverflow,
+    #[error("U128 conversion error")]
+    U128ConversionError,
     #[error("Uniswap v3 math error")]
     UniswapV3MathError(#[from] UniswapV3MathError),
 }

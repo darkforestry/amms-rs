@@ -575,8 +575,7 @@ mod tests {
                 state_change_cache.clone(),
                 StateChange::new(Some(vec![new_amm]), i as u64),
             )
-            .await
-            .expect("could not add state change");
+            .await?;
         }
 
         let mut state_change_cache = state_change_cache.write().await;
@@ -591,7 +590,7 @@ mod tests {
                     panic!("Unexpected AMM variant")
                 }
             } else {
-                panic!("state changes not found")
+                panic!("State changes not found")
             }
         }
 
@@ -600,17 +599,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_unwind_state_changes() -> eyre::Result<()> {
-        let ws_endpoint =
-            std::env::var("ETHEREUM_WS_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
+        let ws_endpoint = std::env::var("ETHEREUM_WS_ENDPOINT")?;
 
-        let rpc_endpoint =
-            std::env::var("ETHEREUM_RPC_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
+        let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint)?);
-        let stream_middleware = Arc::new(
-            Provider::<Ws>::connect(ws_endpoint)
-                .await
-                .expect("could not initialize ws provider"),
-        );
+        let stream_middleware = Arc::new(Provider::<Ws>::connect(ws_endpoint).await?);
 
         let amms = vec![AMM::UniswapV2Pool(UniswapV2Pool {
             address: H160::zero(),
@@ -631,13 +624,10 @@ mod tests {
                 state_change_cache.clone(),
                 StateChange::new(Some(vec![new_amm]), i as u64),
             )
-            .await
-            .expect("could not add state change");
+            .await?;
         }
 
-        unwind_state_changes(state_space_manager.state, state_change_cache, 50)
-            .await
-            .expect("could not unwind state changes");
+        unwind_state_changes(state_space_manager.state, state_change_cache, 50).await?;
 
         //TODO: assert state changes
 
@@ -656,8 +646,7 @@ mod tests {
                 state_change_cache.clone(),
                 StateChange::new(None, block_number),
             )
-            .await
-            .expect("could not add state change");
+            .await?;
         }
 
         let state_change_cache_length = state_change_cache.read().await.len();

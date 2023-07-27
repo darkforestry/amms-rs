@@ -14,8 +14,7 @@ use std::{str::FromStr, sync::Arc};
 
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
-    let rpc_endpoint =
-        std::env::var("ETHEREUM_RPC_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
+    let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
     let provider = Arc::new(Provider::<Http>::try_from(rpc_endpoint)?);
 
     // Initialize factories
