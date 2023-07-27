@@ -9,8 +9,7 @@ use crate::{
 };
 use arraydeque::ArrayDeque;
 use ethers::{
-    prelude::gas_oracle::middleware,
-    providers::{spoof::State, Middleware, PubsubClient, StreamExt},
+    providers::{Middleware, PubsubClient, StreamExt},
     types::{Block, Filter, Log, H160, H256},
 };
 use tokio::{
