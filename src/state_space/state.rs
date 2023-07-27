@@ -560,7 +560,7 @@ mod tests {
     };
 
     #[tokio::test]
-    async fn test_add_state_changes() {
+    async fn test_add_state_changes() -> eyre::Result<()> {
         let state_change_cache = Arc::new(RwLock::new(StateChangeCache::new()));
 
         //TODO: update to emulate state changes from block range
@@ -594,10 +594,12 @@ mod tests {
                 panic!("state changes not found")
             }
         }
+
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_unwind_state_changes() {
+    async fn test_unwind_state_changes() -> eyre::Result<()> {
         let ws_endpoint =
             std::env::var("ETHEREUM_WS_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
 
@@ -638,10 +640,12 @@ mod tests {
             .expect("could not unwind state changes");
 
         //TODO: assert state changes
+
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_add_empty_state_changes() {
+    async fn test_add_empty_state_changes() -> eyre::Result<()> {
         let last_synced_block = 0;
         let chain_head_block_number = 100;
 
@@ -657,6 +661,8 @@ mod tests {
         }
 
         let state_change_cache_length = state_change_cache.read().await.len();
-        assert_eq!(state_change_cache_length, 101)
+        assert_eq!(state_change_cache_length, 101);
+
+        Ok(())
     }
 }

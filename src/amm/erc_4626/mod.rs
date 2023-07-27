@@ -285,7 +285,7 @@ mod tests {
     use super::ERC4626Vault;
 
     #[tokio::test]
-    async fn test_get_vault_data() {
+    async fn test_get_vault_data() -> eyre::Result<()> {
         let rpc_endpoint =
             std::env::var("ETHEREUM_RPC_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
@@ -305,10 +305,12 @@ mod tests {
         assert_eq!(vault.asset_token_decimals, 18);
         assert_eq!(vault.deposit_fee, 0);
         assert_eq!(vault.withdraw_fee, 0);
+
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_calculate_price_varying_decimals() {
+    async fn test_calculate_price_varying_decimals() -> eyre::Result<()> {
         let rpc_endpoint =
             std::env::var("ETHEREUM_RPC_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
@@ -329,10 +331,12 @@ mod tests {
 
         assert_eq!(price_v_64_x, 1.0070222372637234);
         assert_eq!(price_a_64_x, 0.99302673068789);
+
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_calculate_price_zero_reserve() {
+    async fn test_calculate_price_zero_reserve() -> eyre::Result<()> {
         let rpc_endpoint =
             std::env::var("ETHEREUM_RPC_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
@@ -352,10 +356,12 @@ mod tests {
 
         assert_eq!(price_v_64_x, 1.0);
         assert_eq!(price_a_64_x, 1.0);
+
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_calculate_price() {
+    async fn test_calculate_price() -> eyre::Result<()> {
         let rpc_endpoint =
             std::env::var("ETHEREUM_RPC_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
@@ -375,10 +381,12 @@ mod tests {
 
         assert_eq!(price_v_64_x, 1.0070222372638322);
         assert_eq!(price_a_64_x, 0.9930267306877828);
+
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_calculate_price_64_x_64() {
+    async fn test_calculate_price_64_x_64() -> eyre::Result<()> {
         let rpc_endpoint =
             std::env::var("ETHEREUM_RPC_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
@@ -398,10 +406,12 @@ mod tests {
 
         assert_eq!(price_v_64_x, 18576281487340329878);
         assert_eq!(price_a_64_x, 18318109959350028841);
+
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_simulate_swap() {
+    async fn test_simulate_swap() -> eyre::Result<()> {
         let rpc_endpoint =
             std::env::var("ETHEREUM_RPC_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
@@ -437,5 +447,7 @@ mod tests {
             shares_out,
             U256::from_dec_str("2979080192063348487").unwrap()
         );
+
+        Ok(())
     }
 }

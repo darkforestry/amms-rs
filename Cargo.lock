@@ -66,6 +66,7 @@ dependencies = [
  "arraydeque",
  "async-trait",
  "ethers",
+ "eyre",
  "futures",
  "indicatif 0.17.5",
  "num-bigfloat",
