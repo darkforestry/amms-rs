@@ -72,7 +72,7 @@ pub async fn sync_amms<M: 'static + Middleware>(
             &aggregated_amms,
             current_block,
             checkpoint_path,
-        )
+        )?;
     }
     spinner.success("AMMs synced");
 

@@ -18,7 +18,7 @@ use crate::{
         uniswap_v3::factory::UniswapV3Factory,
         AMM,
     },
-    errors::AMMError,
+    errors::{AMMError, CheckpointError},
     sync,
 };
 
@@ -266,7 +266,7 @@ pub fn construct_checkpoint(
     amms: &[AMM],
     latest_block: u64,
     checkpoint_path: &str,
-) {
+) -> Result<(), CheckpointError> {
     let checkpoint = Checkpoint::new(
         SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs_f64() as usize,
         latest_block,
@@ -275,6 +275,8 @@ pub fn construct_checkpoint(
     );
 
     std::fs::write(checkpoint_path, serde_json::to_string_pretty(&checkpoint)?)?;
+
+    Ok(())
 }
 
 //Deconstructs the checkpoint into a Vec<AMM>

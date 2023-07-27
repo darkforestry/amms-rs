@@ -1,3 +1,5 @@
+use std::time::SystemTimeError;
+
 use ethers::prelude::{AbiError, ContractError};
 use ethers::providers::{Middleware, ProviderError};
 use ethers::types::{H160, U256};
@@ -50,6 +52,8 @@ where
     SwapSimulationError(#[from] SwapSimulationError),
     #[error("Invalid data from batch request")]
     BatchRequestError(H160),
+    #[error("Checkpoint error")]
+    CheckpointError(#[from] CheckpointError),
 }
 
 #[derive(Error, Debug)]
@@ -86,4 +90,14 @@ pub enum SwapSimulationError {
     UniswapV3MathError(#[from] UniswapV3MathError),
     #[error("Liquidity underflow")]
     LiquidityUnderflow,
+}
+
+#[derive(Error, Debug)]
+pub enum CheckpointError {
+    #[error("System time error")]
+    SystemTimeError(#[from] SystemTimeError),
+    #[error("Serde json error")]
+    SerdeJsonError(#[from] serde_json::error::Error),
+    #[error("IO error")]
+    IOError(#[from] std::io::Error),
 }
