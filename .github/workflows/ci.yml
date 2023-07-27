@@ -2,16 +2,14 @@ on:
   push:
     branches:
       - main
-      - development
   pull_request:
     branches:
       - main
-      - development
 
 env:
   ETHEREUM_RPC_ENDPOINT: ${{ secrets.ETHEREUM_RPC_ENDPOINT }}
 
-name: Continuous integration
+name: CI
 
 jobs:
   check:

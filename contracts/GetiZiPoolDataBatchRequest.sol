@@ -2,7 +2,9 @@
 pragma solidity ^0.8.0;
 
 interface IiZiSwapPool {
-    function liquidity(bytes32 key)
+    function liquidity(
+        bytes32 key
+    )
         external
         view
         returns (
@@ -12,16 +14,21 @@ interface IiZiSwapPool {
             uint256 tokenOwedX,
             uint256 tokenOwedY
         );
-    
+
     function tokenX() external view returns (address);
+
     function tokenY() external view returns (address);
 
-    function sqrtRate_96() external view returns(uint160);
+    function sqrtRate_96() external view returns (uint160);
+
     function fee() external view returns (uint24);
+
     function pointDelta() external view returns (int24);
+
     function state()
-        external view
-        returns(
+        external
+        view
+        returns (
             uint160 sqrtPrice_96,
             int24 currentPoint,
             uint16 observationCurrentIndex,
@@ -32,6 +39,7 @@ interface IiZiSwapPool {
             uint128 liquidityX
         );
 }
+
 /**
  @dev This contract is not meant to be deployed. Instead, use a static call with the
       deployment bytecode as payload.
@@ -120,11 +128,17 @@ contract GetiZiPoolDataBatchRequest {
                 continue;
             }
 
-            (uint160 sqrtPriceX96, int24 currentPoint, , , , , uint128 liquidity, uint128 liquidityX) = IiZiSwapPool(
-                poolAddress
-            ).state();
+            (
+                uint160 sqrtPriceX96,
+                int24 currentPoint,
+                ,
+                ,
+                ,
+                ,
+                uint128 liquidity,
+                uint128 liquidityX
+            ) = IiZiSwapPool(poolAddress).state();
 
-           
             poolData.fee = IiZiSwapPool(poolAddress).fee();
             poolData.pointDelta = IiZiSwapPool(poolAddress).pointDelta();
             poolData.sqrtPrice = sqrtPriceX96;
