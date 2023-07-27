@@ -5,7 +5,7 @@ use ethers::{
     types::{H160, U256},
 };
 
-use damms::{
+use amms::{
     amm::{
         factory::Factory,
         uniswap_v2::{factory::UniswapV2Factory, UniswapV2Pool},
