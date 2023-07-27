@@ -45,7 +45,6 @@ contract GetWethValueInPoolBatchRequest {
                         dexIsUniV3,
                         wethInPoolThreshold
                     );
-                    // console.log("t0wvip", token0WethValueInPool);
 
                     uint256 token1WethValueInPool = getWethValueOfToken(
                         token1,
@@ -55,8 +54,6 @@ contract GetWethValueInPoolBatchRequest {
                         dexIsUniV3,
                         wethInPoolThreshold
                     );
-
-                    // console.log("t1wvip", token1WethValueInPool);
 
                     if (
                         token0WethValueInPool != 0 && token1WethValueInPool != 0
@@ -75,8 +72,6 @@ contract GetWethValueInPoolBatchRequest {
                 wethValueInPools[i] = 0;
             }
         }
-
-        console.log("wvip", wethValueInPools[0]);
 
         // insure abi encoding, not needed here but increase reusability for different return types
         // note: abi.encode add a first 32 bytes word with the address of the original data
@@ -137,12 +132,6 @@ contract GetWethValueInPoolBatchRequest {
                     );
 
                     if (price != 0) {
-                        // console.log("amount token");
-                        // console.log(amount);
-
-                        // console.log("weth value");
-                        // console.log(mul64u(price, amount));
-
                         return mul64u(price, amount);
                     }
                 }
@@ -260,9 +249,6 @@ contract GetWethValueInPoolBatchRequest {
                 weth
             );
 
-            // console.log("normreserves");
-            // console.log(r_0, r_1);
-
             //Check if the weth value meets the threshold
             //Note: Normalization normalizes the decimals to 18 decimals. If there is ever a weth value that does not have 18 decimals for the chain
             //or we change our normalization logic, we need to account for this
@@ -284,9 +270,6 @@ contract GetWethValueInPoolBatchRequest {
                 fromSqrtX96(sqrtPriceX96, tokenIsToken0, token, weth) >> 64
             );
         }
-
-        // console.log("price");
-        // console.log(price);
 
         //Add the price to the tokenToWeth price mapping
         tokenToWethPrices[token] = price;
@@ -338,8 +321,6 @@ contract GetWethValueInPoolBatchRequest {
         address token0,
         address token1
     ) internal returns (uint256, uint256) {
-        // console.log("pair address to get reserves", lp);
-
         (uint256 r_x, uint256 r_y) = getReserves(lp, token0, token1);
 
         return
@@ -405,7 +386,7 @@ contract GetWethValueInPoolBatchRequest {
     /// @param x uint256 unsigned integer
     /// @param y uint256 unsigned integer
     /// @return unsigned 64.64 fixed point number
-    function divuu(uint256 x, uint256 y) internal view returns (uint128) {
+    function divuu(uint256 x, uint256 y) internal pure returns (uint128) {
         unchecked {
             if (y == 0) return 0;
 
@@ -468,15 +449,9 @@ contract GetWethValueInPoolBatchRequest {
                 answer += xl / y;
             }
 
-            // require(
-            //     answer <= 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF,
-            //     "overflow in divuu last"
-            // );
-
             // We ignore pools that have a price that is too high because it is likely that the reserves are too low to be accurate
             // There is almost certainly not a pool that has a price of token/weth > 2^128
             if (answer > 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF) {
-                // console.log("hitting here");
                 return 0;
             }
 
