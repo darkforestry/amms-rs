@@ -1,9 +1,9 @@
-use std::{sync::Arc, vec};
+use std::{collections::HashMap, sync::Arc, vec};
 
 use ethers::{
-    abi::{ParamType, Token},
+    abi::{Hash, ParamType, Token},
     providers::Middleware,
-    types::{Bytes, I256, U256, U64},
+    types::{Bytes, H160, I256, U256, U64},
 };
 
 use crate::{
@@ -24,6 +24,25 @@ abigen!(
     "src/amm/uniswap_v3/batch_request/SyncUniswapV3PoolBatchRequestABI.json";
 
 );
+
+impl From<Vec<Token>> for UniswapV3Pool {
+    fn from(tokens: Vec<Token>) -> Self {
+        UniswapV3Pool {
+            address: H160::zero(),
+            token_a: tokens[0].to_owned().into_address().unwrap(),
+            token_a_decimals: tokens[1].to_owned().into_uint().unwrap().as_u32() as u8,
+            token_b: tokens[2].to_owned().into_address().unwrap(),
+            token_b_decimals: tokens[3].to_owned().into_uint().unwrap().as_u32() as u8,
+            liquidity: tokens[4].to_owned().into_uint().unwrap().as_u128(),
+            sqrt_price: tokens[5].to_owned().into_uint().unwrap(),
+            tick_bitmap: HashMap::new(),
+            ticks: HashMap::new(),
+            tick: I256::from_raw(tokens[6].to_owned().into_int().unwrap()).as_i32(),
+            tick_spacing: I256::from_raw(tokens[7].to_owned().into_int().unwrap()).as_i32(),
+            fee: tokens[8].to_owned().into_uint().unwrap().as_u64() as u32,
+        }
+    }
+}
 
 pub async fn get_v3_pool_data_batch_request<M: Middleware>(
     pool: &mut UniswapV3Pool,
@@ -64,28 +83,11 @@ pub async fn get_v3_pool_data_batch_request<M: Middleware>(
                 if let Some(pool_data) = tup.into_tuple() {
                     //If the pool token A is not zero, signaling that the pool data was populated
                     if !pool_data[0].to_owned().into_address().unwrap().is_zero() {
-                        //Update the pool data
-                        pool.token_a = pool_data[0].to_owned().into_address().unwrap();
-
-                        pool.token_a_decimals =
-                            pool_data[1].to_owned().into_uint().unwrap().as_u32() as u8;
-
-                        pool.token_b = pool_data[2].to_owned().into_address().unwrap();
-
-                        pool.token_b_decimals =
-                            pool_data[3].to_owned().into_uint().unwrap().as_u32() as u8;
-
-                        pool.liquidity = pool_data[4].to_owned().into_uint().unwrap().as_u128();
-
-                        pool.sqrt_price = pool_data[5].to_owned().into_uint().unwrap();
-
-                        pool.tick =
-                            I256::from_raw(pool_data[6].to_owned().into_int().unwrap()).as_i32();
-
-                        pool.tick_spacing =
-                            I256::from_raw(pool_data[7].to_owned().into_int().unwrap()).as_i32();
-
-                        pool.fee = pool_data[8].to_owned().into_uint().unwrap().as_u64() as u32;
+                        let mut pool_data = UniswapV3Pool::from(pool_data);
+                        pool_data.address = pool.address;
+                        pool_data.tick_bitmap = pool.tick_bitmap.clone();
+                        pool_data.ticks = pool.ticks.clone();
+                        *pool = pool_data;
                     }
                 }
             }
@@ -266,34 +268,11 @@ pub async fn get_amm_data_batch_request<M: Middleware>(
                         //Update the pool data
                         if let AMM::UniswapV3Pool(uniswap_v3_pool) = amms.get_mut(pool_idx).unwrap()
                         {
-                            uniswap_v3_pool.token_a =
-                                pool_data[0].to_owned().into_address().unwrap();
-
-                            uniswap_v3_pool.token_a_decimals =
-                                pool_data[1].to_owned().into_uint().unwrap().as_u32() as u8;
-
-                            uniswap_v3_pool.token_b =
-                                pool_data[2].to_owned().into_address().unwrap();
-
-                            uniswap_v3_pool.token_b_decimals =
-                                pool_data[3].to_owned().into_uint().unwrap().as_u32() as u8;
-
-                            uniswap_v3_pool.liquidity =
-                                pool_data[4].to_owned().into_uint().unwrap().as_u128();
-
-                            uniswap_v3_pool.sqrt_price =
-                                pool_data[5].to_owned().into_uint().unwrap();
-
-                            uniswap_v3_pool.tick =
-                                I256::from_raw(pool_data[6].to_owned().into_int().unwrap())
-                                    .as_i32();
-
-                            uniswap_v3_pool.tick_spacing =
-                                I256::from_raw(pool_data[7].to_owned().into_int().unwrap())
-                                    .as_i32();
-
-                            uniswap_v3_pool.fee =
-                                pool_data[8].to_owned().into_uint().unwrap().as_u64() as u32;
+                            let mut pool_data = UniswapV3Pool::from(pool_data);
+                            pool_data.address = uniswap_v3_pool.address;
+                            pool_data.tick_bitmap = uniswap_v3_pool.tick_bitmap.clone();
+                            pool_data.ticks = uniswap_v3_pool.ticks.clone();
+                            *uniswap_v3_pool = pool_data;
                         }
                     }
                     pool_idx += 1;
