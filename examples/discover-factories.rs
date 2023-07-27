@@ -6,15 +6,13 @@ use amms::discovery::factory::{discover_factories, DiscoverableFactory};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let factories_filename = "fantom_factories.json";
-    let number_of_amms_threshold = 10;
-
-    //Add rpc endpoint here:
     let rpc_endpoint =
-        std::env::var("ARBITRUM_MAINNET_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
+        std::env::var("ETHEREUM_RPC_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
 
     let provider = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
 
+    // Find all UniswapV2 and UniswapV3 compatible factories and filter out matches with less than 1000 AMMs
+    let number_of_amms_threshold = 1000;
     let factories = discover_factories(
         vec![
             DiscoverableFactory::UniswapV2Factory,
@@ -26,11 +24,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     )
     .await?;
 
-    std::fs::write(
-        factories_filename,
-        serde_json::to_string_pretty(&factories).unwrap(),
-    )
-    .unwrap();
+    println!("Factories: {:?}", factories);
 
     Ok(())
 }

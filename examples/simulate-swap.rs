@@ -20,5 +20,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let amount_out = pool.simulate_swap(token_in, U256::from(10000))?;
 
     println!("Amount out: {amount_out}");
+
     Ok(())
 }
