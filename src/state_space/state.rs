@@ -77,7 +77,6 @@ where
                 AMM::UniswapV2Pool(_) => 0,
                 AMM::UniswapV3Pool(_) => 1,
                 AMM::ERC4626Vault(_) => 2,
-                AMM::IziSwapPool(_) => 3,
             };
 
             if !amm_variants.contains(&variant) {
@@ -468,7 +467,7 @@ pub async fn handle_state_changes_from_logs<M: Middleware>(
     state: Arc<RwLock<StateSpace>>,
     state_change_cache: Arc<RwLock<StateChangeCache>>,
     logs: Vec<Log>,
-    middleware: Arc<M>,
+    _middleware: Arc<M>,
 ) -> Result<Vec<H160>, StateChangeError> {
     let mut updated_amms_set = HashSet::new();
     let mut updated_amms = vec![];
@@ -498,10 +497,6 @@ pub async fn handle_state_changes_from_logs<M: Middleware>(
                 AMM::UniswapV2Pool(pool) => pool.sync_from_log(log)?,
                 AMM::UniswapV3Pool(pool) => pool.sync_from_log(log)?,
                 AMM::ERC4626Vault(vault) => vault.sync_from_log(log)?,
-                AMM::IziSwapPool(pool) => pool
-                    .sync_from_swap_log(log, middleware.clone())
-                    .await
-                    .map_err(|_| StateChangeError::MiddlewareError)?,
             }
         }
 
@@ -606,15 +601,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_unwind_state_changes() {
-        // let rpc_endpoint =
-        //     std::env::var("ETHEREUM_RPC_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
-        // let ws_endpoint =
-        //     std::env::var("ETHEREUM_WS_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
+        let ws_endpoint =
+            std::env::var("ETHEREUM_WS_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
 
-        let middleware = Arc::new(Provider::<Http>::try_from("").unwrap());
-
+        let rpc_endpoint =
+            std::env::var("ETHEREUM_RPC_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
+        let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
         let stream_middleware = Arc::new(
-            Provider::<Ws>::connect("")
+            Provider::<Ws>::connect(ws_endpoint)
                 .await
                 .expect("could not initialize ws provider"),
         );
