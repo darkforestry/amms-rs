@@ -13,7 +13,7 @@ use ethers::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::errors::{ArithmeticError, AMMError, EventLogError, SwapSimulationError};
+use crate::errors::{AMMError, ArithmeticError, EventLogError, SwapSimulationError};
 
 use self::{
     erc_4626::ERC4626Vault, izumi::IziSwapPool, uniswap_v2::UniswapV2Pool,

@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     amm::AutomatedMarketMaker,
-    errors::{ArithmeticError, AMMError, EventLogError, SwapSimulationError},
+    errors::{AMMError, ArithmeticError, EventLogError, SwapSimulationError},
 };
 
 use ethers::prelude::abigen;

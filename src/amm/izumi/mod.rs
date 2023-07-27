@@ -9,7 +9,7 @@ use ethers::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::errors::{ArithmeticError, AMMError, EventLogError, SwapSimulationError};
+use crate::errors::{AMMError, ArithmeticError, EventLogError, SwapSimulationError};
 
 use self::factory::{NewPoolFilter, IZI_POOL_CREATED_EVENT_SIGNATURE};
 

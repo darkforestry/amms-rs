@@ -1,7 +1,7 @@
 use std::{collections::HashMap, sync::Arc, vec};
 
 use ethers::{
-    abi::{Hash, ParamType, Token},
+    abi::{ParamType, Token},
     providers::Middleware,
     types::{Bytes, H160, I256, U256, U64},
 };

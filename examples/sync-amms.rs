@@ -6,7 +6,10 @@ use ethers::{
 };
 
 use amms::{
-    amm::{factory::Factory, izumi::factory::IziSwapFactory, uniswap_v2::factory::UniswapV2Factory, uniswap_v3::factory::UniswapV3Factory},
+    amm::{
+        factory::Factory, izumi::factory::IziSwapFactory, uniswap_v2::factory::UniswapV2Factory,
+        uniswap_v3::factory::UniswapV3Factory,
+    },
     sync,
 };
 

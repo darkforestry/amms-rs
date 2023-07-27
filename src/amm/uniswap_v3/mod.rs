@@ -9,7 +9,7 @@ use std::{
 
 use crate::{
     amm::AutomatedMarketMaker,
-    errors::{ArithmeticError, AMMError, EventLogError, SwapSimulationError},
+    errors::{AMMError, ArithmeticError, EventLogError, SwapSimulationError},
 };
 use async_trait::async_trait;
 use ethers::{
@@ -910,10 +910,7 @@ impl UniswapV3Pool {
         Ok((token_a_decimals, token_b_decimals))
     }
 
-    pub async fn get_fee<M: Middleware>(
-        &mut self,
-        middleware: Arc<M>,
-    ) -> Result<u32, AMMError<M>> {
+    pub async fn get_fee<M: Middleware>(&mut self, middleware: Arc<M>) -> Result<u32, AMMError<M>> {
         let fee = IUniswapV3Pool::new(self.address, middleware)
             .fee()
             .call()
