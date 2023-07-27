@@ -89,7 +89,7 @@ where
         Filter::new().topic0(event_signatures)
     }
 
-    //TODO: Update this comment
+    //TODO: Read through this and compare to listen to new blocks, remove if dup
     pub async fn listen_for_updates(
         &self,
         mut last_synced_block: u64,

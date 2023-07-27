@@ -6,11 +6,8 @@ use ethers::{
 };
 
 use amms::{
-    amm::{
-        factory::Factory, uniswap_v2::factory::UniswapV2Factory,
-        uniswap_v3::factory::UniswapV3Factory,
-    },
-    state_space::state::{StateSpace, StateSpaceManager},
+    amm::{factory::Factory, uniswap_v2::factory::UniswapV2Factory},
+    state_space::state::StateSpaceManager,
     sync,
 };
 
@@ -21,9 +18,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let ws_endpoint =
         std::env::var("ETHEREUM_WS_ENPOINT").expect("Could not get ETHEREUM_WS_ENPOINT");
 
-    let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
+    // Initialize middleware
+    let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint)?);
     let stream_middleware = Arc::new(Provider::<Ws>::connect(ws_endpoint).await?);
 
+    // Initialize factories
     let factories = vec![
         //UniswapV2
         Factory::UniswapV2Factory(UniswapV2Factory::new(
@@ -31,7 +30,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             2638438,
             300,
         )),
-        // //Add Sushiswap
+        //Add Sushiswap
         Factory::UniswapV2Factory(UniswapV2Factory::new(
             H160::from_str("0xC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac").unwrap(),
             10794229,
@@ -39,10 +38,23 @@ async fn main() -> Result<(), Box<dyn Error>> {
         )),
     ];
 
-    //Sync pairs
-    let (amms, _) = sync::sync_amms(factories, middleware.clone(), None, 1000).await?;
+    //Sync amms
+    let (amms, last_synced_block) =
+        sync::sync_amms(factories, middleware.clone(), None, 1000).await?;
 
+    // Iniialize state space manager
     let state_space_manager = StateSpaceManager::new(amms, middleware, stream_middleware);
+
+    //Listen for state changes and print them out
+    let (mut rx, _join_handles) = state_space_manager
+        .listen_for_state_changes(last_synced_block, 100)
+        .await?;
+
+    for _ in 0..10 {
+        if let Some(state_changes) = rx.recv().await {
+            println!("State changes: {:?}", state_changes);
+        }
+    }
 
     Ok(())
 }
