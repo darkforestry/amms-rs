@@ -1,7 +1,6 @@
-use std::collections::HashSet;
-
-use damms::amm::{AutomatedMarketMaker, AMM};
+use crate::amm::{AutomatedMarketMaker, AMM};
 use ethers::types::H160;
+use std::collections::HashSet;
 
 //Filters out AMMs that contain a blacklisted token
 pub fn filter_blacklisted_tokens(amms: Vec<AMM>, blacklisted_addresses: Vec<H160>) -> Vec<AMM> {

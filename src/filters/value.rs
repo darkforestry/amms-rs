@@ -1,7 +1,3 @@
-use damms::amm::{
-    factory::{AutomatedMarketMakerFactory, Factory},
-    AutomatedMarketMaker, AMM,
-};
 use ethers::{
     abi::{ParamType, Token},
     prelude::abigen,
@@ -10,14 +6,12 @@ use ethers::{
 };
 use std::sync::Arc;
 
-use damms::{
-    amm::{factory::Factory, factory::AutomatedMarketMakerFactory, AutomatedMarketMaker, AMM,},
+use crate::{
+    amm::{factory::AutomatedMarketMakerFactory, factory::Factory, AutomatedMarketMaker, AMM},
     errors::DAMMError,
 };
 
 use spinoff::{spinners, Color, Spinner};
-
-use crate::batch_requests;
 
 pub const U256_10_POW_18: U256 = U256([1000000000000000000, 0, 0, 0]);
 pub const U256_10_POW_6: U256 = U256([1000000, 0, 0, 0]);
@@ -123,15 +117,14 @@ pub async fn get_weth_values_in_amms<M: Middleware>(
 
     //TODO: see if you can just step by the pools rather than some index
     for _ in (0..amms.len()).step_by(step) {
-        let weth_values_in_amms =
-            batch_requests::filter_by_value::get_weth_value_in_amm_batch_request(
-                &amms[idx_from..idx_to],
-                factories,
-                weth,
-                weth_value_in_token_to_weth_pool_threshold,
-                middleware.clone(),
-            )
-            .await?;
+        let weth_values_in_amms = get_weth_value_in_amm_batch_request(
+            &amms[idx_from..idx_to],
+            factories,
+            weth,
+            weth_value_in_token_to_weth_pool_threshold,
+            middleware.clone(),
+        )
+        .await?;
 
         //add weth values in pools to the aggregate array
         aggregate_weth_values_in_amms.extend(weth_values_in_amms);
@@ -148,20 +141,18 @@ pub async fn get_weth_values_in_amms<M: Middleware>(
     Ok(aggregate_weth_values_in_amms)
 }
 
-
-
 abigen!(
     GetWethValueInAMMBatchRequest,
-    "src/batch_requests/filter_by_value/GetWethValueInAMMBatchRequest.json";
+    "src/filters/batch_requests/GetWethValueInAMMBatchRequest.json";
 );
 
-pub async fn get_weth_value_in_amm_batch_request<M: Middleware>(
+async fn get_weth_value_in_amm_batch_request<M: Middleware>(
     amms: &[AMM],
     factories: &[Factory],
     weth: H160,
     weth_value_in_token_to_weth_pool_threshold: U256,
     middleware: Arc<M>,
-) -> Result<Vec<U256>, damms::errors::DAMMError<M>> {
+) -> Result<Vec<U256>, DAMMError<M>> {
     let mut weth_values_in_pools = vec![];
 
     let amms = amms
@@ -174,7 +165,7 @@ pub async fn get_weth_value_in_amm_batch_request<M: Middleware>(
         .map(|d| match d {
             Factory::UniswapV2Factory(_) => Token::Bool(false),
             Factory::UniswapV3Factory(_) => Token::Bool(true),
-            Factory::IziSwapFactory(_) => Token::Bool(true) //TODO: This needs to be changed
+            Factory::IziSwapFactory(_) => Token::Bool(true), //TODO: This needs to be changed
         })
         .collect::<Vec<Token>>();
 
