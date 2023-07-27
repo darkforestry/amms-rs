@@ -17,9 +17,11 @@ num-bigfloat = "1.6.2"
 uniswap_v3_math = "0.4.0"
 regex = "1.9.1"
 spinoff = "0.7.0"
+arraydeque = {version = "0.5.1", optional = true}
+
 
 [features]
 default = ["filters", "state-space"]
 filters = []
-state-space = []
+state-space = ["arraydeque"]
 
