@@ -1034,9 +1034,9 @@ impl UniswapV3Pool {
             Token::Bytes(calldata),
         ];
 
-        Ok(IUNISWAPV3POOL_ABI
+        IUNISWAPV3POOL_ABI
             .function("swap")?
-            .encode_input(&input_tokens)?)
+            .encode_input(&input_tokens)
     }
 }
 

@@ -375,9 +375,9 @@ impl UniswapV2Pool {
             Token::Bytes(calldata),
         ];
 
-        Ok(IUNISWAPV2PAIR_ABI
+        IUNISWAPV2PAIR_ABI
             .function("swap")?
-            .encode_input(&input_tokens)?)
+            .encode_input(&input_tokens)
     }
 }
 
