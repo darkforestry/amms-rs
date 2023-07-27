@@ -80,7 +80,7 @@ pub async fn discover_factories<M: Middleware>(
             } else {
                 //TODO: conduct interface checks for the given factory
 
-                let mut factory = Factory::new_empty_factory_from_event_signature(log.topics[0]);
+                let mut factory = Factory::new_empty_factory_from_event_signature(log.topics[0])?;
 
                 match &mut factory {
                     Factory::UniswapV2Factory(uniswap_v2_factory) => {
