@@ -26,15 +26,15 @@ abigen!(
 );
 
 fn populate_pool_data_from_tokens(mut pool: UniswapV3Pool, tokens: Vec<Token>) -> UniswapV3Pool {
-    pool.token_a = tokens[0].to_owned().into_address().unwrap();
-    pool.token_a_decimals = tokens[1].to_owned().into_uint().unwrap().as_u32() as u8;
-    pool.token_b = tokens[2].to_owned().into_address().unwrap();
-    pool.token_b_decimals = tokens[3].to_owned().into_uint().unwrap().as_u32() as u8;
-    pool.liquidity = tokens[4].to_owned().into_uint().unwrap().as_u128();
-    pool.sqrt_price = tokens[5].to_owned().into_uint().unwrap();
-    pool.tick = I256::from_raw(tokens[6].to_owned().into_int().unwrap()).as_i32();
-    pool.tick_spacing = I256::from_raw(tokens[7].to_owned().into_int().unwrap()).as_i32();
-    pool.fee = tokens[8].to_owned().into_uint().unwrap().as_u64() as u32;
+    pool.token_a = tokens[0].to_owned().into_address()?;
+    pool.token_a_decimals = tokens[1].to_owned().into_uint()?.as_u32() as u8;
+    pool.token_b = tokens[2].to_owned().into_address()?;
+    pool.token_b_decimals = tokens[3].to_owned().into_uint()?.as_u32() as u8;
+    pool.liquidity = tokens[4].to_owned().into_uint()?.as_u128();
+    pool.sqrt_price = tokens[5].to_owned().into_uint()?;
+    pool.tick = I256::from_raw(tokens[6].to_owned().into_int()?).as_i32();
+    pool.tick_spacing = I256::from_raw(tokens[7].to_owned().into_int()?).as_i32();
+    pool.fee = tokens[8].to_owned().into_uint()?.as_u64() as u32;
     pool
 }
 
@@ -45,8 +45,7 @@ pub async fn get_v3_pool_data_batch_request<M: Middleware>(
 ) -> Result<(), AMMError<M>> {
     let constructor_args = Token::Tuple(vec![Token::Array(vec![Token::Address(pool.address)])]);
 
-    let deployer =
-        IGetUniswapV3PoolDataBatchRequest::deploy(middleware.clone(), constructor_args).unwrap();
+    let deployer = IGetUniswapV3PoolDataBatchRequest::deploy(middleware.clone(), constructor_args)?;
 
     let return_data: Bytes = if let Some(block_number) = block_number {
         deployer.block(block_number).call_raw().await?
@@ -76,7 +75,7 @@ pub async fn get_v3_pool_data_batch_request<M: Middleware>(
             for tup in tokens_arr {
                 if let Some(pool_data) = tup.into_tuple() {
                     //If the pool token A is not zero, signaling that the pool data was populated
-                    if !pool_data[0].to_owned().into_address().unwrap().is_zero() {
+                    if !pool_data[0].to_owned().into_address()?.is_zero() {
                         *pool = populate_pool_data_from_tokens(pool.to_owned(), pool_data);
                     }
                 }
@@ -108,11 +107,10 @@ pub async fn get_uniswap_v3_tick_data_batch_request<M: Middleware>(
         Token::Int(I256::from(pool.tick_spacing).into_raw()),
     ]);
 
-    let deployer =
-        IGetUniswapV3TickDataBatchRequest::deploy(middleware.clone(), constructor_args).unwrap();
-
-    let return_data: Bytes = if block_number.is_some() {
-        deployer.block(block_number.unwrap()).call_raw().await?
+    let deployer = IGetUniswapV3TickDataBatchRequest::deploy(middleware.clone(), constructor_args)?;
+    //TODO: use if let some here
+    let return_data: Bytes = if let Some(block_number) = block_number {
+        deployer.block(block_number).call_raw().await?
     } else {
         deployer.call_raw().await?
     };
@@ -182,8 +180,7 @@ pub async fn sync_v3_pool_batch_request<M: Middleware>(
 ) -> Result<(), AMMError<M>> {
     let constructor_args = Token::Tuple(vec![Token::Address(pool.address)]);
 
-    let deployer =
-        ISyncUniswapV3PoolBatchRequest::deploy(middleware.clone(), constructor_args).unwrap();
+    let deployer = ISyncUniswapV3PoolBatchRequest::deploy(middleware.clone(), constructor_args)?;
 
     let return_data: Bytes = deployer.call_raw().await?;
     let return_data_tokens = ethers::abi::decode(
@@ -199,11 +196,11 @@ pub async fn sync_v3_pool_batch_request<M: Middleware>(
     for tokens in return_data_tokens {
         if let Some(pool_data) = tokens.into_tuple() {
             //If the sqrt_price is not zero, signaling that the pool data was populated
-            if !pool_data[1].to_owned().into_uint().unwrap().is_zero() {
+            if !pool_data[1].to_owned().into_uint()?.is_zero() {
                 //Update the pool data
-                pool.liquidity = pool_data[0].to_owned().into_uint().unwrap().as_u128();
-                pool.sqrt_price = pool_data[1].to_owned().into_uint().unwrap();
-                pool.tick = I256::from_raw(pool_data[2].to_owned().into_int().unwrap()).as_i32();
+                pool.liquidity = pool_data[0].to_owned().into_uint()?.as_u128();
+                pool.sqrt_price = pool_data[1].to_owned().into_uint()?;
+                pool.tick = I256::from_raw(pool_data[2].to_owned().into_int()?).as_i32();
             } else {
                 return Err(AMMError::SyncError(pool.address));
             }
@@ -225,8 +222,7 @@ pub async fn get_amm_data_batch_request<M: Middleware>(
     }
 
     let constructor_args = Token::Tuple(vec![Token::Array(target_addresses)]);
-    let deployer =
-        IGetUniswapV3PoolDataBatchRequest::deploy(middleware.clone(), constructor_args).unwrap();
+    let deployer = IGetUniswapV3PoolDataBatchRequest::deploy(middleware.clone(), constructor_args)?;
 
     let return_data: Bytes = deployer.block(block_number).call_raw().await?;
 
@@ -254,10 +250,9 @@ pub async fn get_amm_data_batch_request<M: Middleware>(
             for tup in tokens_arr {
                 if let Some(pool_data) = tup.into_tuple() {
                     //If the pool token A is not zero, signaling that the pool data was populated
-                    if !pool_data[0].to_owned().into_address().unwrap().is_zero() {
+                    if !pool_data[0].to_owned().into_address()?.is_zero() {
                         //Update the pool data
-                        if let AMM::UniswapV3Pool(uniswap_v3_pool) = amms.get_mut(pool_idx).unwrap()
-                        {
+                        if let AMM::UniswapV3Pool(uniswap_v3_pool) = amms.get_mut(pool_idx)? {
                             *uniswap_v3_pool = populate_pool_data_from_tokens(
                                 uniswap_v3_pool.to_owned(),
                                 pool_data,

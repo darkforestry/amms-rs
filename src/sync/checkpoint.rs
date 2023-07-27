@@ -268,20 +268,13 @@ pub fn construct_checkpoint(
     checkpoint_path: &str,
 ) {
     let checkpoint = Checkpoint::new(
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs_f64() as usize,
+        SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs_f64() as usize,
         latest_block,
         factories,
         amms.to_vec(),
     );
 
-    std::fs::write(
-        checkpoint_path,
-        serde_json::to_string_pretty(&checkpoint).unwrap(),
-    )
-    .unwrap();
+    std::fs::write(checkpoint_path, serde_json::to_string_pretty(&checkpoint)?)?;
 }
 
 //Deconstructs the checkpoint into a Vec<AMM>

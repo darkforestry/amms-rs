@@ -65,9 +65,8 @@ pub async fn sync_amms<M: 'static + Middleware>(
     }
 
     //Save a checkpoint if a path is provided
-    if checkpoint_path.is_some() {
-        let checkpoint_path = checkpoint_path.unwrap();
 
+    if let Some(checkpoint_path) = checkpoint_path {
         checkpoint::construct_checkpoint(
             factories,
             &aggregated_amms,

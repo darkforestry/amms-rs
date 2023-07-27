@@ -605,7 +605,7 @@ mod tests {
 
         let rpc_endpoint =
             std::env::var("ETHEREUM_RPC_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
-        let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
+        let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint)?);
         let stream_middleware = Arc::new(
             Provider::<Ws>::connect(ws_endpoint)
                 .await

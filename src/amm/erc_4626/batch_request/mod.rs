@@ -23,8 +23,7 @@ pub async fn get_4626_vault_data_batch_request<M: Middleware>(
     let constructor_args =
         Token::Tuple(vec![Token::Array(vec![Token::Address(vault.vault_token)])]);
 
-    let deployer =
-        IGetERC4626VaultDataBatchRequest::deploy(middleware.clone(), constructor_args).unwrap();
+    let deployer = IGetERC4626VaultDataBatchRequest::deploy(middleware.clone(), constructor_args)?;
 
     let return_data: Bytes = deployer.call_raw().await?;
     let return_data_tokens = ethers::abi::decode(
@@ -50,22 +49,22 @@ pub async fn get_4626_vault_data_batch_request<M: Middleware>(
             for tup in tokens_arr {
                 if let Some(vault_data) = tup.into_tuple() {
                     // If the vault token is not zero, signalling that the vault data was populated
-                    if !vault_data[0].to_owned().into_address().unwrap().is_zero() {
-                        vault.vault_token = vault_data[0].to_owned().into_address().unwrap();
+                    if !vault_data[0].to_owned().into_address()?.is_zero() {
+                        vault.vault_token = vault_data[0].to_owned().into_address()?;
                         vault.vault_token_decimals =
-                            vault_data[1].to_owned().into_uint().unwrap().as_u32() as u8;
-                        vault.asset_token = vault_data[2].to_owned().into_address().unwrap();
+                            vault_data[1].to_owned().into_uint()?.as_u32() as u8;
+                        vault.asset_token = vault_data[2].to_owned().into_address()?;
                         vault.asset_token_decimals =
-                            vault_data[3].to_owned().into_uint().unwrap().as_u32() as u8;
-                        vault.vault_reserve = vault_data[4].to_owned().into_uint().unwrap();
-                        vault.asset_reserve = vault_data[5].to_owned().into_uint().unwrap();
+                            vault_data[3].to_owned().into_uint()?.as_u32() as u8;
+                        vault.vault_reserve = vault_data[4].to_owned().into_uint()?;
+                        vault.asset_reserve = vault_data[5].to_owned().into_uint()?;
 
-                        let deposit_fee_delta_1 = vault_data[6].to_owned().into_uint().unwrap();
-                        let deposit_fee_delta_2 = vault_data[7].to_owned().into_uint().unwrap();
-                        let deposit_no_fee = vault_data[8].to_owned().into_uint().unwrap();
-                        let withdraw_fee_delta_1 = vault_data[9].to_owned().into_uint().unwrap();
-                        let withdraw_fee_delta_2 = vault_data[10].to_owned().into_uint().unwrap();
-                        let withdraw_no_fee = vault_data[11].to_owned().into_uint().unwrap();
+                        let deposit_fee_delta_1 = vault_data[6].to_owned().into_uint()?;
+                        let deposit_fee_delta_2 = vault_data[7].to_owned().into_uint()?;
+                        let deposit_no_fee = vault_data[8].to_owned().into_uint()?;
+                        let withdraw_fee_delta_1 = vault_data[9].to_owned().into_uint()?;
+                        let withdraw_fee_delta_2 = vault_data[10].to_owned().into_uint()?;
+                        let withdraw_no_fee = vault_data[11].to_owned().into_uint()?;
 
                         // If both deltas are zero, the fee is zero
                         if deposit_fee_delta_1.is_zero() && deposit_fee_delta_2.is_zero() {

@@ -59,7 +59,7 @@ pub async fn discover_erc_4626_vaults<M: Middleware>(
                 logs
             }
             Err(err) => {
-                let hex_pattern = Regex::new(r"0x[0-9a-fA-F]+").unwrap();
+                let hex_pattern = Regex::new(r"0x[0-9a-fA-F]+").expect("TODO: make this constant");
                 let block_range = hex_pattern
                     .find_iter(&err.to_string())
                     .map(|m| {
