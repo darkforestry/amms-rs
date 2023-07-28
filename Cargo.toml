@@ -3,6 +3,16 @@ name = "amms"
 version = "0.5.2"
 edition = "2021"
 license = "MIT"
+description = "A library to interact with automated market makers across EVM chains."
+readme = "README.md"
+homepage = "https://github.com/0xKitsune/amms-rs"
+repository = "https://github.com/0xKitsune/amms-rs"
+keywords = ["ethereum", "amm", "mev"]
+exclude = [
+    "target/*",
+    ".github/*",
+    ".gitignore"
+]
 
 
 [dependencies]
