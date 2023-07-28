@@ -560,7 +560,7 @@ mod tests {
     };
 
     #[tokio::test]
-    async fn test_add_state_changes() {
+    async fn test_add_state_changes() -> eyre::Result<()> {
         let state_change_cache = Arc::new(RwLock::new(StateChangeCache::new()));
 
         //TODO: update to emulate state changes from block range
@@ -575,8 +575,7 @@ mod tests {
                 state_change_cache.clone(),
                 StateChange::new(Some(vec![new_amm]), i as u64),
             )
-            .await
-            .expect("could not add state change");
+            .await?;
         }
 
         let mut state_change_cache = state_change_cache.write().await;
@@ -591,24 +590,20 @@ mod tests {
                     panic!("Unexpected AMM variant")
                 }
             } else {
-                panic!("state changes not found")
+                panic!("State changes not found")
             }
         }
+
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_unwind_state_changes() {
-        let ws_endpoint =
-            std::env::var("ETHEREUM_WS_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
+    async fn test_unwind_state_changes() -> eyre::Result<()> {
+        let ws_endpoint = std::env::var("ETHEREUM_WS_ENDPOINT")?;
 
-        let rpc_endpoint =
-            std::env::var("ETHEREUM_RPC_ENDPOINT").expect("Could not get ETHEREUM_RPC_ENDPOINT");
-        let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
-        let stream_middleware = Arc::new(
-            Provider::<Ws>::connect(ws_endpoint)
-                .await
-                .expect("could not initialize ws provider"),
-        );
+        let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
+        let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint)?);
+        let stream_middleware = Arc::new(Provider::<Ws>::connect(ws_endpoint).await?);
 
         let amms = vec![AMM::UniswapV2Pool(UniswapV2Pool {
             address: H160::zero(),
@@ -629,19 +624,18 @@ mod tests {
                 state_change_cache.clone(),
                 StateChange::new(Some(vec![new_amm]), i as u64),
             )
-            .await
-            .expect("could not add state change");
+            .await?;
         }
 
-        unwind_state_changes(state_space_manager.state, state_change_cache, 50)
-            .await
-            .expect("could not unwind state changes");
+        unwind_state_changes(state_space_manager.state, state_change_cache, 50).await?;
 
         //TODO: assert state changes
+
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_add_empty_state_changes() {
+    async fn test_add_empty_state_changes() -> eyre::Result<()> {
         let last_synced_block = 0;
         let chain_head_block_number = 100;
 
@@ -652,11 +646,12 @@ mod tests {
                 state_change_cache.clone(),
                 StateChange::new(None, block_number),
             )
-            .await
-            .expect("could not add state change");
+            .await?;
         }
 
         let state_change_cache_length = state_change_cache.read().await.len();
-        assert_eq!(state_change_cache_length, 101)
+        assert_eq!(state_change_cache_length, 101);
+
+        Ok(())
     }
 }
