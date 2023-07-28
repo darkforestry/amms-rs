@@ -63,6 +63,7 @@ abigen!(
 
 pub const MIN_SQRT_RATIO: U256 = U256([4295128739, 0, 0, 0]);
 pub const MAX_SQRT_RATIO: U256 = U256([6743328256752651558, 17280870778742802505, 4294805859, 0]);
+pub const POPULATE_TICK_DATA_STEP: u64 = 100000;
 pub const SWAP_EVENT_SIGNATURE: H256 = H256([
     196, 32, 121, 249, 74, 99, 80, 215, 230, 35, 95, 41, 23, 73, 36, 249, 40, 204, 42, 200, 24,
     235, 100, 254, 216, 0, 78, 17, 95, 188, 202, 103,
@@ -172,7 +173,7 @@ impl AutomatedMarketMaker for UniswapV3Pool {
             Ok(1.0 / price)
         }
     }
-    //TODO: document that this function will not populate the tick_bitmap and ticks, if you want to populate those, you must call populate_tick_data on an initialized pool.1.0001_f64
+    // NOTE: This function will not populate the tick_bitmap and ticks, if you want to populate those, you must call populate_tick_data on an initialized pool
     async fn populate_data<M: Middleware>(
         &mut self,
         block_number: Option<u64>,
@@ -491,9 +492,7 @@ impl UniswapV3Pool {
         }
     }
 
-    //TODO: document that this function will not populate the tick_bitmap and ticks, if you want to populate those, you must call populate_tick_data on an initialized pool.1.0001_f64
-
-    //Creates a new instance of the pool from the pair address
+    // Creates a new instance of the pool from the pair address
     pub async fn new_from_address<M: 'static + Middleware>(
         pair_address: H160,
         creation_block: u64,
@@ -521,7 +520,7 @@ impl UniswapV3Pool {
             .populate_tick_data(creation_block, middleware.clone())
             .await?;
 
-        //TODO: break this into two threads so it can happen concurrently?
+        //TODO: break this into two threads so it can happen concurrently
         pool.populate_data(Some(synced_block), middleware).await?;
 
         if !pool.data_is_populated() {
@@ -592,7 +591,6 @@ impl UniswapV3Pool {
             .as_u64();
         let mut ordered_logs: BTreeMap<U64, Vec<Log>> = BTreeMap::new();
 
-        let step = 100000; //TODO: maybe make this a constant across the codebase where we set step
         let pool_address: H160 = self.address;
 
         let mut handles = vec![];
@@ -601,7 +599,7 @@ impl UniswapV3Pool {
         while from_block < current_block {
             let middleware = middleware.clone();
 
-            let mut target_block = from_block + step - 1;
+            let mut target_block = from_block + POPULATE_TICK_DATA_STEP - 1;
             if target_block > current_block {
                 target_block = current_block;
             }
@@ -621,7 +619,7 @@ impl UniswapV3Pool {
                 Ok::<Vec<Log>, AMMError<M>>(logs)
             }));
 
-            from_block += step;
+            from_block += POPULATE_TICK_DATA_STEP;
             tasks += 1;
             //Here we are limiting the number of green threads that can be spun up to not have the node time out
             if tasks == TASK_LIMIT {
@@ -836,7 +834,6 @@ impl UniswapV3Pool {
     }
 
     pub fn update_tick(&mut self, tick: i32, liquidity_delta: i128, upper: bool) -> bool {
-        //TODO: sanity check this
         let info = match self.ticks.get_mut(&tick) {
             Some(info) => info,
             None => {
@@ -982,28 +979,6 @@ impl UniswapV3Pool {
                 .to_u128()
                 .ok_or(ArithmeticError::U128ConversionError)?,
         ))
-    }
-
-    pub async fn get_word<M: Middleware>(
-        &self,
-        word_pos: i16,
-        block_number: Option<U64>,
-        middleware: Arc<M>,
-    ) -> Result<U256, AMMError<M>> {
-        if let Some(block_number) = block_number {
-            //TODO: in the future, create a batch call to get this and liquidity net within the same call
-            Ok(IUniswapV3Pool::new(self.address, middleware.clone())
-                .tick_bitmap(word_pos)
-                .block(block_number)
-                .call()
-                .await?)
-        } else {
-            //TODO: in the future, create a batch call to get this and liquidity net within the same call
-            Ok(IUniswapV3Pool::new(self.address, middleware.clone())
-                .tick_bitmap(word_pos)
-                .call()
-                .await?)
-        }
     }
 
     pub fn calculate_compressed(&self, tick: i32) -> i32 {

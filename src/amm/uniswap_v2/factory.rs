@@ -126,7 +126,6 @@ impl AutomatedMarketMakerFactory for UniswapV2Factory {
         ))
     }
 
-    //TODO: decide whether or not to populate the fee
     fn new_empty_amm_from_log(&self, log: Log) -> Result<AMM, ethers::abi::Error> {
         let pair_created_event = PairCreatedFilter::decode_log(&RawLog::from(log))?;
 
@@ -160,9 +159,6 @@ impl AutomatedMarketMakerFactory for UniswapV2Factory {
         let step = 127; //Max batch size for call
         for amm_chunk in amms.chunks_mut(step) {
             batch_request::get_amm_data_batch_request(amm_chunk, middleware.clone()).await?;
-
-            //TODO: add back progress bars
-            // progress_bar.inc(step as u64);
         }
         Ok(())
     }

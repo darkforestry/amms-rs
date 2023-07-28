@@ -34,9 +34,6 @@ fn populate_pool_data_from_tokens(
     pool.reserve_0 = tokens[4].to_owned().into_uint()?.as_u128();
     pool.reserve_1 = tokens[5].to_owned().into_uint()?.as_u128();
 
-    //TODO: should we populate the fee here, not all uv2 forks will have .03% fee
-    pool.fee = 300;
-
     Some(pool)
 }
 
@@ -132,8 +129,6 @@ pub async fn get_amm_data_batch_request<M: Middleware>(
             }
         }
     }
-
-    //TODO: should we clean up empty pools here?
 
     Ok(())
 }
