@@ -8,7 +8,7 @@ use ethers::{
 use serde::{Deserialize, Serialize};
 use tokio::task::JoinHandle;
 
-use crate::errors::AMMError;
+use crate::errors::{AMMError, EventLogError};
 
 use super::{
     uniswap_v2::factory::{UniswapV2Factory, PAIR_CREATED_EVENT_SIGNATURE},
@@ -202,15 +202,18 @@ impl Factory {
         }
         Ok(())
     }
+}
 
-    pub fn new_empty_factory_from_event_signature(event_signature: H256) -> Self {
-        if event_signature == PAIR_CREATED_EVENT_SIGNATURE {
-            Factory::UniswapV2Factory(UniswapV2Factory::default())
-        } else if event_signature == POOL_CREATED_EVENT_SIGNATURE {
-            Factory::UniswapV3Factory(UniswapV3Factory::default())
+impl TryFrom<H256> for Factory {
+    type Error = EventLogError;
+
+    fn try_from(value: H256) -> Result<Self, Self::Error> {
+        if value == PAIR_CREATED_EVENT_SIGNATURE {
+            Ok(Factory::UniswapV2Factory(UniswapV2Factory::default()))
+        } else if value == POOL_CREATED_EVENT_SIGNATURE {
+            Ok(Factory::UniswapV3Factory(UniswapV3Factory::default()))
         } else {
-            //TODO: handle this error
-            panic!("Unrecognized event signature")
+            return Err(EventLogError::InvalidEventSignature);
         }
     }
 }
