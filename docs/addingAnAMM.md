@@ -97,10 +97,20 @@ pub trait AutomatedMarketMaker {
     fn sync_on_event_signatures(&self) -> Vec<H256>;
     fn tokens(&self) -> Vec<H160>;
     fn calculate_price(&self, base_token: H160) -> Result<f64, ArithmeticError>;
+    fn sync_from_log(&mut self, log: Log) -> Result<(), EventLogError>;
     async fn populate_data<M: Middleware>(
         &mut self,
+        block_number: Option<u64>,
         middleware: Arc<M>,
     ) -> Result<(), AMMError<M>>;
+
+    fn simulate_swap(&self, token_in: H160, amount_in: U256) -> Result<U256, SwapSimulationError>;
+    fn simulate_swap_mut(
+        &mut self,
+        token_in: H160,
+        amount_in: U256,
+    ) -> Result<U256, SwapSimulationError>;
+    fn get_token_out(&self, token_in: H160) -> H160;
 }
 
 ```
@@ -112,7 +122,10 @@ Let's walk through what each function does.
 - `sync` gets any relevant AMM data at the most recent block. For example, the `sync` method for the `UniswapV2Pool` syncs `reserve0` and `reserve1`.
 - `sync_on_event_signatures` returns all event signatures to subscribe to that will signal state changes in the AMM.
 - `populate_data` fetches all of the peripheral AMM data (token addresses, token decimals, etc.) 
-
+- `sync_from_log` syncs the pool data from an event log. 
+- `simulate_swap` simulates a swap on the amm.
+- `simulate_swap_mut` simulates a swap and mutates the state of the amm to the state after the swap. 
+`get_token_out` returns the `token_out` from the `token_in` passed as a parameter.
 
 Once you have implemented the `AutomatedMarketMaker` trait, the next step is to add the new AMM to the `AMM` enum.
 
@@ -442,26 +455,32 @@ Now we will need to implement the `AutomatedMarketMakerFactory` trait for the ne
 #[async_trait]
 pub trait AutomatedMarketMakerFactory {
     fn address(&self) -> H160;
-    fn amm_created_event_signature(&self) -> H256;
-    fn new_empty_amm_from_log(&self, log: Log) -> Result<AMM, ethers::abi::Error>;
-    fn creation_block(&self) -> u64;
 
-   async fn new_amm_from_log<M: Middleware>(
+    async fn get_all_amms<M: 'static + Middleware>(
         &self,
-        log: Log,
+        to_block: Option<u64>,
         middleware: Arc<M>,
-    ) -> Result<AMM, AMMError<M>>;
-
-    async fn get_all_amms<M: Middleware>(
-        &self,
-        middleware: Arc<M>,
+        step: u64,
     ) -> Result<Vec<AMM>, AMMError<M>>;
 
     async fn populate_amm_data<M: Middleware>(
         &self,
         amms: &mut [AMM],
+        block_number: Option<u64>,
         middleware: Arc<M>,
     ) -> Result<(), AMMError<M>>;
+
+    fn amm_created_event_signature(&self) -> H256;
+
+    fn creation_block(&self) -> u64;
+
+    async fn new_amm_from_log<M: 'static + Middleware>(
+        &self,
+        log: Log,
+        middleware: Arc<M>,
+    ) -> Result<AMM, AMMError<M>>;
+
+    fn new_empty_amm_from_log(&self, log: Log) -> Result<AMM, ethers::abi::Error>;
 }
 ```
 
