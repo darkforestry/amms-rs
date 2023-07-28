@@ -1,5 +1,5 @@
 use amms::{
-    amm::{erc_4626::ERC4626Vault, factory::Factory, uniswap_v2::factory::UniswapV2Factory, AMM},
+    amm::{factory::Factory, uniswap_v2::factory::UniswapV2Factory, AMM},
     discovery,
     state_space::state::StateSpaceManager,
     sync,
