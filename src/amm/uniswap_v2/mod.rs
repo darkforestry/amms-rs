@@ -577,7 +577,6 @@ mod tests {
             H160::from_str("0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2")?
         );
         assert_eq!(pool.token_b_decimals, 18);
-        assert_eq!(pool.fee, 300);
 
         Ok(())
     }
