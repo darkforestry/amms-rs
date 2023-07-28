@@ -21,7 +21,7 @@ pub const U256_10_POW_6: U256 = U256([1000000, 0, 0, 0]);
 pub async fn filter_amms_below_usd_threshold<M: Middleware>(
     amms: Vec<AMM>,
     factories: &[Factory],
-    usd_weth_pool: AMM, //TODO: could make this f64 and just pass in price?
+    usd_weth_pool: AMM,
     usd_value_in_pool_threshold: f64, // This is the threshold where we will filter out any pool with less value than this
     weth: H160,
     weth_value_in_token_to_weth_pool_threshold: U256, //This is the threshold where we will ignore any token price < threshold during batch calls
@@ -116,7 +116,6 @@ pub async fn get_weth_values_in_amms<M: Middleware>(
     let mut idx_from = 0;
     let mut idx_to = if step > amms.len() { amms.len() } else { step };
 
-    //TODO: see if you can just step by the pools rather than some index
     for _ in (0..amms.len()).step_by(step) {
         let weth_values_in_amms = get_weth_value_in_amm_batch_request(
             &amms[idx_from..idx_to],

@@ -212,7 +212,7 @@ impl UniswapV2Pool {
     }
     pub async fn new_from_log<M: Middleware>(
         log: Log,
-        fee: u32, //TODO: maybe find a way to dynamically get the fee without having to pass it in
+        fee: u32,
         middleware: Arc<M>,
     ) -> Result<Self, AMMError<M>> {
         let event_signature = log.topics[0];
@@ -225,7 +225,6 @@ impl UniswapV2Pool {
         }
     }
 
-    //TODO: decide whether or not to populate the fee
     pub fn new_empty_pool_from_log(log: Log) -> Result<Self, EventLogError> {
         let event_signature = log.topics[0];
 

@@ -1,5 +1,6 @@
 use amms::{
-    amm::{factory::Factory, uniswap_v2::factory::UniswapV2Factory},
+    amm::{erc_4626::ERC4626Vault, factory::Factory, uniswap_v2::factory::UniswapV2Factory, AMM},
+    discovery,
     state_space::state::StateSpaceManager,
     sync,
 };
@@ -34,11 +35,22 @@ async fn main() -> eyre::Result<()> {
         )),
     ];
 
-    //Sync amms
-    let (amms, last_synced_block) =
-        sync::sync_amms(factories, middleware.clone(), None, 1000).await?;
+    let step = 1000;
 
-    // Iniialize state space manager
+    //Sync amms
+    let (mut amms, last_synced_block) =
+        sync::sync_amms(factories, middleware.clone(), None, step).await?;
+
+    // Discover vaults and add them to amms
+    let vaults = discovery::erc_4626::discover_erc_4626_vaults(middleware.clone(), step)
+        .await?
+        .into_iter()
+        .map(AMM::ERC4626Vault)
+        .collect::<Vec<AMM>>();
+
+    amms.extend(vaults);
+
+    // Initialize state space manager
     let state_space_manager = StateSpaceManager::new(amms, middleware, stream_middleware);
 
     //Listen for state changes and print them out
