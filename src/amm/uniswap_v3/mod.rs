@@ -87,6 +87,7 @@ pub const Q224: U256 = U256([0, 0, 0, 4294967296]);
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct UniswapV3Pool {
     pub address: H160,
+    pub creation_block: u64,
     pub token_a: H160,
     pub token_a_decimals: u8,
     pub token_b: H160,
@@ -464,6 +465,7 @@ impl UniswapV3Pool {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         address: H160,
+        creation_block: u64,
         token_a: H160,
         token_a_decimals: u8,
         token_b: H160,
@@ -478,6 +480,7 @@ impl UniswapV3Pool {
     ) -> UniswapV3Pool {
         UniswapV3Pool {
             address,
+            creation_block,
             token_a,
             token_a_decimals,
             token_b,
@@ -500,6 +503,7 @@ impl UniswapV3Pool {
     ) -> Result<Self, AMMError<M>> {
         let mut pool = UniswapV3Pool {
             address: pair_address,
+            creation_block,
             token_a: H160::zero(),
             token_a_decimals: 0,
             token_b: H160::zero(),
@@ -556,12 +560,14 @@ impl UniswapV3Pool {
 
     pub fn new_empty_pool_from_log(log: Log) -> Result<Self, EventLogError> {
         let event_signature = log.topics[0];
+        let creation_block = log.block_number.as_ref().unwrap().as_u64();
 
         if event_signature == POOL_CREATED_EVENT_SIGNATURE {
             let pool_created_event = PoolCreatedFilter::decode_log(&RawLog::from(log))?;
 
             Ok(UniswapV3Pool {
                 address: pool_created_event.pool,
+                creation_block,
                 token_a: pool_created_event.token_0,
                 token_b: pool_created_event.token_1,
                 token_a_decimals: 0,

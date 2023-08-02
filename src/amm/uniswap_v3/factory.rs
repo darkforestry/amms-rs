@@ -115,10 +115,12 @@ impl AutomatedMarketMakerFactory for UniswapV3Factory {
     }
 
     fn new_empty_amm_from_log(&self, log: Log) -> Result<AMM, ethers::abi::Error> {
+        let creation_block = log.block_number.as_ref().unwrap().as_u64();
         let pool_created_event = PoolCreatedFilter::decode_log(&RawLog::from(log))?;
 
         Ok(AMM::UniswapV3Pool(UniswapV3Pool {
             address: pool_created_event.pool,
+            creation_block,
             token_a: pool_created_event.token_0,
             token_b: pool_created_event.token_1,
             token_a_decimals: 0,
