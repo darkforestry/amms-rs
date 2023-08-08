@@ -130,7 +130,6 @@ impl AutomatedMarketMaker for UniswapV3Pool {
     }
 
     fn sync_from_log(&mut self, log: Log) -> Result<(), EventLogError> {
-        println!("Processing log from block {:?}", log.block_number);
         let event_signature = log.topics[0];
 
         if event_signature == BURN_EVENT_SIGNATURE {
@@ -823,15 +822,9 @@ impl UniswapV3Pool {
 
         let liquidity_gross_before = info.liquidity_gross;
 
-        println!(
-            "Tick {} Liquidity Gross Before {} Liquidity Delta {}",
-            tick,
-            liquidity_gross_before,
-            liquidity_delta
-        );
-
         let liquidity_gross_after = if liquidity_delta < 0 {
-            liquidity_gross_before - (-liquidity_delta as u128)
+            let liquidity_delta = -liquidity_delta as u128;
+            liquidity_gross_before + liquidity_delta
         } else {
             liquidity_gross_before + (liquidity_delta as u128)
         };
