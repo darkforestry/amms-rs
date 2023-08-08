@@ -822,7 +822,7 @@ impl UniswapV3Pool {
 
         let liquidity_gross_before = info.liquidity_gross;
 
-        println!("Liquidity Gross Before {} Liquidity Delta {}");
+        println!("Liquidity Gross Before {} Liquidity Delta {}", liquidity_gross_before, liquidity_delta);
 
         let liquidity_gross_after = if liquidity_delta < 0 {
             liquidity_gross_before - (-liquidity_delta as u128)
