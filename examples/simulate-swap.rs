@@ -7,6 +7,8 @@ use std::{str::FromStr, sync::Arc};
 
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
+    tracing_subscriber::fmt::init();
+
     let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
     let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint)?);
 

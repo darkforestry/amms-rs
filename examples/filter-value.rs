@@ -14,12 +14,14 @@ use std::{str::FromStr, sync::Arc};
 
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
+    tracing_subscriber::fmt::init();
+
     let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
     let provider = Arc::new(Provider::<Http>::try_from(rpc_endpoint)?);
 
     // Initialize factories
     let factories = vec![
-        //UniswapV2
+        //Add UniswapV2
         Factory::UniswapV2Factory(UniswapV2Factory::new(
             H160::from_str("0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f")?,
             2638438,

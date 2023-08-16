@@ -261,6 +261,7 @@ impl UniswapV2Pool {
         &self,
         middleware: Arc<M>,
     ) -> Result<(u128, u128), AMMError<M>> {
+        tracing::trace!("getting reserves of {}", self.address);
         //Initialize a new instance of the Pool
         let v2_pair = IUniswapV2Pair::new(self.address, middleware);
         // Make a call to get the reserves
@@ -268,6 +269,7 @@ impl UniswapV2Pool {
             Ok(result) => result,
             Err(contract_error) => return Err(AMMError::ContractError(contract_error)),
         };
+        tracing::trace!(reserve_0, reserve_1);
 
         Ok((reserve_0, reserve_1))
     }

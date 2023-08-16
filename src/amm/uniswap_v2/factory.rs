@@ -59,6 +59,8 @@ impl UniswapV2Factory {
 
         let pairs_length: U256 = factory.all_pairs_length().call().await?;
 
+        tracing::trace!("getting all {} pairs of factory {}", pairs_length, self.address);
+
         let mut pairs = vec![];
         let step = 766; //max batch size for this call until codesize is too large
         let mut idx_from = U256::zero();
