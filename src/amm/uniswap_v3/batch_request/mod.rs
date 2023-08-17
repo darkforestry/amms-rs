@@ -234,6 +234,8 @@ pub async fn get_amm_data_batch_request<M: Middleware>(
     block_number: u64,
     middleware: Arc<M>,
 ) -> Result<(), AMMError<M>> {
+    tracing::info!(block_number, "getting data for {} AMMs", amms.len());
+
     let mut target_addresses = vec![];
 
     for amm in amms.iter() {
@@ -279,6 +281,7 @@ pub async fn get_amm_data_batch_request<M: Middleware>(
                                     uniswap_v3_pool.to_owned(),
                                     pool_data,
                                 ) {
+                                    tracing::trace!(?pool);
                                     *uniswap_v3_pool = pool;
                                 }
                             }

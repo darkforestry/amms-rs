@@ -68,7 +68,7 @@ pub async fn discover_factories<M: Middleware>(
             target_block = current_block;
         }
 
-        tracing::trace!("processing blocks {}-{}", from_block, target_block);
+        tracing::info!("searching blocks {}-{}", from_block, target_block);
 
         let block_filter = block_filter.clone();
         let logs = middleware
@@ -105,7 +105,7 @@ pub async fn discover_factories<M: Middleware>(
                     }
                 }
 
-                tracing::trace!("discovered new factory {}", log.address);
+                tracing::info!(address = ?log.address, "discovered new factory");
                 identified_factories.insert(log.address, (factory, 0));
             }
         }
@@ -114,23 +114,13 @@ pub async fn discover_factories<M: Middleware>(
     }
 
     let mut filtered_factories = vec![];
-    tracing::trace!("checking threshold");
+    tracing::trace!(number_of_amms_threshold, "checking threshold");
     for (address, (factory, amms_length)) in identified_factories {
         if amms_length >= number_of_amms_threshold {
-            tracing::trace!(
-                threshold = number_of_amms_threshold,
-                "factory {} has {} AMMs => adding",
-                address,
-                amms_length
-            );
+            tracing::trace!("factory {} has {} AMMs => adding", address, amms_length);
             filtered_factories.push(factory);
         } else {
-            tracing::trace!(
-                threshold = number_of_amms_threshold,
-                "factory {} has {} AMMs => skipping",
-                address,
-                amms_length
-            );
+            tracing::trace!("factory {} has {} AMMs => skipping", address, amms_length);
         }
     }
 
