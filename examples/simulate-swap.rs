@@ -13,11 +13,11 @@ async fn main() -> eyre::Result<()> {
     let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint)?);
 
     // Initialize the pool
-    let pool_address = H160::from_str("0xB4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc")?;
+    let pool_address = H160::from_str("0xB4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc")?; // WETH/USDC
     let pool = UniswapV2Pool::new_from_address(pool_address, 300, middleware.clone()).await?;
 
     // Simulate a swap
-    let token_in = H160::from_str("0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2")?;
+    let token_in = H160::from_str("0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2")?; // WETH
     let amount_out = pool.simulate_swap(token_in, U256::from(10000))?;
 
     println!("Amount out: {amount_out}");

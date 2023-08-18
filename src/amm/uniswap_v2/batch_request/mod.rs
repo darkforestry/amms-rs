@@ -142,6 +142,7 @@ pub async fn get_v2_pool_data_batch_request<M: Middleware>(
     pool: &mut UniswapV2Pool,
     middleware: Arc<M>,
 ) -> Result<(), AMMError<M>> {
+    tracing::info!(?pool.address, "getting pool data");
     let constructor_args = Token::Tuple(vec![Token::Array(vec![Token::Address(pool.address)])]);
 
     let deployer = IGetUniswapV2PoolDataBatchRequest::deploy(middleware.clone(), constructor_args)?;

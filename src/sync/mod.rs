@@ -30,6 +30,8 @@ pub async fn sync_amms<M: 'static + Middleware>(
         .map_err(AMMError::MiddlewareError)?
         .as_u64();
 
+    tracing::trace!(current_block);
+
     //Aggregate the populated pools from each thread
     let mut aggregated_amms: Vec<AMM> = vec![];
     let mut handles = vec![];
