@@ -12,8 +12,6 @@ use spinoff::{spinners, Color, Spinner};
 use std::{panic::resume_unwind, sync::Arc};
 pub mod checkpoint;
 
-//TODO: This needs to return the block that everything started syncing at
-
 pub async fn sync_amms<M: 'static + Middleware>(
     factories: Vec<Factory>,
     middleware: Arc<M>,
@@ -43,8 +41,18 @@ pub async fn sync_amms<M: 'static + Middleware>(
                 .get_all_amms(Some(current_block), middleware.clone(), step)
                 .await?;
             populate_amms(&mut amms, current_block, middleware.clone()).await?;
+
             //Clean empty pools
             amms = remove_empty_amms(amms);
+
+            // If the factory is UniswapV2, set the fee for each pool according to the factory fee
+            if let Factory::UniswapV2Factory(factory) = factory {
+                for amm in amms.iter_mut() {
+                    if let AMM::UniswapV2Pool(ref mut pool) = amm {
+                        pool.fee = factory.fee;
+                    }
+                }
+            }
 
             Ok::<_, AMMError<M>>(amms)
         }));

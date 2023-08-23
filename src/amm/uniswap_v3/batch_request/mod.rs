@@ -112,7 +112,7 @@ pub async fn get_uniswap_v3_tick_data_batch_request<M: Middleware>(
     ]);
 
     let deployer = IGetUniswapV3TickDataBatchRequest::deploy(middleware.clone(), constructor_args)?;
-    //TODO: use if let some here
+
     let return_data: Bytes = if let Some(block_number) = block_number {
         deployer.block(block_number).call_raw().await?
     } else {
@@ -131,7 +131,6 @@ pub async fn get_uniswap_v3_tick_data_batch_request<M: Middleware>(
         &return_data,
     )?;
 
-    //TODO: handle these errors instead of using expect
     let tick_data_array = return_data_tokens[0]
         .to_owned()
         .into_array()

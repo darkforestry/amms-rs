@@ -57,7 +57,7 @@ async fn main() -> eyre::Result<()> {
         filtered_amms,
         &factories,
         usd_weth_pool,
-        15000.00, //Setting usd_threshold to 10000.00 filters out any pool that contains less than $1m USD value
+        15000.00, //Setting usd_threshold to 15000 filters out any pool that contains less than $15000.00 USD value
         weth_address,
         weth_value_in_token_to_weth_pool_threshold,
         200,

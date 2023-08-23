@@ -89,99 +89,7 @@ where
         Filter::new().topic0(event_signatures)
     }
 
-    //TODO: Read through this and compare to listen to new blocks, remove if dup
-    pub async fn listen_for_updates(
-        &self,
-        mut last_synced_block: u64,
-        channel_buffer: usize,
-    ) -> Result<Vec<JoinHandle<Result<(), StateSpaceError<M, P>>>>, StateSpaceError<M, P>>
-    where
-        <P as Middleware>::Provider: PubsubClient,
-    {
-        let state = self.state.clone();
-        let _state_change_cache: StateChangeCache = ArrayDeque::new();
-        let middleware = self.middleware.clone();
-        let stream_middleware: Arc<P> = self.stream_middleware.clone();
-        let filter = self.get_block_filter().await;
-
-        let (stream_tx, mut stream_rx): (Sender<Block<H256>>, Receiver<Block<H256>>) =
-            tokio::sync::mpsc::channel(channel_buffer);
-
-        let stream_handle = tokio::spawn(async move {
-            let mut block_stream = stream_middleware
-                .subscribe_blocks()
-                .await
-                .map_err(StateSpaceError::PubsubClientError)?;
-
-            while let Some(block) = block_stream.next().await {
-                stream_tx.send(block).await?;
-            }
-
-            Ok::<(), StateSpaceError<M, P>>(())
-        });
-
-        let state_change_cache = self.state_change_cache.clone();
-        let new_block_handle: JoinHandle<Result<(), StateSpaceError<M, P>>> =
-            tokio::spawn(async move {
-                while let Some(block) = stream_rx.recv().await {
-                    if let Some(chain_head_block_number) = block.number {
-                        let chain_head_block_number = chain_head_block_number.as_u64();
-
-                        //If there is a reorg, unwind state changes from last_synced block to the chain head block number
-                        if chain_head_block_number <= last_synced_block {
-                            unwind_state_changes(
-                                state.clone(),
-                                state_change_cache.clone(),
-                                chain_head_block_number,
-                            )
-                            .await?;
-
-                            //TODO: update this comment to explain why we set it to -1
-                            last_synced_block = chain_head_block_number - 1;
-                        }
-
-                        let from_block: u64 = last_synced_block + 1;
-                        let logs = middleware
-                            .get_logs(
-                                &filter
-                                    .clone()
-                                    .from_block(from_block)
-                                    .to_block(chain_head_block_number),
-                            )
-                            .await
-                            .map_err(StateSpaceError::MiddlewareError)?;
-
-                        if logs.is_empty() {
-                            for block_number in from_block..=chain_head_block_number {
-                                add_state_change_to_cache(
-                                    state_change_cache.clone(),
-                                    StateChange::new(None, block_number),
-                                )
-                                .await?;
-                            }
-                        } else {
-                            handle_state_changes_from_logs(
-                                state.clone(),
-                                state_change_cache.clone(),
-                                logs,
-                                middleware.clone(),
-                            )
-                            .await?;
-                        }
-
-                        last_synced_block = chain_head_block_number;
-                    } else {
-                        return Err(StateSpaceError::BlockNumberNotFound);
-                    }
-                }
-
-                Ok::<(), StateSpaceError<M, P>>(())
-            });
-
-        Ok(vec![stream_handle, new_block_handle])
-    }
-
-    //listens to new blocks and handles state changes, sending an h256 block hash when a new block is produced
+    /// Listens to new blocks and handles state changes, sending an H256 block hash when a new block is produced.
     pub async fn listen_for_new_blocks(
         &self,
         mut last_synced_block: u64,
@@ -197,7 +105,6 @@ where
         <P as Middleware>::Provider: PubsubClient,
     {
         let state = self.state.clone();
-        let _state_change_cache: StateChangeCache = ArrayDeque::new();
         let middleware = self.middleware.clone();
         let stream_middleware: Arc<P> = self.stream_middleware.clone();
         let filter = self.get_block_filter().await;
@@ -236,7 +143,6 @@ where
                             )
                             .await?;
 
-                            //TODO: update this comment to explain why we set it to -1
                             last_synced_block = chain_head_block_number - 1;
                         }
 
@@ -283,6 +189,7 @@ where
         Ok((new_block_rx, vec![stream_handle, new_block_handle]))
     }
 
+    /// Listens to new blocks and handles state changes, sending a Vec<H160> containing each AMM address that incurred a state change in the block.
     pub async fn listen_for_state_changes(
         &self,
         mut last_synced_block: u64,
@@ -298,7 +205,6 @@ where
         <P as Middleware>::Provider: PubsubClient,
     {
         let state = self.state.clone();
-        let _state_change_cache: StateChangeCache = ArrayDeque::new();
         let middleware = self.middleware.clone();
         let stream_middleware: Arc<P> = self.stream_middleware.clone();
         let filter = self.get_block_filter().await;
@@ -383,6 +289,96 @@ where
             });
 
         Ok((amms_updated_rx, vec![stream_handle, updated_amms_handle]))
+    }
+
+    /// Listens to new blocks and handles state changes without sending notifications through a channel when AMMs are updated.
+    pub async fn listen_for_updates(
+        &self,
+        mut last_synced_block: u64,
+        channel_buffer: usize,
+    ) -> Result<Vec<JoinHandle<Result<(), StateSpaceError<M, P>>>>, StateSpaceError<M, P>>
+    where
+        <P as Middleware>::Provider: PubsubClient,
+    {
+        let state = self.state.clone();
+        let middleware = self.middleware.clone();
+        let stream_middleware: Arc<P> = self.stream_middleware.clone();
+        let filter = self.get_block_filter().await;
+
+        let (stream_tx, mut stream_rx): (Sender<Block<H256>>, Receiver<Block<H256>>) =
+            tokio::sync::mpsc::channel(channel_buffer);
+
+        let stream_handle = tokio::spawn(async move {
+            let mut block_stream = stream_middleware
+                .subscribe_blocks()
+                .await
+                .map_err(StateSpaceError::PubsubClientError)?;
+
+            while let Some(block) = block_stream.next().await {
+                stream_tx.send(block).await?;
+            }
+
+            Ok::<(), StateSpaceError<M, P>>(())
+        });
+
+        let state_change_cache = self.state_change_cache.clone();
+        let new_block_handle: JoinHandle<Result<(), StateSpaceError<M, P>>> =
+            tokio::spawn(async move {
+                while let Some(block) = stream_rx.recv().await {
+                    if let Some(chain_head_block_number) = block.number {
+                        let chain_head_block_number = chain_head_block_number.as_u64();
+
+                        //If there is a reorg, unwind state changes from last_synced block to the chain head block number
+                        if chain_head_block_number <= last_synced_block {
+                            unwind_state_changes(
+                                state.clone(),
+                                state_change_cache.clone(),
+                                chain_head_block_number,
+                            )
+                            .await?;
+
+                            last_synced_block = chain_head_block_number - 1;
+                        }
+
+                        let from_block: u64 = last_synced_block + 1;
+                        let logs = middleware
+                            .get_logs(
+                                &filter
+                                    .clone()
+                                    .from_block(from_block)
+                                    .to_block(chain_head_block_number),
+                            )
+                            .await
+                            .map_err(StateSpaceError::MiddlewareError)?;
+
+                        if logs.is_empty() {
+                            for block_number in from_block..=chain_head_block_number {
+                                add_state_change_to_cache(
+                                    state_change_cache.clone(),
+                                    StateChange::new(None, block_number),
+                                )
+                                .await?;
+                            }
+                        } else {
+                            handle_state_changes_from_logs(
+                                state.clone(),
+                                state_change_cache.clone(),
+                                logs,
+                                middleware.clone(),
+                            )
+                            .await?;
+                        }
+
+                        last_synced_block = chain_head_block_number;
+                    } else {
+                        return Err(StateSpaceError::BlockNumberNotFound);
+                    }
+                }
+
+                Ok::<(), StateSpaceError<M, P>>(())
+            });
+
+        Ok(vec![stream_handle, new_block_handle])
     }
 }
 
@@ -487,14 +483,7 @@ pub async fn handle_state_changes_from_logs<M: Middleware>(
             }
 
             state_changes.push(amm.clone());
-            //TODO: uncomment this when all sync from log functions are not async
-            // amm.sync_from_log(log)?;
-
-            match amm {
-                AMM::UniswapV2Pool(pool) => pool.sync_from_log(log)?,
-                AMM::UniswapV3Pool(pool) => pool.sync_from_log(log)?,
-                AMM::ERC4626Vault(vault) => vault.sync_from_log(log)?,
-            }
+            amm.sync_from_log(log)?;
         }
 
         //Commit state changes if the block has changed since last log
@@ -563,7 +552,6 @@ mod tests {
     async fn test_add_state_changes() -> eyre::Result<()> {
         let state_change_cache = Arc::new(RwLock::new(StateChangeCache::new()));
 
-        //TODO: update to emulate state changes from block range
         for i in 0..=100 {
             let new_amm = AMM::UniswapV2Pool(UniswapV2Pool {
                 address: H160::zero(),
@@ -579,7 +567,7 @@ mod tests {
         }
 
         let mut state_change_cache = state_change_cache.write().await;
-        //TODO: deconstruct this cleaner
+
         if let Some(last_state_change) = state_change_cache.pop_front() {
             if let Some(state_changes) = last_state_change.state_change {
                 assert_eq!(state_changes.len(), 1);

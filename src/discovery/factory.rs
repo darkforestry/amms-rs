@@ -78,9 +78,7 @@ pub async fn discover_factories<M: Middleware>(
             if let Some((_, amms_length)) = identified_factories.get_mut(&log.address) {
                 *amms_length += 1;
             } else {
-                //TODO: conduct interface checks for the given factory
-
-                let mut factory = Factory::new_empty_factory_from_event_signature(log.topics[0])?;
+                let mut factory = Factory::try_from(log.topics[0])?;
 
                 match &mut factory {
                     Factory::UniswapV2Factory(uniswap_v2_factory) => {

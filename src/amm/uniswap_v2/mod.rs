@@ -212,7 +212,7 @@ impl UniswapV2Pool {
     }
     pub async fn new_from_log<M: Middleware>(
         log: Log,
-        fee: u32, //TODO: maybe find a way to dynamically get the fee without having to pass it in
+        fee: u32,
         middleware: Arc<M>,
     ) -> Result<Self, AMMError<M>> {
         let event_signature = log.topics[0];
@@ -225,7 +225,6 @@ impl UniswapV2Pool {
         }
     }
 
-    //TODO: decide whether or not to populate the fee
     pub fn new_empty_pool_from_log(log: Log) -> Result<Self, EventLogError> {
         let event_signature = log.topics[0];
 
@@ -578,7 +577,6 @@ mod tests {
             H160::from_str("0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2")?
         );
         assert_eq!(pool.token_b_decimals, 18);
-        assert_eq!(pool.fee, 300);
 
         Ok(())
     }
