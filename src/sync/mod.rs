@@ -18,7 +18,7 @@ pub async fn sync_amms<M: 'static + Middleware>(
     checkpoint_path: Option<&str>,
     step: u64,
 ) -> Result<(Vec<AMM>, u64), AMMError<M>> {
-    let spinner = Spinner::new(spinners::Dots, "Syncing AMMs...", Color::Blue);
+    let mut spinner = Spinner::new(spinners::Dots, "Syncing AMMs...", Color::Blue);
 
     let current_block = middleware
         .get_block_number()

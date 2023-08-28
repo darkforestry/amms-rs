@@ -37,7 +37,7 @@ pub async fn discover_factories<M: Middleware>(
     middleware: Arc<M>,
     step: u64,
 ) -> Result<Vec<Factory>, AMMError<M>> {
-    let spinner = Spinner::new(spinners::Dots, "Discovering new factories...", Color::Blue);
+    let mut spinner = Spinner::new(spinners::Dots, "Discovering new factories...", Color::Blue);
 
     let mut event_signatures = vec![];
 

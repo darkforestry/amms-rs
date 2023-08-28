@@ -21,7 +21,7 @@ pub async fn discover_erc_4626_vaults<M: Middleware>(
     middleware: Arc<M>,
     step: u64,
 ) -> Result<Vec<ERC4626Vault>, AMMError<M>> {
-    let spinner = Spinner::new(
+    let mut spinner = Spinner::new(
         spinners::Dots,
         "Discovering new ERC 4626 vaults...",
         Color::Blue,
