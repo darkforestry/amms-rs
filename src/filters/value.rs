@@ -28,7 +28,7 @@ pub async fn filter_amms_below_usd_threshold<M: Middleware>(
     step: usize,
     middleware: Arc<M>,
 ) -> Result<Vec<AMM>, AMMError<M>> {
-    let spinner = Spinner::new(
+    let mut spinner = Spinner::new(
         spinners::Dots,
         "Filtering AMMs below USD threshold...",
         Color::Blue,
@@ -73,7 +73,7 @@ pub async fn filter_amms_below_weth_threshold<M: Middleware>(
     step: usize,
     middleware: Arc<M>,
 ) -> Result<Vec<AMM>, AMMError<M>> {
-    let spinner = Spinner::new(
+    let mut spinner = Spinner::new(
         spinners::Dots,
         "Filtering AMMs below weth threshold...",
         Color::Blue,

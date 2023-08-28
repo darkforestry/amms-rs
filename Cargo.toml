@@ -16,7 +16,7 @@ exclude = [
 
 
 [dependencies]
-ethers = { version = "2.0.8", default-features = true, features = ["abigen", "ws", "ipc", "rustls"] }
+ethers = { version = "2.0.9", default-features = true, features = ["abigen", "ws", "ipc", "rustls"] }
 tokio = { version = "1.29.1", features = ["full"] }
 futures = "0.3.28"
 indicatif = "0.17.5"
@@ -27,7 +27,7 @@ serde = "1.0.176"
 num-bigfloat = "1.6.2"
 uniswap_v3_math = "0.4.0"
 regex = "1.9.1"
-spinoff = "0.7.0"
+spinoff = "0.8.0"
 arraydeque = {version = "0.5.1", optional = true}
 eyre = "0.6.8"
 lazy_static = "1.4.0"
