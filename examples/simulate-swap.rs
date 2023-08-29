@@ -17,8 +17,8 @@ async fn main() -> eyre::Result<()> {
     let pool = UniswapV2Pool::new_from_address(pool_address, 300, middleware.clone()).await?;
 
     // Simulate a swap
-    let token_in = H160::from_str("0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2")?; // WETH
-    let amount_out = pool.simulate_swap(token_in, U256::from(10000))?;
+    let token_in = H160::from_str("0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2")?;
+    let amount_out = pool.simulate_swap(token_in, U256::from_dec_str("1000000000000000000")?)?;
 
     println!("Amount out: {amount_out}");
 
