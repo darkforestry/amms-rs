@@ -191,8 +191,6 @@ impl AutomatedMarketMaker for UniswapV3Pool {
 
         let zero_for_one = token_in == self.token_a;
 
-        dbg!(&zero_for_one);
-
         //Set sqrt_price_limit_x_96 to the max or min sqrt price in the pool depending on zero_for_one
         let sqrt_price_limit_x_96 = if zero_for_one {
             MIN_SQRT_RATIO + 1
@@ -1385,7 +1383,6 @@ mod test {
             .block(synced_block)
             .call()
             .await?;
-        dbg!(&amount_out);
         assert_eq!(amount_out, expected_amount_out);
         let amount_in_1 = U256::from_dec_str("10000000000000000000")?; // 10 ETH
 
@@ -1454,7 +1451,6 @@ mod test {
             H160::from_str("0xb27308f9f90d607463bb33ea1bebb41c27ce5ab6")?,
             middleware.clone(),
         );
-        dbg!("Pool initialized");
         let amount_in = U256::from_dec_str("100000000")?; // 100 USDC
 
         let amount_out = pool.simulate_swap(pool.token_a, amount_in)?;
@@ -1876,11 +1872,7 @@ mod test {
         pool.sqrt_price = sqrt_price;
         pool.liquidity = liquidity;
 
-        dbg!(pool.sqrt_price);
-        dbg!(pool.liquidity);
-
         let (r_0, r_1) = pool.calculate_virtual_reserves()?;
-        dbg!(r_0, r_1);
 
         assert_eq!(1067543429906214, r_0);
         assert_eq!(649198362624067343572319, r_1);
@@ -1910,7 +1902,6 @@ mod test {
 
         let float_price_a = pool.calculate_price(pool.token_a)?;
         let float_price_b = pool.calculate_price(pool.token_b)?;
-        dbg!(pool);
 
         assert_eq!(float_price_a, 0.0006081236083117488);
         assert_eq!(float_price_b, 1644.4025299004006);
