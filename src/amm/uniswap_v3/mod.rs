@@ -295,13 +295,12 @@ impl AutomatedMarketMaker for UniswapV3Pool {
                     } else {
                         current_state.liquidity + (liquidity_net as u128)
                     };
-
-                    //Increment the current tick
-                    current_state.tick = if zero_for_one {
-                        step.tick_next.wrapping_sub(1)
-                    } else {
-                        step.tick_next
-                    }
+                }
+                //Increment the current tick
+                current_state.tick = if zero_for_one {
+                    step.tick_next.wrapping_sub(1)
+                } else {
+                    step.tick_next
                 }
                 //If the current_state sqrt price is not equal to the step sqrt price, then we are not on the same tick.
                 //Update the current_state.tick to the tick at the current_state.sqrt_price_x_96
@@ -428,13 +427,12 @@ impl AutomatedMarketMaker for UniswapV3Pool {
                     } else {
                         current_state.liquidity + (liquidity_net as u128)
                     };
-
-                    //Increment the current tick
-                    current_state.tick = if zero_for_one {
-                        step.tick_next.wrapping_sub(1)
-                    } else {
-                        step.tick_next
-                    }
+                }
+                //Increment the current tick
+                current_state.tick = if zero_for_one {
+                    step.tick_next.wrapping_sub(1)
+                } else {
+                    step.tick_next
                 }
                 //If the current_state sqrt price is not equal to the step sqrt price, then we are not on the same tick.
                 //Update the current_state.tick to the tick at the current_state.sqrt_price_x_96
@@ -1096,7 +1094,7 @@ mod test {
         Ok((pool, synced_block))
     }
 
-    async fn initialize_weth_link_pool<M: 'static + Middleware> (
+    async fn initialize_weth_link_pool<M: 'static + Middleware>(
         middleware: Arc<M>,
     ) -> eyre::Result<(UniswapV3Pool, u64)> {
         let mut pool = UniswapV3Pool {
@@ -1124,7 +1122,7 @@ mod test {
             H160::from_str("0xb27308f9f90d607463bb33ea1bebb41c27ce5ab6")?,
             middleware.clone(),
         );
-
+        dbg!("Pool initialized");
         let amount_in = U256::from_dec_str("100000000")?; // 100 USDC
 
         let amount_out = pool.simulate_swap(pool.token_a, amount_in)?;
