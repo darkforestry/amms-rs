@@ -869,6 +869,7 @@ impl UniswapV3Pool {
         flipped
     }
 
+    //TODO: FIXME: Call uniswap_v3_math::tick_bitmap::flip_tick since its tested
     pub fn flip_tick(&mut self, tick: i32, tick_spacing: i32) {
         let (word_pos, bit_pos) = uniswap_v3_math::tick_bitmap::position(tick / tick_spacing);
         let mask = U256::one() << bit_pos;
