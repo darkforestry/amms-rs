@@ -1,5 +1,5 @@
 use amms::discovery::{
-    discovery_options::DiscoveryOptionsBuilder,
+    discovery_options::FactoriesDiscoveryOptionsBuilder,
     factory::{discover_factories, DiscoverableFactory},
 };
 use ethers::providers::{Http, Provider};
@@ -13,7 +13,7 @@ async fn main() -> eyre::Result<()> {
 
     // Filter Uniswap V2 compatible factories from block 10000835 to block 10091468
     // expect to get only the original Uniswap V2 Factory
-    let options = DiscoveryOptionsBuilder::default()
+    let options = FactoriesDiscoveryOptionsBuilder::default()
         .from_block(10000835)
         .to_block(Some(10091468))
         .step(100000)

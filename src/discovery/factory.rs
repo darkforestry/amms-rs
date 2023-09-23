@@ -11,7 +11,7 @@ use crate::{
     errors::AMMError,
 };
 
-use super::discovery_options::DiscoveryOptions;
+use super::discovery_options::FactoriesDiscoveryOptions;
 
 pub enum DiscoverableFactory {
     UniswapV2Factory,
@@ -36,7 +36,7 @@ impl DiscoverableFactory {
 pub async fn discover_factories<M: Middleware>(
     factories: Vec<DiscoverableFactory>,
     middleware: Arc<M>,
-    options: DiscoveryOptions,
+    options: FactoriesDiscoveryOptions,
 ) -> Result<Vec<Factory>, AMMError<M>> {
     let spinner = Spinner::new(spinners::Dots, "Discovering new factories...", Color::Blue);
 

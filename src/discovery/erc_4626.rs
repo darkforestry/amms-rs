@@ -12,6 +12,8 @@ use crate::{
     errors::AMMError,
 };
 
+use super::discovery_options::Erc4626DiscoveryOptions;
+
 lazy_static::lazy_static! {
     static ref HEX_REGEX: Regex = Regex::new(r"0x[0-9a-fA-F]+").expect("Could not compile regex");
 }
@@ -19,7 +21,7 @@ lazy_static::lazy_static! {
 // Returns a vec of empty factories that match one of the Factory interfaces specified by each DiscoverableFactory
 pub async fn discover_erc_4626_vaults<M: Middleware>(
     middleware: Arc<M>,
-    step: u64,
+    options: Erc4626DiscoveryOptions,
 ) -> Result<Vec<ERC4626Vault>, AMMError<M>> {
     let spinner = Spinner::new(
         spinners::Dots,
@@ -30,17 +32,21 @@ pub async fn discover_erc_4626_vaults<M: Middleware>(
     let block_filter =
         Filter::new().topic0(vec![DEPOSIT_EVENT_SIGNATURE, WITHDRAW_EVENT_SIGNATURE]);
 
-    let current_block = middleware
-        .get_block_number()
-        .await
-        .map_err(AMMError::MiddlewareError)?
-        .as_u64();
+    let mut from_block = options.from_block;
+    let current_block = match options.to_block {
+        Some(b) => b,
+        None => middleware
+            .get_block_number()
+            .await
+            .map_err(AMMError::MiddlewareError)?
+            .as_u64(),
+    };
+    let step = options.step;
 
     let mut adheres_to_withdraw_event = HashSet::new();
     let mut adheres_to_deposit_event = HashSet::new();
     let mut identified_addresses = HashSet::new();
 
-    let mut from_block = 0;
     //TODO: make this async
     while from_block < current_block {
         //Get pair created event logs within the block range
@@ -48,6 +54,7 @@ pub async fn discover_erc_4626_vaults<M: Middleware>(
         if to_block > current_block {
             to_block = current_block;
         }
+        dbg!(&from_block, &to_block);
 
         let block_filter = block_filter.clone();
         //TODO: use a better method, this is just quick and scrappy
@@ -110,6 +117,7 @@ pub async fn discover_erc_4626_vaults<M: Middleware>(
         if let Ok(vault) =
             ERC4626Vault::new_from_address(*identified_address, middleware.clone()).await
         {
+            dbg!("added new vault", &vault);
             vaults.push(vault);
         }
     }
