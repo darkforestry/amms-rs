@@ -11,6 +11,8 @@ use crate::{
     errors::AMMError,
 };
 
+use super::discovery_options::DiscoveryOptions;
+
 pub enum DiscoverableFactory {
     UniswapV2Factory,
     UniswapV3Factory,
@@ -33,9 +35,8 @@ impl DiscoverableFactory {
 // Returns a vec of empty factories that match one of the Factory interfaces specified by each DiscoverableFactory
 pub async fn discover_factories<M: Middleware>(
     factories: Vec<DiscoverableFactory>,
-    number_of_amms_threshold: u64,
     middleware: Arc<M>,
-    step: u64,
+    options: DiscoveryOptions,
 ) -> Result<Vec<Factory>, AMMError<M>> {
     let spinner = Spinner::new(spinners::Dots, "Discovering new factories...", Color::Blue);
 
@@ -47,15 +48,16 @@ pub async fn discover_factories<M: Middleware>(
 
     let block_filter = Filter::new().topic0(event_signatures);
 
-    let mut from_block = 0;
-    let current_block = middleware
-        .get_block_number()
-        .await
-        .map_err(AMMError::MiddlewareError)?
-        .as_u64();
-
-    //For each block within the range, get all pairs asynchronously
-    // let step = 100000;
+    let mut from_block = options.from_block;
+    let current_block = match options.to_block {
+        Some(b) => b,
+        None => middleware
+            .get_block_number()
+            .await
+            .map_err(AMMError::MiddlewareError)?
+            .as_u64(),
+    };
+    let step = options.step;
 
     //Set up filter and events to filter each block you are searching by
     let mut identified_factories: HashMap<H160, (Factory, u64)> = HashMap::new();
@@ -106,7 +108,7 @@ pub async fn discover_factories<M: Middleware>(
 
     let mut filtered_factories = vec![];
     for (_, (factory, amms_length)) in identified_factories {
-        if amms_length >= number_of_amms_threshold {
+        if amms_length >= options.number_of_amms_threshold {
             filtered_factories.push(factory);
         }
     }

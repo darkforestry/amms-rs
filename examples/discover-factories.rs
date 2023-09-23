@@ -1,4 +1,7 @@
-use amms::discovery::factory::{discover_factories, DiscoverableFactory};
+use amms::discovery::{
+    discovery_options::DiscoveryOptionsBuilder,
+    factory::{discover_factories, DiscoverableFactory},
+};
 use ethers::providers::{Http, Provider};
 use std::sync::Arc;
 
@@ -8,16 +11,22 @@ async fn main() -> eyre::Result<()> {
 
     let provider = Arc::new(Provider::<Http>::try_from(rpc_endpoint)?);
 
-    // Find all UniswapV2 and UniswapV3 compatible factories and filter out matches with less than 1000 AMMs
-    let number_of_amms_threshold = 1000;
+    // Filter Uniswap V2 compatible factories from block 10000835 to block 10091468
+    // expect to get only the original Uniswap V2 Factory
+    let options = DiscoveryOptionsBuilder::default()
+        .from_block(10000835)
+        .to_block(Some(10091468))
+        .step(100000)
+        .number_of_amms_threshold(5)
+        .build()?;
+
     let factories = discover_factories(
         vec![
             DiscoverableFactory::UniswapV2Factory,
-            DiscoverableFactory::UniswapV3Factory,
+            // DiscoverableFactory::UniswapV3Factory,
         ],
-        number_of_amms_threshold,
         provider,
-        100000,
+        options,
     )
     .await?;
 
