@@ -1,6 +1,6 @@
 use amms::{
     amm::{factory::Factory, uniswap_v2::factory::UniswapV2Factory, AMM},
-    discovery,
+    discovery::{self, discovery_options::Erc4626DiscoveryOptionsBuilder},
     state_space::state::StateSpaceManager,
     sync,
 };
@@ -42,7 +42,10 @@ async fn main() -> eyre::Result<()> {
         sync::sync_amms(factories, middleware.clone(), None, step).await?;
 
     // Discover vaults and add them to amms
-    let vaults = discovery::erc_4626::discover_erc_4626_vaults(middleware.clone(), step)
+    let options = Erc4626DiscoveryOptionsBuilder::default()
+        .step(step)
+        .build()?;
+    let vaults = discovery::erc_4626::discover_erc_4626_vaults(middleware.clone(), options)
         .await?
         .into_iter()
         .map(AMM::ERC4626Vault)
