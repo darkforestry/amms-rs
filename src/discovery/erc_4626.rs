@@ -1,3 +1,4 @@
+use derive_builder::Builder;
 use std::{collections::HashSet, str::FromStr, sync::Arc};
 
 use ethers::{
@@ -16,10 +17,24 @@ lazy_static::lazy_static! {
     static ref HEX_REGEX: Regex = Regex::new(r"0x[0-9a-fA-F]+").expect("Could not compile regex");
 }
 
+/// ERC4626 vault discovery options
+#[derive(Debug, Builder, Default)]
+pub struct Erc4626DiscoveryOptions {
+    /// From block number, if None then the discovery start block number will be 0
+    #[builder(default = "0")]
+    pub from_block: u64,
+    /// To block number, if None then the discovery end block number will be the current block number
+    #[builder(default)]
+    pub to_block: Option<u64>,
+    /// Block number step
+    #[builder(default = "1000")]
+    pub step: u64,
+}
+
 // Returns a vec of empty factories that match one of the Factory interfaces specified by each DiscoverableFactory
 pub async fn discover_erc_4626_vaults<M: Middleware>(
     middleware: Arc<M>,
-    step: u64,
+    options: Option<Erc4626DiscoveryOptions>,
 ) -> Result<Vec<ERC4626Vault>, AMMError<M>> {
     let spinner = Spinner::new(
         spinners::Dots,
@@ -30,17 +45,23 @@ pub async fn discover_erc_4626_vaults<M: Middleware>(
     let block_filter =
         Filter::new().topic0(vec![DEPOSIT_EVENT_SIGNATURE, WITHDRAW_EVENT_SIGNATURE]);
 
-    let current_block = middleware
-        .get_block_number()
-        .await
-        .map_err(AMMError::MiddlewareError)?
-        .as_u64();
+    let options = options.unwrap_or_default();
+
+    let mut from_block = options.from_block;
+    let current_block = match options.to_block {
+        Some(b) => b,
+        None => middleware
+            .get_block_number()
+            .await
+            .map_err(AMMError::MiddlewareError)?
+            .as_u64(),
+    };
+    let step = options.step;
 
     let mut adheres_to_withdraw_event = HashSet::new();
     let mut adheres_to_deposit_event = HashSet::new();
     let mut identified_addresses = HashSet::new();
 
-    let mut from_block = 0;
     //TODO: make this async
     while from_block < current_block {
         //Get pair created event logs within the block range

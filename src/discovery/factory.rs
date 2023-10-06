@@ -1,3 +1,4 @@
+use derive_builder::Builder;
 use std::{collections::HashMap, sync::Arc};
 
 use ethers::{
@@ -14,6 +15,22 @@ use crate::{
 pub enum DiscoverableFactory {
     UniswapV2Factory,
     UniswapV3Factory,
+}
+
+/// Factories discovery options
+#[derive(Debug, Builder, Default)]
+pub struct FactoriesDiscoveryOptions {
+    /// From block number, if None then the discovery start block number will be 10000835 (the creation block of UniswapV2Factory)
+    #[builder(default = "10000835")]
+    pub from_block: u64,
+    /// To block number, if None then the discovery end block number will be the current block number
+    #[builder(default)]
+    pub to_block: Option<u64>,
+    /// Block number step
+    #[builder(default = "1000")]
+    pub step: u64,
+    /// Filter factory that have to has at least a number of pairs
+    pub number_of_amms_threshold: u64,
 }
 
 impl DiscoverableFactory {
@@ -33,9 +50,8 @@ impl DiscoverableFactory {
 // Returns a vec of empty factories that match one of the Factory interfaces specified by each DiscoverableFactory
 pub async fn discover_factories<M: Middleware>(
     factories: Vec<DiscoverableFactory>,
-    number_of_amms_threshold: u64,
     middleware: Arc<M>,
-    step: u64,
+    options: Option<FactoriesDiscoveryOptions>,
 ) -> Result<Vec<Factory>, AMMError<M>> {
     let spinner = Spinner::new(spinners::Dots, "Discovering new factories...", Color::Blue);
 
@@ -46,16 +62,18 @@ pub async fn discover_factories<M: Middleware>(
     }
 
     let block_filter = Filter::new().topic0(event_signatures);
+    let options = options.unwrap_or_default();
 
-    let mut from_block = 0;
-    let current_block = middleware
-        .get_block_number()
-        .await
-        .map_err(AMMError::MiddlewareError)?
-        .as_u64();
-
-    //For each block within the range, get all pairs asynchronously
-    // let step = 100000;
+    let mut from_block = options.from_block;
+    let current_block = match options.to_block {
+        Some(b) => b,
+        None => middleware
+            .get_block_number()
+            .await
+            .map_err(AMMError::MiddlewareError)?
+            .as_u64(),
+    };
+    let step = options.step;
 
     //Set up filter and events to filter each block you are searching by
     let mut identified_factories: HashMap<H160, (Factory, u64)> = HashMap::new();
@@ -106,7 +124,7 @@ pub async fn discover_factories<M: Middleware>(
 
     let mut filtered_factories = vec![];
     for (_, (factory, amms_length)) in identified_factories {
-        if amms_length >= number_of_amms_threshold {
+        if amms_length >= options.number_of_amms_threshold {
             filtered_factories.push(factory);
         }
     }
