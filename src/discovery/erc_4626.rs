@@ -1,3 +1,4 @@
+use derive_builder::Builder;
 use std::{collections::HashSet, str::FromStr, sync::Arc};
 
 use ethers::{
@@ -12,16 +13,28 @@ use crate::{
     errors::AMMError,
 };
 
-use super::discovery_options::Erc4626DiscoveryOptions;
-
 lazy_static::lazy_static! {
     static ref HEX_REGEX: Regex = Regex::new(r"0x[0-9a-fA-F]+").expect("Could not compile regex");
+}
+
+/// ERC4626 vault discovery options
+#[derive(Debug, Builder, Default)]
+pub struct Erc4626DiscoveryOptions {
+    /// From block number, if None then the discovery start block number will be 0
+    #[builder(default = "0")]
+    pub from_block: u64,
+    /// To block number, if None then the discovery end block number will be the current block number
+    #[builder(default)]
+    pub to_block: Option<u64>,
+    /// Block number step
+    #[builder(default = "1000")]
+    pub step: u64,
 }
 
 // Returns a vec of empty factories that match one of the Factory interfaces specified by each DiscoverableFactory
 pub async fn discover_erc_4626_vaults<M: Middleware>(
     middleware: Arc<M>,
-    options: Erc4626DiscoveryOptions,
+    options: Option<Erc4626DiscoveryOptions>,
 ) -> Result<Vec<ERC4626Vault>, AMMError<M>> {
     let spinner = Spinner::new(
         spinners::Dots,
@@ -31,6 +44,8 @@ pub async fn discover_erc_4626_vaults<M: Middleware>(
 
     let block_filter =
         Filter::new().topic0(vec![DEPOSIT_EVENT_SIGNATURE, WITHDRAW_EVENT_SIGNATURE]);
+
+    let options = options.unwrap_or_default();
 
     let mut from_block = options.from_block;
     let current_block = match options.to_block {
@@ -54,7 +69,6 @@ pub async fn discover_erc_4626_vaults<M: Middleware>(
         if to_block > current_block {
             to_block = current_block;
         }
-        dbg!(&from_block, &to_block);
 
         let block_filter = block_filter.clone();
         //TODO: use a better method, this is just quick and scrappy
@@ -117,7 +131,6 @@ pub async fn discover_erc_4626_vaults<M: Middleware>(
         if let Ok(vault) =
             ERC4626Vault::new_from_address(*identified_address, middleware.clone()).await
         {
-            dbg!("added new vault", &vault);
             vaults.push(vault);
         }
     }

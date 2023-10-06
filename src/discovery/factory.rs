@@ -1,3 +1,4 @@
+use derive_builder::Builder;
 use std::{collections::HashMap, sync::Arc};
 
 use ethers::{
@@ -11,11 +12,25 @@ use crate::{
     errors::AMMError,
 };
 
-use super::discovery_options::FactoriesDiscoveryOptions;
-
 pub enum DiscoverableFactory {
     UniswapV2Factory,
     UniswapV3Factory,
+}
+
+/// Factories discovery options
+#[derive(Debug, Builder, Default)]
+pub struct FactoriesDiscoveryOptions {
+    /// From block number, if None then the discovery start block number will be 10000835 (the creation block of UniswapV2Factory)
+    #[builder(default = "10000835")]
+    pub from_block: u64,
+    /// To block number, if None then the discovery end block number will be the current block number
+    #[builder(default)]
+    pub to_block: Option<u64>,
+    /// Block number step
+    #[builder(default = "1000")]
+    pub step: u64,
+    /// Filter factory that have to has at least a number of pairs
+    pub number_of_amms_threshold: u64,
 }
 
 impl DiscoverableFactory {
@@ -36,7 +51,7 @@ impl DiscoverableFactory {
 pub async fn discover_factories<M: Middleware>(
     factories: Vec<DiscoverableFactory>,
     middleware: Arc<M>,
-    options: FactoriesDiscoveryOptions,
+    options: Option<FactoriesDiscoveryOptions>,
 ) -> Result<Vec<Factory>, AMMError<M>> {
     let spinner = Spinner::new(spinners::Dots, "Discovering new factories...", Color::Blue);
 
@@ -47,6 +62,7 @@ pub async fn discover_factories<M: Middleware>(
     }
 
     let block_filter = Filter::new().topic0(event_signatures);
+    let options = options.unwrap_or_default();
 
     let mut from_block = options.from_block;
     let current_block = match options.to_block {

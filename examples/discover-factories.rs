@@ -1,5 +1,5 @@
 use amms::discovery::{
-    discovery_options::FactoriesDiscoveryOptionsBuilder,
+    factory::FactoriesDiscoveryOptionsBuilder,
     factory::{discover_factories, DiscoverableFactory},
 };
 use ethers::providers::{Http, Provider};
@@ -26,7 +26,7 @@ async fn main() -> eyre::Result<()> {
             // DiscoverableFactory::UniswapV3Factory,
         ],
         provider,
-        options,
+        Some(options),
     )
     .await?;
 

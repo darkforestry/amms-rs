@@ -1,4 +1,4 @@
-use amms::discovery::{self, discovery_options::Erc4626DiscoveryOptionsBuilder};
+use amms::discovery::{self, erc_4626::Erc4626DiscoveryOptionsBuilder};
 use ethers::providers::{Http, Provider};
 use std::sync::Arc;
 
@@ -13,7 +13,7 @@ async fn main() -> eyre::Result<()> {
         .step(30000)
         .build()?;
     //discover vaults
-    let _vaults = discovery::erc_4626::discover_erc_4626_vaults(provider, options).await?;
+    let _vaults = discovery::erc_4626::discover_erc_4626_vaults(provider, Some(options)).await?;
 
     Ok(())
 }
