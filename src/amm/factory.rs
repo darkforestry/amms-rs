@@ -16,7 +16,7 @@ use super::{
     AMM,
 };
 
-pub const TASK_LIMIT: usize = 10;
+pub const TASK_LIMIT: usize = 1;
 
 #[async_trait]
 pub trait AutomatedMarketMakerFactory {
