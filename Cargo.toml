@@ -25,7 +25,7 @@ async-trait = "0.1.72"
 serde_json = "1.0.104"
 serde = "1.0.176"
 num-bigfloat = "1.6.2"
-uniswap_v3_math = "0.4.0"
+uniswap_v3_math = {git ="https://github.com/0xKitsune/uniswap-v3-math.git", branch = "main"}
 regex = "1.9.1"
 arraydeque = {version = "0.5.1", optional = true}
 eyre = "0.6.8"
