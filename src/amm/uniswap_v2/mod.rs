@@ -107,6 +107,8 @@ impl AutomatedMarketMaker for UniswapV2Pool {
     }
 
     fn simulate_swap(&self, token_in: H160, amount_in: U256) -> Result<U256, SwapSimulationError> {
+        tracing::info!(?token_in, ?amount_in, "simulating swap");
+
         if self.token_a == token_in {
             Ok(self.get_amount_out(
                 amount_in,
@@ -127,6 +129,8 @@ impl AutomatedMarketMaker for UniswapV2Pool {
         token_in: H160,
         amount_in: U256,
     ) -> Result<U256, SwapSimulationError> {
+        tracing::info!(?token_in, ?amount_in, "simulating swap");
+
         if self.token_a == token_in {
             let amount_out = self.get_amount_out(
                 amount_in,
@@ -134,8 +138,13 @@ impl AutomatedMarketMaker for UniswapV2Pool {
                 U256::from(self.reserve_1),
             );
 
+            tracing::trace!(?amount_out);
+            tracing::trace!(?self.reserve_0, ?self.reserve_1, "pool reserves before");
+
             self.reserve_0 += amount_in.as_u128();
             self.reserve_1 -= amount_out.as_u128();
+
+            tracing::trace!(?self.reserve_0, ?self.reserve_1, "pool reserves after");
 
             Ok(amount_out)
         } else {
@@ -145,8 +154,13 @@ impl AutomatedMarketMaker for UniswapV2Pool {
                 U256::from(self.reserve_0),
             );
 
+            tracing::trace!(?amount_out);
+            tracing::trace!(?self.reserve_0, ?self.reserve_1, "pool reserves before");
+
             self.reserve_0 -= amount_out.as_u128();
             self.reserve_1 += amount_in.as_u128();
+
+            tracing::trace!(?self.reserve_0, ?self.reserve_1, "pool reserves after");
 
             Ok(amount_out)
         }
@@ -261,6 +275,8 @@ impl UniswapV2Pool {
         &self,
         middleware: Arc<M>,
     ) -> Result<(u128, u128), AMMError<M>> {
+        tracing::trace!("getting reserves of {}", self.address);
+
         //Initialize a new instance of the Pool
         let v2_pair = IUniswapV2Pair::new(self.address, middleware);
         // Make a call to get the reserves
@@ -268,6 +284,8 @@ impl UniswapV2Pool {
             Ok(result) => result,
             Err(contract_error) => return Err(AMMError::ContractError(contract_error)),
         };
+
+        tracing::trace!(reserve_0, reserve_1);
 
         Ok((reserve_0, reserve_1))
     }
@@ -285,6 +303,8 @@ impl UniswapV2Pool {
             .decimals()
             .call()
             .await?;
+
+        tracing::trace!(token_a_decimals, token_b_decimals);
 
         Ok((token_a_decimals, token_b_decimals))
     }
@@ -349,6 +369,8 @@ impl UniswapV2Pool {
     }
 
     pub fn get_amount_out(&self, amount_in: U256, reserve_in: U256, reserve_out: U256) -> U256 {
+        tracing::trace!(?amount_in, ?reserve_in, ?reserve_out);
+
         if amount_in.is_zero() || reserve_in.is_zero() || reserve_out.is_zero() {
             return U256::zero();
         }
@@ -356,6 +378,8 @@ impl UniswapV2Pool {
         let amount_in_with_fee = amount_in * U256::from(fee);
         let numerator = amount_in_with_fee * reserve_out;
         let denominator = reserve_in * U256::from(1000) + amount_in_with_fee;
+
+        tracing::trace!(?fee, ?amount_in_with_fee, ?numerator, ?denominator);
 
         numerator / denominator
     }

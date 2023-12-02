@@ -185,6 +185,8 @@ impl AutomatedMarketMaker for UniswapV3Pool {
     }
 
     fn simulate_swap(&self, token_in: H160, amount_in: U256) -> Result<U256, SwapSimulationError> {
+        tracing::info!(?token_in, ?amount_in, "simulating swap");
+
         if amount_in.is_zero() {
             return Ok(U256::zero());
         }
@@ -309,7 +311,11 @@ impl AutomatedMarketMaker for UniswapV3Pool {
             }
         }
 
-        Ok((-current_state.amount_calculated).into_raw())
+        let amount_out = (-current_state.amount_calculated).into_raw();
+
+        tracing::trace!(?amount_out);
+
+        Ok(amount_out)
     }
 
     fn simulate_swap_mut(
@@ -317,6 +323,8 @@ impl AutomatedMarketMaker for UniswapV3Pool {
         token_in: H160,
         amount_in: U256,
     ) -> Result<U256, SwapSimulationError> {
+        tracing::info!(?token_in, ?amount_in, "simulating swap");
+
         if amount_in.is_zero() {
             return Ok(U256::zero());
         }
@@ -446,7 +454,11 @@ impl AutomatedMarketMaker for UniswapV3Pool {
         self.sqrt_price = current_state.sqrt_price_x_96;
         self.tick = current_state.tick;
 
-        Ok((-current_state.amount_calculated).into_raw())
+        let amount_out = (-current_state.amount_calculated).into_raw();
+
+        tracing::trace!(?amount_out);
+
+        Ok(amount_out)
     }
 
     fn get_token_out(&self, token_in: H160) -> H160 {
@@ -790,7 +802,8 @@ impl UniswapV3Pool {
     }
 
     pub fn modify_position(&mut self, tick_lower: i32, tick_upper: i32, liquidity_delta: i128) {
-        //We are only using this function when a mint or burn event is emitted, therefore we do not need to checkTicks as that has happened before the event is emitted
+        //We are only using this function when a mint or burn event is emitted,
+        //therefore we do not need to checkTicks as that has happened before the event is emitted
         self.update_position(tick_lower, tick_upper, liquidity_delta);
 
         if liquidity_delta != 0 {

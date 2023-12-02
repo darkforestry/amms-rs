@@ -104,6 +104,8 @@ where
     where
         <P as Middleware>::Provider: PubsubClient,
     {
+        tracing::info!(last_synced_block, channel_buffer, "listening for new blocks");
+
         let state = self.state.clone();
         let middleware = self.middleware.clone();
         let stream_middleware: Arc<P> = self.stream_middleware.clone();
@@ -131,11 +133,13 @@ where
         let new_block_handle: JoinHandle<Result<(), StateSpaceError<M, P>>> =
             tokio::spawn(async move {
                 while let Some(block) = stream_rx.recv().await {
+                    tracing::info!(?block, "received new block");
                     if let Some(chain_head_block_number) = block.number {
                         let chain_head_block_number = chain_head_block_number.as_u64();
 
                         //If there is a reorg, unwind state changes from last_synced block to the chain head block number
                         if chain_head_block_number <= last_synced_block {
+                            tracing::trace!(chain_head_block_number, last_synced_block, "reorg detected, unwinding state changes");
                             unwind_state_changes(
                                 state.clone(),
                                 state_change_cache.clone(),
@@ -204,6 +208,8 @@ where
     where
         <P as Middleware>::Provider: PubsubClient,
     {
+        tracing::info!(last_synced_block, channel_buffer, "listening for state changes");
+
         let state = self.state.clone();
         let middleware = self.middleware.clone();
         let stream_middleware: Arc<P> = self.stream_middleware.clone();
@@ -232,11 +238,13 @@ where
         let updated_amms_handle: JoinHandle<Result<(), StateSpaceError<M, P>>> =
             tokio::spawn(async move {
                 while let Some(block) = stream_rx.recv().await {
+                    tracing::info!(?block, "received new block");
                     if let Some(chain_head_block_number) = block.number {
                         let chain_head_block_number = chain_head_block_number.as_u64();
 
                         //If there is a reorg, unwind state changes from last_synced block to the chain head block number
                         if chain_head_block_number <= last_synced_block {
+                            tracing::trace!(chain_head_block_number, last_synced_block, "reorg detected, unwinding state changes");
                             unwind_state_changes(
                                 state.clone(),
                                 state_change_cache.clone(),
@@ -300,6 +308,8 @@ where
     where
         <P as Middleware>::Provider: PubsubClient,
     {
+        tracing::info!(last_synced_block, channel_buffer, "listening for updates");
+
         let state = self.state.clone();
         let middleware = self.middleware.clone();
         let stream_middleware: Arc<P> = self.stream_middleware.clone();
@@ -325,11 +335,13 @@ where
         let new_block_handle: JoinHandle<Result<(), StateSpaceError<M, P>>> =
             tokio::spawn(async move {
                 while let Some(block) = stream_rx.recv().await {
+                    tracing::info!(?block, "received new block");
                     if let Some(chain_head_block_number) = block.number {
                         let chain_head_block_number = chain_head_block_number.as_u64();
 
                         //If there is a reorg, unwind state changes from last_synced block to the chain head block number
                         if chain_head_block_number <= last_synced_block {
+                            tracing::trace!(chain_head_block_number, last_synced_block, "reorg detected, unwinding state changes");
                             unwind_state_changes(
                                 state.clone(),
                                 state_change_cache.clone(),

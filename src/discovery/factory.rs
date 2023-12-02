@@ -4,7 +4,6 @@ use ethers::{
     providers::Middleware,
     types::{Filter, H160, H256},
 };
-use spinoff::{spinners, Color, Spinner};
 
 use crate::{
     amm::{self, factory::Factory},
@@ -37,13 +36,14 @@ pub async fn discover_factories<M: Middleware>(
     middleware: Arc<M>,
     step: u64,
 ) -> Result<Vec<Factory>, AMMError<M>> {
-    let spinner = Spinner::new(spinners::Dots, "Discovering new factories...", Color::Blue);
+    tracing::info!(number_of_amms_threshold, step, "discovering new factories",);
 
     let mut event_signatures = vec![];
 
     for factory in factories {
         event_signatures.push(factory.discovery_event_signature());
     }
+    tracing::trace!(?event_signatures);
 
     let block_filter = Filter::new().topic0(event_signatures);
 
@@ -68,6 +68,8 @@ pub async fn discover_factories<M: Middleware>(
             target_block = current_block;
         }
 
+        tracing::info!("searching blocks {}-{}", from_block, target_block);
+
         let block_filter = block_filter.clone();
         let logs = middleware
             .get_logs(&block_filter.from_block(from_block).to_block(target_block))
@@ -75,8 +77,14 @@ pub async fn discover_factories<M: Middleware>(
             .map_err(AMMError::MiddlewareError)?;
 
         for log in logs {
+            tracing::trace!("found matching event at factory {}", log.address);
             if let Some((_, amms_length)) = identified_factories.get_mut(&log.address) {
                 *amms_length += 1;
+                tracing::trace!(
+                    "increasing factory {} AMMs to {}",
+                    log.address,
+                    *amms_length
+                );
             } else {
                 let mut factory = Factory::try_from(log.topics[0])?;
 
@@ -97,6 +105,7 @@ pub async fn discover_factories<M: Middleware>(
                     }
                 }
 
+                tracing::info!(address = ?log.address, "discovered new factory");
                 identified_factories.insert(log.address, (factory, 0));
             }
         }
@@ -105,12 +114,16 @@ pub async fn discover_factories<M: Middleware>(
     }
 
     let mut filtered_factories = vec![];
-    for (_, (factory, amms_length)) in identified_factories {
+    tracing::trace!(number_of_amms_threshold, "checking threshold");
+    for (address, (factory, amms_length)) in identified_factories {
         if amms_length >= number_of_amms_threshold {
+            tracing::trace!("factory {} has {} AMMs => adding", address, amms_length);
             filtered_factories.push(factory);
+        } else {
+            tracing::trace!("factory {} has {} AMMs => skipping", address, amms_length);
         }
     }
 
-    spinner.success("All factories discovered");
+    tracing::info!("all factories discovered");
     Ok(filtered_factories)
 }

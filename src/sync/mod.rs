@@ -8,7 +8,6 @@ use crate::{
 
 use ethers::providers::Middleware;
 
-use spinoff::{spinners, Color, Spinner};
 use std::{panic::resume_unwind, sync::Arc};
 pub mod checkpoint;
 
@@ -18,13 +17,20 @@ pub async fn sync_amms<M: 'static + Middleware>(
     checkpoint_path: Option<&str>,
     step: u64,
 ) -> Result<(Vec<AMM>, u64), AMMError<M>> {
-    let spinner = Spinner::new(spinners::Dots, "Syncing AMMs...", Color::Blue);
+    tracing::info!(
+        step,
+        checkpoint_path,
+        "syncing AMMs of {} factories",
+        factories.len()
+    );
 
     let current_block = middleware
         .get_block_number()
         .await
         .map_err(AMMError::MiddlewareError)?
         .as_u64();
+
+    tracing::trace!(current_block);
 
     //Aggregate the populated pools from each thread
     let mut aggregated_amms: Vec<AMM> = vec![];
@@ -36,6 +42,7 @@ pub async fn sync_amms<M: 'static + Middleware>(
 
         //Spawn a new thread to get all pools and sync data for each dex
         handles.push(tokio::spawn(async move {
+            tracing::info!("syncing factory {}", factory.address());
             //Get all of the amms from the factory
             let mut amms: Vec<AMM> = factory
                 .get_all_amms(Some(current_block), middleware.clone(), step)
@@ -45,7 +52,7 @@ pub async fn sync_amms<M: 'static + Middleware>(
             //Clean empty pools
             amms = remove_empty_amms(amms);
 
-            // If the factory is UniswapV2, set the fee for each pool according to the factory fee
+            //If the factory is UniswapV2, set the fee for each pool according to the factory fee
             if let Factory::UniswapV2Factory(factory) = factory {
                 for amm in amms.iter_mut() {
                     if let AMM::UniswapV2Pool(ref mut pool) = amm {
@@ -82,7 +89,8 @@ pub async fn sync_amms<M: 'static + Middleware>(
             checkpoint_path,
         )?;
     }
-    spinner.success("AMMs synced");
+
+    tracing::info!("AMMs synced");
 
     //Return the populated aggregated amms vec
     Ok((aggregated_amms, current_block))

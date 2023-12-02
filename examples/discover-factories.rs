@@ -4,8 +4,9 @@ use std::sync::Arc;
 
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
-    let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
+    tracing_subscriber::fmt::init();
 
+    let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
     let provider = Arc::new(Provider::<Http>::try_from(rpc_endpoint)?);
 
     // Find all UniswapV2 and UniswapV3 compatible factories and filter out matches with less than 1000 AMMs
@@ -17,7 +18,7 @@ async fn main() -> eyre::Result<()> {
         ],
         number_of_amms_threshold,
         provider,
-        100000,
+        50000,
     )
     .await?;
 

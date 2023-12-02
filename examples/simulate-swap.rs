@@ -7,11 +7,13 @@ use std::{str::FromStr, sync::Arc};
 
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
+    tracing_subscriber::fmt::init();
+
     let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
     let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint)?);
 
     // Initialize the pool
-    let pool_address = H160::from_str("0xB4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc")?;
+    let pool_address = H160::from_str("0xB4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc")?; // WETH/USDC
     let pool = UniswapV2Pool::new_from_address(pool_address, 300, middleware.clone()).await?;
 
     // Simulate a swap
