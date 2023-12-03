@@ -25,11 +25,11 @@ Tests are still being written, assume bugs until tested. If you would like to he
 ## Supported AMMs
 
 | AMM             | Status |
-| --------------- | ------ | --- |
-| UniswapV2 Pools | ✅     |     |
-| UniswapV3 Pools | ✅     |     |
-| ERC4626 Vaults  | ✅     |     |
-| Izumi Pools     | 🟨     |     |
-| Curve Pools     | ❌     |     |
-| Balancer Pools  | ❌     |     |
-| Bancor Pools    | ❌     |     |
+| --------------- | ------ |
+| UniswapV2 Pools | ✅     |
+| UniswapV3 Pools | ✅     |
+| ERC4626 Vaults  | ✅     |
+| Izumi Pools     | 🟨     |
+| Curve Pools     | ❌     |
+| Balancer Pools  | ❌     |
+| Bancor Pools    | ❌     |
