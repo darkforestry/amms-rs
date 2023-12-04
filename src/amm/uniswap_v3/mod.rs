@@ -969,10 +969,6 @@ impl UniswapV3Pool {
         let sqrt_price = BigFloat::from_f64(price.sqrt());
         let liquidity = BigFloat::from_u128(self.liquidity);
 
-        //Sqrt price is stored as a Q64.96 so we need to left shift the liquidity by 96 to be represented as Q64.96
-        //We cant right shift sqrt_price because it could move the value to 0, making divison by 0 to get reserve_x
-        let liquidity = liquidity;
-
         let (reserve_0, reserve_1) = if !sqrt_price.is_zero() {
             let reserve_x = liquidity.div(&sqrt_price);
             let reserve_y = liquidity.mul(&sqrt_price);

@@ -104,7 +104,11 @@ where
     where
         <P as Middleware>::Provider: PubsubClient,
     {
-        tracing::info!(last_synced_block, channel_buffer, "listening for new blocks");
+        tracing::info!(
+            last_synced_block,
+            channel_buffer,
+            "listening for new blocks"
+        );
 
         let state = self.state.clone();
         let middleware = self.middleware.clone();
@@ -139,7 +143,11 @@ where
 
                         //If there is a reorg, unwind state changes from last_synced block to the chain head block number
                         if chain_head_block_number <= last_synced_block {
-                            tracing::trace!(chain_head_block_number, last_synced_block, "reorg detected, unwinding state changes");
+                            tracing::trace!(
+                                chain_head_block_number,
+                                last_synced_block,
+                                "reorg detected, unwinding state changes"
+                            );
                             unwind_state_changes(
                                 state.clone(),
                                 state_change_cache.clone(),
@@ -208,7 +216,11 @@ where
     where
         <P as Middleware>::Provider: PubsubClient,
     {
-        tracing::info!(last_synced_block, channel_buffer, "listening for state changes");
+        tracing::info!(
+            last_synced_block,
+            channel_buffer,
+            "listening for state changes"
+        );
 
         let state = self.state.clone();
         let middleware = self.middleware.clone();
@@ -244,7 +256,11 @@ where
 
                         //If there is a reorg, unwind state changes from last_synced block to the chain head block number
                         if chain_head_block_number <= last_synced_block {
-                            tracing::trace!(chain_head_block_number, last_synced_block, "reorg detected, unwinding state changes");
+                            tracing::trace!(
+                                chain_head_block_number,
+                                last_synced_block,
+                                "reorg detected, unwinding state changes"
+                            );
                             unwind_state_changes(
                                 state.clone(),
                                 state_change_cache.clone(),
@@ -341,7 +357,11 @@ where
 
                         //If there is a reorg, unwind state changes from last_synced block to the chain head block number
                         if chain_head_block_number <= last_synced_block {
-                            tracing::trace!(chain_head_block_number, last_synced_block, "reorg detected, unwinding state changes");
+                            tracing::trace!(
+                                chain_head_block_number,
+                                last_synced_block,
+                                "reorg detected, unwinding state changes"
+                            );
                             unwind_state_changes(
                                 state.clone(),
                                 state_change_cache.clone(),

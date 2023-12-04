@@ -149,7 +149,6 @@ impl UniswapV3Factory {
         step: u64,
         middleware: Arc<M>,
     ) -> Result<Vec<AMM>, AMMError<M>> {
-
         //Unwrap can be used here because the creation block was verified within `Dex::new()`
         let mut from_block = self.creation_block;
         let mut aggregated_amms: HashMap<H160, AMM> = HashMap::new();
