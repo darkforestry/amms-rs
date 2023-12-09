@@ -16,7 +16,7 @@ exclude = [
 
 
 [dependencies]
-ethers = { version = "2.0.8", default-features = true, features = ["abigen", "ws", "ipc", "rustls"] }
+ethers = { version = "2.0.11", default-features = true, features = ["abigen", "ws", "ipc", "rustls"] }
 tokio = { version = "1.29.1", features = ["full"] }
 futures = "0.3.28"
 indicatif = "0.17.5"
