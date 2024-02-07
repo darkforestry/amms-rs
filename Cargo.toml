@@ -1,37 +1,30 @@
 [package]
 name = "amms"
-version = "0.6.1"
+version = "0.1.0"
 edition = "2021"
-license = "MIT"
 description = "A library to interact with automated market makers across EVM chains."
-readme = "README.md"
-homepage = "https://github.com/darkforestry/amms-rs"
-repository = "https://github.com/darkforestry/amms-rs"
-keywords = ["ethereum", "amm", "mev"]
-exclude = [
-    "target/*",
-    ".github/*",
-    ".gitignore"
-]
-
 
 [dependencies]
-ethers = { version = "2.0.8", default-features = true, features = ["abigen", "ws", "ipc", "rustls"] }
-tokio = { version = "1.29.1", features = ["full"] }
-futures = "0.3.28"
-indicatif = "0.17.5"
-thiserror = "1.0.44"
-async-trait = "0.1.72"
-serde_json = "1.0.104"
-serde = "1.0.176"
-num-bigfloat = "1.6.2"
-uniswap_v3_math = {git ="https://github.com/0xKitsune/uniswap-v3-math.git", branch = "main"}
+anyhow = "1.0.76"
+arraydeque = { version = "0.5.1", optional = true }
+artemis-core = { git = "https://github.com/paradigmxyz/artemis.git", branch = "main" }
+async-trait = "0.1.76"
+criterion = "0.5.1"
+ethers = { version = "2.0.11", default-features = true, features = ["abigen", "ws", "ipc", "rustls"] } # TODO: update this to aloy
+eyre = "0.6.11"
+futures = "0.3.30"
+lazy_static = "1.4.0" #TODO: why do we have this
+num-bigfloat = "1.7.0"
 regex = "1.9.1"
-arraydeque = {version = "0.5.1", optional = true}
-eyre = "0.6.8"
-lazy_static = "1.4.0"
-log = "0.4.20"
-tracing = "0.1.37"
+ruint = "1.11.1"
+serde = "1.0.176"
+serde_json = "1.0.104"
+thiserror = "1.0.55"
+tokio = { version = "1.29.1", features = ["full"] }
+tokio-stream = "0.1.14"
+tracing = "0.1.40"
+uniswap_v3_math = { git = "https://github.com/0xKitsune/uniswap-v3-math.git", branch = "main" } #TODO: publish updated crate, move to ruint
+#TODO: use telemetry batteries, update to have prometheus battery
 
 [features]
 default = ["filters", "state-space"]

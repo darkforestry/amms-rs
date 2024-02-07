@@ -18,15 +18,13 @@ use ethers::{
     providers::Middleware,
     types::{BlockNumber, Filter, Log, H160, H256, I256, U256, U64},
 };
+use futures::{stream::FuturesOrdered, StreamExt};
 use num_bigfloat::BigFloat;
 use serde::{Deserialize, Serialize};
 
 use ethers::prelude::abigen;
-use tokio::task::JoinHandle;
 
 use self::factory::POOL_CREATED_EVENT_SIGNATURE;
-
-use super::factory::TASK_LIMIT;
 
 abigen!(
 
@@ -185,8 +183,6 @@ impl AutomatedMarketMaker for UniswapV3Pool {
     }
 
     fn simulate_swap(&self, token_in: H160, amount_in: U256) -> Result<U256, SwapSimulationError> {
-        tracing::info!(?token_in, ?amount_in, "simulating swap");
-
         if amount_in.is_zero() {
             return Ok(U256::zero());
         }
@@ -323,8 +319,6 @@ impl AutomatedMarketMaker for UniswapV3Pool {
         token_in: H160,
         amount_in: U256,
     ) -> Result<U256, SwapSimulationError> {
-        tracing::info!(?token_in, ?amount_in, "simulating swap");
-
         if amount_in.is_zero() {
             return Ok(U256::zero());
         }
@@ -599,12 +593,12 @@ impl UniswapV3Pool {
             .await
             .map_err(AMMError::MiddlewareError)?
             .as_u64();
+
+        let mut futures = FuturesOrdered::new();
+
         let mut ordered_logs: BTreeMap<U64, Vec<Log>> = BTreeMap::new();
 
         let pool_address: H160 = self.address;
-
-        let mut handles = vec![];
-        let mut tasks = 0;
 
         while from_block < current_block {
             let middleware = middleware.clone();
@@ -614,8 +608,8 @@ impl UniswapV3Pool {
                 target_block = current_block;
             }
 
-            handles.push(tokio::spawn(async move {
-                let logs = middleware
+            futures.push_back(async move {
+                middleware
                     .get_logs(
                         &Filter::new()
                             .topic0(vec![BURN_EVENT_SIGNATURE, MINT_EVENT_SIGNATURE])
@@ -624,42 +618,14 @@ impl UniswapV3Pool {
                             .to_block(BlockNumber::Number(U64([target_block]))),
                     )
                     .await
-                    .map_err(AMMError::MiddlewareError)?;
-
-                Ok::<Vec<Log>, AMMError<M>>(logs)
-            }));
+            });
 
             from_block += POPULATE_TICK_DATA_STEP;
-            tasks += 1;
-            //Here we are limiting the number of green threads that can be spun up to not have the node time out
-            if tasks == TASK_LIMIT {
-                self.process_logs_from_handles(handles, &mut ordered_logs)
-                    .await?;
-                handles = vec![];
-                tasks = 0;
-            }
         }
 
-        self.process_logs_from_handles(handles, &mut ordered_logs)
-            .await?;
-
-        for (_, log_group) in ordered_logs {
-            for log in log_group {
-                self.sync_from_log(log)?;
-            }
-        }
-
-        Ok(current_block)
-    }
-
-    async fn process_logs_from_handles<M: Middleware>(
-        &self,
-        handles: Vec<JoinHandle<Result<Vec<Log>, AMMError<M>>>>,
-        ordered_logs: &mut BTreeMap<U64, Vec<Log>>,
-    ) -> Result<(), AMMError<M>> {
-        // group the logs from each thread by block number and then sync the logs in chronological order
-        for handle in handles {
-            let logs = handle.await??;
+        // TODO: this could be more dry since we use this in another place
+        while let Some(result) = futures.next().await {
+            let logs = result.map_err(AMMError::MiddlewareError)?;
 
             for log in logs {
                 if let Some(log_block_number) = log.block_number {
@@ -673,7 +639,14 @@ impl UniswapV3Pool {
                 }
             }
         }
-        Ok(())
+
+        for (_, log_group) in ordered_logs {
+            for log in log_group {
+                self.sync_from_log(log)?;
+            }
+        }
+
+        Ok(current_block)
     }
 
     pub fn fee(&self) -> u32 {
@@ -967,6 +940,9 @@ impl UniswapV3Pool {
         let price = 1.0001_f64.powi(tick);
 
         let sqrt_price = BigFloat::from_f64(price.sqrt());
+
+        //Sqrt price is stored as a Q64.96 so we need to left shift the liquidity by 96 to be represented as Q64.96
+        //We cant right shift sqrt_price because it could move the value to 0, making division by 0 to get reserve_x
         let liquidity = BigFloat::from_u128(self.liquidity);
 
         let (reserve_0, reserve_1) = if !sqrt_price.is_zero() {

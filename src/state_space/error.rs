@@ -2,19 +2,20 @@ use crate::errors::{AMMError, ArithmeticError, EventLogError};
 
 use ethers::prelude::{AbiError, ContractError};
 
-use ethers::providers::{Middleware, ProviderError};
+use ethers::providers::{Middleware, ProviderError, PubsubClient};
 
 use ethers::signers::WalletError;
 use ethers::types::{Block, H160, H256};
 use thiserror::Error;
 
-use super::state::MiddlewarePubsub;
-
 #[derive(Error, Debug)]
 pub enum StateSpaceError<M, P>
 where
-    M: Middleware,
-    P: MiddlewarePubsub,
+    M: Middleware + 'static,
+    M::Error: 'static,
+    P: Middleware + 'static,
+    P::Provider: PubsubClient,
+    P::Error: 'static,
 {
     #[error("Middleware error")]
     MiddlewareError(<M as Middleware>::Error),
@@ -48,6 +49,8 @@ where
     BlockSendError(#[from] tokio::sync::mpsc::error::SendError<Block<H256>>),
     #[error("Already listening for state changes")]
     AlreadyListeningForStateChanges,
+    #[error("Could not send block through channel")]
+    JoinError(#[from] tokio::task::JoinError),
 }
 
 #[derive(Error, Debug)]

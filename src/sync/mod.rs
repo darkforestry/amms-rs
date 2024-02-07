@@ -4,6 +4,7 @@ use crate::{
         uniswap_v2, uniswap_v3, AutomatedMarketMaker, AMM,
     },
     errors::AMMError,
+    filters,
 };
 
 use ethers::providers::Middleware;
@@ -17,20 +18,13 @@ pub async fn sync_amms<M: 'static + Middleware>(
     checkpoint_path: Option<&str>,
     step: u64,
 ) -> Result<(Vec<AMM>, u64), AMMError<M>> {
-    tracing::info!(
-        step,
-        checkpoint_path,
-        "syncing AMMs of {} factories",
-        factories.len()
-    );
+    tracing::info!(?step, ?factories, "Syncing AMMs");
 
     let current_block = middleware
         .get_block_number()
         .await
         .map_err(AMMError::MiddlewareError)?
         .as_u64();
-
-    tracing::trace!(current_block);
 
     //Aggregate the populated pools from each thread
     let mut aggregated_amms: Vec<AMM> = vec![];
@@ -42,15 +36,17 @@ pub async fn sync_amms<M: 'static + Middleware>(
 
         //Spawn a new thread to get all pools and sync data for each dex
         handles.push(tokio::spawn(async move {
-            tracing::info!("syncing factory {}", factory.address());
+            tracing::info!(?factory, "Getting all AMMs from factory");
             //Get all of the amms from the factory
-            let mut amms: Vec<AMM> = factory
+            let mut amms = factory
                 .get_all_amms(Some(current_block), middleware.clone(), step)
                 .await?;
+
+            tracing::info!(?factory, "Populating AMMs from factory");
             populate_amms(&mut amms, current_block, middleware.clone()).await?;
 
             //Clean empty pools
-            amms = remove_empty_amms(amms);
+            amms = filters::filter_empty_amms(amms);
 
             //If the factory is UniswapV2, set the fee for each pool according to the factory fee
             if let Factory::UniswapV2Factory(factory) = factory {
@@ -89,8 +85,6 @@ pub async fn sync_amms<M: 'static + Middleware>(
             checkpoint_path,
         )?;
     }
-
-    tracing::info!("AMMs synced");
 
     //Return the populated aggregated amms vec
     Ok((aggregated_amms, current_block))
@@ -151,30 +145,4 @@ pub async fn populate_amms<M: Middleware>(
 
     //For each pair in the pairs vec, get the pool data
     Ok(())
-}
-
-pub fn remove_empty_amms(amms: Vec<AMM>) -> Vec<AMM> {
-    let mut cleaned_amms = vec![];
-
-    for amm in amms.into_iter() {
-        match amm {
-            AMM::UniswapV2Pool(ref uniswap_v2_pool) => {
-                if !uniswap_v2_pool.token_a.is_zero() && !uniswap_v2_pool.token_b.is_zero() {
-                    cleaned_amms.push(amm)
-                }
-            }
-            AMM::UniswapV3Pool(ref uniswap_v3_pool) => {
-                if !uniswap_v3_pool.token_a.is_zero() && !uniswap_v3_pool.token_b.is_zero() {
-                    cleaned_amms.push(amm)
-                }
-            }
-            AMM::ERC4626Vault(ref erc4626_vault) => {
-                if !erc4626_vault.vault_token.is_zero() && !erc4626_vault.asset_token.is_zero() {
-                    cleaned_amms.push(amm)
-                }
-            }
-        }
-    }
-
-    cleaned_amms
 }

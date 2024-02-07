@@ -1,7 +1,0 @@
-[submodule "lib/forge-std"]
-	path = lib/forge-std
-	url = https://github.com/foundry-rs/forge-std
-	branch = v1.5.2
-[submodule "contracts/erc_4626/lib/forge-std"]
-	path = contracts/erc_4626/lib/forge-std
-	url = https://github.com/foundry-rs/forge-std
