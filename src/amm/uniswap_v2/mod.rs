@@ -196,7 +196,7 @@ impl UniswapV2Pool {
         }
     }
 
-    //Creates a new instance of the pool from the pair address, and syncs the pool data
+    /// Creates a new instance of the pool from the pair address, and syncs the pool data.
     pub async fn new_from_address<M: Middleware>(
         pair_address: H160,
         fee: u32,
@@ -221,6 +221,10 @@ impl UniswapV2Pool {
 
         Ok(pool)
     }
+
+    /// Creates a new instance of a the pool from a `PairCreated` event log.
+    ///
+    /// This method syncs the pool data.
     pub async fn new_from_log<M: Middleware>(
         log: Log,
         fee: u32,
@@ -236,6 +240,9 @@ impl UniswapV2Pool {
         }
     }
 
+    /// Creates a new instance of a the pool from a `PairCreated` event log.
+    ///
+    /// This method does not sync the pool data.
     pub fn new_empty_pool_from_log(log: Log) -> Result<Self, EventLogError> {
         let event_signature = log.topics[0];
 
@@ -257,10 +264,12 @@ impl UniswapV2Pool {
         }
     }
 
+    /// Returns the swap fee of the pool.
     pub fn fee(&self) -> u32 {
         self.fee
     }
 
+    /// Returns whether the pool data is populated.
     pub fn data_is_populated(&self) -> bool {
         !(self.token_a.is_zero()
             || self.token_b.is_zero()
@@ -268,6 +277,7 @@ impl UniswapV2Pool {
             || self.reserve_1 == 0)
     }
 
+    /// Returns the reserves of the pool.
     pub async fn get_reserves<M: Middleware>(
         &self,
         middleware: Arc<M>,
@@ -336,6 +346,9 @@ impl UniswapV2Pool {
         Ok(token1)
     }
 
+    /// Calculates the price of the base token in terms of the quote token.
+    ///
+    /// Returned as a Q64 fixed point number.
     pub fn calculate_price_64_x_64(&self, base_token: H160) -> Result<u128, ArithmeticError> {
         let decimal_shift = self.token_a_decimals as i8 - self.token_b_decimals as i8;
 
@@ -365,6 +378,7 @@ impl UniswapV2Pool {
         }
     }
 
+    /// Calculates the amount received for a given `amount_in` `reserve_in` and `reserve_out`.
     pub fn get_amount_out(&self, amount_in: U256, reserve_in: U256, reserve_out: U256) -> U256 {
         tracing::trace!(?amount_in, ?reserve_in, ?reserve_out);
 
@@ -381,6 +395,7 @@ impl UniswapV2Pool {
         numerator / denominator
     }
 
+    /// Returns the calldata for a swap.
     pub fn swap_calldata(
         &self,
         amount_0_out: U256,

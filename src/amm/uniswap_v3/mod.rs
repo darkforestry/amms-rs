@@ -496,7 +496,9 @@ impl UniswapV3Pool {
         }
     }
 
-    // Creates a new instance of the pool from the pair address
+    /// Creates a new instance of the pool from the pair address.
+    ///
+    /// This function will populate all pool data.
     pub async fn new_from_address<M: 'static + Middleware>(
         pair_address: H160,
         creation_block: u64,
@@ -534,6 +536,9 @@ impl UniswapV3Pool {
         Ok(pool)
     }
 
+    /// Creates a new instance of the pool from a log.
+    ///
+    /// This function will populate all pool data.
     pub async fn new_from_log<M: 'static + Middleware>(
         log: Log,
         middleware: Arc<M>,
@@ -557,7 +562,9 @@ impl UniswapV3Pool {
             Err(EventLogError::InvalidEventSignature)?
         }
     }
-
+    /// Creates a new instance of the pool from a log.
+    ///
+    /// This function will not populate all pool data.
     pub fn new_empty_pool_from_log(log: Log) -> Result<Self, EventLogError> {
         let event_signature = log.topics[0];
 
@@ -583,6 +590,9 @@ impl UniswapV3Pool {
         }
     }
 
+    /// Populates the `tick_bitmap` and `ticks` fields of the pool to the current block.
+    ///
+    /// Returns the last synced block number.
     pub async fn populate_tick_data<M: 'static + Middleware>(
         &mut self,
         mut from_block: u64,
@@ -649,14 +659,17 @@ impl UniswapV3Pool {
         Ok(current_block)
     }
 
+    /// Returns the swap fee of the pool.
     pub fn fee(&self) -> u32 {
         self.fee
     }
 
+    /// Returns whether the pool data is populated.
     pub fn data_is_populated(&self) -> bool {
         !(self.token_a.is_zero() || self.token_b.is_zero())
     }
 
+    /// Returns the word position of a tick in the `tick_bitmap`.
     pub async fn get_tick_word<M: Middleware>(
         &self,
         tick: i32,
@@ -667,6 +680,7 @@ impl UniswapV3Pool {
         Ok(v3_pool.tick_bitmap(word_position).call().await?)
     }
 
+    /// Returns the next word in the `tick_bitmap` after a given word position.
     pub async fn get_next_word<M: Middleware>(
         &self,
         word_position: i16,
@@ -675,7 +689,7 @@ impl UniswapV3Pool {
         let v3_pool = IUniswapV3Pool::new(self.address, middleware);
         Ok(v3_pool.tick_bitmap(word_position).call().await?)
     }
-
+    /// Returns the tick spacing of the pool.
     pub async fn get_tick_spacing<M: Middleware>(
         &self,
         middleware: Arc<M>,
@@ -684,10 +698,12 @@ impl UniswapV3Pool {
         Ok(v3_pool.tick_spacing().call().await?)
     }
 
+    /// Fetches the current tick of the pool via static call.
     pub async fn get_tick<M: Middleware>(&self, middleware: Arc<M>) -> Result<i32, AMMError<M>> {
         Ok(self.get_slot_0(middleware).await?.1)
     }
 
+    /// Fetches the tick info of a given tick via static call.
     pub async fn get_tick_info<M: Middleware>(
         &self,
         tick: i32,
@@ -709,6 +725,7 @@ impl UniswapV3Pool {
         ))
     }
 
+    /// Fetches `liquidity_net` at a given tick via static call.
     pub async fn get_liquidity_net<M: Middleware>(
         &self,
         tick: i32,
@@ -718,6 +735,7 @@ impl UniswapV3Pool {
         Ok(tick_info.1)
     }
 
+    /// Fetches whether a specified tick is initialized via static call.
     pub async fn get_initialized<M: Middleware>(
         &self,
         tick: i32,
@@ -727,6 +745,7 @@ impl UniswapV3Pool {
         Ok(tick_info.7)
     }
 
+    /// Fetches the current slot 0 of the pool via static call.
     pub async fn get_slot_0<M: Middleware>(
         &self,
         middleware: Arc<M>,
@@ -735,6 +754,7 @@ impl UniswapV3Pool {
         Ok(v3_pool.slot_0().call().await?)
     }
 
+    /// Fetches the current liquidity of the pool via static call.
     pub async fn get_liquidity<M: Middleware>(
         &self,
         middleware: Arc<M>,
@@ -743,6 +763,7 @@ impl UniswapV3Pool {
         Ok(v3_pool.liquidity().call().await?)
     }
 
+    /// Fetches the current sqrt price of the pool via static call.
     pub async fn get_sqrt_price<M: Middleware>(
         &self,
         middleware: Arc<M>,
@@ -750,6 +771,7 @@ impl UniswapV3Pool {
         Ok(self.get_slot_0(middleware).await?.0)
     }
 
+    /// Updates the pool state from a burn event log.
     pub fn sync_from_burn_log(&mut self, log: Log) -> Result<(), AbiError> {
         let burn_event = BurnFilter::decode_log(&RawLog::from(log))?;
 
@@ -762,6 +784,7 @@ impl UniswapV3Pool {
         Ok(())
     }
 
+    /// Updates the pool state from a mint event log.
     pub fn sync_from_mint_log(&mut self, log: Log) -> Result<(), AbiError> {
         let mint_event = MintFilter::decode_log(&RawLog::from(log))?;
 
@@ -774,6 +797,7 @@ impl UniswapV3Pool {
         Ok(())
     }
 
+    /// Modifies a positions liquidity in the pool.
     pub fn modify_position(&mut self, tick_lower: i32, tick_upper: i32, liquidity_delta: i128) {
         //We are only using this function when a mint or burn event is emitted,
         //therefore we do not need to checkTicks as that has happened before the event is emitted
@@ -866,6 +890,7 @@ impl UniswapV3Pool {
         }
     }
 
+    /// Updates the pool state from a swap event log.
     pub fn sync_from_swap_log(&mut self, log: Log) -> Result<(), AbiError> {
         let swap_event = SwapFilter::decode_log(&RawLog::from(log))?;
 
@@ -976,6 +1001,7 @@ impl UniswapV3Pool {
         uniswap_v3_math::tick_bitmap::position(compressed)
     }
 
+    /// Returns the call data for a swap.
     pub fn swap_calldata(
         &self,
         recipient: H160,

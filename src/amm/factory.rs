@@ -18,9 +18,12 @@ use super::{
 
 #[async_trait]
 pub trait AutomatedMarketMakerFactory {
+    /// Returns the address of the factory.
     fn address(&self) -> H160;
 
-    //TODO: docs
+    /// Gets all Pools from the factory created logs up to the `to_block` block number.
+    ///
+    /// Returns a vector of AMMs.
     async fn get_all_amms<M: 'static + Middleware>(
         &self,
         to_block: Option<u64>,
@@ -28,7 +31,7 @@ pub trait AutomatedMarketMakerFactory {
         step: u64,
     ) -> Result<Vec<AMM>, AMMError<M>>;
 
-    //TODO: docs
+    /// Populates all AMMs data via batched static calls.
     async fn populate_amm_data<M: Middleware>(
         &self,
         amms: &mut [AMM],
@@ -36,19 +39,22 @@ pub trait AutomatedMarketMakerFactory {
         middleware: Arc<M>,
     ) -> Result<(), AMMError<M>>;
 
-    //TODO: docs
+    /// Returns the creation event signature for the factory.
     fn amm_created_event_signature(&self) -> H256;
 
-    //TODO: docs
+    /// Returns the block number at which the factory was created.
     fn creation_block(&self) -> u64;
 
-    //TODO: docs
+    /// Creates a new AMM from a log factory creation event.
+    ///
+    /// Returns a AMM with data populated.
     async fn new_amm_from_log<M: 'static + Middleware>(
         &self,
         log: Log,
         middleware: Arc<M>,
     ) -> Result<AMM, AMMError<M>>;
 
+    /// Creates a new empty AMM from a log factory creation event.
     fn new_empty_amm_from_log(&self, log: Log) -> Result<AMM, ethers::abi::Error>;
 }
 

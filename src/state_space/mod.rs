@@ -314,7 +314,7 @@ impl StateChange {
     }
 }
 
-//Unwinds the state changes cache for every block from the most recent state change cache back to the block to unwind -1
+/// Unwinds the state changes cache for every block from the most recent state change cache back to the block to unwind -1.
 async fn unwind_state_changes(
     state: Arc<RwLock<StateSpace>>,
     state_change_cache: Arc<RwLock<StateChangeCache>>,
@@ -451,6 +451,9 @@ where
     P: Middleware + 'static,
     P::Provider: PubsubClient,
 {
+    /// Artemis collector implementation for state space manager.
+    ///
+    /// Returns a `CollectorStream` of `Vec<H160>` representing the AMM addresses that incurred a state change in the block.
     async fn get_event_stream(&self) -> anyhow::Result<CollectorStream<'_, Vec<H160>>> {
         let (state_change_rx, mut join_handles) = self.subscribe_state_changes().await?;
 

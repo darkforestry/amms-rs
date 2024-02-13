@@ -11,7 +11,12 @@ use ethers::providers::Middleware;
 
 use std::{panic::resume_unwind, sync::Arc};
 pub mod checkpoint;
-
+/// Syncs all AMMs from the supplied factories.
+///
+/// factories - A vector of factories to sync AMMs from.
+/// middleware - A middleware to use for syncing AMMs.
+/// checkpoint_path - A path to save a checkpoint of the synced AMMs.
+/// step - The step size for batched RPC requests.
 pub async fn sync_amms<M: 'static + Middleware>(
     factories: Vec<Factory>,
     middleware: Arc<M>,
