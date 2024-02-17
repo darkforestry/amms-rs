@@ -59,7 +59,7 @@ async fn main() -> eyre::Result<()> {
     );
 
     // Group amm addresses by token pairs
-    let mut pairs = aggregate_pairs(state_space_manager.state.read().await.deref());
+    let pairs = aggregate_pairs(state_space_manager.state.read().await.deref());
 
     let simple_arbitrage_strategy = SimpleArbitrage {
         state_space: state_space_manager.state.clone(),
