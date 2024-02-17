@@ -11,7 +11,7 @@ use artemis_core::types::Strategy;
 use async_trait::async_trait;
 use ethers::{
     providers::{Http, Provider, Ws},
-    types::{Transaction, H160},
+    types::{transaction::eip2718::TypedTransaction, Transaction, H160},
 };
 use std::{collections::HashMap, ops::Deref, str::FromStr, sync::Arc};
 use tokio::sync::RwLock;
@@ -121,7 +121,7 @@ impl Strategy<Vec<H160>, Transaction> for SimpleArbitrage {
         for addr in event {
             let state_space = self.state_space.read().await;
 
-            let amm = state_space
+            let amm: &AMM = state_space
                 .get(&addr)
                 // We can expect here because we know the address is from the state space collector
                 .expect("Could not find amm in Statespace");
@@ -137,12 +137,27 @@ impl Strategy<Vec<H160>, Transaction> for SimpleArbitrage {
                 let mut transactions = vec![];
 
                 for amm_address in pair_addresses {
-                    let amm = state_space
+                    let congruent_amm = state_space
                         .get(amm_address)
                         // We can expect here because we know the address is from the state space collector
                         .expect("Could not find amm in Statespace");
+                    let amm_weight_0 = amm.calculate_price(tokens[0]).unwrap();
+                    let amm_weight_1 = -amm.calculate_price(tokens[1]).unwrap();
 
-                    //TODO: simple arb
+                    let congruent_amm_weight_0 =
+                        congruent_amm.calculate_price(tokens[0]).unwrap();
+                    let congruent_amm_weight_1 =
+                        congruent_amm.calculate_price(tokens[1]).unwrap();
+
+                    // Negative cycle 
+                    if amm_weight_0*congruent_amm_weight_1 > 1_f64 {
+                        
+                    }
+
+                    // Negative cycle
+                    if amm_weight_1*congruent_amm_weight_0 > 1_f64 {
+
+                    }
                 }
 
                 return transactions;
