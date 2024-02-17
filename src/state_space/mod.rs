@@ -377,7 +377,7 @@ pub async fn handle_state_changes_from_logs<M: Middleware>(
     let mut updated_amms = vec![];
     let mut state_changes = vec![];
 
-    let mut last_log_block_number = if let Some(log) = logs.get(0) {
+    let mut last_log_block_number = if let Some(log) = logs.first() {
         get_block_number_from_log(log)?
     } else {
         return Ok(updated_amms);
