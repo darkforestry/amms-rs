@@ -1,9 +1,9 @@
 use amms::{
     amm::{
         factory::Factory, uniswap_v2::factory::UniswapV2Factory,
-        uniswap_v3::factory::UniswapV3Factory,
+        uniswap_v3::factory::UniswapV3Factory, AutomatedMarketMaker, AMM,
     },
-    state_space::StateSpaceManager,
+    state_space::{StateSpace, StateSpaceManager},
     sync,
 };
 use artemis_core::engine::Engine;
@@ -13,7 +13,8 @@ use ethers::{
     providers::{Http, Provider, Ws},
     types::{Transaction, H160},
 };
-use std::{str::FromStr, sync::Arc};
+use std::{collections::HashMap, ops::Deref, str::FromStr, sync::Arc};
+use tokio::sync::RwLock;
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
     tracing_subscriber::fmt::init();
@@ -57,11 +58,20 @@ async fn main() -> eyre::Result<()> {
         stream_middleware,
     );
 
+    // Group amm addresses by token pairs
+    let pairs = aggregate_pairs(state_space_manager.state.read().await.deref());
+
+    let simple_arbitrage_strategy = SimpleArbitrage {
+        state_space: state_space_manager.state.clone(),
+        pairs,
+        last_synced_block,
+        middleware: middleware.clone(),
+    };
+
     let mut engine: Engine<Vec<H160>, Transaction> = Engine::new();
-    // Add the collector
     engine.add_collector(Box::new(state_space_manager));
-    // Add the strategy
-    engine.add_strategy(Box::new(DummyStrategy));
+    engine.add_strategy(Box::new(simple_arbitrage_strategy));
+
     //Start the engine
     if let Ok(mut set) = engine.run().await {
         while let Some(res) = set.join_next().await {
@@ -71,15 +81,74 @@ async fn main() -> eyre::Result<()> {
     Ok(())
 }
 
-struct DummyStrategy;
+pub fn aggregate_pairs(state_space: &StateSpace) -> HashMap<(H160, H160), Vec<H160>> {
+    let mut pairs: HashMap<(H160, H160), Vec<H160>> = HashMap::new();
+
+    for (amm_address, amm) in state_space {
+        let tokens = amm.tokens();
+
+        // This assumes that all pairs only have two tokens for simplicity of the example
+        let (token_a, token_b) = if tokens[0] < tokens[1] {
+            (tokens[0], tokens[1])
+        } else {
+            (tokens[1], tokens[0])
+        };
+
+        let pair = (token_a, token_b);
+
+        if let Some(pair_addresses) = pairs.get_mut(&pair) {
+            pair_addresses.push(*amm_address);
+        } else {
+            pairs.insert(pair, vec![*amm_address]);
+        }
+    }
+
+    pairs
+}
+
+struct SimpleArbitrage {
+    state_space: Arc<RwLock<StateSpace>>,
+    pairs: HashMap<(H160, H160), Vec<H160>>,
+}
+
 #[async_trait]
-impl Strategy<Vec<H160>, Transaction> for DummyStrategy {
+impl Strategy<Vec<H160>, Transaction> for SimpleArbitrage {
     async fn sync_state(&mut self) -> anyhow::Result<()> {
         Ok(())
     }
 
     async fn process_event(&mut self, event: Vec<H160>) -> Vec<Transaction> {
-        tracing::info!("Processing event: {:?}", event);
+        for addr in event {
+            let state_space = self.state_space.read().await;
+
+            let amm = state_space
+                .get(&addr)
+                // We can expect here because we know the address is from the state space collector
+                .expect("Could not find amm in Statespace");
+
+            let tokens = amm.tokens();
+            let pair_key = if tokens[0] < tokens[1] {
+                (tokens[0], tokens[1])
+            } else {
+                (tokens[1], tokens[0])
+            };
+
+            if let Some(pair_addresses) = self.pairs.get(&pair_key) {
+                let mut transactions = vec![];
+
+                for amm_address in pair_addresses {
+                    let amm = state_space
+                        .get(amm_address)
+                        // We can expect here because we know the address is from the state space collector
+                        .expect("Could not find amm in Statespace");
+
+                    //TODO: simple arb
+                }
+
+                return transactions;
+            }
+        }
+
         vec![]
     }
 }
