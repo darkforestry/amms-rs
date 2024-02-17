@@ -24,7 +24,7 @@ async fn main() -> eyre::Result<()> {
         Arc::new(Provider::<Ws>::connect(ws_endpoint).await?);
 
     let factories = vec![
-        // //Add UniswapV2
+        //Add UniswapV2
         Factory::UniswapV2Factory(UniswapV2Factory::new(
             H160::from_str("0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f")?,
             2638438,
