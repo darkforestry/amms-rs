@@ -109,8 +109,6 @@ pub fn aggregate_pairs(state_space: &StateSpace) -> HashMap<(H160, H160), Vec<H1
 struct SimpleArbitrage {
     state_space: Arc<RwLock<StateSpace>>,
     pairs: HashMap<(H160, H160), Vec<H160>>,
-    last_synced_block: u64,
-    middleware: Arc<Provider<Http>>,
 }
 
 #[async_trait]
