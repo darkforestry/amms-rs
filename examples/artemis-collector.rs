@@ -140,7 +140,7 @@ impl Strategy<Vec<H160>, Transaction> for SimpleArbitrage {
                         // We can expect here because we know the address is from the state space collector
                         .expect("Could not find amm in Statespace");
                     let amm_weight_0 = amm.calculate_price(tokens[0]).unwrap();
-                    let amm_weight_1 = -amm.calculate_price(tokens[1]).unwrap();
+                    let amm_weight_1 = amm.calculate_price(tokens[1]).unwrap();
 
                     let congruent_amm_weight_0 = congruent_amm.calculate_price(tokens[0]).unwrap();
                     let congruent_amm_weight_1 = congruent_amm.calculate_price(tokens[1]).unwrap();
