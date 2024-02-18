@@ -11,7 +11,7 @@ use artemis_core::types::Strategy;
 use async_trait::async_trait;
 use ethers::{
     providers::{Http, Provider, Ws},
-    types::{transaction::eip2718::TypedTransaction, Transaction, H160},
+    types::{Transaction, H160},
 };
 use std::{collections::HashMap, ops::Deref, str::FromStr, sync::Arc};
 use tokio::sync::RwLock;
@@ -46,7 +46,7 @@ async fn main() -> eyre::Result<()> {
 
     //Sync amms
     let (amms, last_synced_block) =
-        sync::sync_amms(factories, middleware.clone(), None, 500).await?;
+        sync::sync_amms(factories, middleware.clone(), None, 10000).await?;
 
     //Initialize state space manager
     let state_space_manager = StateSpaceManager::new(
@@ -64,8 +64,6 @@ async fn main() -> eyre::Result<()> {
     let simple_arbitrage_strategy = SimpleArbitrage {
         state_space: state_space_manager.state.clone(),
         pairs,
-        last_synced_block,
-        middleware: middleware.clone(),
     };
 
     let mut engine: Engine<Vec<H160>, Transaction> = Engine::new();
@@ -134,7 +132,7 @@ impl Strategy<Vec<H160>, Transaction> for SimpleArbitrage {
             };
 
             if let Some(pair_addresses) = self.pairs.get(&pair_key) {
-                let mut transactions = vec![];
+                let transactions = vec![];
 
                 for amm_address in pair_addresses {
                     let congruent_amm = state_space
@@ -144,19 +142,17 @@ impl Strategy<Vec<H160>, Transaction> for SimpleArbitrage {
                     let amm_weight_0 = amm.calculate_price(tokens[0]).unwrap();
                     let amm_weight_1 = -amm.calculate_price(tokens[1]).unwrap();
 
-                    let congruent_amm_weight_0 =
-                        congruent_amm.calculate_price(tokens[0]).unwrap();
-                    let congruent_amm_weight_1 =
-                        congruent_amm.calculate_price(tokens[1]).unwrap();
+                    let congruent_amm_weight_0 = congruent_amm.calculate_price(tokens[0]).unwrap();
+                    let congruent_amm_weight_1 = congruent_amm.calculate_price(tokens[1]).unwrap();
 
-                    // Negative cycle 
-                    if amm_weight_0*congruent_amm_weight_1 > 1_f64 {
-                        
+                    // Negative cycle
+                    if amm_weight_0 * congruent_amm_weight_1 > 1_f64 {
+                        tracing::info!("Simple Arbitrage detected path from {:?} to {:?} token path {:?} - {:?} - {:?}", addr, amm_address, tokens[0], tokens[1], tokens[0]);
                     }
 
                     // Negative cycle
-                    if amm_weight_1*congruent_amm_weight_0 > 1_f64 {
-
+                    if amm_weight_1 * congruent_amm_weight_0 > 1_f64 {
+                        tracing::info!("Simple Arbitrage detected path from {:?} to {:?} token path {:?} - {:?} - {:?}", addr, amm_address, tokens[1], tokens[0], tokens[1]);
                     }
                 }
 
