@@ -1122,6 +1122,7 @@ mod test {
     }
 
     #[tokio::test]
+    #[ignore] //Ignoring to not throttle the Provider on workflows
     async fn test_simulate_swap_usdc_weth() -> eyre::Result<()> {
         let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint)?);
@@ -1204,6 +1205,7 @@ mod test {
     }
 
     #[tokio::test]
+    #[ignore] //Ignoring to not throttle the Provider on workflows
     async fn test_simulate_swap_weth_usdc() -> eyre::Result<()> {
         let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint)?);
@@ -1287,6 +1289,7 @@ mod test {
     }
 
     #[tokio::test]
+    #[ignore] //Ignoring to not throttle the Provider on workflows
     async fn test_simulate_swap_link_weth() -> eyre::Result<()> {
         let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint)?);
@@ -1370,6 +1373,7 @@ mod test {
     }
 
     #[tokio::test]
+    #[ignore] //Ignoring to not throttle the Provider on workflows
     async fn test_simulate_swap_weth_link() -> eyre::Result<()> {
         let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint)?);
@@ -1453,6 +1457,7 @@ mod test {
     }
 
     #[tokio::test]
+    #[ignore] //Ignoring to not throttle the Provider on workflows
     async fn test_simulate_swap_mut_usdc_weth() -> eyre::Result<()> {
         let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint)?);
@@ -1535,6 +1540,7 @@ mod test {
     }
 
     #[tokio::test]
+    #[ignore] //Ignoring to not throttle the Provider on workflows
     async fn test_simulate_swap_mut_weth_usdc() -> eyre::Result<()> {
         let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint)?);
@@ -1618,6 +1624,7 @@ mod test {
     }
 
     #[tokio::test]
+    #[ignore] //Ignoring to not throttle the Provider on workflows
     async fn test_simulate_swap_mut_link_weth() -> eyre::Result<()> {
         let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint)?);
@@ -1701,6 +1708,7 @@ mod test {
     }
 
     #[tokio::test]
+    #[ignore] //Ignoring to not throttle the Provider on workflows
     async fn test_simulate_swap_mut_weth_link() -> eyre::Result<()> {
         let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint)?);
