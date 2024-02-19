@@ -17,6 +17,7 @@ pub mod checkpoint;
 /// middleware - A middleware to use for syncing AMMs.
 /// checkpoint_path - A path to save a checkpoint of the synced AMMs.
 /// step - The step size for batched RPC requests.
+/// Returns a tuple of the synced AMMs and the last synced block number.
 pub async fn sync_amms<M: 'static + Middleware>(
     factories: Vec<Factory>,
     middleware: Arc<M>,

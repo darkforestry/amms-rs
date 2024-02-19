@@ -147,6 +147,7 @@ impl AutomatedMarketMakerFactory for UniswapV2Factory {
         middleware: Arc<M>,
         _step: u64,
     ) -> Result<Vec<AMM>, AMMError<M>> {
+        tracing::debug!("Getting all uniswap v2 pairs via batched calls");
         self.get_all_pairs_via_batched_calls(middleware).await
     }
 
@@ -158,6 +159,7 @@ impl AutomatedMarketMakerFactory for UniswapV2Factory {
     ) -> Result<(), AMMError<M>> {
         let step = 127; //Max batch size for call
         for amm_chunk in amms.chunks_mut(step) {
+            tracing::debug!("Populating amm data for chunk of size {}", amm_chunk.len());
             batch_request::get_amm_data_batch_request(amm_chunk, middleware.clone()).await?;
         }
         Ok(())

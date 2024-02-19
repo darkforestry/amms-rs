@@ -82,13 +82,14 @@ impl AutomatedMarketMaker for ERC4626Vault {
         let event_signature = log.topics[0];
         if event_signature == DEPOSIT_EVENT_SIGNATURE {
             let deposit_event = DepositFilter::decode_log(&RawLog::from(log))?;
-
             self.asset_reserve += deposit_event.assets;
             self.vault_reserve += deposit_event.shares;
+            tracing::debug!("Syncing Vault data from Deposit event - asset_reserve {:?} vault_reserve {:?}", self.asset_reserve, self.vault_reserve);
         } else if event_signature == WITHDRAW_EVENT_SIGNATURE {
             let withdraw_filter = WithdrawFilter::decode_log(&RawLog::from(log))?;
             self.asset_reserve -= withdraw_filter.assets;
             self.vault_reserve -= withdraw_filter.shares;
+            tracing::debug!("Syncing Vault data from Withdraw event - asset_reserve {:?} vault_reserve {:?}", self.asset_reserve, self.vault_reserve);
         } else {
             return Err(EventLogError::InvalidEventSignature);
         }
@@ -101,6 +102,7 @@ impl AutomatedMarketMaker for ERC4626Vault {
         _block_number: Option<u64>,
         middleware: Arc<M>,
     ) -> Result<(), AMMError<M>> {
+        tracing::debug!("Populating ERC4626 Vault data via batch request");
         batch_request::get_4626_vault_data_batch_request(self, middleware.clone()).await?;
 
         Ok(())
