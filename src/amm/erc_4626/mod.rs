@@ -136,6 +136,10 @@ impl AutomatedMarketMaker for ERC4626Vault {
         }
     }
 
+    fn simulate_limit_swap(&self, token_in: H160, amount_in: U256, price_limit: U256) -> Result<U256, SwapSimulationError> {
+        return Err("not implemented".into());
+    }
+
     fn get_token_out(&self, token_in: H160) -> H160 {
         if self.vault_token == token_in {
             self.asset_token
