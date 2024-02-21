@@ -469,11 +469,13 @@ impl AutomatedMarketMaker for UniswapV3Pool {
         }
 
         if zero_for_one {
-            if sqrt_price_limit_x_96 < self.sqrt_price && sqrt_price_limit_x_96 > MIN_SQRT_RATIO {
+            if !(sqrt_price_limit_x_96 < self.sqrt_price && sqrt_price_limit_x_96 > MIN_SQRT_RATIO) {
                 return Err(SwapSimulationError::InvalidSqrtPriceLimit);
             }
-        } else if sqrt_price_limit_x_96 > self.sqrt_price && sqrt_price_limit_x_96 < MAX_SQRT_RATIO {
-            return Err(SwapSimulationError::InvalidSqrtPriceLimit);
+        } else {
+            if !(sqrt_price_limit_x_96 > self.sqrt_price && sqrt_price_limit_x_96 < MAX_SQRT_RATIO) {
+                return Err(SwapSimulationError::InvalidSqrtPriceLimit);
+            }
         }
 
         let exact_input = amount_specified > I256::zero();
