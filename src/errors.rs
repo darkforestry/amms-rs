@@ -97,6 +97,10 @@ pub enum SwapSimulationError {
     UniswapV3MathError(#[from] UniswapV3MathError),
     #[error("Liquidity underflow")]
     LiquidityUnderflow,
+    #[error("Invalid SqrtPriceLimit")]
+    InvalidSqrtPriceLimit,
+    #[error("Not supported")]
+    NotSupported,
 }
 
 #[derive(Error, Debug)]

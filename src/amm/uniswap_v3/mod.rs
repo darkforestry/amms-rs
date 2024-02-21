@@ -461,29 +461,28 @@ impl AutomatedMarketMaker for UniswapV3Pool {
         Ok(amount_out)
     }
 
+    fn simulate_limit_swap(&self, zero_for_one: bool, amount_specified: I256, sqrt_price_limit_x_96: U256) -> Result<(I256, I256), SwapSimulationError> {
+        tracing::info!(?zero_for_one, ?amount_specified, ?sqrt_price_limit_x_96, "simulating limit swap");
 
-    fn simulate_limit_swap(&self, token_in: H160, amount_in: U256, price_limit: U256) -> Result<U256, SwapSimulationError> {
-        tracing::info!(?token_in, ?amount_in, "simulating swap");
-
-        if amount_in.is_zero() {
-            return Ok(U256::zero());
+        if amount_specified.is_zero() {
+            return Ok((I256::zero(), I256::zero()));
         }
 
-        let zero_for_one = token_in == self.token_a;
+        if zero_for_one {
+            if sqrt_price_limit_x_96 < self.sqrt_price && sqrt_price_limit_x_96 > MIN_SQRT_RATIO {
+                return Err(SwapSimulationError::InvalidSqrtPriceLimit);
+            }
+        } else if sqrt_price_limit_x_96 > self.sqrt_price && sqrt_price_limit_x_96 < MAX_SQRT_RATIO {
+            return Err(SwapSimulationError::InvalidSqrtPriceLimit);
+        }
 
-        //Set sqrt_price_limit_x_96 to the max or min sqrt price in the pool depending on zero_for_one
-        // let sqrt_price_limit_x_96 = if zero_for_one {
-        //     MIN_SQRT_RATIO + 1
-        // } else {
-        //     MAX_SQRT_RATIO - 1
-        // };
-        let sqrt_price_limit_x_96 = price_limit;
-
+        let exact_input = amount_specified > I256::zero();
+        
         //Initialize a mutable state state struct to hold the dynamic simulated state of the pool
         let mut current_state = CurrentState {
             sqrt_price_x_96: self.sqrt_price, //Active price on the pool
             amount_calculated: I256::zero(),  //Amount of token_out that has been calculated
-            amount_specified_remaining: I256::from_raw(amount_in), //Amount of token_in that has not been swapped
+            amount_specified_remaining: amount_specified, //Amount of token_in that has not been swapped
             tick: self.tick,                                       //Current i24 tick of the pool
             liquidity: self.liquidity, //Current available liquidity in the tick range
         };
@@ -542,14 +541,23 @@ impl AutomatedMarketMaker for UniswapV3Pool {
             )?;
 
             //Decrement the amount remaining to be swapped and amount received from the step
-            current_state.amount_specified_remaining = current_state
+            if exact_input {
+                current_state.amount_specified_remaining = current_state
                 .amount_specified_remaining
                 .overflowing_sub(I256::from_raw(
                     step.amount_in.overflowing_add(step.fee_amount).0,
                 ))
                 .0;
-
-            current_state.amount_calculated -= I256::from_raw(step.amount_out);
+                current_state.amount_calculated -= I256::from_raw(step.amount_out);
+            } else {
+                current_state.amount_specified_remaining += I256::from_raw(step.amount_out);
+                current_state.amount_calculated = current_state.amount_calculated
+                .overflowing_add(I256::from_raw(
+                    step.amount_in.overflowing_add(step.fee_amount).0,
+                ))
+                .0;
+            }
+            
 
             //If the price moved all the way to the next price, recompute the liquidity change for the next iteration
             if current_state.sqrt_price_x_96 == step.sqrt_price_next_x96 {
@@ -590,11 +598,15 @@ impl AutomatedMarketMaker for UniswapV3Pool {
             }
         }
 
-        let amount_out = (-current_state.amount_calculated).into_raw();
+        let (amount0, amount1) = if zero_for_one == exact_input {
+            (amount_specified - current_state.amount_specified_remaining, current_state.amount_calculated)
+        } else {
+            (current_state.amount_calculated, amount_specified - current_state.amount_specified_remaining)
+        };
 
-        tracing::trace!(?amount_out);
+        tracing::trace!(?amount0, ?amount1);
 
-        Ok(amount_out)
+        Ok((amount0, amount1))
     }
 
     fn get_token_out(&self, token_in: H160) -> H160 {

@@ -7,7 +7,7 @@ use ethers::{
     abi::RawLog,
     prelude::EthEvent,
     providers::Middleware,
-    types::{Log, H160, H256, U256},
+    types::{Log, H160, H256, U256, I256},
 };
 use serde::{Deserialize, Serialize};
 
@@ -136,8 +136,8 @@ impl AutomatedMarketMaker for ERC4626Vault {
         }
     }
 
-    fn simulate_limit_swap(&self, token_in: H160, amount_in: U256, price_limit: U256) -> Result<U256, SwapSimulationError> {
-        self.simulate_swap(token_in, amount_in)
+    fn simulate_limit_swap(&self, zero_for_one: bool, amount_specified: I256, sqrt_price_limit_x_96: U256) -> Result<(I256, I256), SwapSimulationError> {
+        Err(SwapSimulationError::NotSupported)
     }
 
     fn get_token_out(&self, token_in: H160) -> H160 {
