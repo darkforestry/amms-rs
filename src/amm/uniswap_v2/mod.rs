@@ -167,8 +167,87 @@ impl AutomatedMarketMaker for UniswapV2Pool {
     }
 
     fn simulate_limit_swap(&self, zero_for_one: bool, amount_specified: I256, sqrt_price_limit_x_96: U256) -> Result<(I256, I256), SwapSimulationError> {
-        Err(SwapSimulationError::NotSupported)
+        tracing::info!(?zero_for_one, ?amount_specified, ?sqrt_price_limit_x_96, "simulating limit swap");
+
+        if amount_specified.is_zero() {
+            return Ok((I256::zero(), I256::zero()));
+        }
+
+        let (reserve_0, reserve_1) = if zero_for_one { (U256::from(self.reserve_0), U256::from(self.reserve_1)) } else { (U256::from(self.reserve_1), U256::from(self.reserve_0))};
+        let current_price = reserve_1.integer_sqrt() / reserve_0.integer_sqrt() * U256::from(2_u128.pow(96));
+        if zero_for_one {
+            if !(sqrt_price_limit_x_96 < current_price && sqrt_price_limit_x_96 > U256::zero()) {
+                return Err(SwapSimulationError::InvalidPriceLimit);
+            }
+        } else {
+            if !(sqrt_price_limit_x_96 > current_price) {
+                return Err(SwapSimulationError::InvalidPriceLimit);
+            }
+        }
+
+        let exact_input = amount_specified > I256::zero();
+        let res;
+        if exact_input {
+            // 卖出exact token的情形
+            // 根据输入计算输出
+            let amount_in = U256::from(amount_specified.as_u128());
+            let amount_out = self.get_amount_out(
+                amount_in,
+                reserve_0,
+                reserve_1,
+            );
+            // 根据价格计算输入输出
+            let amount_in_limited_in_price = self.get_amount_limited_in_price(
+                sqrt_price_limit_x_96,
+                reserve_0,
+                reserve_1,
+            );
+            let amount_out_limited_in_price = self.get_amount_out(
+                amount_in_limited_in_price,
+                reserve_0,
+                reserve_1,
+            );
+            // 比较最优输入输出
+            if amount_in_limited_in_price < amount_in {
+                res = (I256::from_raw(amount_in_limited_in_price), -I256::from_raw(amount_out_limited_in_price));
+            } else {
+                res = (I256::from_raw(amount_in), -I256::from_raw(amount_out));
+            }
+        } else {
+            // 卖人exact token的情形
+            let amount_out = U256::from(amount_specified.abs().as_u128());
+            let amount_in = self.get_amount_out(
+                amount_out,
+                reserve_1,
+                reserve_0,
+            );
+            // 根据价格计算输入输出
+            let amount_out_limited_in_price = self.get_amount_limited_in_price(
+                sqrt_price_limit_x_96,
+                reserve_0,
+                reserve_1,
+            );
+            let amount_in_limited_in_price = self.get_amount_out(
+                amount_out_limited_in_price,
+                reserve_1,
+                reserve_0,
+            );
+            // 比较最优输入输出
+            if amount_in_limited_in_price < amount_in {
+                res = (-I256::from_raw(amount_in_limited_in_price), I256::from_raw(amount_out_limited_in_price));
+            } else {
+                res = (-I256::from_raw(amount_in), I256::from_raw(amount_out));
+            }
+        }
+
+        if zero_for_one {
+            Ok(res)
+        } else {
+            Ok((res.1, res.0))
+        }
+
     }
+
 
     fn get_token_out(&self, token_in: H160) -> H160 {
         if self.token_a == token_in {
@@ -386,6 +465,16 @@ impl UniswapV2Pool {
         tracing::trace!(?fee, ?amount_in_with_fee, ?numerator, ?denominator);
 
         numerator / denominator
+    }
+
+    fn get_amount_limited_in_price(&self, sqrt_price_limit_x_96: U256, reserve_in: U256, reserve_out: U256) -> U256 {
+        let tmp = (reserve_in * reserve_out).integer_sqrt();
+        let tmp = tmp * U256::from(2_u128.pow(96)) / sqrt_price_limit_x_96;
+        if reserve_in > tmp {
+            reserve_in - tmp
+        } else {
+            tmp - reserve_in
+        }
     }
 
     pub fn swap_calldata(

@@ -99,6 +99,8 @@ pub enum SwapSimulationError {
     LiquidityUnderflow,
     #[error("Invalid SqrtPriceLimit")]
     InvalidSqrtPriceLimit,
+    #[error("Invalid PriceLimit")]
+    InvalidPriceLimit,
     #[error("Not supported")]
     NotSupported,
 }
