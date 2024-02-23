@@ -175,6 +175,7 @@ impl AutomatedMarketMaker for UniswapV2Pool {
 
         let (reserve_0, reserve_1) = if zero_for_one { (U256::from(self.reserve_0), U256::from(self.reserve_1)) } else { (U256::from(self.reserve_1), U256::from(self.reserve_0))};
         let current_price = reserve_1.integer_sqrt() / reserve_0.integer_sqrt() * U256::from(2_u128.pow(96));
+        println!("current_price: {}, sqrt_price_limit_x_96: {}", current_price, sqrt_price_limit_x_96);
         if zero_for_one {
             if !(sqrt_price_limit_x_96 < current_price && sqrt_price_limit_x_96 > U256::zero()) {
                 return Err(SwapSimulationError::InvalidPriceLimit);
