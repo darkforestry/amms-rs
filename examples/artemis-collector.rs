@@ -73,7 +73,7 @@ async fn main() -> eyre::Result<()> {
     //Start the engine
     if let Ok(mut set) = engine.run().await {
         while let Some(res) = set.join_next().await {
-            tracing::info!("res: {:?}", res);
+            tracing::warn!(?res);
         }
     }
     Ok(())
@@ -125,34 +125,36 @@ impl Strategy<Vec<H160>, Transaction> for SimpleArbitrage {
                 .expect("Could not find amm in Statespace");
 
             let tokens = amm.tokens();
-            let pair_key = if tokens[0] < tokens[1] {
-                (tokens[0], tokens[1])
+
+            let token_a = tokens[0];
+            let token_b = tokens[1];
+
+            let pair_key = if token_a < token_b {
+                (token_a, token_b)
             } else {
-                (tokens[1], tokens[0])
+                (token_b, token_a)
             };
 
             if let Some(pair_addresses) = self.pairs.get(&pair_key) {
                 let transactions = vec![];
 
                 for amm_address in pair_addresses {
-                    let congruent_amm = state_space
+                    let target_amm = state_space
                         .get(amm_address)
                         // We can expect here because we know the address is from the state space collector
                         .expect("Could not find amm in Statespace");
-                    let amm_weight_0 = amm.calculate_price(tokens[0]).unwrap();
-                    let amm_weight_1 = amm.calculate_price(tokens[1]).unwrap();
+                    let amm_weight_0 = amm.calculate_price(token_a).unwrap();
+                    let amm_weight_1 = amm.calculate_price(token_b).unwrap();
 
-                    let congruent_amm_weight_0 = congruent_amm.calculate_price(tokens[0]).unwrap();
-                    let congruent_amm_weight_1 = congruent_amm.calculate_price(tokens[1]).unwrap();
+                    let target_amm_weight_0 = target_amm.calculate_price(token_a).unwrap();
+                    let target_amm_weight_1 = target_amm.calculate_price(token_b).unwrap();
 
-                    // Negative cycle
-                    if amm_weight_0 * congruent_amm_weight_1 > 1_f64 {
-                        tracing::info!("Simple Arbitrage detected path from {:?} to {:?} token path {:?} - {:?} - {:?}", addr, amm_address, tokens[0], tokens[1], tokens[0]);
+                    if amm_weight_0 * target_amm_weight_0 > 1_f64 {
+                        tracing::info!(to = ?addr, from = ?amm_address, token_in = ?token_a, "Arb detected");
                     }
 
-                    // Negative cycle
-                    if amm_weight_1 * congruent_amm_weight_0 > 1_f64 {
-                        tracing::info!("Simple Arbitrage detected path from {:?} to {:?} token path {:?} - {:?} - {:?}", addr, amm_address, tokens[1], tokens[0], tokens[1]);
+                    if amm_weight_1 * target_amm_weight_1 > 1_f64 {
+                        tracing::info!(to = ?addr, from = ?amm_address, token_in = ?token_b, "Arb detected");
                     }
                 }
 

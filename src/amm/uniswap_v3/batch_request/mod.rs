@@ -5,6 +5,7 @@ use ethers::{
     providers::Middleware,
     types::{Bytes, I256, U256, U64},
 };
+use tracing::instrument;
 
 use crate::{
     amm::{AutomatedMarketMaker, AMM},
@@ -229,6 +230,7 @@ pub async fn sync_v3_pool_batch_request<M: Middleware>(
     Ok(())
 }
 
+#[instrument(skip(middleware) level = "debug")]
 pub async fn get_amm_data_batch_request<M: Middleware>(
     amms: &mut [AMM],
     block_number: u64,

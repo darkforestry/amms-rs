@@ -12,6 +12,7 @@ use ethers::{
 };
 use futures::{stream::FuturesOrdered, StreamExt};
 use serde::{Deserialize, Serialize};
+use tracing::instrument;
 
 use crate::{
     amm::{factory::AutomatedMarketMakerFactory, AutomatedMarketMaker, AMM},
@@ -88,6 +89,7 @@ impl AutomatedMarketMakerFactory for UniswapV3Factory {
         }
     }
 
+    #[instrument(skip(self, amms, middleware) level = "debug")]
     async fn populate_amm_data<M: Middleware>(
         &self,
         amms: &mut [AMM],
@@ -97,7 +99,6 @@ impl AutomatedMarketMakerFactory for UniswapV3Factory {
         if let Some(block_number) = block_number {
             let step = 127; //Max batch size for call
             for amm_chunk in amms.chunks_mut(step) {
-                tracing::debug!("Populating data for uniswap v3 pools via batched calls for chunk of size {}", amm_chunk.len());
                 batch_request::get_amm_data_batch_request(
                     amm_chunk,
                     block_number,
@@ -204,7 +205,6 @@ impl UniswapV3Factory {
                 if event_signature == POOL_CREATED_EVENT_SIGNATURE {
                     if log.address == self.address {
                         let mut new_pool = self.new_empty_amm_from_log(log)?;
-                        tracing::debug!("New v3 pool created: {:?}", new_pool.address());
                         if let AMM::UniswapV3Pool(ref mut pool) = new_pool {
                             pool.tick_spacing = pool.get_tick_spacing(middleware.clone()).await?;
                         }
@@ -214,12 +214,10 @@ impl UniswapV3Factory {
                 } else if event_signature == BURN_EVENT_SIGNATURE {
                     //If the event sig is the BURN_EVENT_SIGNATURE log is coming from the pool
                     if let Some(AMM::UniswapV3Pool(pool)) = aggregated_amms.get_mut(&log.address) {
-                        tracing::debug!("Syncing burn event for pool: {:?}", pool.address());
                         pool.sync_from_burn_log(log)?;
                     }
                 } else if event_signature == MINT_EVENT_SIGNATURE {
                     if let Some(AMM::UniswapV3Pool(pool)) = aggregated_amms.get_mut(&log.address) {
-                        tracing::debug!("Syncing burn event for pool: {:?}", pool.address());
                         pool.sync_from_mint_log(log)?;
                     }
                 }

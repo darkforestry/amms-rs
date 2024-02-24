@@ -121,6 +121,7 @@ impl AutomatedMarketMaker for UniswapV3Pool {
         self.address
     }
 
+    #[instrument(skip(self, middleware), level = "debug")]
     async fn sync<M: Middleware>(&mut self, middleware: Arc<M>) -> Result<(), AMMError<M>> {
         batch_request::sync_v3_pool_batch_request(self, middleware.clone()).await?;
         Ok(())
@@ -135,6 +136,7 @@ impl AutomatedMarketMaker for UniswapV3Pool {
         ]
     }
 
+    #[instrument(skip(self), level = "debug")]
     fn sync_from_log(&mut self, log: Log) -> Result<(), EventLogError> {
         let event_signature = log.topics[0];
 
@@ -781,6 +783,9 @@ impl UniswapV3Pool {
             -(burn_event.amount as i128),
         );
 
+        tracing::debug!(?burn_event, address = ?self.address, sqrt_price = ?self.sqrt_price, liquidity = ?self.liquidity, tick = ?self.tick, "UniswapV3 burn event");
+
+
         Ok(())
     }
 
@@ -793,6 +798,9 @@ impl UniswapV3Pool {
             mint_event.tick_upper,
             mint_event.amount as i128,
         );
+
+        tracing::debug!(?mint_event, address = ?self.address, sqrt_price = ?self.sqrt_price, liquidity = ?self.liquidity, tick = ?self.tick, "UniswapV3 mint event");
+
 
         Ok(())
     }
@@ -897,6 +905,9 @@ impl UniswapV3Pool {
         self.sqrt_price = swap_event.sqrt_price_x96;
         self.liquidity = swap_event.liquidity;
         self.tick = swap_event.tick;
+
+        tracing::debug!(?swap_event, address = ?self.address, sqrt_price = ?self.sqrt_price, liquidity = ?self.liquidity, tick = ?self.tick, "UniswapV3 swap event");
+
 
         Ok(())
     }
