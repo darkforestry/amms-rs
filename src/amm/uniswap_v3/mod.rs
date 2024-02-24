@@ -1,12 +1,6 @@
 pub mod batch_request;
 pub mod factory;
 
-use std::{
-    cmp::Ordering,
-    collections::{BTreeMap, HashMap},
-    sync::Arc,
-};
-
 use crate::{
     amm::AutomatedMarketMaker,
     errors::{AMMError, ArithmeticError, EventLogError, SwapSimulationError},
@@ -21,6 +15,12 @@ use ethers::{
 use futures::{stream::FuturesOrdered, StreamExt};
 use num_bigfloat::BigFloat;
 use serde::{Deserialize, Serialize};
+use std::{
+    cmp::Ordering,
+    collections::{BTreeMap, HashMap},
+    sync::Arc,
+};
+use tracing::instrument;
 
 use ethers::prelude::abigen;
 
@@ -785,7 +785,6 @@ impl UniswapV3Pool {
 
         tracing::debug!(?burn_event, address = ?self.address, sqrt_price = ?self.sqrt_price, liquidity = ?self.liquidity, tick = ?self.tick, "UniswapV3 burn event");
 
-
         Ok(())
     }
 
@@ -800,7 +799,6 @@ impl UniswapV3Pool {
         );
 
         tracing::debug!(?mint_event, address = ?self.address, sqrt_price = ?self.sqrt_price, liquidity = ?self.liquidity, tick = ?self.tick, "UniswapV3 mint event");
-
 
         Ok(())
     }
@@ -907,7 +905,6 @@ impl UniswapV3Pool {
         self.tick = swap_event.tick;
 
         tracing::debug!(?swap_event, address = ?self.address, sqrt_price = ?self.sqrt_price, liquidity = ?self.liquidity, tick = ?self.tick, "UniswapV3 swap event");
-
 
         Ok(())
     }

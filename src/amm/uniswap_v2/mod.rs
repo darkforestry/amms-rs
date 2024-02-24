@@ -3,6 +3,10 @@ pub mod factory;
 
 use std::sync::Arc;
 
+use crate::{
+    amm::AutomatedMarketMaker,
+    errors::{AMMError, ArithmeticError, EventLogError, SwapSimulationError},
+};
 use async_trait::async_trait;
 use ethers::{
     abi::{ethabi::Bytes, RawLog, Token},
@@ -13,11 +17,7 @@ use ethers::{
 use num_bigfloat::BigFloat;
 use ruint::Uint;
 use serde::{Deserialize, Serialize};
-
-use crate::{
-    amm::AutomatedMarketMaker,
-    errors::{AMMError, ArithmeticError, EventLogError, SwapSimulationError},
-};
+use tracing::instrument;
 
 use ethers::prelude::abigen;
 
@@ -67,7 +67,7 @@ impl AutomatedMarketMaker for UniswapV2Pool {
     #[instrument(skip(self, middleware), level = "debug")]
     async fn sync<M: Middleware>(&mut self, middleware: Arc<M>) -> Result<(), AMMError<M>> {
         let (reserve_0, reserve_1) = self.get_reserves(middleware.clone()).await?;
-        tracing::info!(?reserve_0, ?reserve_1, address = ?self.address, "UniswapV2 sync")
+        tracing::info!(?reserve_0, ?reserve_1, address = ?self.address, "UniswapV2 sync");
 
         self.reserve_0 = reserve_0;
         self.reserve_1 = reserve_1;
@@ -90,14 +90,13 @@ impl AutomatedMarketMaker for UniswapV2Pool {
         vec![SYNC_EVENT_SIGNATURE]
     }
 
-
     #[instrument(skip(self), level = "debug")]
     fn sync_from_log(&mut self, log: Log) -> Result<(), EventLogError> {
         let event_signature = log.topics[0];
 
         if event_signature == SYNC_EVENT_SIGNATURE {
             let sync_event = SyncFilter::decode_log(&RawLog::from(log))?;
-            tracing::info!(reserve_0 = sync_event.reserve_0, reserve_1 = sync_event.reserve_1, address = ?self.address, "UniswapV2 sync event")
+            tracing::info!(reserve_0 = sync_event.reserve_0, reserve_1 = sync_event.reserve_1, address = ?self.address, "UniswapV2 sync event");
 
             self.reserve_0 = sync_event.reserve_0;
             self.reserve_1 = sync_event.reserve_1;

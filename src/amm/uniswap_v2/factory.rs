@@ -8,12 +8,12 @@ use ethers::{
     types::{Log, H160, H256, U256},
 };
 
-use serde::{Deserialize, Serialize};
-
 use crate::{
     amm::{factory::AutomatedMarketMakerFactory, AMM},
     errors::AMMError,
 };
+use serde::{Deserialize, Serialize};
+use tracing::instrument;
 
 use super::{batch_request, UniswapV2Pool};
 

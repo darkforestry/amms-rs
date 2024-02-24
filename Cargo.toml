@@ -1,8 +1,18 @@
 [package]
 name = "amms"
-version = "0.1.0"
+version = "0.6.2"
 edition = "2021"
+license = "MIT"
 description = "A library to interact with automated market makers across EVM chains."
+readme = "README.md"
+homepage = "https://github.com/darkforestry/amms-rs"
+repository = "https://github.com/darkforestry/amms-rs"
+keywords = ["ethereum", "amm", "mev"]
+exclude = [
+    "target/*",
+    ".github/*",
+    ".gitignore"
+]
 
 [dependencies]
 anyhow = "1.0.76"
