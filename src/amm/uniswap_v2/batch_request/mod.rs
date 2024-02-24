@@ -43,8 +43,6 @@ pub async fn get_pairs_batch_request<M: Middleware>(
     step: U256,
     middleware: Arc<M>,
 ) -> Result<Vec<H160>, AMMError<M>> {
-    tracing::info!("getting pairs {}-{}", from, step);
-
     let mut pairs = vec![];
 
     let constructor_args = Token::Tuple(vec![
@@ -80,8 +78,6 @@ pub async fn get_amm_data_batch_request<M: Middleware>(
     amms: &mut [AMM],
     middleware: Arc<M>,
 ) -> Result<(), AMMError<M>> {
-    tracing::info!("getting data for {} AMMs", amms.len());
-
     let mut target_addresses = vec![];
     for amm in amms.iter() {
         target_addresses.push(Token::Address(amm.address()));
@@ -142,7 +138,6 @@ pub async fn get_v2_pool_data_batch_request<M: Middleware>(
     pool: &mut UniswapV2Pool,
     middleware: Arc<M>,
 ) -> Result<(), AMMError<M>> {
-    tracing::info!(?pool.address, "getting pool data");
     let constructor_args = Token::Tuple(vec![Token::Array(vec![Token::Address(pool.address)])]);
 
     let deployer = IGetUniswapV2PoolDataBatchRequest::deploy(middleware.clone(), constructor_args)?;

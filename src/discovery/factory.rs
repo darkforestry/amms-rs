@@ -36,8 +36,6 @@ pub async fn discover_factories<M: Middleware>(
     middleware: Arc<M>,
     step: u64,
 ) -> Result<Vec<Factory>, AMMError<M>> {
-    tracing::info!(number_of_amms_threshold, step, "discovering new factories",);
-
     let mut event_signatures = vec![];
 
     for factory in factories {
@@ -68,8 +66,6 @@ pub async fn discover_factories<M: Middleware>(
             target_block = current_block;
         }
 
-        tracing::info!("searching blocks {}-{}", from_block, target_block);
-
         let block_filter = block_filter.clone();
         let logs = middleware
             .get_logs(&block_filter.from_block(from_block).to_block(target_block))
@@ -80,11 +76,6 @@ pub async fn discover_factories<M: Middleware>(
             tracing::trace!("found matching event at factory {}", log.address);
             if let Some((_, amms_length)) = identified_factories.get_mut(&log.address) {
                 *amms_length += 1;
-                tracing::trace!(
-                    "increasing factory {} AMMs to {}",
-                    log.address,
-                    *amms_length
-                );
             } else {
                 let mut factory = Factory::try_from(log.topics[0])?;
 
@@ -105,7 +96,6 @@ pub async fn discover_factories<M: Middleware>(
                     }
                 }
 
-                tracing::info!(address = ?log.address, "discovered new factory");
                 identified_factories.insert(log.address, (factory, 0));
             }
         }
@@ -124,6 +114,5 @@ pub async fn discover_factories<M: Middleware>(
         }
     }
 
-    tracing::info!("all factories discovered");
     Ok(filtered_factories)
 }

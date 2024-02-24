@@ -1,12 +1,6 @@
 pub mod batch_request;
 pub mod factory;
 
-use std::{
-    cmp::Ordering,
-    collections::{BTreeMap, HashMap},
-    sync::Arc,
-};
-
 use crate::{
     amm::AutomatedMarketMaker,
     errors::{AMMError, ArithmeticError, EventLogError, SwapSimulationError},
@@ -18,15 +12,19 @@ use ethers::{
     providers::Middleware,
     types::{BlockNumber, Filter, Log, H160, H256, I256, U256, U64},
 };
+use futures::{stream::FuturesOrdered, StreamExt};
 use num_bigfloat::BigFloat;
 use serde::{Deserialize, Serialize};
+use std::{
+    cmp::Ordering,
+    collections::{BTreeMap, HashMap},
+    sync::Arc,
+};
+use tracing::instrument;
 
 use ethers::prelude::abigen;
-use tokio::task::JoinHandle;
 
 use self::factory::POOL_CREATED_EVENT_SIGNATURE;
-
-use super::factory::TASK_LIMIT;
 
 abigen!(
 
@@ -123,6 +121,7 @@ impl AutomatedMarketMaker for UniswapV3Pool {
         self.address
     }
 
+    #[instrument(skip(self, middleware), level = "debug")]
     async fn sync<M: Middleware>(&mut self, middleware: Arc<M>) -> Result<(), AMMError<M>> {
         batch_request::sync_v3_pool_batch_request(self, middleware.clone()).await?;
         Ok(())
@@ -137,6 +136,7 @@ impl AutomatedMarketMaker for UniswapV3Pool {
         ]
     }
 
+    #[instrument(skip(self), level = "debug")]
     fn sync_from_log(&mut self, log: Log) -> Result<(), EventLogError> {
         let event_signature = log.topics[0];
 
@@ -185,8 +185,6 @@ impl AutomatedMarketMaker for UniswapV3Pool {
     }
 
     fn simulate_swap(&self, token_in: H160, amount_in: U256) -> Result<U256, SwapSimulationError> {
-        tracing::info!(?token_in, ?amount_in, "simulating swap");
-
         if amount_in.is_zero() {
             return Ok(U256::zero());
         }
@@ -323,8 +321,6 @@ impl AutomatedMarketMaker for UniswapV3Pool {
         token_in: H160,
         amount_in: U256,
     ) -> Result<U256, SwapSimulationError> {
-        tracing::info!(?token_in, ?amount_in, "simulating swap");
-
         if amount_in.is_zero() {
             return Ok(U256::zero());
         }
@@ -502,7 +498,9 @@ impl UniswapV3Pool {
         }
     }
 
-    // Creates a new instance of the pool from the pair address
+    /// Creates a new instance of the pool from the pair address.
+    ///
+    /// This function will populate all pool data.
     pub async fn new_from_address<M: 'static + Middleware>(
         pair_address: H160,
         creation_block: u64,
@@ -540,6 +538,9 @@ impl UniswapV3Pool {
         Ok(pool)
     }
 
+    /// Creates a new instance of the pool from a log.
+    ///
+    /// This function will populate all pool data.
     pub async fn new_from_log<M: 'static + Middleware>(
         log: Log,
         middleware: Arc<M>,
@@ -563,7 +564,9 @@ impl UniswapV3Pool {
             Err(EventLogError::InvalidEventSignature)?
         }
     }
-
+    /// Creates a new instance of the pool from a log.
+    ///
+    /// This function will not populate all pool data.
     pub fn new_empty_pool_from_log(log: Log) -> Result<Self, EventLogError> {
         let event_signature = log.topics[0];
 
@@ -589,6 +592,9 @@ impl UniswapV3Pool {
         }
     }
 
+    /// Populates the `tick_bitmap` and `ticks` fields of the pool to the current block.
+    ///
+    /// Returns the last synced block number.
     pub async fn populate_tick_data<M: 'static + Middleware>(
         &mut self,
         mut from_block: u64,
@@ -599,12 +605,12 @@ impl UniswapV3Pool {
             .await
             .map_err(AMMError::MiddlewareError)?
             .as_u64();
+
+        let mut futures = FuturesOrdered::new();
+
         let mut ordered_logs: BTreeMap<U64, Vec<Log>> = BTreeMap::new();
 
         let pool_address: H160 = self.address;
-
-        let mut handles = vec![];
-        let mut tasks = 0;
 
         while from_block < current_block {
             let middleware = middleware.clone();
@@ -614,8 +620,8 @@ impl UniswapV3Pool {
                 target_block = current_block;
             }
 
-            handles.push(tokio::spawn(async move {
-                let logs = middleware
+            futures.push_back(async move {
+                middleware
                     .get_logs(
                         &Filter::new()
                             .topic0(vec![BURN_EVENT_SIGNATURE, MINT_EVENT_SIGNATURE])
@@ -624,42 +630,14 @@ impl UniswapV3Pool {
                             .to_block(BlockNumber::Number(U64([target_block]))),
                     )
                     .await
-                    .map_err(AMMError::MiddlewareError)?;
-
-                Ok::<Vec<Log>, AMMError<M>>(logs)
-            }));
+            });
 
             from_block += POPULATE_TICK_DATA_STEP;
-            tasks += 1;
-            //Here we are limiting the number of green threads that can be spun up to not have the node time out
-            if tasks == TASK_LIMIT {
-                self.process_logs_from_handles(handles, &mut ordered_logs)
-                    .await?;
-                handles = vec![];
-                tasks = 0;
-            }
         }
 
-        self.process_logs_from_handles(handles, &mut ordered_logs)
-            .await?;
-
-        for (_, log_group) in ordered_logs {
-            for log in log_group {
-                self.sync_from_log(log)?;
-            }
-        }
-
-        Ok(current_block)
-    }
-
-    async fn process_logs_from_handles<M: Middleware>(
-        &self,
-        handles: Vec<JoinHandle<Result<Vec<Log>, AMMError<M>>>>,
-        ordered_logs: &mut BTreeMap<U64, Vec<Log>>,
-    ) -> Result<(), AMMError<M>> {
-        // group the logs from each thread by block number and then sync the logs in chronological order
-        for handle in handles {
-            let logs = handle.await??;
+        // TODO: this could be more dry since we use this in another place
+        while let Some(result) = futures.next().await {
+            let logs = result.map_err(AMMError::MiddlewareError)?;
 
             for log in logs {
                 if let Some(log_block_number) = log.block_number {
@@ -673,17 +651,27 @@ impl UniswapV3Pool {
                 }
             }
         }
-        Ok(())
+
+        for (_, log_group) in ordered_logs {
+            for log in log_group {
+                self.sync_from_log(log)?;
+            }
+        }
+
+        Ok(current_block)
     }
 
+    /// Returns the swap fee of the pool.
     pub fn fee(&self) -> u32 {
         self.fee
     }
 
+    /// Returns whether the pool data is populated.
     pub fn data_is_populated(&self) -> bool {
         !(self.token_a.is_zero() || self.token_b.is_zero())
     }
 
+    /// Returns the word position of a tick in the `tick_bitmap`.
     pub async fn get_tick_word<M: Middleware>(
         &self,
         tick: i32,
@@ -694,6 +682,7 @@ impl UniswapV3Pool {
         Ok(v3_pool.tick_bitmap(word_position).call().await?)
     }
 
+    /// Returns the next word in the `tick_bitmap` after a given word position.
     pub async fn get_next_word<M: Middleware>(
         &self,
         word_position: i16,
@@ -702,7 +691,7 @@ impl UniswapV3Pool {
         let v3_pool = IUniswapV3Pool::new(self.address, middleware);
         Ok(v3_pool.tick_bitmap(word_position).call().await?)
     }
-
+    /// Returns the tick spacing of the pool.
     pub async fn get_tick_spacing<M: Middleware>(
         &self,
         middleware: Arc<M>,
@@ -711,10 +700,12 @@ impl UniswapV3Pool {
         Ok(v3_pool.tick_spacing().call().await?)
     }
 
+    /// Fetches the current tick of the pool via static call.
     pub async fn get_tick<M: Middleware>(&self, middleware: Arc<M>) -> Result<i32, AMMError<M>> {
         Ok(self.get_slot_0(middleware).await?.1)
     }
 
+    /// Fetches the tick info of a given tick via static call.
     pub async fn get_tick_info<M: Middleware>(
         &self,
         tick: i32,
@@ -736,6 +727,7 @@ impl UniswapV3Pool {
         ))
     }
 
+    /// Fetches `liquidity_net` at a given tick via static call.
     pub async fn get_liquidity_net<M: Middleware>(
         &self,
         tick: i32,
@@ -745,6 +737,7 @@ impl UniswapV3Pool {
         Ok(tick_info.1)
     }
 
+    /// Fetches whether a specified tick is initialized via static call.
     pub async fn get_initialized<M: Middleware>(
         &self,
         tick: i32,
@@ -754,6 +747,7 @@ impl UniswapV3Pool {
         Ok(tick_info.7)
     }
 
+    /// Fetches the current slot 0 of the pool via static call.
     pub async fn get_slot_0<M: Middleware>(
         &self,
         middleware: Arc<M>,
@@ -762,6 +756,7 @@ impl UniswapV3Pool {
         Ok(v3_pool.slot_0().call().await?)
     }
 
+    /// Fetches the current liquidity of the pool via static call.
     pub async fn get_liquidity<M: Middleware>(
         &self,
         middleware: Arc<M>,
@@ -770,6 +765,7 @@ impl UniswapV3Pool {
         Ok(v3_pool.liquidity().call().await?)
     }
 
+    /// Fetches the current sqrt price of the pool via static call.
     pub async fn get_sqrt_price<M: Middleware>(
         &self,
         middleware: Arc<M>,
@@ -777,6 +773,7 @@ impl UniswapV3Pool {
         Ok(self.get_slot_0(middleware).await?.0)
     }
 
+    /// Updates the pool state from a burn event log.
     pub fn sync_from_burn_log(&mut self, log: Log) -> Result<(), AbiError> {
         let burn_event = BurnFilter::decode_log(&RawLog::from(log))?;
 
@@ -786,9 +783,12 @@ impl UniswapV3Pool {
             -(burn_event.amount as i128),
         );
 
+        tracing::debug!(?burn_event, address = ?self.address, sqrt_price = ?self.sqrt_price, liquidity = ?self.liquidity, tick = ?self.tick, "UniswapV3 burn event");
+
         Ok(())
     }
 
+    /// Updates the pool state from a mint event log.
     pub fn sync_from_mint_log(&mut self, log: Log) -> Result<(), AbiError> {
         let mint_event = MintFilter::decode_log(&RawLog::from(log))?;
 
@@ -798,9 +798,12 @@ impl UniswapV3Pool {
             mint_event.amount as i128,
         );
 
+        tracing::debug!(?mint_event, address = ?self.address, sqrt_price = ?self.sqrt_price, liquidity = ?self.liquidity, tick = ?self.tick, "UniswapV3 mint event");
+
         Ok(())
     }
 
+    /// Modifies a positions liquidity in the pool.
     pub fn modify_position(&mut self, tick_lower: i32, tick_upper: i32, liquidity_delta: i128) {
         //We are only using this function when a mint or burn event is emitted,
         //therefore we do not need to checkTicks as that has happened before the event is emitted
@@ -893,12 +896,15 @@ impl UniswapV3Pool {
         }
     }
 
+    /// Updates the pool state from a swap event log.
     pub fn sync_from_swap_log(&mut self, log: Log) -> Result<(), AbiError> {
         let swap_event = SwapFilter::decode_log(&RawLog::from(log))?;
 
         self.sqrt_price = swap_event.sqrt_price_x96;
         self.liquidity = swap_event.liquidity;
         self.tick = swap_event.tick;
+
+        tracing::debug!(?swap_event, address = ?self.address, sqrt_price = ?self.sqrt_price, liquidity = ?self.liquidity, tick = ?self.tick, "UniswapV3 swap event");
 
         Ok(())
     }
@@ -967,6 +973,9 @@ impl UniswapV3Pool {
         let price = 1.0001_f64.powi(tick);
 
         let sqrt_price = BigFloat::from_f64(price.sqrt());
+
+        //Sqrt price is stored as a Q64.96 so we need to left shift the liquidity by 96 to be represented as Q64.96
+        //We cant right shift sqrt_price because it could move the value to 0, making division by 0 to get reserve_x
         let liquidity = BigFloat::from_u128(self.liquidity);
 
         let (reserve_0, reserve_1) = if !sqrt_price.is_zero() {
@@ -1000,6 +1009,7 @@ impl UniswapV3Pool {
         uniswap_v3_math::tick_bitmap::position(compressed)
     }
 
+    /// Returns the call data for a swap.
     pub fn swap_calldata(
         &self,
         recipient: H160,
@@ -1120,6 +1130,7 @@ mod test {
     }
 
     #[tokio::test]
+    #[ignore] //Ignoring to not throttle the Provider on workflows
     async fn test_simulate_swap_usdc_weth() -> eyre::Result<()> {
         let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint)?);
@@ -1202,6 +1213,7 @@ mod test {
     }
 
     #[tokio::test]
+    #[ignore] //Ignoring to not throttle the Provider on workflows
     async fn test_simulate_swap_weth_usdc() -> eyre::Result<()> {
         let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint)?);
@@ -1285,6 +1297,7 @@ mod test {
     }
 
     #[tokio::test]
+    #[ignore] //Ignoring to not throttle the Provider on workflows
     async fn test_simulate_swap_link_weth() -> eyre::Result<()> {
         let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint)?);
@@ -1368,6 +1381,7 @@ mod test {
     }
 
     #[tokio::test]
+    #[ignore] //Ignoring to not throttle the Provider on workflows
     async fn test_simulate_swap_weth_link() -> eyre::Result<()> {
         let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint)?);
@@ -1451,6 +1465,7 @@ mod test {
     }
 
     #[tokio::test]
+    #[ignore] //Ignoring to not throttle the Provider on workflows
     async fn test_simulate_swap_mut_usdc_weth() -> eyre::Result<()> {
         let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint)?);
@@ -1533,6 +1548,7 @@ mod test {
     }
 
     #[tokio::test]
+    #[ignore] //Ignoring to not throttle the Provider on workflows
     async fn test_simulate_swap_mut_weth_usdc() -> eyre::Result<()> {
         let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint)?);
@@ -1616,6 +1632,7 @@ mod test {
     }
 
     #[tokio::test]
+    #[ignore] //Ignoring to not throttle the Provider on workflows
     async fn test_simulate_swap_mut_link_weth() -> eyre::Result<()> {
         let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint)?);
@@ -1699,6 +1716,7 @@ mod test {
     }
 
     #[tokio::test]
+    #[ignore] //Ignoring to not throttle the Provider on workflows
     async fn test_simulate_swap_mut_weth_link() -> eyre::Result<()> {
         let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint)?);
@@ -1782,6 +1800,7 @@ mod test {
     }
 
     #[tokio::test]
+    #[ignore] //Ignoring to not throttle the Provider on workflows
     async fn test_get_new_from_address() -> eyre::Result<()> {
         let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint)?);
@@ -1815,6 +1834,7 @@ mod test {
     }
 
     #[tokio::test]
+    #[ignore] //Ignoring to not throttle the Provider on workflows
     async fn test_get_pool_data() -> eyre::Result<()> {
         let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint)?);

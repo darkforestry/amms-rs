@@ -1,0 +1,17 @@
+name: Bug report
+description: File a bug report
+labels: ["bug"]
+title: "Bug: "
+body:
+    - type: markdown
+      attributes:
+          value: |
+              Please ensure that the bug has not already been filed in the issue tracker.
+
+              Thanks for taking the time to report this bug!
+    - type: textarea
+      attributes:
+          label: Describe the bug
+          description: Please include code snippets as well if relevant.
+      validations:
+          required: true

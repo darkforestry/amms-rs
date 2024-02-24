@@ -3,6 +3,10 @@ pub mod factory;
 
 use std::sync::Arc;
 
+use crate::{
+    amm::AutomatedMarketMaker,
+    errors::{AMMError, ArithmeticError, EventLogError, SwapSimulationError},
+};
 use async_trait::async_trait;
 use ethers::{
     abi::{ethabi::Bytes, RawLog, Token},
@@ -11,12 +15,9 @@ use ethers::{
     types::{Log, H160, H256, U256},
 };
 use num_bigfloat::BigFloat;
+use ruint::Uint;
 use serde::{Deserialize, Serialize};
-
-use crate::{
-    amm::AutomatedMarketMaker,
-    errors::{AMMError, ArithmeticError, EventLogError, SwapSimulationError},
-};
+use tracing::instrument;
 
 use ethers::prelude::abigen;
 
@@ -63,12 +64,18 @@ impl AutomatedMarketMaker for UniswapV2Pool {
         self.address
     }
 
+    #[instrument(skip(self, middleware), level = "debug")]
     async fn sync<M: Middleware>(&mut self, middleware: Arc<M>) -> Result<(), AMMError<M>> {
-        (self.reserve_0, self.reserve_1) = self.get_reserves(middleware).await?;
+        let (reserve_0, reserve_1) = self.get_reserves(middleware.clone()).await?;
+        tracing::info!(?reserve_0, ?reserve_1, address = ?self.address, "UniswapV2 sync");
+
+        self.reserve_0 = reserve_0;
+        self.reserve_1 = reserve_1;
 
         Ok(())
     }
 
+    #[instrument(skip(self, middleware), level = "debug")]
     async fn populate_data<M: Middleware>(
         &mut self,
         _block_number: Option<u64>,
@@ -83,11 +90,13 @@ impl AutomatedMarketMaker for UniswapV2Pool {
         vec![SYNC_EVENT_SIGNATURE]
     }
 
+    #[instrument(skip(self), level = "debug")]
     fn sync_from_log(&mut self, log: Log) -> Result<(), EventLogError> {
         let event_signature = log.topics[0];
 
         if event_signature == SYNC_EVENT_SIGNATURE {
             let sync_event = SyncFilter::decode_log(&RawLog::from(log))?;
+            tracing::info!(reserve_0 = sync_event.reserve_0, reserve_1 = sync_event.reserve_1, address = ?self.address, "UniswapV2 sync event");
 
             self.reserve_0 = sync_event.reserve_0;
             self.reserve_1 = sync_event.reserve_1;
@@ -107,8 +116,6 @@ impl AutomatedMarketMaker for UniswapV2Pool {
     }
 
     fn simulate_swap(&self, token_in: H160, amount_in: U256) -> Result<U256, SwapSimulationError> {
-        tracing::info!(?token_in, ?amount_in, "simulating swap");
-
         if self.token_a == token_in {
             Ok(self.get_amount_out(
                 amount_in,
@@ -129,8 +136,6 @@ impl AutomatedMarketMaker for UniswapV2Pool {
         token_in: H160,
         amount_in: U256,
     ) -> Result<U256, SwapSimulationError> {
-        tracing::info!(?token_in, ?amount_in, "simulating swap");
-
         if self.token_a == token_in {
             let amount_out = self.get_amount_out(
                 amount_in,
@@ -199,7 +204,7 @@ impl UniswapV2Pool {
         }
     }
 
-    //Creates a new instance of the pool from the pair address, and syncs the pool data
+    /// Creates a new instance of the pool from the pair address, and syncs the pool data.
     pub async fn new_from_address<M: Middleware>(
         pair_address: H160,
         fee: u32,
@@ -224,6 +229,10 @@ impl UniswapV2Pool {
 
         Ok(pool)
     }
+
+    /// Creates a new instance of a the pool from a `PairCreated` event log.
+    ///
+    /// This method syncs the pool data.
     pub async fn new_from_log<M: Middleware>(
         log: Log,
         fee: u32,
@@ -239,6 +248,9 @@ impl UniswapV2Pool {
         }
     }
 
+    /// Creates a new instance of a the pool from a `PairCreated` event log.
+    ///
+    /// This method does not sync the pool data.
     pub fn new_empty_pool_from_log(log: Log) -> Result<Self, EventLogError> {
         let event_signature = log.topics[0];
 
@@ -260,10 +272,12 @@ impl UniswapV2Pool {
         }
     }
 
+    /// Returns the swap fee of the pool.
     pub fn fee(&self) -> u32 {
         self.fee
     }
 
+    /// Returns whether the pool data is populated.
     pub fn data_is_populated(&self) -> bool {
         !(self.token_a.is_zero()
             || self.token_b.is_zero()
@@ -271,6 +285,7 @@ impl UniswapV2Pool {
             || self.reserve_1 == 0)
     }
 
+    /// Returns the reserves of the pool.
     pub async fn get_reserves<M: Middleware>(
         &self,
         middleware: Arc<M>,
@@ -339,6 +354,9 @@ impl UniswapV2Pool {
         Ok(token1)
     }
 
+    /// Calculates the price of the base token in terms of the quote token.
+    ///
+    /// Returned as a Q64 fixed point number.
     pub fn calculate_price_64_x_64(&self, base_token: H160) -> Result<u128, ArithmeticError> {
         let decimal_shift = self.token_a_decimals as i8 - self.token_b_decimals as i8;
 
@@ -368,6 +386,7 @@ impl UniswapV2Pool {
         }
     }
 
+    /// Calculates the amount received for a given `amount_in` `reserve_in` and `reserve_out`.
     pub fn get_amount_out(&self, amount_in: U256, reserve_in: U256, reserve_out: U256) -> U256 {
         tracing::trace!(?amount_in, ?reserve_in, ?reserve_out);
 
@@ -384,6 +403,7 @@ impl UniswapV2Pool {
         numerator / denominator
     }
 
+    /// Returns the calldata for a swap.
     pub fn swap_calldata(
         &self,
         amount_0_out: U256,
@@ -404,31 +424,35 @@ impl UniswapV2Pool {
     }
 }
 
-pub const U256_0XFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF: U256 = U256([
-    18446744073709551615,
-    18446744073709551615,
-    18446744073709551615,
-    0,
-]);
+pub const U256_0XFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF: Uint<256, 4> =
+    Uint::<256, 4>::from_limbs([
+        18446744073709551615,
+        18446744073709551615,
+        18446744073709551615,
+        0,
+    ]);
 
-pub const U256_0XFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF: U256 =
-    U256([18446744073709551615, 18446744073709551615, 0, 0]);
+pub const U256_0XFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF: Uint<256, 4> =
+    Uint::<256, 4>::from_limbs([18446744073709551615, 18446744073709551615, 0, 0]);
 
-pub const U256_0X100000000: U256 = U256([4294967296, 0, 0, 0]);
-pub const U256_0X10000: U256 = U256([65536, 0, 0, 0]);
-pub const U256_0X100: U256 = U256([256, 0, 0, 0]);
-pub const U256_255: U256 = U256([255, 0, 0, 0]);
-pub const U256_192: U256 = U256([192, 0, 0, 0]);
-pub const U256_191: U256 = U256([191, 0, 0, 0]);
-pub const U256_128: U256 = U256([128, 0, 0, 0]);
-pub const U256_64: U256 = U256([64, 0, 0, 0]);
-pub const U256_32: U256 = U256([32, 0, 0, 0]);
-pub const U256_16: U256 = U256([16, 0, 0, 0]);
-pub const U256_8: U256 = U256([8, 0, 0, 0]);
-pub const U256_4: U256 = U256([4, 0, 0, 0]);
-pub const U256_2: U256 = U256([2, 0, 0, 0]);
+pub const U256_0X100000000: Uint<256, 4> = Uint::<256, 4>::from_limbs([4294967296, 0, 0, 0]);
+pub const U256_0X10000: Uint<256, 4> = Uint::<256, 4>::from_limbs([65536, 0, 0, 0]);
+pub const U256_0X100: Uint<256, 4> = Uint::<256, 4>::from_limbs([256, 0, 0, 0]);
+pub const U256_255: Uint<256, 4> = Uint::<256, 4>::from_limbs([255, 0, 0, 0]);
+pub const U256_192: Uint<256, 4> = Uint::<256, 4>::from_limbs([192, 0, 0, 0]);
+pub const U256_191: Uint<256, 4> = Uint::<256, 4>::from_limbs([191, 0, 0, 0]);
+pub const U256_128: Uint<256, 4> = Uint::<256, 4>::from_limbs([128, 0, 0, 0]);
+pub const U256_64: Uint<256, 4> = Uint::<256, 4>::from_limbs([64, 0, 0, 0]);
+pub const U256_32: Uint<256, 4> = Uint::<256, 4>::from_limbs([32, 0, 0, 0]);
+pub const U256_16: Uint<256, 4> = Uint::<256, 4>::from_limbs([16, 0, 0, 0]);
+pub const U256_8: Uint<256, 4> = Uint::<256, 4>::from_limbs([8, 0, 0, 0]);
+pub const U256_4: Uint<256, 4> = Uint::<256, 4>::from_limbs([4, 0, 0, 0]);
+pub const U256_2: Uint<256, 4> = Uint::<256, 4>::from_limbs([2, 0, 0, 0]);
+pub const U256_1: Uint<256, 4> = Uint::<256, 4>::from_limbs([1, 0, 0, 0]);
 
 pub fn div_uu(x: U256, y: U256) -> Result<u128, ArithmeticError> {
+    let x = Uint::from_limbs(x.0);
+    let y = Uint::from_limbs(y.0);
     if !y.is_zero() {
         let mut answer;
 
@@ -464,15 +488,14 @@ pub fn div_uu(x: U256, y: U256) -> Result<u128, ArithmeticError> {
             }
 
             if xc >= U256_2 {
-                msb += U256::one();
+                msb += U256_1;
             }
 
-            answer =
-                (x << (U256_255 - msb)) / (((y - U256::one()) >> (msb - U256_191)) + U256::one());
+            answer = (x << (U256_255 - msb)) / (((y - U256_1) >> (msb - U256_191)) + U256_1);
         }
 
         if answer > U256_0XFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF {
-            return Err(ArithmeticError::ShadowOverflow(answer));
+            return Ok(0);
         }
 
         let hi = answer * (y >> U256_128);
@@ -482,14 +505,14 @@ pub fn div_uu(x: U256, y: U256) -> Result<u128, ArithmeticError> {
         let mut xl = x << U256_64;
 
         if xl < lo {
-            xh -= U256::one();
+            xh -= U256_1;
         }
 
         xl = xl.overflowing_sub(lo).0;
         lo = hi << U256_128;
 
         if xl < lo {
-            xh -= U256::one();
+            xh -= U256_1;
         }
 
         xl = xl.overflowing_sub(lo).0;
@@ -501,10 +524,10 @@ pub fn div_uu(x: U256, y: U256) -> Result<u128, ArithmeticError> {
         answer += xl / y;
 
         if answer > U256_0XFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF {
-            return Err(ArithmeticError::ShadowOverflow(answer));
+            return Ok(0_u128);
         }
 
-        Ok(answer.as_u128())
+        Ok(U256(answer.into_limbs()).as_u128())
     } else {
         Err(ArithmeticError::YIsZero)
     }

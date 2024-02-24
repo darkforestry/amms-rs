@@ -19,7 +19,7 @@ use crate::{
         AMM,
     },
     errors::{AMMError, CheckpointError},
-    sync,
+    filters,
 };
 
 use super::amms_are_congruent;
@@ -163,7 +163,7 @@ pub async fn get_new_amms_from_range<M: 'static + Middleware>(
                 .await?;
 
             //Clean empty pools
-            amms = sync::remove_empty_amms(amms);
+            amms = filters::filter_empty_amms(amms);
 
             Ok::<_, AMMError<M>>(amms)
         }));
@@ -202,7 +202,7 @@ pub async fn batch_sync_amms_from_checkpoint<M: 'static + Middleware>(
                     .await?;
 
                 //Clean empty pools
-                amms = sync::remove_empty_amms(amms);
+                amms = filters::filter_empty_amms(amms);
 
                 Ok::<_, AMMError<M>>(amms)
             } else {
@@ -254,7 +254,7 @@ pub async fn get_new_pools_from_range<M: 'static + Middleware>(
                 .await?;
 
             //Clean empty pools
-            pools = sync::remove_empty_amms(pools);
+            pools = filters::filter_empty_amms(pools);
 
             Ok::<_, AMMError<M>>(pools)
         }));

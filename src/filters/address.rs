@@ -2,7 +2,7 @@ use crate::amm::{AutomatedMarketMaker, AMM};
 use ethers::types::H160;
 use std::collections::HashSet;
 
-//Filters out AMMs that contain a blacklisted token
+/// Filters out AMMs that contain a blacklisted token.
 pub fn filter_blacklisted_tokens(amms: Vec<AMM>, blacklisted_addresses: Vec<H160>) -> Vec<AMM> {
     let mut filtered_pools = vec![];
     let blacklist: HashSet<H160> = blacklisted_addresses.into_iter().collect();
@@ -24,7 +24,7 @@ pub fn filter_blacklisted_tokens(amms: Vec<AMM>, blacklisted_addresses: Vec<H160
     filtered_pools
 }
 
-//Filters out AMMs where the AMM address is a blacklisted address
+/// Filters out AMMs where the AMM address is a blacklisted address.
 pub fn filter_blacklisted_amms(amms: Vec<AMM>, blacklisted_addresses: Vec<H160>) -> Vec<AMM> {
     let mut filtered_amms = vec![];
     let blacklist: HashSet<H160> = blacklisted_addresses.into_iter().collect();
@@ -38,7 +38,7 @@ pub fn filter_blacklisted_amms(amms: Vec<AMM>, blacklisted_addresses: Vec<H160>)
     filtered_amms
 }
 
-//Filters out AMMs where AMM address or any tokens in the AMM are in the blacklist
+/// Filters out AMMs where AMM address or any tokens in the AMM are in the blacklist.
 pub fn filter_blacklisted_addresses(amms: Vec<AMM>, blacklisted_addresses: Vec<H160>) -> Vec<AMM> {
     let mut filtered_amms = vec![];
     let blacklist: HashSet<H160> = blacklisted_addresses.into_iter().collect();

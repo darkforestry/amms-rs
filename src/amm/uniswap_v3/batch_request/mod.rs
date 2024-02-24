@@ -5,6 +5,7 @@ use ethers::{
     providers::Middleware,
     types::{Bytes, I256, U256, U64},
 };
+use tracing::instrument;
 
 use crate::{
     amm::{AutomatedMarketMaker, AMM},
@@ -47,7 +48,6 @@ pub async fn get_v3_pool_data_batch_request<M: Middleware>(
     block_number: Option<u64>,
     middleware: Arc<M>,
 ) -> Result<(), AMMError<M>> {
-    tracing::info!(?pool.address, "getting pool data");
     let constructor_args = Token::Tuple(vec![Token::Array(vec![Token::Address(pool.address)])]);
 
     let deployer = IGetUniswapV3PoolDataBatchRequest::deploy(middleware.clone(), constructor_args)?;
@@ -181,7 +181,6 @@ pub async fn sync_v3_pool_batch_request<M: Middleware>(
     pool: &mut UniswapV3Pool,
     middleware: Arc<M>,
 ) -> Result<(), AMMError<M>> {
-    tracing::info!(?pool.address, "syncing pool");
     let constructor_args = Token::Tuple(vec![Token::Address(pool.address)]);
 
     let deployer = ISyncUniswapV3PoolBatchRequest::deploy(middleware.clone(), constructor_args)?;
@@ -231,13 +230,12 @@ pub async fn sync_v3_pool_batch_request<M: Middleware>(
     Ok(())
 }
 
+#[instrument(skip(middleware) level = "debug")]
 pub async fn get_amm_data_batch_request<M: Middleware>(
     amms: &mut [AMM],
     block_number: u64,
     middleware: Arc<M>,
 ) -> Result<(), AMMError<M>> {
-    tracing::info!(block_number, "getting data for {} AMMs", amms.len());
-
     let mut target_addresses = vec![];
 
     for amm in amms.iter() {

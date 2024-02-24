@@ -20,8 +20,6 @@ pub async fn discover_erc_4626_vaults<M: Middleware>(
     middleware: Arc<M>,
     step: u64,
 ) -> Result<Vec<ERC4626Vault>, AMMError<M>> {
-    tracing::info!(step, "discovering new ERC 4626 vaults");
-
     let event_signatures = vec![DEPOSIT_EVENT_SIGNATURE, WITHDRAW_EVENT_SIGNATURE];
     let block_filter = Filter::new().topic0(event_signatures.clone());
     tracing::trace!(?event_signatures);
@@ -44,8 +42,6 @@ pub async fn discover_erc_4626_vaults<M: Middleware>(
         if to_block > current_block {
             to_block = current_block;
         }
-
-        tracing::info!("searching blocks {}-{}", from_block, to_block);
 
         let block_filter = block_filter.clone();
         //TODO: use a better method, this is just quick and scrappy
@@ -94,10 +90,8 @@ pub async fn discover_erc_4626_vaults<M: Middleware>(
 
         for log in logs {
             if log.topics[0] == DEPOSIT_EVENT_SIGNATURE {
-                tracing::info!(address = ?log.address, "deposit event found");
                 adheres_to_deposit_event.insert(log.address);
             } else if log.topics[0] == WITHDRAW_EVENT_SIGNATURE {
-                tracing::info!(address = ?log.address, "withdraw event found");
                 adheres_to_withdraw_event.insert(log.address);
             }
         }
@@ -105,7 +99,6 @@ pub async fn discover_erc_4626_vaults<M: Middleware>(
 
     for address in adheres_to_deposit_event.iter() {
         if adheres_to_withdraw_event.contains(address) {
-            tracing::info!(?address, "found a pair of matching deposit/withdraw events");
             identified_addresses.insert(address);
         }
     }
@@ -122,6 +115,5 @@ pub async fn discover_erc_4626_vaults<M: Middleware>(
         }
     }
 
-    tracing::info!("all vaults discovered");
     Ok(vaults)
 }

@@ -10,14 +10,12 @@ use ethers::{
     providers::Middleware,
     types::{BlockNumber, Filter, Log, H160, H256, U256, U64},
 };
+use futures::{stream::FuturesOrdered, StreamExt};
 use serde::{Deserialize, Serialize};
-use tokio::task::JoinHandle;
+use tracing::instrument;
 
 use crate::{
-    amm::{
-        factory::{AutomatedMarketMakerFactory, TASK_LIMIT},
-        AutomatedMarketMaker, AMM,
-    },
+    amm::{factory::AutomatedMarketMakerFactory, AutomatedMarketMaker, AMM},
     errors::{AMMError, EventLogError},
 };
 
@@ -91,6 +89,7 @@ impl AutomatedMarketMakerFactory for UniswapV3Factory {
         }
     }
 
+    #[instrument(skip(self, amms, middleware) level = "debug")]
     async fn populate_amm_data<M: Middleware>(
         &self,
         amms: &mut [AMM],
@@ -153,12 +152,8 @@ impl UniswapV3Factory {
         let mut from_block = self.creation_block;
         let mut aggregated_amms: HashMap<H160, AMM> = HashMap::new();
         let mut ordered_logs: BTreeMap<U64, Vec<Log>> = BTreeMap::new();
+        let mut futures = FuturesOrdered::new();
 
-        tracing::info!(from_block, to_block, step, "getting all pools from logs");
-
-        let mut handles = vec![];
-
-        let mut tasks = 0;
         while from_block < to_block {
             let middleware = middleware.clone();
 
@@ -167,8 +162,8 @@ impl UniswapV3Factory {
                 target_block = to_block;
             }
 
-            handles.push(tokio::spawn(async move {
-                let logs = middleware
+            futures.push_back(async move {
+                middleware
                     .get_logs(
                         &Filter::new()
                             .topic0(vec![
@@ -180,25 +175,27 @@ impl UniswapV3Factory {
                             .to_block(BlockNumber::Number(U64([target_block]))),
                     )
                     .await
-                    .map_err(AMMError::MiddlewareError)?;
-
-                Ok::<Vec<Log>, AMMError<M>>(logs)
-            }));
+            });
 
             from_block += step;
-
-            tasks += 1;
-            //Here we are limiting the number of green threads that can be spun up to not have the node time out
-            if tasks == TASK_LIMIT {
-                self.process_logs_from_handles(handles, &mut ordered_logs)
-                    .await?;
-                handles = vec![];
-                tasks = 0;
-            }
         }
 
-        self.process_logs_from_handles(handles, &mut ordered_logs)
-            .await?;
+        // TODO: this could be more dry since we use this in another place
+        while let Some(result) = futures.next().await {
+            let logs = result.map_err(AMMError::MiddlewareError)?;
+
+            for log in logs {
+                if let Some(log_block_number) = log.block_number {
+                    if let Some(log_group) = ordered_logs.get_mut(&log_block_number) {
+                        log_group.push(log);
+                    } else {
+                        ordered_logs.insert(log_block_number, vec![log]);
+                    }
+                } else {
+                    return Err(EventLogError::LogBlockNumberNotFound)?;
+                }
+            }
+        }
 
         for (_, log_group) in ordered_logs {
             for log in log_group {
@@ -208,7 +205,6 @@ impl UniswapV3Factory {
                 if event_signature == POOL_CREATED_EVENT_SIGNATURE {
                     if log.address == self.address {
                         let mut new_pool = self.new_empty_amm_from_log(log)?;
-
                         if let AMM::UniswapV3Pool(ref mut pool) = new_pool {
                             pool.tick_spacing = pool.get_tick_spacing(middleware.clone()).await?;
                         }
@@ -229,29 +225,5 @@ impl UniswapV3Factory {
         }
 
         Ok(aggregated_amms.into_values().collect::<Vec<AMM>>())
-    }
-
-    async fn process_logs_from_handles<M: Middleware>(
-        &self,
-        handles: Vec<JoinHandle<Result<Vec<Log>, AMMError<M>>>>,
-        ordered_logs: &mut BTreeMap<U64, Vec<Log>>,
-    ) -> Result<(), AMMError<M>> {
-        // group the logs from each thread by block number and then sync the logs in chronological order
-        for handle in handles {
-            let logs = handle.await??;
-
-            for log in logs {
-                if let Some(log_block_number) = log.block_number {
-                    if let Some(log_group) = ordered_logs.get_mut(&log_block_number) {
-                        log_group.push(log);
-                    } else {
-                        ordered_logs.insert(log_block_number, vec![log]);
-                    }
-                } else {
-                    return Err(EventLogError::LogBlockNumberNotFound)?;
-                }
-            }
-        }
-        Ok(())
     }
 }

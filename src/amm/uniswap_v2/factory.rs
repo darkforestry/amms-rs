@@ -8,12 +8,12 @@ use ethers::{
     types::{Log, H160, H256, U256},
 };
 
-use serde::{Deserialize, Serialize};
-
 use crate::{
     amm::{factory::AutomatedMarketMakerFactory, AMM},
     errors::AMMError,
 };
+use serde::{Deserialize, Serialize};
+use tracing::instrument;
 
 use super::{batch_request, UniswapV2Pool};
 
@@ -58,8 +58,6 @@ impl UniswapV2Factory {
         let factory = IUniswapV2Factory::new(self.address, middleware.clone());
 
         let pairs_length: U256 = factory.all_pairs_length().call().await?;
-
-        tracing::trace!(?pairs_length, factory = ?self.address, "getting all pairs of factory via batched calls");
 
         let mut pairs = vec![];
         let step = 766; //max batch size for this call until codesize is too large
@@ -143,6 +141,7 @@ impl AutomatedMarketMakerFactory for UniswapV2Factory {
         }))
     }
 
+    #[instrument(skip(self, middleware) level = "debug")]
     async fn get_all_amms<M: Middleware>(
         &self,
         _to_block: Option<u64>,

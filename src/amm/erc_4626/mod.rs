@@ -10,6 +10,7 @@ use ethers::{
     types::{Log, H160, H256, U256},
 };
 use serde::{Deserialize, Serialize};
+use tracing::instrument;
 
 use crate::{
     amm::AutomatedMarketMaker,
@@ -68,8 +69,13 @@ impl AutomatedMarketMaker for ERC4626Vault {
         Ok(q64_to_f64(self.calculate_price_64_x_64(base_token)?))
     }
 
+    #[instrument(skip(self, middleware), level = "debug")]
     async fn sync<M: Middleware>(&mut self, middleware: Arc<M>) -> Result<(), AMMError<M>> {
-        (self.vault_reserve, self.asset_reserve) = self.get_reserves(middleware).await?;
+        let (vault_reserve, asset_reserve) = self.get_reserves(middleware).await?;
+        tracing::debug!(vault_reserve = ?vault_reserve, asset_reserve = ?asset_reserve, address = ?self.vault_token, "ER4626 sync");
+
+        self.vault_reserve = vault_reserve;
+        self.asset_reserve = asset_reserve;
 
         Ok(())
     }
@@ -78,17 +84,19 @@ impl AutomatedMarketMaker for ERC4626Vault {
         vec![DEPOSIT_EVENT_SIGNATURE, WITHDRAW_EVENT_SIGNATURE]
     }
 
+    #[instrument(skip(self), level = "debug")]
     fn sync_from_log(&mut self, log: Log) -> Result<(), EventLogError> {
         let event_signature = log.topics[0];
         if event_signature == DEPOSIT_EVENT_SIGNATURE {
             let deposit_event = DepositFilter::decode_log(&RawLog::from(log))?;
-
             self.asset_reserve += deposit_event.assets;
             self.vault_reserve += deposit_event.shares;
+            tracing::debug!(asset_reserve = ?self.asset_reserve, vault_reserve = ?self.vault_reserve, address = ?self.vault_token, "ER4626 deposit event");
         } else if event_signature == WITHDRAW_EVENT_SIGNATURE {
             let withdraw_filter = WithdrawFilter::decode_log(&RawLog::from(log))?;
             self.asset_reserve -= withdraw_filter.assets;
             self.vault_reserve -= withdraw_filter.shares;
+            tracing::debug!(asset_reserve = ?self.asset_reserve, vault_reserve = ?self.vault_reserve, address = ?self.vault_token, "ER4626 withdraw event");
         } else {
             return Err(EventLogError::InvalidEventSignature);
         }
@@ -96,6 +104,7 @@ impl AutomatedMarketMaker for ERC4626Vault {
         Ok(())
     }
 
+    #[instrument(skip(self, middleware), level = "debug")]
     async fn populate_data<M: Middleware>(
         &mut self,
         _block_number: Option<u64>,
