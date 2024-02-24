@@ -4,10 +4,6 @@ the requirements below.
 
 Bug fixes and new features should include tests.
 
-Contributors guide: https://github.com/alloy-rs/core/blob/main/CONTRIBUTING.md
-
-The contributors guide includes instructions for running rustfmt and building the
-documentation.
 -->
 
 <!-- ** Please select "Allow edits from maintainers" in the PR Options ** -->
