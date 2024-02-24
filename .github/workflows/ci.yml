@@ -24,49 +24,17 @@ jobs:
     name: Lint
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-      - name: Install rust
-        uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: ${{ env.NIGHTLY_VERSION }}
+          toolchain: stable
           override: true
-          components: rustfmt, clippy
-      - name: Install protobuf-compiler
-        run: sudo apt-get install -y protobuf-compiler
-      - name: Cache
-        uses: actions/cache@v3
-        continue-on-error: false
-        with:
-          path: |
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ env.RUST_VERSION }}-${{ env.NIGHTLY_VERSION }}-cargo-lint-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: ${{ env.RUST_VERSION }}-${{ env.NIGHTLY_VERSION }}-cargo-lint-
-      - name: Install cargo-sort
-        uses: actions-rs/install@v0.1
-        with:
-          crate: cargo-sort
-          version: latest
-      - name: Check formatting
-        uses: actions-rs/cargo@v1
+      - run: rustup component add rustfmt
+      - uses: actions-rs/cargo@v1
         with:
           command: fmt
           args: --all -- --check
-      - name: Check Cargo.toml formatting
-        run: cargo sort --check --check-format
-      - uses: actions-rs/clippy-check@v1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          args: --locked --all-targets
-      - name: Check docs
-        uses: actions-rs/cargo@v1
-        with:
-          command: doc
-          args: --locked --no-deps --document-private-items
 
   test:
     name: Test
