@@ -1800,6 +1800,7 @@ mod test {
     }
 
     #[tokio::test]
+    #[ignore] //Ignoring to not throttle the Provider on workflows
     async fn test_get_new_from_address() -> eyre::Result<()> {
         let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint)?);
@@ -1833,6 +1834,7 @@ mod test {
     }
 
     #[tokio::test]
+    #[ignore] //Ignoring to not throttle the Provider on workflows
     async fn test_get_pool_data() -> eyre::Result<()> {
         let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint)?);

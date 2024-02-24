@@ -535,6 +535,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore] //Ignoring to not throttle the Provider on workflows
     async fn test_unwind_state_changes() -> eyre::Result<()> {
         let ws_endpoint = std::env::var("ETHEREUM_WS_ENDPOINT")?;
         let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
