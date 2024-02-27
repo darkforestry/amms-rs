@@ -174,17 +174,17 @@ impl AutomatedMarketMaker for UniswapV2Pool {
         }
 
         let (reserve_0, reserve_1) = if zero_for_one { (U256::from(self.reserve_0), U256::from(self.reserve_1)) } else { (U256::from(self.reserve_1), U256::from(self.reserve_0))};
-        let current_price = (reserve_1 * reserve_0).integer_sqrt() * U256::from(2_u128.pow(96)) / reserve_1;
-        println!("current_price: {}, sqrt_price_limit_x_96: {}", current_price, sqrt_price_limit_x_96);
-        if zero_for_one {
-            if !(sqrt_price_limit_x_96 < current_price && sqrt_price_limit_x_96 > U256::zero()) {
-                return Err(SwapSimulationError::InvalidPriceLimit);
-            }
-        } else {
-            if !(sqrt_price_limit_x_96 > current_price) {
-                return Err(SwapSimulationError::InvalidPriceLimit);
-            }
-        }
+        // let current_price = (reserve_1 * reserve_0).integer_sqrt() * U256::from(2_u128.pow(96)) / reserve_1;
+        // println!("current_price: {}, sqrt_price_limit_x_96: {}", current_price, sqrt_price_limit_x_96);
+        // if !zero_for_one {
+        //     if !(sqrt_price_limit_x_96 < current_price && sqrt_price_limit_x_96 > U256::zero()) {
+        //         return Err(SwapSimulationError::InvalidPriceLimit);
+        //     }
+        // } else {
+        //     if !(sqrt_price_limit_x_96 > current_price) {
+        //         return Err(SwapSimulationError::InvalidPriceLimit);
+        //     }
+        // }
 
         let exact_input = amount_specified > I256::zero();
         let res;
@@ -214,8 +214,14 @@ impl AutomatedMarketMaker for UniswapV2Pool {
             } else {
                 res = (I256::from_raw(amount_in), -I256::from_raw(amount_out));
             }
+
+            if zero_for_one {
+                Ok(res)
+            } else {
+                Ok((res.1, res.0))
+            }
         } else {
-            // 卖人exact token的情形
+            // 买入exact token的情形
             let amount_out = U256::from(amount_specified.abs().as_u128());
             let amount_in = self.get_amount_out(
                 amount_out,
@@ -225,8 +231,8 @@ impl AutomatedMarketMaker for UniswapV2Pool {
             // 根据价格计算输入输出
             let amount_out_limited_in_price = self.get_amount_limited_in_price(
                 sqrt_price_limit_x_96,
-                reserve_0,
                 reserve_1,
+                reserve_0,
             );
             let amount_in_limited_in_price = self.get_amount_out(
                 amount_out_limited_in_price,
@@ -235,16 +241,16 @@ impl AutomatedMarketMaker for UniswapV2Pool {
             );
             // 比较最优输入输出
             if amount_in_limited_in_price < amount_in {
-                res = (-I256::from_raw(amount_in_limited_in_price), I256::from_raw(amount_out_limited_in_price));
+                res = (-I256::from_raw(amount_out_limited_in_price), I256::from_raw(amount_in_limited_in_price));
             } else {
-                res = (-I256::from_raw(amount_in), I256::from_raw(amount_out));
+                res = (-I256::from_raw(amount_out), I256::from_raw(amount_in));
             }
-        }
 
-        if zero_for_one {
-            Ok(res)
-        } else {
-            Ok((res.1, res.0))
+            if zero_for_one {
+                Ok((res.1, res.0))
+            } else {
+                Ok(res)
+            }
         }
 
     }
@@ -469,13 +475,18 @@ impl UniswapV2Pool {
     }
 
     fn get_amount_limited_in_price(&self, sqrt_price_limit_x_96: U256, reserve_in: U256, reserve_out: U256) -> U256 {
-        let tmp = (reserve_in * reserve_out).integer_sqrt();
+        let fee = (10000 - (self.fee / 10)) / 10; //Fee of 300 => (10,000 - 300) / 10  = 997
+        println!("fee: {}", fee);
+        let fee = U256::from(fee);
+        let tmp = (reserve_in * reserve_out * fee / U256::from(1000)).integer_sqrt();
         let tmp = tmp * U256::from(2_u128.pow(96)) / sqrt_price_limit_x_96;
-        if reserve_in > tmp {
+        let res = if reserve_in > tmp {
             reserve_in - tmp
         } else {
             tmp - reserve_in
-        }
+        };
+        let res = res * U256::from(1000) / fee;
+        res
     }
 
     pub fn swap_calldata(
