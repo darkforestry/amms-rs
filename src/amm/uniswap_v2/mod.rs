@@ -173,7 +173,6 @@ impl AutomatedMarketMaker for UniswapV2Pool {
             return Ok((I256::zero(), I256::zero()));
         }
 
-        let (reserve_0, reserve_1) = if zero_for_one { (U256::from(self.reserve_0), U256::from(self.reserve_1)) } else { (U256::from(self.reserve_1), U256::from(self.reserve_0))};
         // let current_price = (reserve_1 * reserve_0).integer_sqrt() * U256::from(2_u128.pow(96)) / reserve_1;
         // println!("current_price: {}, sqrt_price_limit_x_96: {}", current_price, sqrt_price_limit_x_96);
         // if !zero_for_one {
@@ -189,6 +188,7 @@ impl AutomatedMarketMaker for UniswapV2Pool {
         let exact_input = amount_specified > I256::zero();
         let res;
         if exact_input {
+            let (reserve_0, reserve_1) = if zero_for_one { (U256::from(self.reserve_0), U256::from(self.reserve_1)) } else { (U256::from(self.reserve_1), U256::from(self.reserve_0))};
             // 卖出exact token的情形
             // 根据输入计算输出
             let amount_in = U256::from(amount_specified.as_u128());
@@ -221,23 +221,25 @@ impl AutomatedMarketMaker for UniswapV2Pool {
                 Ok((res.1, res.0))
             }
         } else {
+            let (reserve_0, reserve_1) = if zero_for_one { (U256::from(self.reserve_1), U256::from(self.reserve_0)) } else { (U256::from(self.reserve_0), U256::from(self.reserve_1))};
+
             // 买入exact token的情形
             let amount_out = U256::from(amount_specified.abs().as_u128());
             let amount_in = self.get_amount_out(
                 amount_out,
-                reserve_1,
                 reserve_0,
+                reserve_1,
             );
             // 根据价格计算输入输出
             let amount_out_limited_in_price = self.get_amount_limited_in_price(
                 sqrt_price_limit_x_96,
-                reserve_1,
                 reserve_0,
+                reserve_1,
             );
             let amount_in_limited_in_price = self.get_amount_out(
                 amount_out_limited_in_price,
-                reserve_1,
                 reserve_0,
+                reserve_1,
             );
             // 比较最优输入输出
             if amount_in_limited_in_price < amount_in {
