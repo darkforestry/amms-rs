@@ -477,7 +477,7 @@ impl UniswapV2Pool {
     }
 
     fn get_amount_limited_in_price(&self, sqrt_price_limit_x_96: U256, reserve_in: U256, reserve_out: U256) -> U256 {
-        let fee = (10000 - (self.fee / 10)) / 10; //Fee of 300 => (10,000 - 300) / 10  = 997
+        let fee = (10000 - (self.fee / 10)) / 10; //Fee of 300 => (10,000 - 30) / 10  = 997
         println!("fee: {}", fee);
         let fee = U256::from(fee);
         let tmp = (reserve_in * reserve_out * fee / U256::from(1000)).integer_sqrt();

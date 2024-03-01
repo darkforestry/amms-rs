@@ -63,7 +63,7 @@ abigen!(
 
 pub const MIN_SQRT_RATIO: U256 = U256([4295128739, 0, 0, 0]);
 pub const MAX_SQRT_RATIO: U256 = U256([6743328256752651558, 17280870778742802505, 4294805859, 0]);
-pub const POPULATE_TICK_DATA_STEP: u64 = 1000000;
+pub const POPULATE_TICK_DATA_STEP: u64 = 10000000;
 pub const SWAP_EVENT_SIGNATURE: H256 = H256([
     196, 32, 121, 249, 74, 99, 80, 215, 230, 35, 95, 41, 23, 73, 36, 249, 40, 204, 42, 200, 24,
     235, 100, 254, 216, 0, 78, 17, 95, 188, 202, 103,
@@ -765,17 +765,38 @@ impl UniswapV3Pool {
             }
 
             handles.push(tokio::spawn(async move {
-                let logs = middleware
-                    .get_logs(
-                        &Filter::new()
-                            .topic0(vec![BURN_EVENT_SIGNATURE, MINT_EVENT_SIGNATURE])
-                            .address(pool_address)
-                            .from_block(BlockNumber::Number(U64([from_block])))
-                            .to_block(BlockNumber::Number(U64([target_block]))),
-                    )
-                    .await
-                    .map_err(AMMError::MiddlewareError)?;
-                println!("from_block: {}, to_block: {}, logs: {:?}", from_block, target_block, logs.len());
+                let mut logs = vec![];
+                let mut step_block = target_block - from_block;
+                let mut start_block = from_block;
+                while step_block > 0 && start_block < target_block {
+                    let mut end_block = start_block + step_block;
+                    if end_block > target_block {
+                        end_block = target_block;
+                    }
+                    
+                    let item = middleware
+                        .get_logs(
+                            &Filter::new()
+                                .topic0(vec![BURN_EVENT_SIGNATURE, MINT_EVENT_SIGNATURE])
+                                .address(pool_address)
+                                .from_block(BlockNumber::Number(U64([start_block])))
+                                .to_block(BlockNumber::Number(U64([end_block]))),
+                        )
+                        .await;
+                    if item.is_err() {
+                        println!("addr: 0x{:?}, start_block: {}, end_block: {}, step_block: {}, item err: {:?}", pool_address, start_block, end_block, step_block, item.err());
+                        // logs = vec![];
+                        // start_block = from_block;
+                        step_block /= 2;
+                    } else {
+                        let item_logs = item.unwrap();
+                        println!("addr: 0x{:?}, start_block: {}, end_block: {}, step_block: {}, item_logs: {:?}", pool_address, start_block, end_block, step_block, item_logs.len());
+                        logs.extend(item_logs);
+                        start_block = end_block + 1;
+                    }
+                }
+                println!("addr: 0x{:?}, from_block: {}, to_block: {}, step_block: {}, logs: {:?}", pool_address, from_block, target_block, step_block, logs.len());
+                    // .map_err(AMMError::MiddlewareError)?;
                 Ok::<Vec<Log>, AMMError<M>>(logs)
             }));
 
