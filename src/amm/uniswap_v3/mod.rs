@@ -1,6 +1,7 @@
 pub mod batch_request;
 pub mod factory;
 
+use async_recursion::async_recursion;
 use std::{
     cmp::Ordering,
     collections::{BTreeMap, HashMap},
@@ -115,6 +116,37 @@ impl Info {
             initialized,
         }
     }
+}
+
+#[async_recursion]
+pub async fn get_batch_logs<M: 'static + Middleware>(
+    middleware: Arc<M>,
+    address: H160,
+    from_block: u64,
+    to_block: u64,
+) -> Result<Vec<Log>, AMMError<M>> {
+    let mut logs = vec![];
+    let mut step_block = to_block - from_block;
+    if step_block == 0 {
+        return Err(EventLogError::LogBlockNumberNotFound)?;
+    }
+    let filter = Filter::new()
+        .address(address)
+        .from_block(BlockNumber::Number(U64([from_block])))
+        .to_block(BlockNumber::Number(U64([to_block])));
+    let res = middleware.get_logs(&filter).await;
+    if res.is_err() {
+        println!("addr: {:?}, start_block: {}, end_block: {}, step_block: {}, err: {:?}",address, from_block, to_block, step_block, res.err());
+        step_block /= 2;
+        let left_lgos = get_batch_logs(middleware.clone(), address, from_block, from_block + step_block).await?;
+        let right_logs = get_batch_logs(middleware.clone(), address, from_block + step_block + 1, to_block).await?;
+        logs.extend(left_lgos);
+        logs.extend(right_logs);
+    } else {
+        logs = res.unwrap();
+        println!("addr: {:?}, start_block: {}, end_block: {}, step_block: {}, logs: {:?}",address, from_block, to_block, step_block, logs.len());
+    }
+    Ok(logs)
 }
 
 #[async_trait]
@@ -765,38 +797,8 @@ impl UniswapV3Pool {
             }
 
             handles.push(tokio::spawn(async move {
-                let mut logs = vec![];
-                let mut step_block = target_block - from_block;
-                let mut start_block = from_block;
-                while step_block > 0 && start_block < target_block {
-                    let mut end_block = start_block + step_block;
-                    if end_block > target_block {
-                        end_block = target_block;
-                    }
-                    
-                    let item = middleware
-                        .get_logs(
-                            &Filter::new()
-                                .topic0(vec![BURN_EVENT_SIGNATURE, MINT_EVENT_SIGNATURE])
-                                .address(pool_address)
-                                .from_block(BlockNumber::Number(U64([start_block])))
-                                .to_block(BlockNumber::Number(U64([end_block]))),
-                        )
-                        .await;
-                    if item.is_err() {
-                        println!("addr: 0x{:?}, start_block: {}, end_block: {}, step_block: {}, item err: {:?}", pool_address, start_block, end_block, step_block, item.err());
-                        // logs = vec![];
-                        // start_block = from_block;
-                        step_block /= 2;
-                    } else {
-                        let item_logs = item.unwrap();
-                        println!("addr: 0x{:?}, start_block: {}, end_block: {}, step_block: {}, item_logs: {:?}", pool_address, start_block, end_block, step_block, item_logs.len());
-                        logs.extend(item_logs);
-                        start_block = end_block + 1;
-                    }
-                }
-                println!("addr: 0x{:?}, from_block: {}, to_block: {}, step_block: {}, logs: {:?}", pool_address, from_block, target_block, step_block, logs.len());
-                    // .map_err(AMMError::MiddlewareError)?;
+                let logs = get_batch_logs(middleware, pool_address, from_block, target_block).await?;
+                println!("task end, addr: {:?}, start_block: {}, end_block: {}",pool_address, from_block, target_block);
                 Ok::<Vec<Log>, AMMError<M>>(logs)
             }));
 
@@ -811,9 +813,9 @@ impl UniswapV3Pool {
             }
         }
 
+        println!("process_logs_from_handles");
         self.process_logs_from_handles(handles, &mut ordered_logs)
             .await?;
-
         for (_, log_group) in ordered_logs {
             for log in log_group {
                 self.sync_from_log(log)?;
