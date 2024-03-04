@@ -90,9 +90,10 @@ impl AutomatedMarketMakerFactory for UniswapV3Factory {
     }
 
     #[instrument(skip(self, amms, middleware) level = "debug")]
-    async fn populate_amm_data<M: Middleware>(
+    async fn populate_amm_data<M: 'static + Middleware>(
         &self,
         amms: &mut [AMM],
+        from_block: Option<u64>,
         block_number: Option<u64>,
         middleware: Arc<M>,
     ) -> Result<(), AMMError<M>> {
@@ -105,6 +106,14 @@ impl AutomatedMarketMakerFactory for UniswapV3Factory {
                     middleware.clone(),
                 )
                 .await?;
+                for amm in amm_chunk {
+                    let from_block = from_block.unwrap_or(self.creation_block);
+                    if let AMM::UniswapV3Pool(ref mut pool) = amm {
+                        pool
+            .populate_tick_data_to_block(from_block, block_number, middleware.clone())
+            .await?;
+                    }
+                }
             }
         } else {
             return Err(AMMError::BlockNumberNotFound);

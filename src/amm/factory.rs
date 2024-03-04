@@ -32,9 +32,10 @@ pub trait AutomatedMarketMakerFactory {
     ) -> Result<Vec<AMM>, AMMError<M>>;
 
     /// Populates all AMMs data via batched static calls.
-    async fn populate_amm_data<M: Middleware>(
+    async fn populate_amm_data<M: 'static + Middleware>(
         &self,
         amms: &mut [AMM],
+        from_block: Option<u64>,
         block_number: Option<u64>,
         middleware: Arc<M>,
     ) -> Result<(), AMMError<M>>;
@@ -86,15 +87,16 @@ macro_rules! factory {
                 }
             }
 
-            async fn populate_amm_data<M: Middleware>(
+            async fn populate_amm_data<M: 'static + Middleware>(
                 &self,
                 amms: &mut [AMM],
+                from_block: Option<u64>,
                 block_number: Option<u64>,
                 middleware: Arc<M>,
             ) -> Result<(), AMMError<M>> {
                 match self {
                     $(Factory::$factory_type(factory) => {
-                        factory.populate_amm_data(amms, block_number, middleware).await
+                        factory.populate_amm_data(amms, from_block, block_number, middleware).await
                     },)+
                 }
             }

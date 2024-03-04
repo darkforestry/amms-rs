@@ -154,12 +154,13 @@ impl AutomatedMarketMakerFactory for UniswapV2Factory {
     async fn populate_amm_data<M: Middleware>(
         &self,
         amms: &mut [AMM],
-        _block_number: Option<u64>,
+        _from_block: Option<u64>,
+        block_number: Option<u64>,
         middleware: Arc<M>,
     ) -> Result<(), AMMError<M>> {
         let step = 127; //Max batch size for call
         for amm_chunk in amms.chunks_mut(step) {
-            batch_request::get_amm_data_batch_request(amm_chunk, middleware.clone()).await?;
+            batch_request::get_amm_data_batch_request(amm_chunk, block_number, middleware.clone()).await?;
         }
         Ok(())
     }

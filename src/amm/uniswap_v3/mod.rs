@@ -539,6 +539,47 @@ impl UniswapV3Pool {
         Ok(pool)
     }
 
+     /// Creates a new instance of the pool from the pair address.
+    ///
+    /// This function will populate all pool data.
+    pub async fn new_from_address_to_block<M: 'static + Middleware>(
+        pair_address: H160,
+        creation_block: u64,
+        to_block: u64,
+        middleware: Arc<M>,
+    ) -> Result<Self, AMMError<M>> {
+        let mut pool = UniswapV3Pool {
+            address: pair_address,
+            token_a: H160::zero(),
+            token_a_decimals: 0,
+            token_b: H160::zero(),
+            token_b_decimals: 0,
+            liquidity: 0,
+            sqrt_price: U256::zero(),
+            tick: 0,
+            tick_spacing: 0,
+            fee: 0,
+            tick_bitmap: HashMap::new(),
+            ticks: HashMap::new(),
+        };
+
+        //We need to get tick spacing before populating tick data because tick spacing can not be uninitialized when syncing burn and mint logs
+        pool.tick_spacing = pool.get_tick_spacing(middleware.clone()).await?;
+
+        let synced_block = pool
+            .populate_tick_data_to_block(creation_block, to_block, middleware.clone())
+            .await?;
+
+        //TODO: break this into two threads so it can happen concurrently
+        pool.populate_data(Some(synced_block), middleware).await?;
+
+        if !pool.data_is_populated() {
+            return Err(AMMError::PoolDataError);
+        }
+
+        Ok(pool)
+    }
+
     /// Creates a new instance of the pool from a log.
     ///
     /// This function will populate all pool data.
@@ -640,6 +681,63 @@ impl UniswapV3Pool {
             .map_err(AMMError::MiddlewareError)?
             .as_u64();
 
+        let mut futures = FuturesOrdered::new();
+
+        let mut ordered_logs: BTreeMap<U64, Vec<Log>> = BTreeMap::new();
+
+        let pool_address: H160 = self.address;
+
+        while from_block < current_block {
+            let middleware = middleware.clone();
+
+            let mut target_block = from_block + POPULATE_TICK_DATA_STEP - 1;
+            if target_block > current_block {
+                target_block = current_block;
+            }
+
+            futures.push_back(async move {
+                Self::get_batch_logs(middleware, pool_address, from_block, target_block).await
+            });
+
+            from_block += POPULATE_TICK_DATA_STEP;
+        }
+
+        // TODO: this could be more dry since we use this in another place
+        while let Some(result) = futures.next().await {
+            let logs = result?;
+
+            for log in logs {
+                if let Some(log_block_number) = log.block_number {
+                    if let Some(log_group) = ordered_logs.get_mut(&log_block_number) {
+                        log_group.push(log);
+                    } else {
+                        ordered_logs.insert(log_block_number, vec![log]);
+                    }
+                } else {
+                    return Err(EventLogError::LogBlockNumberNotFound)?;
+                }
+            }
+        }
+
+        for (_, log_group) in ordered_logs {
+            for log in log_group {
+                self.sync_from_log(log)?;
+            }
+        }
+
+        Ok(current_block)
+    }
+
+    /// Populates the `tick_bitmap` and `ticks` fields of the pool to the current block.
+    ///
+    /// Returns the last synced block number.
+    pub async fn populate_tick_data_to_block<M: 'static + Middleware>(
+        &mut self,
+        mut from_block: u64,
+        to_block: u64,
+        middleware: Arc<M>,
+    ) -> Result<u64, AMMError<M>> {
+        let current_block = to_block;
         let mut futures = FuturesOrdered::new();
 
         let mut ordered_logs: BTreeMap<U64, Vec<Log>> = BTreeMap::new();
