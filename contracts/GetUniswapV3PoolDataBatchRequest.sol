@@ -25,7 +25,9 @@ interface IUniswapV3Pool {
             bool unlocked
         );
 
-    function ticks(int24 tick)
+    function ticks(
+        int24 tick
+    )
         external
         view
         returns (
@@ -83,7 +85,9 @@ contract GetUniswapV3PoolDataBatchRequest {
             (
                 bool tokenADecimalsSuccess,
                 bytes memory tokenADecimalsData
-            ) = poolData.tokenA.call(abi.encodeWithSignature("decimals()"));
+            ) = poolData.tokenA.call{gas: 20000}(
+                    abi.encodeWithSignature("decimals()")
+                );
 
             if (tokenADecimalsSuccess) {
                 uint256 tokenADecimals;
@@ -109,7 +113,9 @@ contract GetUniswapV3PoolDataBatchRequest {
             (
                 bool tokenBDecimalsSuccess,
                 bytes memory tokenBDecimalsData
-            ) = poolData.tokenB.call(abi.encodeWithSignature("decimals()"));
+            ) = poolData.tokenB.call{gas: 20000}(
+                    abi.encodeWithSignature("decimals()")
+                );
 
             if (tokenBDecimalsSuccess) {
                 uint256 tokenBDecimals;
