@@ -15,6 +15,7 @@ exclude = [
 ]
 
 [dependencies]
+async-recursion = "1.0.5"
 anyhow = "1.0.76"
 arraydeque = { version = "0.5.1", optional = true }
 artemis-core = { git = "https://github.com/paradigmxyz/artemis.git", branch = "main" }

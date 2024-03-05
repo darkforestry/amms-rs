@@ -5,6 +5,7 @@ use crate::{
     amm::AutomatedMarketMaker,
     errors::{AMMError, ArithmeticError, EventLogError, SwapSimulationError},
 };
+use async_recursion::async_recursion;
 use async_trait::async_trait;
 use ethers::{
     abi::{ethabi::Bytes, RawLog, Token},
@@ -61,7 +62,7 @@ abigen!(
 
 pub const MIN_SQRT_RATIO: U256 = U256([4295128739, 0, 0, 0]);
 pub const MAX_SQRT_RATIO: U256 = U256([6743328256752651558, 17280870778742802505, 4294805859, 0]);
-pub const POPULATE_TICK_DATA_STEP: u64 = 100000;
+pub const POPULATE_TICK_DATA_STEP: u64 = 10000000;
 pub const SWAP_EVENT_SIGNATURE: H256 = H256([
     196, 32, 121, 249, 74, 99, 80, 215, 230, 35, 95, 41, 23, 73, 36, 249, 40, 204, 42, 200, 24,
     235, 100, 254, 216, 0, 78, 17, 95, 188, 202, 103,
@@ -538,6 +539,47 @@ impl UniswapV3Pool {
         Ok(pool)
     }
 
+     /// Creates a new instance of the pool from the pair address.
+    ///
+    /// This function will populate all pool data.
+    pub async fn new_from_address_to_block<M: 'static + Middleware>(
+        pair_address: H160,
+        creation_block: u64,
+        to_block: u64,
+        middleware: Arc<M>,
+    ) -> Result<Self, AMMError<M>> {
+        let mut pool = UniswapV3Pool {
+            address: pair_address,
+            token_a: H160::zero(),
+            token_a_decimals: 0,
+            token_b: H160::zero(),
+            token_b_decimals: 0,
+            liquidity: 0,
+            sqrt_price: U256::zero(),
+            tick: 0,
+            tick_spacing: 0,
+            fee: 0,
+            tick_bitmap: HashMap::new(),
+            ticks: HashMap::new(),
+        };
+
+        //We need to get tick spacing before populating tick data because tick spacing can not be uninitialized when syncing burn and mint logs
+        pool.tick_spacing = pool.get_tick_spacing(middleware.clone()).await?;
+
+        let synced_block = pool
+            .populate_tick_data_to_block(creation_block, to_block, middleware.clone())
+            .await?;
+
+        //TODO: break this into two threads so it can happen concurrently
+        pool.populate_data(Some(synced_block), middleware).await?;
+
+        if !pool.data_is_populated() {
+            return Err(AMMError::PoolDataError);
+        }
+
+        Ok(pool)
+    }
+
     /// Creates a new instance of the pool from a log.
     ///
     /// This function will populate all pool data.
@@ -592,6 +634,39 @@ impl UniswapV3Pool {
         }
     }
 
+    #[async_recursion]
+    pub async fn get_batch_logs<M: 'static + Middleware>(
+        middleware: Arc<M>,
+        address: H160,
+        from_block: u64,
+        to_block: u64,
+    ) -> Result<Vec<Log>, AMMError<M>> {
+        let mut logs = vec![];
+        let mut step_block = to_block - from_block;
+        let filter = Filter::new()
+            .topic0(vec![BURN_EVENT_SIGNATURE, MINT_EVENT_SIGNATURE])
+            .address(address)
+            .from_block(BlockNumber::Number(U64([from_block])))
+            .to_block(BlockNumber::Number(U64([to_block])));
+        let res = middleware.get_logs(&filter).await;
+        if res.is_err() {
+            if step_block == 0 {
+                return res.map_err(AMMError::MiddlewareError);
+            }
+            tracing::debug!("addr: {:?}, start_block: {}, end_block: {}, step: {}, err: {:?}", address, from_block, to_block, step_block, res.err());
+            step_block /= 2;
+            let left_lgos = Self::get_batch_logs(middleware.clone(), address, from_block, from_block + step_block).await?;
+            let right_logs = Self::get_batch_logs(middleware.clone(), address, from_block + step_block + 1, to_block).await?;
+            logs.extend(left_lgos);
+            logs.extend(right_logs);
+        } else {
+            logs = res.unwrap();
+            tracing::debug!("addr: {:?}, start_block: {}, end_block: {}, step: {}, logs: {:?}", address, from_block, to_block, step_block, logs.len());
+        }
+        Ok(logs)
+    }
+
+
     /// Populates the `tick_bitmap` and `ticks` fields of the pool to the current block.
     ///
     /// Returns the last synced block number.
@@ -621,15 +696,7 @@ impl UniswapV3Pool {
             }
 
             futures.push_back(async move {
-                middleware
-                    .get_logs(
-                        &Filter::new()
-                            .topic0(vec![BURN_EVENT_SIGNATURE, MINT_EVENT_SIGNATURE])
-                            .address(pool_address)
-                            .from_block(BlockNumber::Number(U64([from_block])))
-                            .to_block(BlockNumber::Number(U64([target_block]))),
-                    )
-                    .await
+                Self::get_batch_logs(middleware, pool_address, from_block, target_block).await
             });
 
             from_block += POPULATE_TICK_DATA_STEP;
@@ -637,7 +704,64 @@ impl UniswapV3Pool {
 
         // TODO: this could be more dry since we use this in another place
         while let Some(result) = futures.next().await {
-            let logs = result.map_err(AMMError::MiddlewareError)?;
+            let logs = result?;
+
+            for log in logs {
+                if let Some(log_block_number) = log.block_number {
+                    if let Some(log_group) = ordered_logs.get_mut(&log_block_number) {
+                        log_group.push(log);
+                    } else {
+                        ordered_logs.insert(log_block_number, vec![log]);
+                    }
+                } else {
+                    return Err(EventLogError::LogBlockNumberNotFound)?;
+                }
+            }
+        }
+
+        for (_, log_group) in ordered_logs {
+            for log in log_group {
+                self.sync_from_log(log)?;
+            }
+        }
+
+        Ok(current_block)
+    }
+
+    /// Populates the `tick_bitmap` and `ticks` fields of the pool to the current block.
+    ///
+    /// Returns the last synced block number.
+    pub async fn populate_tick_data_to_block<M: 'static + Middleware>(
+        &mut self,
+        mut from_block: u64,
+        to_block: u64,
+        middleware: Arc<M>,
+    ) -> Result<u64, AMMError<M>> {
+        let current_block = to_block;
+        let mut futures = FuturesOrdered::new();
+
+        let mut ordered_logs: BTreeMap<U64, Vec<Log>> = BTreeMap::new();
+
+        let pool_address: H160 = self.address;
+
+        while from_block < current_block {
+            let middleware = middleware.clone();
+
+            let mut target_block = from_block + POPULATE_TICK_DATA_STEP - 1;
+            if target_block > current_block {
+                target_block = current_block;
+            }
+
+            futures.push_back(async move {
+                Self::get_batch_logs(middleware, pool_address, from_block, target_block).await
+            });
+
+            from_block += POPULATE_TICK_DATA_STEP;
+        }
+
+        // TODO: this could be more dry since we use this in another place
+        while let Some(result) = futures.next().await {
+            let logs = result?;
 
             for log in logs {
                 if let Some(log_block_number) = log.block_number {
@@ -1077,6 +1201,7 @@ mod test {
     #[allow(unused)]
     use ethers::providers::Middleware;
 
+    use ethers::providers::Ws;
     #[allow(unused)]
     use ethers::{
         prelude::abigen,
@@ -1829,6 +1954,32 @@ mod test {
         assert_eq!(pool.fee, 500);
         assert!(pool.tick != 0);
         assert_eq!(pool.tick_spacing, 10);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_get_batch_logs() -> eyre::Result<()> {
+        let ws_endpoint = std::env::var("ETHEREUM_WS_ENDPOINT")?;
+        let stream_middleware = Arc::new(Provider::<Ws>::connect(ws_endpoint).await?);
+
+        // WETH/USDC 1%
+        let logs = UniswapV3Pool::get_batch_logs(
+            stream_middleware.clone(),
+            H160::from_str("0x7bea39867e4169dbe237d55c8242a8f2fcdcc387")?,
+            0,
+            19359090,
+        ).await?;
+        assert_eq!(logs.len(), 3878);
+
+        // WETH/USDC 0.05%
+        let logs = UniswapV3Pool::get_batch_logs(
+            stream_middleware.clone(),
+            H160::from_str("0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640")?,
+            0,
+            19359090,
+        ).await?;
+        assert_eq!(logs.len(), 222705);
 
         Ok(())
     }

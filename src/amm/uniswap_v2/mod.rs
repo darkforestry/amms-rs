@@ -78,10 +78,10 @@ impl AutomatedMarketMaker for UniswapV2Pool {
     #[instrument(skip(self, middleware), level = "debug")]
     async fn populate_data<M: Middleware>(
         &mut self,
-        _block_number: Option<u64>,
+        block_number: Option<u64>,
         middleware: Arc<M>,
     ) -> Result<(), AMMError<M>> {
-        batch_request::get_v2_pool_data_batch_request(self, middleware.clone()).await?;
+        batch_request::get_v2_pool_data_batch_request(self, block_number, middleware.clone()).await?;
 
         Ok(())
     }
@@ -222,6 +222,33 @@ impl UniswapV2Pool {
         };
 
         pool.populate_data(None, middleware.clone()).await?;
+
+        if !pool.data_is_populated() {
+            return Err(AMMError::PoolDataError);
+        }
+
+        Ok(pool)
+    }
+
+    /// Creates a new instance of the pool from the pair address, and syncs the pool data.
+    pub async fn new_from_address_to_block<M: Middleware>(
+        pair_address: H160,
+        fee: u32,
+        to_block: u64,
+        middleware: Arc<M>,
+    ) -> Result<Self, AMMError<M>> {
+        let mut pool = UniswapV2Pool {
+            address: pair_address,
+            token_a: H160::zero(),
+            token_a_decimals: 0,
+            token_b: H160::zero(),
+            token_b_decimals: 0,
+            reserve_0: 0,
+            reserve_1: 0,
+            fee,
+        };
+
+        pool.populate_data(Some(to_block), middleware.clone()).await?;
 
         if !pool.data_is_populated() {
             return Err(AMMError::PoolDataError);
