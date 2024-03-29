@@ -612,7 +612,7 @@ impl UniswapV3Pool {
 
         let pool_address: H160 = self.address;
 
-        while from_block < current_block {
+        while from_block <= current_block {
             let middleware = middleware.clone();
 
             let mut target_block = from_block + POPULATE_TICK_DATA_STEP - 1;
