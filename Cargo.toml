@@ -23,6 +23,7 @@ criterion = "0.5.1"
 ethers = { version = "2.0.11", default-features = true, features = ["abigen", "ws", "ipc", "rustls"] } # TODO: update this to aloy
 eyre = "0.6.11"
 futures = "0.3.30"
+indicatif = "0.17.8"
 lazy_static = "1.4.0" #TODO: why do we have this
 num-bigfloat = "1.7.0"
 regex = "1.9.1"

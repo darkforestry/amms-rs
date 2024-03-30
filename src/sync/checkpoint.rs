@@ -1,28 +1,29 @@
 use std::{
     fs::read_to_string,
-    panic::resume_unwind,
     sync::Arc,
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use ethers::{providers::Middleware, types::H160};
+use ethers::providers::Middleware;
 
+use indicatif::MultiProgress;
 use serde::{Deserialize, Serialize};
 
-use tokio::task::JoinHandle;
+use tokio::{
+    sync::Semaphore,
+    task::{JoinHandle, JoinSet},
+};
 
 use crate::{
     amm::{
         factory::{AutomatedMarketMakerFactory, Factory},
-        uniswap_v2::factory::UniswapV2Factory,
-        uniswap_v3::factory::UniswapV3Factory,
         AMM,
     },
     errors::{AMMError, CheckpointError},
-    filters,
+    filters, finish_progress, init_progress, update_progress_by_one,
 };
 
-use super::amms_are_congruent;
+static TASK_PERMITS: Semaphore = Semaphore::const_new(100);
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Checkpoint {
@@ -53,7 +54,8 @@ pub async fn sync_amms_from_checkpoint<M: 'static + Middleware>(
     path_to_checkpoint: &str,
     step: u64,
     middleware: Arc<M>,
-) -> Result<(Vec<Factory>, Vec<AMM>), AMMError<M>> {
+) -> Result<(Vec<Factory>, Vec<AMM>, u64), AMMError<M>> {
+    tracing::info!("Syncing AMMs from checkpoint");
     let current_block = middleware
         .get_block_number()
         .await
@@ -63,71 +65,27 @@ pub async fn sync_amms_from_checkpoint<M: 'static + Middleware>(
     let checkpoint: Checkpoint =
         serde_json::from_str(read_to_string(path_to_checkpoint)?.as_str())?;
 
-    //Sort all of the pools from the checkpoint into uniswap_v2_pools and uniswap_v3_pools pools so we can sync them concurrently
-    let (uniswap_v2_pools, uniswap_v3_pools, erc_4626_pools) = sort_amms(checkpoint.amms);
+    let mut aggregated_amms = sync_amm_data_from_checkpoint(
+        checkpoint.amms,
+        checkpoint.block_number,
+        current_block,
+        middleware.clone(),
+    )
+    .await?;
+    let factories = checkpoint.factories.clone();
 
-    let mut aggregated_amms = vec![];
-    let mut handles = vec![];
-
-    //Sync all uniswap v2 pools from checkpoint
-    if !uniswap_v2_pools.is_empty() {
-        handles.push(
-            batch_sync_amms_from_checkpoint(
-                uniswap_v2_pools,
-                Some(current_block),
-                middleware.clone(),
-            )
-            .await,
-        );
-    }
-
-    //Sync all uniswap v3 pools from checkpoint
-    if !uniswap_v3_pools.is_empty() {
-        handles.push(
-            batch_sync_amms_from_checkpoint(
-                uniswap_v3_pools,
-                Some(current_block),
-                middleware.clone(),
-            )
-            .await,
-        );
-    }
-
-    if !erc_4626_pools.is_empty() {
-        // TODO: Batch sync erc4626 pools from checkpoint
-        todo!(
-            r#"""This function will produce an incorrect state if ERC4626 pools are present in the checkpoint. 
-            This logic needs to be implemented into batch_sync_amms_from_checkpoint"""#
-        );
-    }
-
-    //Sync all pools from the since synced block
-    handles.extend(
+    let _permit = TASK_PERMITS.acquire().await.unwrap();
+    aggregated_amms.extend(
         get_new_amms_from_range(
-            checkpoint.factories.clone(),
+            factories,
             checkpoint.block_number,
             current_block,
             step,
             middleware.clone(),
         )
-        .await,
+        .await?,
     );
 
-    for handle in handles {
-        match handle.await {
-            Ok(sync_result) => aggregated_amms.extend(sync_result?),
-            Err(err) => {
-                {
-                    if err.is_panic() {
-                        // Resume the panic on the main task
-                        resume_unwind(err.into_panic());
-                    }
-                }
-            }
-        }
-    }
-
-    //update the sync checkpoint
     construct_checkpoint(
         checkpoint.factories.clone(),
         &aggregated_amms,
@@ -135,7 +93,7 @@ pub async fn sync_amms_from_checkpoint<M: 'static + Middleware>(
         path_to_checkpoint,
     )?;
 
-    Ok((checkpoint.factories, aggregated_amms))
+    Ok((checkpoint.factories, aggregated_amms, current_block))
 }
 
 pub async fn get_new_amms_from_range<M: 'static + Middleware>(
@@ -144,16 +102,15 @@ pub async fn get_new_amms_from_range<M: 'static + Middleware>(
     to_block: u64,
     step: u64,
     middleware: Arc<M>,
-) -> Vec<JoinHandle<Result<Vec<AMM>, AMMError<M>>>> {
-    //Create the filter with all the pair created events
-    //Aggregate the populated pools from each thread
-    let mut handles = vec![];
-
-    for factory in factories.into_iter() {
+) -> Result<Vec<AMM>, AMMError<M>> {
+    let mut new_amms = vec![];
+    let mut join_set = JoinSet::new();
+    tracing::info!("Getting new AMMs from range {} to {}", from_block, to_block);
+    for factory in factories {
         let middleware = middleware.clone();
 
         //Spawn a new thread to get all pools and sync data for each dex
-        handles.push(tokio::spawn(async move {
+        join_set.spawn(async move {
             let mut amms = factory
                 .get_all_pools_from_logs(from_block, to_block, step, middleware.clone())
                 .await?;
@@ -166,52 +123,88 @@ pub async fn get_new_amms_from_range<M: 'static + Middleware>(
             amms = filters::filter_empty_amms(amms);
 
             Ok::<_, AMMError<M>>(amms)
-        }));
+        });
     }
 
-    handles
+    while let Some(result) = join_set.join_next().await {
+        match result {
+            Ok(result) => match result {
+                Ok(amms) => {
+                    new_amms.extend(amms);
+                }
+                Err(err) => return Err(err),
+            },
+            Err(err) => {
+                return Err(AMMError::JoinError(err));
+            }
+        }
+    }
+
+    Ok(new_amms)
 }
 
-pub async fn batch_sync_amms_from_checkpoint<M: 'static + Middleware>(
-    mut amms: Vec<AMM>,
-    block_number: Option<u64>,
+pub async fn sync_amm_data_from_checkpoint<M: 'static + Middleware>(
+    amms: Vec<AMM>,
+    checkpoint_block: u64,
+    to_block: u64,
     middleware: Arc<M>,
-) -> JoinHandle<Result<Vec<AMM>, AMMError<M>>> {
-    let factory = match amms[0] {
-        AMM::UniswapV2Pool(_) => Some(Factory::UniswapV2Factory(UniswapV2Factory::new(
-            H160::zero(),
-            0,
-            0,
-        ))),
-
-        AMM::UniswapV3Pool(_) => Some(Factory::UniswapV3Factory(UniswapV3Factory::new(
-            H160::zero(),
-            0,
-        ))),
-
-        AMM::ERC4626Vault(_) => None,
-    };
-
-    //Spawn a new thread to get all pools and sync data for each dex
-    tokio::spawn(async move {
-        if let Some(factory) = factory {
-            if amms_are_congruent(&amms) {
-                //Get all pool data via batched calls
-                factory
-                    .populate_amm_data(&mut amms, block_number, middleware)
-                    .await?;
-
-                //Clean empty pools
-                amms = filters::filter_empty_amms(amms);
-
-                Ok::<_, AMMError<M>>(amms)
-            } else {
-                Err(AMMError::IncongruentAMMs)
+) -> Result<Vec<AMM>, AMMError<M>> {
+    let multi_progress = MultiProgress::new();
+    let progress = multi_progress.add(init_progress!(
+        amms.len(),
+        "Populating AMM Data from Checkpoint"
+    ));
+    progress.set_position(0);
+    let mut synced_amms = vec![];
+    let mut join_set = JoinSet::new();
+    for mut amm in amms {
+        let middleware = middleware.clone();
+        join_set.spawn(async move {
+            let _permit = TASK_PERMITS.acquire().await.unwrap();
+            match amm {
+                AMM::UniswapV2Pool(ref mut pool) => {
+                    (pool.reserve_0, pool.reserve_1) =
+                        pool.get_reserves(middleware, Some(to_block)).await?;
+                }
+                AMM::UniswapV3Pool(ref mut pool) => {
+                    pool.populate_tick_data(checkpoint_block, Some(to_block), middleware.clone())
+                        .await?;
+                    pool.sqrt_price = pool
+                        .get_sqrt_price(middleware.clone(), Some(to_block))
+                        .await?;
+                    pool.liquidity = pool
+                        .get_liquidity(middleware.clone(), Some(to_block))
+                        .await? as i128;
+                }
+                AMM::ERC4626Vault(ref mut vault) => {
+                    (vault.vault_reserve, vault.asset_reserve) =
+                        vault.get_reserves(middleware, Some(to_block)).await?;
+                }
             }
-        } else {
-            Ok::<_, AMMError<M>>(vec![])
+
+            Ok::<AMM, AMMError<M>>(amm)
+        });
+    }
+
+    while let Some(result) = join_set.join_next().await {
+        match result {
+            Ok(result) => match result {
+                Ok(amm) => {
+                    update_progress_by_one!(progress);
+                    synced_amms.push(amm);
+                }
+                Err(err) => return Err(err),
+            },
+            Err(err) => {
+                tracing::error!(?err);
+                return Err(AMMError::JoinError(err));
+            }
         }
-    })
+    }
+
+    finish_progress!(progress);
+
+    Ok(synced_amms)
 }
 
 pub fn sort_amms(amms: Vec<AMM>) -> (Vec<AMM>, Vec<AMM>, Vec<AMM>) {
@@ -285,4 +278,74 @@ pub fn construct_checkpoint(
 pub fn deconstruct_checkpoint(checkpoint_path: &str) -> Result<(Vec<AMM>, u64), CheckpointError> {
     let checkpoint: Checkpoint = serde_json::from_str(read_to_string(checkpoint_path)?.as_str())?;
     Ok((checkpoint.amms, checkpoint.block_number))
+}
+
+#[cfg(test)]
+mod test {
+    #[tokio::test(flavor = "multi_thread")]
+    pub async fn test_sync_amms_from_checkpoint() -> eyre::Result<()> {
+        use crate::amm::AutomatedMarketMaker;
+        use crate::sync::{AMM, AMM::UniswapV3Pool};
+        use ethers::types::U256;
+        use ethers::{
+            providers::{Http, Provider},
+            types::H160,
+        };
+        use std::{str::FromStr, sync::Arc};
+        abigen!(
+            IQuoter,
+        r#"[
+            function quoteExactInputSingle(address tokenIn, address tokenOut,uint24 fee, uint256 amountIn, uint160 sqrtPriceLimitX96) external returns (uint256 amountOut)
+        ]"#;);
+        use ethers::contract::abigen;
+        tracing_subscriber::fmt()
+            .with_max_level(tracing::Level::INFO)
+            .compact()
+            .init();
+        let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
+        let provider = Arc::new(Provider::<Http>::try_from(rpc_endpoint)?);
+
+        let (_, amms, block) = super::sync_amms_from_checkpoint(
+            "src/sync/checkpoint_test.json",
+            500,
+            provider.clone(),
+        )
+        .await?;
+
+        // Get usd/eth pool
+        let pool = amms
+            .iter()
+            .find(|amm| {
+                if let AMM::UniswapV3Pool(pool) = amm {
+                    pool.address
+                        == H160::from_str("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640").unwrap()
+                } else {
+                    false
+                }
+            })
+            .unwrap();
+
+        let quoter = IQuoter::new(
+            H160::from_str("0xb27308f9f90d607463bb33ea1bebb41c27ce5ab6")?,
+            provider.clone(),
+        );
+        let amount_in = U256::from_dec_str("100000000")?; // 100 USDC
+        if let UniswapV3Pool(pool) = pool {
+            let amount_out = pool.simulate_swap(pool.token_a, amount_in)?;
+            let expected_amount_out = quoter
+                .quote_exact_input_single(
+                    pool.token_a,
+                    pool.token_b,
+                    pool.fee,
+                    amount_in,
+                    U256::zero(),
+                )
+                .block(block)
+                .call()
+                .await?;
+            assert_eq!(amount_out, expected_amount_out);
+        }
+
+        Ok(())
+    }
 }

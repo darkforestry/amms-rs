@@ -71,7 +71,7 @@ impl AutomatedMarketMaker for ERC4626Vault {
 
     #[instrument(skip(self, middleware), level = "debug")]
     async fn sync<M: Middleware>(&mut self, middleware: Arc<M>) -> Result<(), AMMError<M>> {
-        let (vault_reserve, asset_reserve) = self.get_reserves(middleware).await?;
+        let (vault_reserve, asset_reserve) = self.get_reserves(middleware, None).await?;
         tracing::debug!(vault_reserve = ?vault_reserve, asset_reserve = ?asset_reserve, address = ?self.vault_token, "ER4626 sync");
 
         self.vault_reserve = vault_reserve;
@@ -212,18 +212,33 @@ impl ERC4626Vault {
     pub async fn get_reserves<M: Middleware>(
         &self,
         middleware: Arc<M>,
+        block: Option<u64>,
     ) -> Result<(U256, U256), AMMError<M>> {
         //Initialize a new instance of the vault
         let vault = IERC4626Vault::new(self.vault_token, middleware);
         // Get the total assets in the vault
-        let total_assets = match vault.total_assets().call().await {
-            Ok(total_assets) => total_assets,
-            Err(e) => return Err(AMMError::ContractError(e)),
+        let total_assets = if let Some(block) = block {
+            match vault.total_assets().block(block).call().await {
+                Ok(total_assets) => total_assets,
+                Err(e) => return Err(AMMError::ContractError(e)),
+            }
+        } else {
+            match vault.total_assets().call().await {
+                Ok(total_assets) => total_assets,
+                Err(e) => return Err(AMMError::ContractError(e)),
+            }
         };
         // Get the total supply of the vault token
-        let total_supply = match vault.total_supply().call().await {
-            Ok(total_supply) => total_supply,
-            Err(e) => return Err(AMMError::ContractError(e)),
+        let total_supply = if let Some(block) = block {
+            match vault.total_supply().block(block).call().await {
+                Ok(total_supply) => total_supply,
+                Err(e) => return Err(AMMError::ContractError(e)),
+            }
+        } else {
+            match vault.total_supply().call().await {
+                Ok(total_supply) => total_supply,
+                Err(e) => return Err(AMMError::ContractError(e)),
+            }
         };
 
         Ok((total_supply, total_assets))

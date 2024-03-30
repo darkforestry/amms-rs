@@ -6,9 +6,13 @@ use ethers::{
     types::{BlockNumber, Filter, Log, ValueOrArray, H160, H256, U64},
 };
 use futures::stream::FuturesUnordered;
+use indicatif::MultiProgress;
 use serde::{Deserialize, Serialize};
 
-use crate::errors::{AMMError, EventLogError};
+use crate::{
+    errors::{AMMError, EventLogError},
+    finish_progress, init_progress, update_progress_by_one,
+};
 
 use super::{
     uniswap_v2::factory::{UniswapV2Factory, PAIR_CREATED_EVENT_SIGNATURE},
@@ -145,6 +149,12 @@ impl Factory {
         let mut futures = FuturesUnordered::new();
 
         let mut aggregated_amms: Vec<AMM> = vec![];
+        let multi_progress = MultiProgress::new();
+        let progress = multi_progress.add(init_progress!(
+            (to_block - from_block) / step,
+            "Getting All AMMs from Factories"
+        ));
+        progress.set_position(0);
 
         while from_block < to_block {
             let middleware = middleware.clone();
@@ -165,12 +175,14 @@ impl Factory {
         }
 
         while let Some(result) = futures.next().await {
+            update_progress_by_one!(progress);
             let logs = result.map_err(AMMError::MiddlewareError)?;
 
             for log in logs {
                 aggregated_amms.push(self.new_empty_amm_from_log(log)?);
             }
         }
+        finish_progress!(progress);
 
         Ok(aggregated_amms)
     }

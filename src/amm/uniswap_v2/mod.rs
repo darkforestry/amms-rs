@@ -66,7 +66,7 @@ impl AutomatedMarketMaker for UniswapV2Pool {
 
     #[instrument(skip(self, middleware), level = "debug")]
     async fn sync<M: Middleware>(&mut self, middleware: Arc<M>) -> Result<(), AMMError<M>> {
-        let (reserve_0, reserve_1) = self.get_reserves(middleware.clone()).await?;
+        let (reserve_0, reserve_1) = self.get_reserves(middleware.clone(), None).await?;
         tracing::info!(?reserve_0, ?reserve_1, address = ?self.address, "UniswapV2 sync");
 
         self.reserve_0 = reserve_0;
@@ -289,15 +289,23 @@ impl UniswapV2Pool {
     pub async fn get_reserves<M: Middleware>(
         &self,
         middleware: Arc<M>,
+        block: Option<u64>,
     ) -> Result<(u128, u128), AMMError<M>> {
         tracing::trace!("getting reserves of {}", self.address);
 
         //Initialize a new instance of the Pool
         let v2_pair = IUniswapV2Pair::new(self.address, middleware);
         // Make a call to get the reserves
-        let (reserve_0, reserve_1, _) = match v2_pair.get_reserves().call().await {
-            Ok(result) => result,
-            Err(contract_error) => return Err(AMMError::ContractError(contract_error)),
+        let (reserve_0, reserve_1, _) = if let Some(block) = block {
+            match v2_pair.get_reserves().block(block).call().await {
+                Ok(result) => result,
+                Err(contract_error) => return Err(AMMError::ContractError(contract_error)),
+            }
+        } else {
+            match v2_pair.get_reserves().call().await {
+                Ok(result) => result,
+                Err(contract_error) => return Err(AMMError::ContractError(contract_error)),
+            }
         };
 
         tracing::trace!(reserve_0, reserve_1);

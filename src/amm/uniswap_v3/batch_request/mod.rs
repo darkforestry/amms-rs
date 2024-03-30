@@ -34,7 +34,7 @@ fn populate_pool_data_from_tokens(
     pool.token_a_decimals = tokens[1].to_owned().into_uint()?.as_u32() as u8;
     pool.token_b = tokens[2].to_owned().into_address()?;
     pool.token_b_decimals = tokens[3].to_owned().into_uint()?.as_u32() as u8;
-    pool.liquidity = tokens[4].to_owned().into_uint()?.as_u128();
+    pool.liquidity = tokens[4].to_owned().into_uint()?.as_u128() as i128;
     pool.sqrt_price = tokens[5].to_owned().into_uint()?;
     pool.tick = I256::from_raw(tokens[6].to_owned().into_int()?).as_i32();
     pool.tick_spacing = I256::from_raw(tokens[7].to_owned().into_int()?).as_i32();
@@ -211,7 +211,7 @@ pub async fn sync_v3_pool_batch_request<M: Middleware>(
                     .to_owned()
                     .into_uint()
                     .ok_or(AMMError::BatchRequestError(pool.address))?
-                    .as_u128();
+                    .as_u128() as i128;
                 pool.sqrt_price = pool_data[1]
                     .to_owned()
                     .into_uint()
