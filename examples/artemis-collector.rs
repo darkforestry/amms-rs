@@ -149,11 +149,11 @@ impl Strategy<Vec<H160>, Transaction> for SimpleArbitrage {
                     let target_amm_weight_0 = target_amm.calculate_price(token_a).unwrap();
                     let target_amm_weight_1 = target_amm.calculate_price(token_b).unwrap();
 
-                    if amm_weight_0 * target_amm_weight_0 > 1_f64 {
+                    if amm_weight_0 * target_amm_weight_1 > 1_f64 {
                         tracing::info!(to = ?addr, from = ?amm_address, token_in = ?token_a, "Arb detected");
                     }
 
-                    if amm_weight_1 * target_amm_weight_1 > 1_f64 {
+                    if amm_weight_1 * target_amm_weight_0 > 1_f64 {
                         tracing::info!(to = ?addr, from = ?amm_address, token_in = ?token_b, "Arb detected");
                     }
                 }
