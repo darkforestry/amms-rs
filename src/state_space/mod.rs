@@ -5,8 +5,6 @@ use crate::{
     errors::EventLogError,
 };
 use arraydeque::ArrayDeque;
-use artemis_core::types::{Collector, CollectorStream};
-use async_trait::async_trait;
 use error::{StateChangeError, StateSpaceError};
 use ethers::{
     providers::{Middleware, PubsubClient, StreamExt},
@@ -23,6 +21,12 @@ use tokio::{
     },
     task::JoinHandle,
 };
+
+#[cfg(feature = "artemis")]
+use artemis_core::types::{Collector, CollectorStream};
+#[cfg(feature = "artemis")]
+use async_trait::async_trait;
+#[cfg(feature = "artemis")]
 use tokio_stream::wrappers::ReceiverStream;
 
 //TODO: bench this with a dashmap
@@ -443,6 +447,7 @@ pub fn get_block_number_from_log(log: &Log) -> Result<u64, EventLogError> {
     }
 }
 
+#[cfg(feature = "artemis")]
 #[async_trait]
 impl<M, P> Collector<Vec<H160>> for StateSpaceManager<M, P>
 where

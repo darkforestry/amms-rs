@@ -1,3 +1,6 @@
+#[cfg(not(feature = "artemis"))]
+compile_error!("This example requires the 'artemis' feature to be enabled.");
+
 use amms::{
     amm::{
         factory::Factory, uniswap_v2::factory::UniswapV2Factory,
@@ -15,6 +18,7 @@ use ethers::{
 };
 use std::{collections::HashMap, ops::Deref, str::FromStr, sync::Arc};
 use tokio::sync::RwLock;
+
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
     tracing_subscriber::fmt::init();
