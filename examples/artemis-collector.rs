@@ -1,6 +1,3 @@
-#[cfg(not(feature = "artemis"))]
-compile_error!("This example requires the 'artemis' feature to be enabled.");
-
 use amms::{
     amm::{
         factory::Factory, uniswap_v2::factory::UniswapV2Factory,
@@ -9,8 +6,9 @@ use amms::{
     state_space::{StateSpace, StateSpaceManager},
     sync,
 };
-use artemis_core::engine::Engine;
-use artemis_core::types::Strategy;
+
+#[cfg(feature = "artemis")]
+use artemis_core::{engine, types};
 use async_trait::async_trait;
 use ethers::{
     providers::{Http, Provider, Ws},
@@ -19,6 +17,7 @@ use ethers::{
 use std::{collections::HashMap, ops::Deref, str::FromStr, sync::Arc};
 use tokio::sync::RwLock;
 
+#[cfg(feature = "artemis")]
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
     tracing_subscriber::fmt::init();
@@ -70,7 +69,7 @@ async fn main() -> eyre::Result<()> {
         pairs,
     };
 
-    let mut engine: Engine<Vec<H160>, Transaction> = Engine::new();
+    let mut engine: engine::Engine<Vec<H160>, Transaction> = engine::Engine::new();
     engine.add_collector(Box::new(state_space_manager));
     engine.add_strategy(Box::new(simple_arbitrage_strategy));
 
@@ -113,8 +112,9 @@ struct SimpleArbitrage {
     pairs: HashMap<(H160, H160), Vec<H160>>,
 }
 
+#[cfg(feature = "artemis")]
 #[async_trait]
-impl Strategy<Vec<H160>, Transaction> for SimpleArbitrage {
+impl types::Strategy<Vec<H160>, Transaction> for SimpleArbitrage {
     async fn sync_state(&mut self) -> anyhow::Result<()> {
         Ok(())
     }
@@ -168,4 +168,9 @@ impl Strategy<Vec<H160>, Transaction> for SimpleArbitrage {
 
         vec![]
     }
+}
+
+#[cfg(not(feature = "artemis"))]
+fn main() {
+    panic!("This example requires the 'artemis' feature to be enabled.");
 }
