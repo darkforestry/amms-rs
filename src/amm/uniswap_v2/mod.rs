@@ -81,8 +81,8 @@ impl AutomatedMarketMaker for UniswapV2Pool {
         _block_number: Option<u64>,
         middleware: Arc<M>,
     ) -> Result<(), AMMError<M>> {
-        batch_request::get_v2_pool_data_batch_request(self, middleware.clone()).await?;
-
+        batch_request::get_v2_pool_data_batch_request(self, _block_number, middleware.clone()).await?;
+        
         Ok(())
     }
 
@@ -222,6 +222,33 @@ impl UniswapV2Pool {
         };
 
         pool.populate_data(None, middleware.clone()).await?;
+
+        if !pool.data_is_populated() {
+            return Err(AMMError::PoolDataError);
+        }
+
+        Ok(pool)
+    }
+
+    /// Creates a new instance of the pool from the pair address, and syncs the pool data.
+    pub async fn new_from_address_and_block_number<M: Middleware>(
+        pair_address: H160,
+        fee: u32,
+        middleware: Arc<M>,
+        block_number: u64
+    ) -> Result<Self, AMMError<M>> {
+        let mut pool = UniswapV2Pool {
+            address: pair_address,
+            token_a: H160::zero(),
+            token_a_decimals: 0,
+            token_b: H160::zero(),
+            token_b_decimals: 0,
+            reserve_0: 0,
+            reserve_1: 0,
+            fee,
+        };
+
+        pool.populate_data(Some(block_number), middleware.clone()).await?;
 
         if !pool.data_is_populated() {
             return Err(AMMError::PoolDataError);
@@ -552,6 +579,7 @@ mod tests {
     use crate::amm::AutomatedMarketMaker;
 
     use super::UniswapV2Pool;
+    use ethers::providers::Middleware;
 
     #[test]
     fn test_swap_calldata() -> eyre::Result<()> {
@@ -693,6 +721,39 @@ mod tests {
 
         assert_eq!(30591574867092394336528, price_b_64_x);
         assert_eq!(11123401407064628, price_a_64_x);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_get_new_from_address_and_block_number() -> eyre::Result<()> {
+        let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
+        let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint)?);
+        let block_number = middleware.get_block_number().await.unwrap().as_u64();
+
+        let pool = UniswapV2Pool::new_from_address_and_block_number(
+            H160::from_str("0xB4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc")?,
+            300,
+            middleware.clone(),
+            block_number
+        )
+        .await?;
+
+        assert_eq!(
+            pool.address,
+            H160::from_str("0xB4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc")?
+        );
+        assert_eq!(
+            pool.token_a,
+            H160::from_str("0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48")?
+        );
+        assert_eq!(pool.token_a_decimals, 6);
+        assert_eq!(
+            pool.token_b,
+            H160::from_str("0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2")?
+        );
+        assert_eq!(pool.token_b_decimals, 18);
+        assert_eq!(pool.fee, 300);
 
         Ok(())
     }

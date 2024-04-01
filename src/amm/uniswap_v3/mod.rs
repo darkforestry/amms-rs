@@ -538,6 +538,47 @@ impl UniswapV3Pool {
         Ok(pool)
     }
 
+    /// Creates a new instance of the pool from the pair address and block number
+    ///
+    /// This function will populate all pool data.
+    pub async fn new_from_address_and_block_number<M: 'static + Middleware>(
+        pair_address: H160,
+        creation_block: u64,
+        middleware: Arc<M>,
+        current_block: u64,
+    ) -> Result<Self, AMMError<M>> {
+        let mut pool = UniswapV3Pool {
+            address: pair_address,
+            token_a: H160::zero(),
+            token_a_decimals: 0,
+            token_b: H160::zero(),
+            token_b_decimals: 0,
+            liquidity: 0,
+            sqrt_price: U256::zero(),
+            tick: 0,
+            tick_spacing: 0,
+            fee: 0,
+            tick_bitmap: HashMap::new(),
+            ticks: HashMap::new(),
+        };
+
+        //We need to get tick spacing before populating tick data because tick spacing can not be uninitialized when syncing burn and mint logs
+        pool.tick_spacing = pool.get_tick_spacing(middleware.clone()).await?;
+
+        pool
+            .populate_tick_data_with_curr_block(creation_block, current_block, middleware.clone())
+            .await?;
+
+        //TODO: break this into two threads so it can happen concurrently
+        pool.populate_data(Some(current_block), middleware).await?;
+
+        if !pool.data_is_populated() {
+            return Err(AMMError::PoolDataError);
+        }
+
+        Ok(pool)
+    }
+
     /// Creates a new instance of the pool from a log.
     ///
     /// This function will populate all pool data.
@@ -597,7 +638,7 @@ impl UniswapV3Pool {
     /// Returns the last synced block number.
     pub async fn populate_tick_data<M: 'static + Middleware>(
         &mut self,
-        mut from_block: u64,
+        from_block: u64,
         middleware: Arc<M>,
     ) -> Result<u64, AMMError<M>> {
         let current_block = middleware
@@ -605,6 +646,17 @@ impl UniswapV3Pool {
             .await
             .map_err(AMMError::MiddlewareError)?
             .as_u64();
+
+        self.populate_tick_data_with_curr_block(from_block, current_block, middleware).await
+    }
+
+    pub async fn populate_tick_data_with_curr_block<M: 'static + Middleware>(
+        &mut self,
+        mut from_block: u64,
+        current_block: u64, 
+        middleware: Arc<M>,
+    ) -> Result<u64, AMMError<M>>
+    {
 
         let mut futures = FuturesOrdered::new();
 
@@ -1934,6 +1986,42 @@ mod test {
 
         assert_eq!(float_price_a, 0.0006081236083117488);
         assert_eq!(float_price_b, 1644.4025299004006);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    #[ignore] //Ignoring to not throttle the Provider on workflows
+    async fn test_get_new_from_address_and_block_number() -> eyre::Result<()> {
+        let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
+        let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint)?);
+        let block_number = middleware.get_block_number().await.unwrap().as_u64();
+
+        let pool = UniswapV3Pool::new_from_address_and_block_number(
+            H160::from_str("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640")?,
+            12369620,
+            middleware.clone(),
+            block_number
+        )
+        .await?;
+
+        assert_eq!(
+            pool.address,
+            H160::from_str("0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640")?
+        );
+        assert_eq!(
+            pool.token_a,
+            H160::from_str("0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48")?
+        );
+        assert_eq!(pool.token_a_decimals, 6);
+        assert_eq!(
+            pool.token_b,
+            H160::from_str("0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2")?
+        );
+        assert_eq!(pool.token_b_decimals, 18);
+        assert_eq!(pool.fee, 500);
+        assert!(pool.tick != 0);
+        assert_eq!(pool.tick_spacing, 10);
 
         Ok(())
     }
