@@ -20,7 +20,7 @@ arraydeque = { version = "0.5.1", optional = true }
 artemis-core = { git = "https://github.com/paradigmxyz/artemis.git", branch = "main", optional = true }
 async-trait = "0.1.76"
 criterion = "0.5.1"
-ethers = { version = "2.0.11", default-features = true, features = ["abigen", "ws", "ipc", "rustls"] } # TODO: update this to aloy
+ethers = { version = "2.0.14", default-features = true, features = ["abigen", "ws", "ipc", "rustls"] } # TODO: update this to aloy
 eyre = "0.6.11"
 futures = "0.3.30"
 lazy_static = "1.4.0" #TODO: why do we have this
