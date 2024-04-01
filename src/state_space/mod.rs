@@ -327,7 +327,7 @@ async fn unwind_state_changes(
             if state_change.block_number >= block_to_unwind {
                 if let Some(option_state_changes) = state_change_cache.pop_front() {
                     if let Some(state_changes) = option_state_changes.state_change {
-                        for amm_state in state_changes {
+                        for amm_state in state_changes.into_iter().rev() {
                             state.write().await.insert(amm_state.address(), amm_state);
                         }
                     }
@@ -385,17 +385,6 @@ pub async fn handle_state_changes_from_logs<M: Middleware>(
     for log in logs.into_iter() {
         let log_block_number = get_block_number_from_log(&log)?;
 
-        // check if the log is from an amm in the state space
-        if let Some(amm) = state.write().await.get_mut(&log.address) {
-            if !updated_amms_set.contains(&log.address) {
-                updated_amms_set.insert(log.address);
-                updated_amms.push(log.address);
-            }
-
-            state_changes.push(amm.clone());
-            amm.sync_from_log(log)?;
-        }
-
         //Commit state changes if the block has changed since last log
         if log_block_number != last_log_block_number {
             if state_changes.is_empty() {
@@ -415,6 +404,18 @@ pub async fn handle_state_changes_from_logs<M: Middleware>(
 
             last_log_block_number = log_block_number;
         }
+
+        // check if the log is from an amm in the state space
+        if let Some(amm) = state.write().await.get_mut(&log.address) {
+            if !updated_amms_set.contains(&log.address) {
+                updated_amms_set.insert(log.address);
+                updated_amms.push(log.address);
+            }
+
+            state_changes.push(amm.clone());
+            amm.sync_from_log(log)?;
+        }
+
     }
 
     if state_changes.is_empty() {
