@@ -30,7 +30,7 @@ ruint = "1.11.1"
 serde = "1.0.176"
 serde_json = "1.0.104"
 thiserror = "1.0.55"
-tokio = { version = "1.29.1", features = ["full"] }
+tokio = { version = "1.37.0", features = ["full"] }
 tokio-stream = "0.1.14"
 tracing = "0.1.40"
 uniswap_v3_math = { git = "https://github.com/0xKitsune/uniswap-v3-math.git", branch = "main" } #TODO: publish updated crate, move to ruint
