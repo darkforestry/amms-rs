@@ -24,7 +24,7 @@ ethers = { version = "2.0.11", default-features = true, features = ["abigen", "w
 eyre = "0.6.11"
 futures = "0.3.30"
 lazy_static = "1.4.0" #TODO: why do we have this
-num-bigfloat = "1.7.0"
+num-bigfloat = "1.7.1"
 regex = "1.9.1"
 ruint = "1.11.1"
 serde = "1.0.176"
