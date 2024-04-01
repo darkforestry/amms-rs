@@ -565,8 +565,7 @@ impl UniswapV3Pool {
         //We need to get tick spacing before populating tick data because tick spacing can not be uninitialized when syncing burn and mint logs
         pool.tick_spacing = pool.get_tick_spacing(middleware.clone()).await?;
 
-        pool
-            .populate_tick_data_with_curr_block(creation_block, current_block, middleware.clone())
+        pool.populate_tick_data_with_curr_block(creation_block, current_block, middleware.clone())
             .await?;
 
         //TODO: break this into two threads so it can happen concurrently
@@ -647,17 +646,16 @@ impl UniswapV3Pool {
             .map_err(AMMError::MiddlewareError)?
             .as_u64();
 
-        self.populate_tick_data_with_curr_block(from_block, current_block, middleware).await
+        self.populate_tick_data_with_curr_block(from_block, current_block, middleware)
+            .await
     }
 
     pub async fn populate_tick_data_with_curr_block<M: 'static + Middleware>(
         &mut self,
         mut from_block: u64,
-        current_block: u64, 
+        current_block: u64,
         middleware: Arc<M>,
-    ) -> Result<u64, AMMError<M>>
-    {
-
+    ) -> Result<u64, AMMError<M>> {
         let mut futures = FuturesOrdered::new();
 
         let mut ordered_logs: BTreeMap<U64, Vec<Log>> = BTreeMap::new();
@@ -2001,7 +1999,7 @@ mod test {
             H160::from_str("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640")?,
             12369620,
             middleware.clone(),
-            block_number
+            block_number,
         )
         .await?;
 

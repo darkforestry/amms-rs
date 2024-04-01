@@ -144,12 +144,11 @@ pub async fn get_v2_pool_data_batch_request<M: Middleware>(
     let deployer = IGetUniswapV2PoolDataBatchRequest::deploy(middleware.clone(), constructor_args)?;
 
     let return_data: Bytes = if let Some(block_number) = block_number {
-        deployer.block(block_number).call_raw().await?   
-    }
-    else {
+        deployer.block(block_number).call_raw().await?
+    } else {
         deployer.call_raw().await?
     };
-    
+
     let return_data_tokens = ethers::abi::decode(
         &[ParamType::Array(Box::new(ParamType::Tuple(vec![
             ParamType::Address,   // token a

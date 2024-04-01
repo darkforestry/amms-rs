@@ -415,7 +415,6 @@ pub async fn handle_state_changes_from_logs<M: Middleware>(
             state_changes.push(amm.clone());
             amm.sync_from_log(log)?;
         }
-
     }
 
     if state_changes.is_empty() {

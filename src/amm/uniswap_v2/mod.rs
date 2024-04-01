@@ -81,8 +81,9 @@ impl AutomatedMarketMaker for UniswapV2Pool {
         _block_number: Option<u64>,
         middleware: Arc<M>,
     ) -> Result<(), AMMError<M>> {
-        batch_request::get_v2_pool_data_batch_request(self, _block_number, middleware.clone()).await?;
-        
+        batch_request::get_v2_pool_data_batch_request(self, _block_number, middleware.clone())
+            .await?;
+
         Ok(())
     }
 
@@ -235,7 +236,7 @@ impl UniswapV2Pool {
         pair_address: H160,
         fee: u32,
         middleware: Arc<M>,
-        block_number: u64
+        block_number: u64,
     ) -> Result<Self, AMMError<M>> {
         let mut pool = UniswapV2Pool {
             address: pair_address,
@@ -248,7 +249,8 @@ impl UniswapV2Pool {
             fee,
         };
 
-        pool.populate_data(Some(block_number), middleware.clone()).await?;
+        pool.populate_data(Some(block_number), middleware.clone())
+            .await?;
 
         if !pool.data_is_populated() {
             return Err(AMMError::PoolDataError);
@@ -735,7 +737,7 @@ mod tests {
             H160::from_str("0xB4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc")?,
             300,
             middleware.clone(),
-            block_number
+            block_number,
         )
         .await?;
 
