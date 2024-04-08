@@ -21,7 +21,7 @@ artemis-core = { git = "https://github.com/paradigmxyz/artemis.git", branch = "m
 async-trait = "0.1.76"
 criterion = "0.5.1"
 ethers = { version = "2.0.14", default-features = true, features = ["abigen", "ws", "ipc", "rustls"] } # TODO: update this to aloy
-eyre = "0.6.11"
+eyre = "0.6.12"
 futures = "0.3.30"
 lazy_static = "1.4.0" #TODO: why do we have this
 num-bigfloat = "1.7.1"
