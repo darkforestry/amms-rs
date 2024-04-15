@@ -7,10 +7,12 @@ use ethers::{
     providers::Middleware,
     types::{Log, H160, H256, U256},
 };
+use indicatif::MultiProgress;
 
 use crate::{
     amm::{factory::AutomatedMarketMakerFactory, AMM},
     errors::AMMError,
+    finish_progress, init_progress, update_progress_by_one,
 };
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
@@ -67,8 +69,13 @@ impl UniswapV2Factory {
         } else {
             U256::from(step)
         };
+        let range = (0..pairs_length.as_u128()).step_by(step);
+        let multi_progress = MultiProgress::new();
+        let progress = multi_progress.add(init_progress!(range.clone().count(), "Getting AMMs v2"));
+        progress.set_position(0);
 
-        for _ in (0..pairs_length.as_u128()).step_by(step) {
+        for _ in range {
+            update_progress_by_one!(progress);
             pairs.append(
                 &mut batch_request::get_pairs_batch_request(
                     self.address,
@@ -99,6 +106,8 @@ impl UniswapV2Factory {
 
             amms.push(AMM::UniswapV2Pool(amm));
         }
+
+        finish_progress!(progress);
 
         Ok(amms)
     }

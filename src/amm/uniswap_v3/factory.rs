@@ -1,7 +1,4 @@
-use std::{
-    collections::{BTreeMap, HashMap},
-    sync::Arc,
-};
+use std::{collections::HashMap, sync::Arc, vec};
 
 use async_trait::async_trait;
 use ethers::{
@@ -10,16 +7,21 @@ use ethers::{
     providers::Middleware,
     types::{BlockNumber, Filter, Log, H160, H256, U256, U64},
 };
-use futures::{stream::FuturesOrdered, StreamExt};
+
+use indicatif::MultiProgress;
 use serde::{Deserialize, Serialize};
+use tokio::{sync::Semaphore, task::JoinSet};
 use tracing::instrument;
 
 use crate::{
     amm::{factory::AutomatedMarketMakerFactory, AutomatedMarketMaker, AMM},
-    errors::{AMMError, EventLogError},
+    errors::AMMError,
+    finish_progress, init_progress, update_progress_by_one,
 };
 
 use super::{batch_request, UniswapV3Pool, BURN_EVENT_SIGNATURE, MINT_EVENT_SIGNATURE};
+
+static TASK_PERMITS: Semaphore = Semaphore::const_new(200);
 
 abigen!(
     IUniswapV3Factory,
@@ -97,8 +99,14 @@ impl AutomatedMarketMakerFactory for UniswapV3Factory {
         middleware: Arc<M>,
     ) -> Result<(), AMMError<M>> {
         if let Some(block_number) = block_number {
-            let step = 127; //Max batch size for call
-            for amm_chunk in amms.chunks_mut(step) {
+            let step = 127;
+            let amm_chunks = amms.chunks_mut(step);
+            let multi_progress = MultiProgress::new();
+            let progress =
+                multi_progress.add(init_progress!(amm_chunks.len(), "Populating AMM data v3"));
+            progress.set_position(0);
+            for amm_chunk in amm_chunks {
+                update_progress_by_one!(progress);
                 batch_request::get_amm_data_batch_request(
                     amm_chunk,
                     block_number,
@@ -106,6 +114,7 @@ impl AutomatedMarketMakerFactory for UniswapV3Factory {
                 )
                 .await?;
             }
+            finish_progress!(progress);
         } else {
             return Err(AMMError::BlockNumberNotFound);
         }
@@ -148,12 +157,14 @@ impl UniswapV3Factory {
         step: u64,
         middleware: Arc<M>,
     ) -> Result<Vec<AMM>, AMMError<M>> {
-        //Unwrap can be used here because the creation block was verified within `Dex::new()`
         let mut from_block = self.creation_block;
         let mut aggregated_amms: HashMap<H160, AMM> = HashMap::new();
-        let mut ordered_logs: BTreeMap<U64, Vec<Log>> = BTreeMap::new();
-        let mut futures = FuturesOrdered::new();
-
+        let mut join_set = JoinSet::new();
+        let range = to_block - from_block;
+        let total_chunks = range / step;
+        let multi_progress = MultiProgress::new();
+        let progress = multi_progress.add(init_progress!(total_chunks, "Getting AMMs v3"));
+        progress.set_position(0);
         while from_block < to_block {
             let middleware = middleware.clone();
 
@@ -162,8 +173,10 @@ impl UniswapV3Factory {
                 target_block = to_block;
             }
 
-            futures.push_back(async move {
-                middleware
+            join_set.spawn(async move {
+                let _permit = TASK_PERMITS.acquire().await;
+
+                let logs = middleware
                     .get_logs(
                         &Filter::new()
                             .topic0(vec![
@@ -175,54 +188,54 @@ impl UniswapV3Factory {
                             .to_block(BlockNumber::Number(U64([target_block]))),
                     )
                     .await
+                    .map_err(AMMError::MiddlewareError)?;
+                let mut amms = HashMap::new();
+
+                for log in logs {
+                    let event_signature = log.topics[0];
+
+                    //If the event sig is the pool created event sig, then the log is coming from the factory
+                    if event_signature == POOL_CREATED_EVENT_SIGNATURE {
+                        if log.address == self.address {
+                            let mut new_pool = self.new_empty_amm_from_log(log)?;
+                            if let AMM::UniswapV3Pool(ref mut pool) = new_pool {
+                                pool.tick_spacing =
+                                    pool.get_tick_spacing(middleware.clone()).await?;
+                            }
+
+                            amms.insert(new_pool.address(), new_pool);
+                        }
+                    } else if event_signature == BURN_EVENT_SIGNATURE {
+                        //If the event sig is the BURN_EVENT_SIGNATURE log is coming from the pool
+                        if let Some(AMM::UniswapV3Pool(pool)) = amms.get_mut(&log.address) {
+                            pool.sync_from_burn_log(log)?;
+                        }
+                    } else if event_signature == MINT_EVENT_SIGNATURE {
+                        if let Some(AMM::UniswapV3Pool(pool)) = amms.get_mut(&log.address) {
+                            pool.sync_from_mint_log(log)?;
+                        }
+                    }
+                }
+
+                Ok::<_, AMMError<M>>(amms)
             });
 
             from_block += step;
         }
 
-        // TODO: this could be more dry since we use this in another place
-        while let Some(result) = futures.next().await {
-            let logs = result.map_err(AMMError::MiddlewareError)?;
-
-            for log in logs {
-                if let Some(log_block_number) = log.block_number {
-                    if let Some(log_group) = ordered_logs.get_mut(&log_block_number) {
-                        log_group.push(log);
-                    } else {
-                        ordered_logs.insert(log_block_number, vec![log]);
-                    }
-                } else {
-                    return Err(EventLogError::LogBlockNumberNotFound)?;
-                }
+        while let Some(result) = join_set.join_next().await {
+            update_progress_by_one!(progress);
+            if let Err(err) = result {
+                return Err(AMMError::JoinError(err));
+            }
+            if let Ok(Err(err)) = result {
+                return Err(err);
+            }
+            if let Ok(Ok(amms)) = result {
+                aggregated_amms.extend(amms);
             }
         }
-
-        for (_, log_group) in ordered_logs {
-            for log in log_group {
-                let event_signature = log.topics[0];
-
-                //If the event sig is the pool created event sig, then the log is coming from the factory
-                if event_signature == POOL_CREATED_EVENT_SIGNATURE {
-                    if log.address == self.address {
-                        let mut new_pool = self.new_empty_amm_from_log(log)?;
-                        if let AMM::UniswapV3Pool(ref mut pool) = new_pool {
-                            pool.tick_spacing = pool.get_tick_spacing(middleware.clone()).await?;
-                        }
-
-                        aggregated_amms.insert(new_pool.address(), new_pool);
-                    }
-                } else if event_signature == BURN_EVENT_SIGNATURE {
-                    //If the event sig is the BURN_EVENT_SIGNATURE log is coming from the pool
-                    if let Some(AMM::UniswapV3Pool(pool)) = aggregated_amms.get_mut(&log.address) {
-                        pool.sync_from_burn_log(log)?;
-                    }
-                } else if event_signature == MINT_EVENT_SIGNATURE {
-                    if let Some(AMM::UniswapV3Pool(pool)) = aggregated_amms.get_mut(&log.address) {
-                        pool.sync_from_mint_log(log)?;
-                    }
-                }
-            }
-        }
+        finish_progress!(progress);
 
         Ok(aggregated_amms.into_values().collect::<Vec<AMM>>())
     }

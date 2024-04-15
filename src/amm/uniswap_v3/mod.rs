@@ -89,7 +89,7 @@ pub struct UniswapV3Pool {
     pub token_a_decimals: u8,
     pub token_b: H160,
     pub token_b_decimals: u8,
-    pub liquidity: u128,
+    pub liquidity: i128,
     pub sqrt_price: U256,
     pub fee: u32,
     pub tick: i32,
@@ -100,13 +100,13 @@ pub struct UniswapV3Pool {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Info {
-    pub liquidity_gross: u128,
+    pub liquidity_gross: i128,
     pub liquidity_net: i128,
     pub initialized: bool,
 }
 
 impl Info {
-    pub fn new(liquidity_gross: u128, liquidity_net: i128, initialized: bool) -> Self {
+    pub fn new(liquidity_gross: i128, liquidity_net: i128, initialized: bool) -> Self {
         Info {
             liquidity_gross,
             liquidity_net,
@@ -255,7 +255,7 @@ impl AutomatedMarketMaker for UniswapV3Pool {
             ) = uniswap_v3_math::swap_math::compute_swap_step(
                 current_state.sqrt_price_x_96,
                 swap_target_sqrt_ratio,
-                current_state.liquidity,
+                current_state.liquidity as u128,
                 current_state.amount_specified_remaining,
                 self.fee,
             )?;
@@ -285,13 +285,13 @@ impl AutomatedMarketMaker for UniswapV3Pool {
                     }
 
                     current_state.liquidity = if liquidity_net < 0 {
-                        if current_state.liquidity < (-liquidity_net as u128) {
+                        if current_state.liquidity < -liquidity_net {
                             return Err(SwapSimulationError::LiquidityUnderflow);
                         } else {
-                            current_state.liquidity - (-liquidity_net as u128)
+                            current_state.liquidity - -liquidity_net
                         }
                     } else {
-                        current_state.liquidity + (liquidity_net as u128)
+                        current_state.liquidity + liquidity_net
                     };
                 }
                 //Increment the current tick
@@ -391,7 +391,7 @@ impl AutomatedMarketMaker for UniswapV3Pool {
             ) = uniswap_v3_math::swap_math::compute_swap_step(
                 current_state.sqrt_price_x_96,
                 swap_target_sqrt_ratio,
-                current_state.liquidity,
+                current_state.liquidity as u128,
                 current_state.amount_specified_remaining,
                 self.fee,
             )?;
@@ -421,13 +421,13 @@ impl AutomatedMarketMaker for UniswapV3Pool {
                     }
 
                     current_state.liquidity = if liquidity_net < 0 {
-                        if current_state.liquidity < (-liquidity_net as u128) {
+                        if current_state.liquidity < -liquidity_net {
                             return Err(SwapSimulationError::LiquidityUnderflow);
                         } else {
-                            current_state.liquidity - (-liquidity_net as u128)
+                            current_state.liquidity - -liquidity_net
                         }
                     } else {
-                        current_state.liquidity + (liquidity_net as u128)
+                        current_state.liquidity + liquidity_net
                     };
                 }
                 //Increment the current tick
@@ -482,6 +482,7 @@ impl UniswapV3Pool {
         tick_bitmap: HashMap<i16, U256>,
         ticks: HashMap<i32, Info>,
     ) -> UniswapV3Pool {
+        let liquidity = liquidity as i128;
         UniswapV3Pool {
             address,
             token_a,
@@ -525,7 +526,7 @@ impl UniswapV3Pool {
         pool.tick_spacing = pool.get_tick_spacing(middleware.clone()).await?;
 
         let synced_block = pool
-            .populate_tick_data(creation_block, middleware.clone())
+            .populate_tick_data(creation_block, None, middleware.clone())
             .await?;
 
         //TODO: break this into two threads so it can happen concurrently
@@ -598,13 +599,18 @@ impl UniswapV3Pool {
     pub async fn populate_tick_data<M: 'static + Middleware>(
         &mut self,
         mut from_block: u64,
+        to_block: Option<u64>,
         middleware: Arc<M>,
     ) -> Result<u64, AMMError<M>> {
-        let current_block = middleware
-            .get_block_number()
-            .await
-            .map_err(AMMError::MiddlewareError)?
-            .as_u64();
+        let current_block = if let Some(to_block) = to_block {
+            to_block
+        } else {
+            middleware
+                .get_block_number()
+                .await
+                .map_err(AMMError::MiddlewareError)?
+                .as_u64()
+        };
 
         let mut futures = FuturesOrdered::new();
 
@@ -760,17 +766,28 @@ impl UniswapV3Pool {
     pub async fn get_liquidity<M: Middleware>(
         &self,
         middleware: Arc<M>,
+        block: Option<u64>,
     ) -> Result<u128, AMMError<M>> {
         let v3_pool = IUniswapV3Pool::new(self.address, middleware);
-        Ok(v3_pool.liquidity().call().await?)
+        if let Some(block) = block {
+            Ok(v3_pool.liquidity().block(block).call().await?)
+        } else {
+            Ok(v3_pool.liquidity().call().await?)
+        }
     }
 
     /// Fetches the current sqrt price of the pool via static call.
     pub async fn get_sqrt_price<M: Middleware>(
         &self,
         middleware: Arc<M>,
+        block: Option<u64>,
     ) -> Result<U256, AMMError<M>> {
-        Ok(self.get_slot_0(middleware).await?.0)
+        if let Some(block) = block {
+            let v3_pool = IUniswapV3Pool::new(self.address, middleware);
+            Ok(v3_pool.slot_0().block(block).call().await?.0)
+        } else {
+            Ok(self.get_slot_0(middleware).await?.0)
+        }
     }
 
     /// Updates the pool state from a burn event log.
@@ -813,9 +830,9 @@ impl UniswapV3Pool {
             //if the tick is between the tick lower and tick upper, update the liquidity between the ticks
             if self.tick > tick_lower && self.tick < tick_upper {
                 self.liquidity = if liquidity_delta < 0 {
-                    self.liquidity - ((-liquidity_delta) as u128)
+                    self.liquidity - (-liquidity_delta)
                 } else {
-                    self.liquidity + (liquidity_delta as u128)
+                    self.liquidity + liquidity_delta
                 }
             }
         }
@@ -861,9 +878,9 @@ impl UniswapV3Pool {
         let liquidity_gross_before = info.liquidity_gross;
 
         let liquidity_gross_after = if liquidity_delta < 0 {
-            liquidity_gross_before - ((-liquidity_delta) as u128)
+            liquidity_gross_before - (-liquidity_delta)
         } else {
-            liquidity_gross_before + (liquidity_delta as u128)
+            liquidity_gross_before + liquidity_delta
         };
 
         //we do not need to check if liqudity_gross_after > maxLiquidity because we are only calling update tick on a burn or mint log.
@@ -901,7 +918,7 @@ impl UniswapV3Pool {
         let swap_event = SwapFilter::decode_log(&RawLog::from(log))?;
 
         self.sqrt_price = swap_event.sqrt_price_x96;
-        self.liquidity = swap_event.liquidity;
+        self.liquidity = swap_event.liquidity as i128;
         self.tick = swap_event.tick;
 
         tracing::debug!(?swap_event, address = ?self.address, sqrt_price = ?self.sqrt_price, liquidity = ?self.liquidity, tick = ?self.tick, "UniswapV3 swap event");
@@ -976,7 +993,7 @@ impl UniswapV3Pool {
 
         //Sqrt price is stored as a Q64.96 so we need to left shift the liquidity by 96 to be represented as Q64.96
         //We cant right shift sqrt_price because it could move the value to 0, making division by 0 to get reserve_x
-        let liquidity = BigFloat::from_u128(self.liquidity);
+        let liquidity = BigFloat::from_i128(self.liquidity);
 
         let (reserve_0, reserve_1) = if !sqrt_price.is_zero() {
             let reserve_x = liquidity.div(&sqrt_price);
@@ -1037,7 +1054,7 @@ pub struct CurrentState {
     amount_calculated: I256,
     sqrt_price_x_96: U256,
     tick: i32,
-    liquidity: u128,
+    liquidity: i128,
 }
 
 #[derive(Default)]
@@ -1104,7 +1121,7 @@ mod test {
         let creation_block = 12369620;
         pool.tick_spacing = pool.get_tick_spacing(middleware.clone()).await?;
         let synced_block = pool
-            .populate_tick_data(creation_block, middleware.clone())
+            .populate_tick_data(creation_block, None, middleware.clone())
             .await?;
         pool.populate_data(Some(synced_block), middleware).await?;
 
@@ -1122,7 +1139,7 @@ mod test {
         let creation_block = 12375680;
         pool.tick_spacing = pool.get_tick_spacing(middleware.clone()).await?;
         let synced_block = pool
-            .populate_tick_data(creation_block, middleware.clone())
+            .populate_tick_data(creation_block, None, middleware.clone())
             .await?;
         pool.populate_data(Some(synced_block), middleware).await?;
 
@@ -1899,7 +1916,7 @@ mod test {
         let liquidity = pool_at_block.liquidity().block(16515398).call().await?;
 
         pool.sqrt_price = sqrt_price;
-        pool.liquidity = liquidity;
+        pool.liquidity = liquidity as i128;
 
         let (r_0, r_1) = pool.calculate_virtual_reserves()?;
 
