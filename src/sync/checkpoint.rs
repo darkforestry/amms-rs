@@ -282,7 +282,9 @@ pub fn deconstruct_checkpoint(checkpoint_path: &str) -> Result<(Vec<AMM>, u64), 
 
 #[cfg(test)]
 mod test {
+
     #[tokio::test(flavor = "multi_thread")]
+    #[ignore] // requires building `src/sync/checkpoint_test.json` prior to testing.
     pub async fn test_sync_amms_from_checkpoint() -> eyre::Result<()> {
         use crate::amm::AutomatedMarketMaker;
         use crate::sync::{AMM, AMM::UniswapV3Pool};

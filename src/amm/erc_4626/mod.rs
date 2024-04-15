@@ -218,27 +218,33 @@ impl ERC4626Vault {
         let vault = IERC4626Vault::new(self.vault_token, middleware);
         // Get the total assets in the vault
         let total_assets = if let Some(block) = block {
-            match vault.total_assets().block(block).call().await {
-                Ok(total_assets) => total_assets,
-                Err(e) => return Err(AMMError::ContractError(e)),
-            }
+            vault
+                .total_assets()
+                .block(block)
+                .call()
+                .await
+                .map_err(AMMError::ContractError)?
         } else {
-            match vault.total_assets().call().await {
-                Ok(total_assets) => total_assets,
-                Err(e) => return Err(AMMError::ContractError(e)),
-            }
+            vault
+                .total_assets()
+                .call()
+                .await
+                .map_err(AMMError::ContractError)?
         };
         // Get the total supply of the vault token
         let total_supply = if let Some(block) = block {
-            match vault.total_supply().block(block).call().await {
-                Ok(total_supply) => total_supply,
-                Err(e) => return Err(AMMError::ContractError(e)),
-            }
+            vault
+                .total_supply()
+                .block(block)
+                .call()
+                .await
+                .map_err(AMMError::ContractError)?
         } else {
-            match vault.total_supply().call().await {
-                Ok(total_supply) => total_supply,
-                Err(e) => return Err(AMMError::ContractError(e)),
-            }
+            vault
+                .total_supply()
+                .call()
+                .await
+                .map_err(AMMError::ContractError)?
         };
 
         Ok((total_supply, total_assets))

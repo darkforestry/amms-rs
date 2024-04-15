@@ -297,15 +297,18 @@ impl UniswapV2Pool {
         let v2_pair = IUniswapV2Pair::new(self.address, middleware);
         // Make a call to get the reserves
         let (reserve_0, reserve_1, _) = if let Some(block) = block {
-            match v2_pair.get_reserves().block(block).call().await {
-                Ok(result) => result,
-                Err(contract_error) => return Err(AMMError::ContractError(contract_error)),
-            }
+            v2_pair
+                .get_reserves()
+                .block(block)
+                .call()
+                .await
+                .map_err(AMMError::ContractError)?
         } else {
-            match v2_pair.get_reserves().call().await {
-                Ok(result) => result,
-                Err(contract_error) => return Err(AMMError::ContractError(contract_error)),
-            }
+            v2_pair
+                .get_reserves()
+                .call()
+                .await
+                .map_err(AMMError::ContractError)?
         };
 
         tracing::trace!(reserve_0, reserve_1);
