@@ -51,9 +51,8 @@ impl Checkpoint {
 //Get all pairs from last synced block and sync reserve values for each Dex in the `dexes` vec.
 pub async fn sync_amms_from_checkpoint<M: 'static + Middleware>(
     path_to_checkpoint: &str,
-    step: u64,
     middleware: Arc<M>,
-) -> Result<(Vec<Factory>, Vec<AMM>), AMMError<M>> {
+) -> Result<(u64, Vec<Factory>, Vec<AMM>), AMMError<M>> {
     let current_block = middleware
         .get_block_number()
         .await
@@ -62,7 +61,7 @@ pub async fn sync_amms_from_checkpoint<M: 'static + Middleware>(
 
     let checkpoint: Checkpoint =
         serde_json::from_str(read_to_string(path_to_checkpoint)?.as_str())?;
-
+    let checkpoint_block = checkpoint.block_number;
     //Sort all of the pools from the checkpoint into uniswap_v2_pools and uniswap_v3_pools pools so we can sync them concurrently
     let (uniswap_v2_pools, uniswap_v3_pools, erc_4626_pools) = sort_amms(checkpoint.amms);
 
@@ -74,6 +73,7 @@ pub async fn sync_amms_from_checkpoint<M: 'static + Middleware>(
         handles.push(
             batch_sync_amms_from_checkpoint(
                 uniswap_v2_pools,
+                Some(checkpoint_block),
                 Some(current_block),
                 middleware.clone(),
             )
@@ -86,6 +86,7 @@ pub async fn sync_amms_from_checkpoint<M: 'static + Middleware>(
         handles.push(
             batch_sync_amms_from_checkpoint(
                 uniswap_v3_pools,
+                Some(checkpoint_block),
                 Some(current_block),
                 middleware.clone(),
             )
@@ -102,16 +103,16 @@ pub async fn sync_amms_from_checkpoint<M: 'static + Middleware>(
     }
 
     //Sync all pools from the since synced block
-    handles.extend(
-        get_new_amms_from_range(
-            checkpoint.factories.clone(),
-            checkpoint.block_number,
-            current_block,
-            step,
-            middleware.clone(),
-        )
-        .await,
-    );
+    // handles.extend(
+    //     get_new_amms_from_range(
+    //         checkpoint.factories.clone(),
+    //         checkpoint.block_number,
+    //         current_block,
+    //         step,
+    //         middleware.clone(),
+    //     )
+    //     .await,
+    // );
 
     for handle in handles {
         match handle.await {
@@ -135,7 +136,7 @@ pub async fn sync_amms_from_checkpoint<M: 'static + Middleware>(
         path_to_checkpoint,
     )?;
 
-    Ok((checkpoint.factories, aggregated_amms))
+    Ok((current_block, checkpoint.factories, aggregated_amms))
 }
 
 pub async fn get_new_amms_from_range<M: 'static + Middleware>(
@@ -159,7 +160,7 @@ pub async fn get_new_amms_from_range<M: 'static + Middleware>(
                 .await?;
 
             factory
-                .populate_amm_data(&mut amms, Some(to_block), middleware.clone())
+                .populate_amm_data(&mut amms, Some(from_block), Some(to_block), middleware.clone())
                 .await?;
 
             //Clean empty pools
@@ -174,6 +175,7 @@ pub async fn get_new_amms_from_range<M: 'static + Middleware>(
 
 pub async fn batch_sync_amms_from_checkpoint<M: 'static + Middleware>(
     mut amms: Vec<AMM>,
+    checkpoint_block: Option<u64>,
     block_number: Option<u64>,
     middleware: Arc<M>,
 ) -> JoinHandle<Result<Vec<AMM>, AMMError<M>>> {
@@ -198,7 +200,7 @@ pub async fn batch_sync_amms_from_checkpoint<M: 'static + Middleware>(
             if amms_are_congruent(&amms) {
                 //Get all pool data via batched calls
                 factory
-                    .populate_amm_data(&mut amms, block_number, middleware)
+                    .populate_amm_data(&mut amms, checkpoint_block, block_number, middleware)
                     .await?;
 
                 //Clean empty pools
@@ -250,7 +252,7 @@ pub async fn get_new_pools_from_range<M: 'static + Middleware>(
                 .await?;
 
             factory
-                .populate_amm_data(&mut pools, Some(to_block), middleware.clone())
+                .populate_amm_data(&mut pools, Some(from_block), Some(to_block), middleware.clone())
                 .await?;
 
             //Clean empty pools
