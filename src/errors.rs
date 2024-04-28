@@ -1,26 +1,21 @@
-use ethers::prelude::{AbiError, ContractError};
-use ethers::providers::{Middleware, ProviderError};
-use ethers::types::{H160, U256};
+use alloy::primitives::{Address, U256};
+use alloy::transports::TransportError;
+
 use std::time::SystemTimeError;
 use thiserror::Error;
 use tokio::task::JoinError;
 use uniswap_v3_math::error::UniswapV3MathError;
 
 #[derive(Error, Debug)]
-pub enum AMMError<M>
-where
-    M: Middleware,
-{
-    #[error("Middleware error")]
-    MiddlewareError(<M as Middleware>::Error),
-    #[error("Provider error")]
-    ProviderError(#[from] ProviderError),
+pub enum AMMError {
+    #[error("Transport error")]
+    TransportError(#[from] TransportError),
     #[error("Contract error")]
-    ContractError(#[from] ContractError<M>),
+    ContractError(#[from] alloy::contract::Error),
     #[error("ABI Codec error")]
-    ABICodecError(#[from] AbiError),
+    ABICodecError(#[from] alloy::dyn_abi::Error),
     #[error("Eth ABI error")]
-    EthABIError(#[from] ethers::abi::Error),
+    EthABIError(#[from] alloy::sol_types::Error),
     #[error("Join error")]
     JoinError(#[from] JoinError),
     #[error("Serde json error")]
@@ -32,11 +27,11 @@ where
     #[error("Uniswap V3 math error")]
     UniswapV3MathError(#[from] UniswapV3MathError),
     #[error("Pair for token_a/token_b does not exist in provided dexes")]
-    PairDoesNotExistInDexes(H160, H160),
+    PairDoesNotExistInDexes(Address, Address),
     #[error("Could not initialize new pool from event log")]
     UnrecognizedPoolCreatedEventLog,
     #[error("Error when syncing pool")]
-    SyncError(H160),
+    SyncError(Address),
     #[error("Error when getting pool data")]
     PoolDataError,
     #[error("Arithmetic error")]
@@ -56,9 +51,11 @@ where
     #[error("Swap simulation error")]
     SwapSimulationError(#[from] SwapSimulationError),
     #[error("Invalid data from batch request")]
-    BatchRequestError(H160),
+    BatchRequestError(Address),
     #[error("Checkpoint error")]
     CheckpointError(#[from] CheckpointError),
+    #[error("General eyre error")]
+    EyreError(#[from] eyre::Error),
 }
 
 #[derive(Error, Debug)]
@@ -84,9 +81,9 @@ pub enum EventLogError {
     #[error("Log Block number not found")]
     LogBlockNumberNotFound,
     #[error("Eth abi error")]
-    EthABIError(#[from] ethers::abi::Error),
+    EthABIError(#[from] alloy::sol_types::Error),
     #[error("ABI error")]
-    ABIError(#[from] AbiError),
+    ABIError(#[from] alloy::dyn_abi::Error),
 }
 
 #[derive(Error, Debug)]
