@@ -3,7 +3,6 @@ use alloy::{
     primitives::{Address, U256},
     providers::Provider,
     sol,
-    sol_types::{SolCall, SolConstructor, SolEvent},
     transports::Transport,
 };
 use std::sync::Arc;
@@ -46,7 +45,7 @@ pub async fn get_pairs_batch_request<T: Transport + Clone, P: Provider<T, AnyNet
     from: U256,
     step: U256,
     provider: Arc<P>,
-) -> Result<Vec<Address>, AMMError<T>> {
+) -> Result<Vec<Address>, AMMError> {
     let deployer = IGetUniswapV2PairsBatchRequest::deploy_builder(provider, from, step, factory)
         .with_sol_decoder::<IGetUniswapV2PairsBatchReturn::constructorReturnCall>();
 
@@ -59,7 +58,7 @@ pub async fn get_pairs_batch_request<T: Transport + Clone, P: Provider<T, AnyNet
 pub async fn get_amm_data_batch_request<T: Transport + Clone, P: Provider<T, AnyNetwork>>(
     amms: &mut [AMM],
     provider: Arc<P>,
-) -> Result<(), AMMError<T>> {
+) -> Result<(), AMMError> {
     let mut target_addresses = vec![];
     for amm in amms.iter() {
         target_addresses.push(amm.address());
@@ -72,7 +71,6 @@ pub async fn get_amm_data_batch_request<T: Transport + Clone, P: Provider<T, Any
         deployer.call().await?;
 
     let mut pool_idx = 0;
-
     for amm_data in amms_data {
         if !amm_data.0.is_zero() {
             if let AMM::UniswapV2Pool(uniswap_v2_pool) = amms
@@ -99,28 +97,29 @@ pub async fn get_amm_data_batch_request<T: Transport + Clone, P: Provider<T, Any
 pub async fn get_v2_pool_data_batch_request<T: Transport + Clone, P: Provider<T, AnyNetwork>>(
     pool: &mut UniswapV2Pool,
     provider: Arc<P>,
-) -> Result<(), AMMError<T>> {
+) -> Result<(), AMMError> {
     let deployer =
         IGetUniswapV2PoolDataBatchRequest::deploy_builder(provider.clone(), vec![pool.address])
             .with_sol_decoder::<IGetUniswapV2PoolDataBatchReturn::constructorReturnCall>();
-    let IGetUniswapV2PoolDataBatchReturn::constructorReturnReturn { _0: pools_data } =
+    let IGetUniswapV2PoolDataBatchReturn::constructorReturnReturn { _0: pool_data } =
         deployer.call().await?;
 
-    // make sure returned pool data is 1
-    let pools_data_len = pools_data.len();
-    if pools_data_len != 1_usize {
+    // make sure returned pool data len == 1
+    let pool_data_len = pool_data.len();
+    if pool_data_len != 1_usize {
         return Err(AMMError::EyreError(eyre::eyre!(
-            "Unexpected return length, expected 1, returned {pools_data_len}"
+            "Unexpected return length, expected 1, returned {pool_data_len}"
         )));
     }
 
-    if !pools_data[0].0.is_zero() {
-        pool.token_a = pools_data[0].0;
-        pool.token_a_decimals = pools_data[0].1;
-        pool.token_b = pools_data[0].2;
-        pool.token_b_decimals = pools_data[0].3;
-        pool.reserve_0 = pools_data[0].4;
-        pool.reserve_1 = pools_data[0].5;
+    // Update pool data
+    if !pool_data[0].0.is_zero() {
+        pool.token_a = pool_data[0].0;
+        pool.token_a_decimals = pool_data[0].1;
+        pool.token_b = pool_data[0].2;
+        pool.token_b_decimals = pool_data[0].3;
+        pool.reserve_0 = pool_data[0].4;
+        pool.reserve_1 = pool_data[0].5;
 
         tracing::trace!(?pool);
     }
