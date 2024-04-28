@@ -36,7 +36,7 @@ tracing = "0.1.40"
 # TODO: publish updated crate, move to ruint
 uniswap_v3_math = { git = "https://github.com/0xKitsune/uniswap-v3-math.git", branch = "main" } 
 # TODO: remove unused modules when migration is completed
-alloy = { git = "https://github.com/alloy-rs/alloy", rev = "9bfc83e", features = [
+alloy = { git = "https://github.com/alloy-rs/alloy", rev = "7128c53", features = [
     "contract",
     "network",
     "node-bindings",
