@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
 use alloy::{
+    network::Network,
     primitives::{Address, B256},
-    providers::{network::AnyNetwork, Provider},
+    providers::Provider,
     rpc::types::eth::{Filter, Log},
     transports::Transport,
 };
@@ -19,14 +20,19 @@ use super::{
 };
 
 #[async_trait]
-pub trait AutomatedMarketMakerFactory {
+pub trait AutomatedMarketMakerFactory<T, N, P>
+where
+    T: Transport + Clone,
+    N: Network,
+    P: Provider<T, N>,
+{
     /// Returns the address of the factory.
     fn address(&self) -> Address;
 
     /// Gets all Pools from the factory created logs up to the `to_block` block number.
     ///
     /// Returns a vector of AMMs.
-    async fn get_all_amms<T: Transport + Clone, P: Provider<T, AnyNetwork>>(
+    async fn get_all_amms(
         &self,
         to_block: Option<u64>,
         provider: Arc<P>,
@@ -34,7 +40,7 @@ pub trait AutomatedMarketMakerFactory {
     ) -> Result<Vec<AMM>, AMMError>;
 
     /// Populates all AMMs data via batched static calls.
-    async fn populate_amm_data<T: Transport + Clone, P: Provider<T, AnyNetwork>>(
+    async fn populate_amm_data(
         &self,
         amms: &mut [AMM],
         block_number: Option<u64>,
@@ -50,11 +56,7 @@ pub trait AutomatedMarketMakerFactory {
     /// Creates a new AMM from a log factory creation event.
     ///
     /// Returns a AMM with data populated.
-    async fn new_amm_from_log<T: Transport + Clone, P: Provider<T, AnyNetwork>>(
-        &self,
-        log: Log,
-        provider: Arc<P>,
-    ) -> Result<AMM, AMMError>;
+    async fn new_amm_from_log(&self, log: Log, provider: Arc<P>) -> Result<AMM, AMMError>;
 
     /// Creates a new empty AMM from a log factory creation event.
     fn new_empty_amm_from_log(&self, log: Log) -> Result<AMM, alloy::sol_types::Error>;
@@ -68,14 +70,19 @@ macro_rules! factory {
         }
 
         #[async_trait]
-        impl AutomatedMarketMakerFactory for Factory {
+        impl<T, N, P> AutomatedMarketMakerFactory<T, N, P> for Factory
+        where
+            T: Transport + Clone,
+            N: Network,
+            P: Provider<T, N>,
+        {
             fn address(&self) -> Address {
                 match self {
                     $(Factory::$factory_type(factory) => factory.address(),)+
                 }
             }
 
-            async fn get_all_amms<T: Transport + Clone, P: Provider<T, AnyNetwork>>(
+            async fn get_all_amms(
                 &self,
                 to_block: Option<u64>,
                 provider: Arc<P>,
@@ -88,7 +95,7 @@ macro_rules! factory {
                 }
             }
 
-            async fn populate_amm_data<T: Transport + Clone, P: Provider<T, AnyNetwork>>(
+            async fn populate_amm_data(
                 &self,
                 amms: &mut [AMM],
                 block_number: Option<u64>,
@@ -113,7 +120,7 @@ macro_rules! factory {
                 }
             }
 
-            async fn new_amm_from_log<T: Transport + Clone, P: Provider<T, AnyNetwork>>(
+            async fn new_amm_from_log(
                 &self,
                 log: Log,
                 provider: Arc<P>,
@@ -135,15 +142,16 @@ macro_rules! factory {
 factory!(UniswapV2Factory, UniswapV3Factory);
 
 impl Factory {
-    pub async fn get_all_pools_from_logs<T: Transport + Clone, P: Provider<T, AnyNetwork>>(
+    pub async fn get_all_pools_from_logs<T: Transport + Clone, N: Network, P: Provider<T, N>>(
         &self,
         mut from_block: u64,
         to_block: u64,
         step: u64,
         provider: Arc<P>,
     ) -> Result<Vec<AMM>, AMMError> {
-        let factory_address = self.address();
-        let amm_created_event_signature = self.amm_created_event_signature();
+        let factory_address = <Factory as AutomatedMarketMakerFactory<T, N, P>>::address(self);
+        let amm_created_event_signature =
+            <Factory as AutomatedMarketMakerFactory<T, N, P>>::amm_created_event_signature(self);
         let mut futures = FuturesUnordered::new();
 
         let mut aggregated_amms: Vec<AMM> = vec![];
@@ -170,7 +178,11 @@ impl Factory {
             let logs = result.map_err(AMMError::TransportError)?;
 
             for log in logs {
-                aggregated_amms.push(self.new_empty_amm_from_log(log).unwrap());
+                aggregated_amms.push(
+                    <Factory as AutomatedMarketMakerFactory<T, N, P>>::new_empty_amm_from_log(
+                        self, log,
+                    )?,
+                );
             }
         }
 

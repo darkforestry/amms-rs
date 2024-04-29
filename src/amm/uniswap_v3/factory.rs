@@ -4,7 +4,7 @@ use std::{
 };
 
 use alloy::{
-    network::AnyNetwork,
+    network::Network,
     primitives::{Address, FixedBytes, B256, U256},
     providers::Provider,
     rpc::types::eth::{Filter, Log},
@@ -48,7 +48,12 @@ pub struct UniswapV3Factory {
 }
 
 #[async_trait]
-impl AutomatedMarketMakerFactory for UniswapV3Factory {
+impl<T, N, P> AutomatedMarketMakerFactory<T, N, P> for UniswapV3Factory
+where
+    T: Transport + Clone,
+    N: Network,
+    P: Provider<T, N>,
+{
     fn address(&self) -> Address {
         self.address
     }
@@ -61,11 +66,7 @@ impl AutomatedMarketMakerFactory for UniswapV3Factory {
         POOL_CREATED_EVENT_SIGNATURE
     }
 
-    async fn new_amm_from_log<T: Transport + Clone, P: Provider<T, AnyNetwork>>(
-        &self,
-        log: Log,
-        provider: Arc<P>,
-    ) -> Result<AMM, AMMError> {
+    async fn new_amm_from_log(&self, log: Log, provider: Arc<P>) -> Result<AMM, AMMError> {
         if let Some(block_number) = log.block_number {
             let pool_created_filter = IUniswapV3Factory::PoolCreated::decode_log(&log.inner, true)?;
             Ok(AMM::UniswapV3Pool(
@@ -77,7 +78,7 @@ impl AutomatedMarketMakerFactory for UniswapV3Factory {
         }
     }
 
-    async fn get_all_amms<T: Transport + Clone, P: Provider<T, AnyNetwork>>(
+    async fn get_all_amms(
         &self,
         to_block: Option<u64>,
         provider: Arc<P>,
@@ -91,7 +92,7 @@ impl AutomatedMarketMakerFactory for UniswapV3Factory {
     }
 
     #[instrument(skip(self, amms, provider) level = "debug")]
-    async fn populate_amm_data<T: Transport + Clone, P: Provider<T, AnyNetwork>>(
+    async fn populate_amm_data(
         &self,
         amms: &mut [AMM],
         block_number: Option<u64>,
@@ -143,7 +144,7 @@ impl UniswapV3Factory {
     }
 
     // Function to get all pair created events for a given Dex factory address and sync pool data
-    pub async fn get_all_pools_from_logs<T: Transport + Clone, P: Provider<T, AnyNetwork>>(
+    pub async fn get_all_pools_from_logs<T: Transport + Clone, N: Network, P: Provider<T, N>>(
         self,
         to_block: u64,
         step: u64,
@@ -205,12 +206,21 @@ impl UniswapV3Factory {
                 //If the event sig is the pool created event sig, then the log is coming from the factory
                 if event_signature == POOL_CREATED_EVENT_SIGNATURE {
                     if log.address() == self.address {
-                        let mut new_pool = self.new_empty_amm_from_log(log)?;
+                        let mut new_pool = <UniswapV3Factory as AutomatedMarketMakerFactory<
+                            T,
+                            N,
+                            P,
+                        >>::new_empty_amm_from_log(
+                            &self, log
+                        )?;
                         if let AMM::UniswapV3Pool(ref mut pool) = new_pool {
                             pool.tick_spacing = pool.get_tick_spacing(provider.clone()).await?;
                         }
 
-                        aggregated_amms.insert(new_pool.address(), new_pool);
+                        aggregated_amms.insert(
+                            <AMM as AutomatedMarketMaker<T, N, P>>::address(&new_pool),
+                            new_pool,
+                        );
                     }
                 } else if event_signature == BURN_EVENT_SIGNATURE {
                     //If the event sig is the BURN_EVENT_SIGNATURE log is coming from the pool
