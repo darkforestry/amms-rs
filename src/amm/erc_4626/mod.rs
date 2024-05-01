@@ -3,7 +3,7 @@ pub mod batch_request;
 use std::{cmp::Ordering, sync::Arc};
 
 use alloy::{
-    network::AnyNetwork,
+    network::Network,
     primitives::{Address, FixedBytes, B256, U256},
     providers::Provider,
     rpc::types::eth::Log,
@@ -78,10 +78,12 @@ impl AutomatedMarketMaker for ERC4626Vault {
     }
 
     #[instrument(skip(self, provider), level = "debug")]
-    async fn sync<T: Transport + Clone, P: Provider<T, AnyNetwork>>(
-        &mut self,
-        provider: Arc<P>,
-    ) -> Result<(), AMMError> {
+    async fn sync<T, N, P>(&mut self, provider: Arc<P>) -> Result<(), AMMError>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
         let (vault_reserve, asset_reserve) = self.get_reserves(provider).await?;
         tracing::debug!(vault_reserve = ?vault_reserve, asset_reserve = ?asset_reserve, address = ?self.vault_token, "ER4626 sync");
 
@@ -116,11 +118,16 @@ impl AutomatedMarketMaker for ERC4626Vault {
     }
 
     #[instrument(skip(self, provider), level = "debug")]
-    async fn populate_data<T: Transport + Clone, P: Provider<T, AnyNetwork>>(
+    async fn populate_data<T, N, P>(
         &mut self,
         _block_number: Option<u64>,
         provider: Arc<P>,
-    ) -> Result<(), AMMError> {
+    ) -> Result<(), AMMError>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
         batch_request::get_4626_vault_data_batch_request(self, provider.clone()).await?;
 
         Ok(())
@@ -193,10 +200,15 @@ impl ERC4626Vault {
         }
     }
 
-    pub async fn new_from_address<T: Transport + Clone, P: Provider<T, AnyNetwork>>(
+    pub async fn new_from_address<T, N, P>(
         vault_token: Address,
         provider: Arc<P>,
-    ) -> Result<Self, AMMError> {
+    ) -> Result<Self, AMMError>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
         let mut vault = ERC4626Vault {
             vault_token,
             vault_token_decimals: 0,
@@ -224,10 +236,12 @@ impl ERC4626Vault {
             || self.asset_reserve.is_zero())
     }
 
-    pub async fn get_reserves<T: Transport + Clone, P: Provider<T, AnyNetwork>>(
-        &self,
-        provider: Arc<P>,
-    ) -> Result<(U256, U256), AMMError> {
+    pub async fn get_reserves<T, N, P>(&self, provider: Arc<P>) -> Result<(U256, U256), AMMError>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
         // Initialize a new instance of the vault
         let vault = IERC4626Vault::new(self.vault_token, provider);
 
@@ -301,10 +315,9 @@ impl ERC4626Vault {
 
 #[cfg(test)]
 mod tests {
-    use std::{str::FromStr, sync::Arc};
+    use std::sync::Arc;
 
     use alloy::{
-        network::AnyNetwork,
         primitives::{address, U256},
         providers::ProviderBuilder,
     };
@@ -316,8 +329,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_vault_data() -> eyre::Result<()> {
         let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
-        let provider =
-            Arc::new(ProviderBuilder::<_, _, AnyNetwork>::default().on_http(rpc_endpoint.parse()?));
+        let provider = Arc::new(ProviderBuilder::new().on_http(rpc_endpoint.parse()?));
 
         let mut vault = ERC4626Vault {
             vault_token: address!("163538E22F4d38c1eb21B79939f3d2ee274198Ff"),
@@ -341,8 +353,7 @@ mod tests {
     #[tokio::test]
     async fn test_calculate_price_varying_decimals() -> eyre::Result<()> {
         let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
-        let provider =
-            Arc::new(ProviderBuilder::<_, _, AnyNetwork>::default().on_http(rpc_endpoint.parse()?));
+        let provider = Arc::new(ProviderBuilder::new().on_http(rpc_endpoint.parse()?));
 
         let mut vault = ERC4626Vault {
             vault_token: address!("163538E22F4d38c1eb21B79939f3d2ee274198Ff"),
@@ -351,9 +362,9 @@ mod tests {
 
         vault.populate_data(None, provider).await?;
 
-        vault.vault_reserve = U256::from_str("501910315708981197269904")?;
+        vault.vault_reserve = U256::from(501910315708981197269904_u128);
         vault.asset_token_decimals = 6;
-        vault.asset_reserve = U256::from_str("505434849031")?;
+        vault.asset_reserve = U256::from(505434849031_u64);
 
         let price_v_64_x = vault.calculate_price(vault.vault_token)?;
         let price_a_64_x = vault.calculate_price(vault.asset_token)?;
@@ -367,8 +378,7 @@ mod tests {
     #[tokio::test]
     async fn test_calculate_price_zero_reserve() -> eyre::Result<()> {
         let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
-        let provider =
-            Arc::new(ProviderBuilder::<_, _, AnyNetwork>::default().on_http(rpc_endpoint.parse()?));
+        let provider = Arc::new(ProviderBuilder::new().on_http(rpc_endpoint.parse()?));
 
         let mut vault = ERC4626Vault {
             vault_token: address!("163538E22F4d38c1eb21B79939f3d2ee274198Ff"),
@@ -377,8 +387,8 @@ mod tests {
 
         vault.populate_data(None, provider).await?;
 
-        vault.vault_reserve = U256::from_str("0")?;
-        vault.asset_reserve = U256::from_str("0")?;
+        vault.vault_reserve = U256::ZERO;
+        vault.asset_reserve = U256::ZERO;
 
         let price_v_64_x = vault.calculate_price(vault.vault_token)?;
         let price_a_64_x = vault.calculate_price(vault.asset_token)?;
@@ -392,8 +402,7 @@ mod tests {
     #[tokio::test]
     async fn test_calculate_price() -> eyre::Result<()> {
         let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
-        let provider =
-            Arc::new(ProviderBuilder::<_, _, AnyNetwork>::default().on_http(rpc_endpoint.parse()?));
+        let provider = Arc::new(ProviderBuilder::new().on_http(rpc_endpoint.parse()?));
 
         let mut vault = ERC4626Vault {
             vault_token: address!("163538E22F4d38c1eb21B79939f3d2ee274198Ff"),
@@ -402,8 +411,8 @@ mod tests {
 
         vault.populate_data(None, provider).await?;
 
-        vault.vault_reserve = U256::from_str("501910315708981197269904")?;
-        vault.asset_reserve = U256::from_str("505434849031054568651911")?;
+        vault.vault_reserve = U256::from(501910315708981197269904_u128);
+        vault.asset_reserve = U256::from(505434849031054568651911_u128);
 
         let price_v_64_x = vault.calculate_price(vault.vault_token)?;
         let price_a_64_x = vault.calculate_price(vault.asset_token)?;
@@ -417,8 +426,7 @@ mod tests {
     #[tokio::test]
     async fn test_calculate_price_64_x_64() -> eyre::Result<()> {
         let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
-        let provider =
-            Arc::new(ProviderBuilder::<_, _, AnyNetwork>::default().on_http(rpc_endpoint.parse()?));
+        let provider = Arc::new(ProviderBuilder::new().on_http(rpc_endpoint.parse()?));
 
         let mut vault = ERC4626Vault {
             vault_token: address!("163538E22F4d38c1eb21B79939f3d2ee274198Ff"),
@@ -427,8 +435,8 @@ mod tests {
 
         vault.populate_data(None, provider).await?;
 
-        vault.vault_reserve = U256::from_str("501910315708981197269904")?;
-        vault.asset_reserve = U256::from_str("505434849031054568651911")?;
+        vault.vault_reserve = U256::from(501910315708981197269904_u128);
+        vault.asset_reserve = U256::from(505434849031054568651911_u128);
 
         let price_v_64_x = vault.calculate_price_64_x_64(vault.vault_token)?;
         let price_a_64_x = vault.calculate_price_64_x_64(vault.asset_token)?;
@@ -442,8 +450,7 @@ mod tests {
     #[tokio::test]
     async fn test_simulate_swap() -> eyre::Result<()> {
         let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
-        let provider =
-            Arc::new(ProviderBuilder::<_, _, AnyNetwork>::default().on_http(rpc_endpoint.parse()?));
+        let provider = Arc::new(ProviderBuilder::new().on_http(rpc_endpoint.parse()?));
 
         let mut vault = ERC4626Vault {
             vault_token: address!("163538E22F4d38c1eb21B79939f3d2ee274198Ff"),
@@ -452,16 +459,16 @@ mod tests {
 
         vault.populate_data(None, provider).await?;
 
-        vault.vault_reserve = U256::from_str("501910315708981197269904")?;
-        vault.asset_reserve = U256::from_str("505434849031054568651911")?;
+        vault.vault_reserve = U256::from(501910315708981197269904_u128);
+        vault.asset_reserve = U256::from(505434849031054568651911_u128);
 
         let assets_out =
-            vault.simulate_swap(vault.vault_token, U256::from_str("3000000000000000000")?)?;
+            vault.simulate_swap(vault.vault_token, U256::from(3000000000000000000_u128))?;
         let shares_out =
-            vault.simulate_swap(vault.asset_token, U256::from_str("3000000000000000000")?)?;
+            vault.simulate_swap(vault.asset_token, U256::from(3000000000000000000_u128))?;
 
-        assert_eq!(assets_out, U256::from_str("3021066711791496478")?);
-        assert_eq!(shares_out, U256::from_str("2979080192063348487")?);
+        assert_eq!(assets_out, U256::from(3021066711791496478_u128));
+        assert_eq!(shares_out, U256::from(2979080192063348487_u128));
 
         Ok(())
     }

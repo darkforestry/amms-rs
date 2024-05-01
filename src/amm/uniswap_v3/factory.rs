@@ -4,7 +4,7 @@ use std::{
 };
 
 use alloy::{
-    network::AnyNetwork,
+    network::Network,
     primitives::{Address, FixedBytes, B256, U256},
     providers::Provider,
     rpc::types::eth::{Filter, Log},
@@ -61,11 +61,12 @@ impl AutomatedMarketMakerFactory for UniswapV3Factory {
         POOL_CREATED_EVENT_SIGNATURE
     }
 
-    async fn new_amm_from_log<T: Transport + Clone, P: Provider<T, AnyNetwork>>(
-        &self,
-        log: Log,
-        provider: Arc<P>,
-    ) -> Result<AMM, AMMError> {
+    async fn new_amm_from_log<T, N, P>(&self, log: Log, provider: Arc<P>) -> Result<AMM, AMMError>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
         if let Some(block_number) = log.block_number {
             let pool_created_filter = IUniswapV3Factory::PoolCreated::decode_log(&log.inner, true)?;
             Ok(AMM::UniswapV3Pool(
@@ -77,12 +78,17 @@ impl AutomatedMarketMakerFactory for UniswapV3Factory {
         }
     }
 
-    async fn get_all_amms<T: Transport + Clone, P: Provider<T, AnyNetwork>>(
+    async fn get_all_amms<T, N, P>(
         &self,
         to_block: Option<u64>,
         provider: Arc<P>,
         step: u64,
-    ) -> Result<Vec<AMM>, AMMError> {
+    ) -> Result<Vec<AMM>, AMMError>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
         if let Some(block) = to_block {
             self.get_all_pools_from_logs(block, step, provider).await
         } else {
@@ -91,12 +97,17 @@ impl AutomatedMarketMakerFactory for UniswapV3Factory {
     }
 
     #[instrument(skip(self, amms, provider) level = "debug")]
-    async fn populate_amm_data<T: Transport + Clone, P: Provider<T, AnyNetwork>>(
+    async fn populate_amm_data<T, N, P>(
         &self,
         amms: &mut [AMM],
         block_number: Option<u64>,
         provider: Arc<P>,
-    ) -> Result<(), AMMError> {
+    ) -> Result<(), AMMError>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
         if let Some(block_number) = block_number {
             let step = 127; //Max batch size for call
             for amm_chunk in amms.chunks_mut(step) {
@@ -143,12 +154,17 @@ impl UniswapV3Factory {
     }
 
     // Function to get all pair created events for a given Dex factory address and sync pool data
-    pub async fn get_all_pools_from_logs<T: Transport + Clone, P: Provider<T, AnyNetwork>>(
+    pub async fn get_all_pools_from_logs<T, N, P>(
         self,
         to_block: u64,
         step: u64,
         provider: Arc<P>,
-    ) -> Result<Vec<AMM>, AMMError> {
+    ) -> Result<Vec<AMM>, AMMError>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
         // Unwrap can be used here because the creation block was verified within `Dex::new()`
         let mut from_block = self.creation_block;
         let mut aggregated_amms: HashMap<Address, AMM> = HashMap::new();

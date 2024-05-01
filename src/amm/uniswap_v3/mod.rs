@@ -6,7 +6,7 @@ use crate::{
     errors::{AMMError, ArithmeticError, EventLogError, SwapSimulationError},
 };
 use alloy::{
-    network::AnyNetwork,
+    network::Network,
     primitives::{Address, Bytes, FixedBytes, B256, I256, U256},
     providers::Provider,
     rpc::types::eth::{Filter, Log},
@@ -132,10 +132,12 @@ impl AutomatedMarketMaker for UniswapV3Pool {
     }
 
     #[instrument(skip(self, provider), level = "debug")]
-    async fn sync<T: Transport + Clone, P: Provider<T, AnyNetwork>>(
-        &mut self,
-        provider: Arc<P>,
-    ) -> Result<(), AMMError> {
+    async fn sync<T, N, P>(&mut self, provider: Arc<P>) -> Result<(), AMMError>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
         batch_request::sync_v3_pool_batch_request(self, provider.clone()).await?;
         Ok(())
     }
@@ -187,11 +189,16 @@ impl AutomatedMarketMaker for UniswapV3Pool {
         }
     }
     // NOTE: This function will not populate the tick_bitmap and ticks, if you want to populate those, you must call populate_tick_data on an initialized pool
-    async fn populate_data<T: Transport + Clone, P: Provider<T, AnyNetwork>>(
+    async fn populate_data<T, N, P>(
         &mut self,
         block_number: Option<u64>,
         provider: Arc<P>,
-    ) -> Result<(), AMMError> {
+    ) -> Result<(), AMMError>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
         batch_request::get_v3_pool_data_batch_request(self, block_number, provider.clone()).await?;
         Ok(())
     }
@@ -524,11 +531,16 @@ impl UniswapV3Pool {
     /// Creates a new instance of the pool from the pair address.
     ///
     /// This function will populate all pool data.
-    pub async fn new_from_address<T: Transport + Clone, P: Provider<T, AnyNetwork>>(
+    pub async fn new_from_address<T, N, P>(
         pair_address: Address,
         creation_block: u64,
         provider: Arc<P>,
-    ) -> Result<Self, AMMError> {
+    ) -> Result<Self, AMMError>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
         let mut pool = UniswapV3Pool {
             address: pair_address,
             token_a: Address::ZERO,
@@ -564,10 +576,12 @@ impl UniswapV3Pool {
     /// Creates a new instance of the pool from a log.
     ///
     /// This function will populate all pool data.
-    pub async fn new_from_log<T: Transport + Clone, P: Provider<T, AnyNetwork>>(
-        log: Log,
-        provider: Arc<P>,
-    ) -> Result<Self, AMMError> {
+    pub async fn new_from_log<T, N, P>(log: Log, provider: Arc<P>) -> Result<Self, AMMError>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
         let event_signature = log.topics()[0];
 
         if event_signature == POOL_CREATED_EVENT_SIGNATURE {
@@ -616,11 +630,16 @@ impl UniswapV3Pool {
     /// Populates the `tick_bitmap` and `ticks` fields of the pool to the current block.
     ///
     /// Returns the last synced block number.
-    pub async fn populate_tick_data<T: Transport + Clone, P: Provider<T, AnyNetwork>>(
+    pub async fn populate_tick_data<T, N, P>(
         &mut self,
         mut from_block: u64,
         provider: Arc<P>,
-    ) -> Result<u64, AMMError> {
+    ) -> Result<u64, AMMError>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
         let current_block = provider
             .get_block_number()
             .await
@@ -692,11 +711,16 @@ impl UniswapV3Pool {
     }
 
     /// Returns the word position of a tick in the `tick_bitmap`.
-    pub async fn get_tick_word<T: Transport + Clone, P: Provider<T, AnyNetwork>>(
+    pub async fn get_tick_word<T, N, P>(
         &self,
         tick: i32,
         provider: Arc<P>,
-    ) -> Result<U256, AMMError> {
+    ) -> Result<U256, AMMError>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
         let v3_pool = IUniswapV3Pool::new(self.address, provider);
         let (word_position, _) = uniswap_v3_math::tick_bitmap::position(tick);
         let IUniswapV3Pool::tickBitmapReturn { _0: bm } =
@@ -705,11 +729,16 @@ impl UniswapV3Pool {
     }
 
     /// Returns the next word in the `tick_bitmap` after a given word position.
-    pub async fn get_next_word<T: Transport + Clone, P: Provider<T, AnyNetwork>>(
+    pub async fn get_next_word<T, N, P>(
         &self,
         word_position: i16,
         provider: Arc<P>,
-    ) -> Result<U256, AMMError> {
+    ) -> Result<U256, AMMError>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
         let v3_pool = IUniswapV3Pool::new(self.address, provider);
         let IUniswapV3Pool::tickBitmapReturn { _0: bm } =
             v3_pool.tickBitmap(word_position).call().await?;
@@ -717,29 +746,38 @@ impl UniswapV3Pool {
     }
 
     /// Returns the tick spacing of the pool.
-    pub async fn get_tick_spacing<T: Transport + Clone, P: Provider<T, AnyNetwork>>(
-        &self,
-        provider: Arc<P>,
-    ) -> Result<i32, AMMError> {
+    pub async fn get_tick_spacing<T, N, P>(&self, provider: Arc<P>) -> Result<i32, AMMError>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
         let v3_pool = IUniswapV3Pool::new(self.address, provider);
         let IUniswapV3Pool::tickSpacingReturn { _0: ts } = v3_pool.tickSpacing().call().await?;
         Ok(ts)
     }
 
     /// Fetches the current tick of the pool via static call.
-    pub async fn get_tick<T: Transport + Clone, P: Provider<T, AnyNetwork>>(
-        &self,
-        provider: Arc<P>,
-    ) -> Result<i32, AMMError> {
+    pub async fn get_tick<T, N, P>(&self, provider: Arc<P>) -> Result<i32, AMMError>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
         Ok(self.get_slot_0(provider).await?.1)
     }
 
     /// Fetches the tick info of a given tick via static call.
-    pub async fn get_tick_info<T: Transport + Clone, P: Provider<T, AnyNetwork>>(
+    pub async fn get_tick_info<T, N, P>(
         &self,
         tick: i32,
         provider: Arc<P>,
-    ) -> Result<(u128, i128, U256, U256, i64, U256, u32, bool), AMMError> {
+    ) -> Result<(u128, i128, U256, U256, i64, U256, u32, bool), AMMError>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
         let v3_pool = IUniswapV3Pool::new(self.address, provider.clone());
 
         let tick_info = v3_pool.ticks(tick).call().await?;
@@ -757,49 +795,68 @@ impl UniswapV3Pool {
     }
 
     /// Fetches `liquidity_net` at a given tick via static call.
-    pub async fn get_liquidity_net<T: Transport + Clone, P: Provider<T, AnyNetwork>>(
+    pub async fn get_liquidity_net<T, N, P>(
         &self,
         tick: i32,
         provider: Arc<P>,
-    ) -> Result<i128, AMMError> {
+    ) -> Result<i128, AMMError>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
         let tick_info = self.get_tick_info(tick, provider).await?;
         Ok(tick_info.1)
     }
 
     /// Fetches whether a specified tick is initialized via static call.
-    pub async fn get_initialized<T: Transport + Clone, P: Provider<T, AnyNetwork>>(
+    pub async fn get_initialized<T, N, P>(
         &self,
         tick: i32,
         provider: Arc<P>,
-    ) -> Result<bool, AMMError> {
+    ) -> Result<bool, AMMError>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
         let tick_info = self.get_tick_info(tick, provider).await?;
         Ok(tick_info.7)
     }
 
     /// Fetches the current slot 0 of the pool via static call.
-    pub async fn get_slot_0<T: Transport + Clone, P: Provider<T, AnyNetwork>>(
+    pub async fn get_slot_0<T, N, P>(
         &self,
         provider: Arc<P>,
-    ) -> Result<(U256, i32, u16, u16, u16, u8, bool), AMMError> {
+    ) -> Result<(U256, i32, u16, u16, u16, u8, bool), AMMError>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
         let v3_pool = IUniswapV3Pool::new(self.address, provider);
         Ok(v3_pool.slot0().call().await?.into())
     }
 
     /// Fetches the current liquidity of the pool via static call.
-    pub async fn get_liquidity<T: Transport + Clone, P: Provider<T, AnyNetwork>>(
-        &self,
-        provider: Arc<P>,
-    ) -> Result<u128, AMMError> {
+    pub async fn get_liquidity<T, N, P>(&self, provider: Arc<P>) -> Result<u128, AMMError>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
         let v3_pool = IUniswapV3Pool::new(self.address, provider);
         let IUniswapV3Pool::liquidityReturn { _0: liquidity } = v3_pool.liquidity().call().await?;
         Ok(liquidity)
     }
 
     /// Fetches the current sqrt price of the pool via static call.
-    pub async fn get_sqrt_price<T: Transport + Clone, P: Provider<T, AnyNetwork>>(
-        &self,
-        provider: Arc<P>,
-    ) -> Result<U256, AMMError> {
+    pub async fn get_sqrt_price<T, N, P>(&self, provider: Arc<P>) -> Result<U256, AMMError>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
         Ok(self.get_slot_0(provider).await?.0)
     }
 
@@ -939,10 +996,15 @@ impl UniswapV3Pool {
         Ok(())
     }
 
-    pub async fn get_token_decimals<T: Transport + Clone, P: Provider<T, AnyNetwork>>(
+    pub async fn get_token_decimals<T, N, P>(
         &mut self,
         provider: Arc<P>,
-    ) -> Result<(u8, u8), AMMError> {
+    ) -> Result<(u8, u8), AMMError>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
         let IErc20::decimalsReturn {
             _0: token_a_decimals,
         } = IErc20::new(self.token_a, provider.clone())
@@ -960,10 +1022,12 @@ impl UniswapV3Pool {
         Ok((token_a_decimals, token_b_decimals))
     }
 
-    pub async fn get_fee<T: Transport + Clone, P: Provider<T, AnyNetwork>>(
-        &mut self,
-        provider: Arc<P>,
-    ) -> Result<u32, AMMError> {
+    pub async fn get_fee<T, N, P>(&mut self, provider: Arc<P>) -> Result<u32, AMMError>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
         let IUniswapV3Pool::feeReturn { _0: fee } = IUniswapV3Pool::new(self.address, provider)
             .fee()
             .call()
@@ -972,10 +1036,12 @@ impl UniswapV3Pool {
         Ok(fee)
     }
 
-    pub async fn get_token_0<T: Transport + Clone, P: Provider<T, AnyNetwork>>(
-        &self,
-        provider: Arc<P>,
-    ) -> Result<Address, AMMError> {
+    pub async fn get_token_0<T, N, P>(&self, provider: Arc<P>) -> Result<Address, AMMError>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
         let v3_pool = IUniswapV3Pool::new(self.address, provider);
 
         let IUniswapV3Pool::token0Return { _0: token_0 } = match v3_pool.token0().call().await {
@@ -986,10 +1052,12 @@ impl UniswapV3Pool {
         Ok(token_0)
     }
 
-    pub async fn get_token_1<T: Transport + Clone, P: Provider<T, AnyNetwork>>(
-        &self,
-        provider: Arc<P>,
-    ) -> Result<Address, AMMError> {
+    pub async fn get_token_1<T, N, P>(&self, provider: Arc<P>) -> Result<Address, AMMError>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
         let v3_pool = IUniswapV3Pool::new(self.address, provider);
 
         let IUniswapV3Pool::token1Return { _0: token_1 } = match v3_pool.token1().call().await {
@@ -1102,12 +1170,10 @@ pub struct Tick {
 
 #[cfg(test)]
 mod test {
-    use std::str::FromStr;
 
     use super::*;
 
     use alloy::{
-        network::AnyNetwork,
         primitives::{address, U256},
         providers::ProviderBuilder,
     };
@@ -1121,9 +1187,14 @@ mod test {
         }
     }
 
-    async fn initialize_usdc_weth_pool<T: Transport + Clone, P: Provider<T, AnyNetwork>>(
+    async fn initialize_usdc_weth_pool<T, N, P>(
         provider: Arc<P>,
-    ) -> eyre::Result<(UniswapV3Pool, u64)> {
+    ) -> eyre::Result<(UniswapV3Pool, u64)>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
         let mut pool = UniswapV3Pool {
             address: address!("88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640"),
             ..Default::default()
@@ -1139,9 +1210,14 @@ mod test {
         Ok((pool, synced_block))
     }
 
-    async fn initialize_weth_link_pool<T: Transport + Clone, P: Provider<T, AnyNetwork>>(
+    async fn initialize_weth_link_pool<T, N, P>(
         provider: Arc<P>,
-    ) -> eyre::Result<(UniswapV3Pool, u64)> {
+    ) -> eyre::Result<(UniswapV3Pool, u64)>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
         let mut pool = UniswapV3Pool {
             address: address!("a6Cc3C2531FdaA6Ae1A3CA84c2855806728693e8"),
             ..Default::default()
@@ -1161,15 +1237,14 @@ mod test {
     #[ignore] //Ignoring to not throttle the Provider on workflows
     async fn test_simulate_swap_usdc_weth() -> eyre::Result<()> {
         let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
-        let provider =
-            Arc::new(ProviderBuilder::<_, _, AnyNetwork>::default().on_http(rpc_endpoint.parse()?));
+        let provider = Arc::new(ProviderBuilder::new().on_http(rpc_endpoint.parse()?));
 
         let (pool, synced_block) = initialize_usdc_weth_pool(provider.clone()).await?;
         let quoter = IQuoter::new(
             address!("b27308f9f90d607463bb33ea1bebb41c27ce5ab6"),
             provider.clone(),
         );
-        let amount_in = U256::from_str("100000000")?; // 100 USDC
+        let amount_in = U256::from(100000000); // 100 USDC
 
         let amount_out = pool.simulate_swap(pool.token_a, amount_in)?;
         let expected_amount_out = quoter
@@ -1178,7 +1253,7 @@ mod test {
             .call()
             .await?;
         assert_eq!(amount_out, expected_amount_out.amountOut);
-        let amount_in_1 = U256::from_str("10000000000")?; // 10_000 USDC
+        let amount_in_1 = U256::from(10000000000_u64); // 10_000 USDC
 
         let amount_out_1 = pool.simulate_swap(pool.token_a, amount_in_1)?;
 
@@ -1196,7 +1271,7 @@ mod test {
 
         assert_eq!(amount_out_1, expected_amount_out_1.amountOut);
 
-        let amount_in_2 = U256::from_str("10000000000000")?; // 10_000_000 USDC
+        let amount_in_2 = U256::from(10000000000000_u128); // 10_000_000 USDC
 
         let amount_out_2 = pool.simulate_swap(pool.token_a, amount_in_2)?;
 
@@ -1214,7 +1289,7 @@ mod test {
 
         assert_eq!(amount_out_2, expected_amount_out_2.amountOut);
 
-        let amount_in_3 = U256::from_str("100000000000000")?; // 100_000_000 USDC
+        let amount_in_3 = U256::from(100000000000000_u128); // 100_000_000 USDC
 
         let amount_out_3 = pool.simulate_swap(pool.token_a, amount_in_3)?;
 
@@ -1239,8 +1314,7 @@ mod test {
     #[ignore] //Ignoring to not throttle the Provider on workflows
     async fn test_simulate_swap_weth_usdc() -> eyre::Result<()> {
         let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
-        let provider =
-            Arc::new(ProviderBuilder::<_, _, AnyNetwork>::default().on_http(rpc_endpoint.parse()?));
+        let provider = Arc::new(ProviderBuilder::new().on_http(rpc_endpoint.parse()?));
 
         let (pool, synced_block) = initialize_usdc_weth_pool(provider.clone()).await?;
         let quoter = IQuoter::new(
@@ -1248,7 +1322,7 @@ mod test {
             provider.clone(),
         );
 
-        let amount_in = U256::from_str("1000000000000000000")?; // 1 ETH
+        let amount_in = U256::from(1000000000000000000_u128); // 1 ETH
 
         let amount_out = pool.simulate_swap(pool.token_b, amount_in)?;
         let expected_amount_out = quoter
@@ -1258,7 +1332,7 @@ mod test {
             .await?;
         assert_eq!(amount_out, expected_amount_out.amountOut);
 
-        let amount_in_1 = U256::from_str("10000000000000000000")?; // 10 ETH
+        let amount_in_1 = U256::from(10000000000000000000_u128); // 10 ETH
 
         let amount_out_1 = pool.simulate_swap(pool.token_b, amount_in_1)?;
 
@@ -1276,7 +1350,7 @@ mod test {
 
         assert_eq!(amount_out_1, expected_amount_out_1.amountOut);
 
-        let amount_in_2 = U256::from_str("100000000000000000000")?; // 100 ETH
+        let amount_in_2 = U256::from(100000000000000000000_u128); // 100 ETH
 
         let amount_out_2 = pool.simulate_swap(pool.token_b, amount_in_2)?;
 
@@ -1294,7 +1368,7 @@ mod test {
 
         assert_eq!(amount_out_2, expected_amount_out_2.amountOut);
 
-        let amount_in_3 = U256::from_str("100000000000000000000")?; // 100_000 ETH
+        let amount_in_3 = U256::from(100000000000000000000_u128); // 100_000 ETH
 
         let amount_out_3 = pool.simulate_swap(pool.token_b, amount_in_3)?;
 
@@ -1319,8 +1393,7 @@ mod test {
     #[ignore] //Ignoring to not throttle the Provider on workflows
     async fn test_simulate_swap_link_weth() -> eyre::Result<()> {
         let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
-        let provider =
-            Arc::new(ProviderBuilder::<_, _, AnyNetwork>::default().on_http(rpc_endpoint.parse()?));
+        let provider = Arc::new(ProviderBuilder::new().on_http(rpc_endpoint.parse()?));
 
         let (pool, synced_block) = initialize_weth_link_pool(provider.clone()).await?;
         let quoter = IQuoter::new(
@@ -1328,7 +1401,7 @@ mod test {
             provider.clone(),
         );
 
-        let amount_in = U256::from_str("1000000000000000000")?; // 1 LINK
+        let amount_in = U256::from(1000000000000000000_u128); // 1 LINK
 
         let amount_out = pool.simulate_swap(pool.token_a, amount_in)?;
         let expected_amount_out = quoter
@@ -1338,7 +1411,7 @@ mod test {
             .await?;
         assert_eq!(amount_out, expected_amount_out.amountOut);
 
-        let amount_in_1 = U256::from_str("100000000000000000000")?; // 100 LINK
+        let amount_in_1 = U256::from(100000000000000000000_u128); // 100 LINK
 
         let amount_out_1 = pool.simulate_swap(pool.token_a, amount_in_1)?;
 
@@ -1356,7 +1429,7 @@ mod test {
 
         assert_eq!(amount_out_1, expected_amount_out_1.amountOut);
 
-        let amount_in_2 = U256::from_str("10000000000000000000000")?; // 10_000 LINK
+        let amount_in_2 = U256::from(10000000000000000000000_u128); // 10_000 LINK
 
         let amount_out_2 = pool.simulate_swap(pool.token_a, amount_in_2)?;
 
@@ -1374,7 +1447,7 @@ mod test {
 
         assert_eq!(amount_out_2, expected_amount_out_2.amountOut);
 
-        let amount_in_3 = U256::from_str("10000000000000000000000")?; // 1_000_000 LINK
+        let amount_in_3 = U256::from(10000000000000000000000_u128); // 1_000_000 LINK
 
         let amount_out_3 = pool.simulate_swap(pool.token_a, amount_in_3)?;
 
@@ -1399,8 +1472,7 @@ mod test {
     #[ignore] //Ignoring to not throttle the Provider on workflows
     async fn test_simulate_swap_weth_link() -> eyre::Result<()> {
         let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
-        let provider =
-            Arc::new(ProviderBuilder::<_, _, AnyNetwork>::default().on_http(rpc_endpoint.parse()?));
+        let provider = Arc::new(ProviderBuilder::new().on_http(rpc_endpoint.parse()?));
 
         let (pool, synced_block) = initialize_weth_link_pool(provider.clone()).await?;
         let quoter = IQuoter::new(
@@ -1408,7 +1480,7 @@ mod test {
             provider.clone(),
         );
 
-        let amount_in = U256::from_str("1000000000000000000")?; // 1 ETH
+        let amount_in = U256::from(1000000000000000000_u128); // 1 ETH
 
         let amount_out = pool.simulate_swap(pool.token_b, amount_in)?;
         let expected_amount_out = quoter
@@ -1418,7 +1490,7 @@ mod test {
             .await?;
         assert_eq!(amount_out, expected_amount_out.amountOut);
 
-        let amount_in_1 = U256::from_str("10000000000000000000")?; // 10 ETH
+        let amount_in_1 = U256::from(10000000000000000000_u128); // 10 ETH
 
         let amount_out_1 = pool.simulate_swap(pool.token_b, amount_in_1)?;
 
@@ -1436,7 +1508,7 @@ mod test {
 
         assert_eq!(amount_out_1, expected_amount_out_1.amountOut);
 
-        let amount_in_2 = U256::from_str("100000000000000000000")?; // 100 ETH
+        let amount_in_2 = U256::from(100000000000000000000_u128); // 100 ETH
 
         let amount_out_2 = pool.simulate_swap(pool.token_b, amount_in_2)?;
 
@@ -1454,7 +1526,7 @@ mod test {
 
         assert_eq!(amount_out_2, expected_amount_out_2.amountOut);
 
-        let amount_in_3 = U256::from_str("100000000000000000000")?; // 100_000 ETH
+        let amount_in_3 = U256::from(100000000000000000000_u128); // 100_000 ETH
 
         let amount_out_3 = pool.simulate_swap(pool.token_b, amount_in_3)?;
 
@@ -1479,15 +1551,14 @@ mod test {
     #[ignore] //Ignoring to not throttle the Provider on workflows
     async fn test_simulate_swap_mut_usdc_weth() -> eyre::Result<()> {
         let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
-        let provider =
-            Arc::new(ProviderBuilder::<_, _, AnyNetwork>::default().on_http(rpc_endpoint.parse()?));
+        let provider = Arc::new(ProviderBuilder::new().on_http(rpc_endpoint.parse()?));
 
         let (pool, synced_block) = initialize_usdc_weth_pool(provider.clone()).await?;
         let quoter = IQuoter::new(
             address!("b27308f9f90d607463bb33ea1bebb41c27ce5ab6"),
             provider.clone(),
         );
-        let amount_in = U256::from_str("100000000")?; // 100 USDC
+        let amount_in = U256::from(100000000_u64); // 100 USDC
 
         let amount_out = pool.simulate_swap(pool.token_a, amount_in)?;
         let expected_amount_out = quoter
@@ -1497,7 +1568,7 @@ mod test {
             .await?;
         assert_eq!(amount_out, expected_amount_out.amountOut);
 
-        let amount_in_1 = U256::from_str("10000000000")?; // 10_000 USDC
+        let amount_in_1 = U256::from(10000000000_u128); // 10_000 USDC
 
         let amount_out_1 = pool.simulate_swap(pool.token_a, amount_in_1)?;
 
@@ -1515,7 +1586,7 @@ mod test {
 
         assert_eq!(amount_out_1, expected_amount_out_1.amountOut);
 
-        let amount_in_2 = U256::from_str("10000000000000")?; // 10_000_000 USDC
+        let amount_in_2 = U256::from(10000000000000_u128); // 10_000_000 USDC
 
         let amount_out_2 = pool.simulate_swap(pool.token_a, amount_in_2)?;
 
@@ -1533,7 +1604,7 @@ mod test {
 
         assert_eq!(amount_out_2, expected_amount_out_2.amountOut);
 
-        let amount_in_3 = U256::from_str("100000000000000")?; // 100_000_000 USDC
+        let amount_in_3 = U256::from(100000000000000_u128); // 100_000_000 USDC
 
         let amount_out_3 = pool.simulate_swap(pool.token_a, amount_in_3)?;
 
@@ -1558,8 +1629,7 @@ mod test {
     #[ignore] //Ignoring to not throttle the Provider on workflows
     async fn test_simulate_swap_mut_weth_usdc() -> eyre::Result<()> {
         let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
-        let provider =
-            Arc::new(ProviderBuilder::<_, _, AnyNetwork>::default().on_http(rpc_endpoint.parse()?));
+        let provider = Arc::new(ProviderBuilder::new().on_http(rpc_endpoint.parse()?));
 
         let (pool, synced_block) = initialize_usdc_weth_pool(provider.clone()).await?;
         let quoter = IQuoter::new(
@@ -1567,7 +1637,7 @@ mod test {
             provider.clone(),
         );
 
-        let amount_in = U256::from_str("1000000000000000000")?; // 1 ETH
+        let amount_in = U256::from(1000000000000000000_u128); // 1 ETH
 
         let amount_out = pool.simulate_swap(pool.token_b, amount_in)?;
         let expected_amount_out = quoter
@@ -1577,7 +1647,7 @@ mod test {
             .await?;
         assert_eq!(amount_out, expected_amount_out.amountOut);
 
-        let amount_in_1 = U256::from_str("10000000000000000000")?; // 10 ETH
+        let amount_in_1 = U256::from(10000000000000000000_u128); // 10 ETH
 
         let amount_out_1 = pool.simulate_swap(pool.token_b, amount_in_1)?;
 
@@ -1595,7 +1665,7 @@ mod test {
 
         assert_eq!(amount_out_1, expected_amount_out_1.amountOut);
 
-        let amount_in_2 = U256::from_str("100000000000000000000")?; // 100 ETH
+        let amount_in_2 = U256::from(100000000000000000000_u128); // 100 ETH
 
         let amount_out_2 = pool.simulate_swap(pool.token_b, amount_in_2)?;
 
@@ -1613,7 +1683,7 @@ mod test {
 
         assert_eq!(amount_out_2, expected_amount_out_2.amountOut);
 
-        let amount_in_3 = U256::from_str("100000000000000000000")?; // 100_000 ETH
+        let amount_in_3 = U256::from(100000000000000000000_u128); // 100_000 ETH
 
         let amount_out_3 = pool.simulate_swap(pool.token_b, amount_in_3)?;
 
@@ -1638,8 +1708,7 @@ mod test {
     #[ignore] //Ignoring to not throttle the Provider on workflows
     async fn test_simulate_swap_mut_link_weth() -> eyre::Result<()> {
         let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
-        let provider =
-            Arc::new(ProviderBuilder::<_, _, AnyNetwork>::default().on_http(rpc_endpoint.parse()?));
+        let provider = Arc::new(ProviderBuilder::new().on_http(rpc_endpoint.parse()?));
 
         let (pool, synced_block) = initialize_weth_link_pool(provider.clone()).await?;
         let quoter = IQuoter::new(
@@ -1647,7 +1716,7 @@ mod test {
             provider.clone(),
         );
 
-        let amount_in = U256::from_str("1000000000000000000")?; // 1 LINK
+        let amount_in = U256::from(1000000000000000000_u128); // 1 LINK
 
         let amount_out = pool.simulate_swap(pool.token_a, amount_in)?;
         let expected_amount_out = quoter
@@ -1657,7 +1726,7 @@ mod test {
             .await?;
         assert_eq!(amount_out, expected_amount_out.amountOut);
 
-        let amount_in_1 = U256::from_str("100000000000000000000")?; // 100 LINK
+        let amount_in_1 = U256::from(100000000000000000000_u128); // 100 LINK
         let amount_out_1 = pool.simulate_swap(pool.token_a, amount_in_1)?;
 
         let expected_amount_out_1 = quoter
@@ -1674,7 +1743,7 @@ mod test {
 
         assert_eq!(amount_out_1, expected_amount_out_1.amountOut);
 
-        let amount_in_2 = U256::from_str("10000000000000000000000")?; // 10_000 LINK
+        let amount_in_2 = U256::from(10000000000000000000000_u128); // 10_000 LINK
 
         let amount_out_2 = pool.simulate_swap(pool.token_a, amount_in_2)?;
 
@@ -1692,7 +1761,7 @@ mod test {
 
         assert_eq!(amount_out_2, expected_amount_out_2.amountOut);
 
-        let amount_in_3 = U256::from_str("10000000000000000000000")?; // 1_000_000 LINK
+        let amount_in_3 = U256::from(10000000000000000000000_u128); // 1_000_000 LINK
 
         let amount_out_3 = pool.simulate_swap(pool.token_a, amount_in_3)?;
 
@@ -1717,8 +1786,7 @@ mod test {
     #[ignore] //Ignoring to not throttle the Provider on workflows
     async fn test_simulate_swap_mut_weth_link() -> eyre::Result<()> {
         let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
-        let provider =
-            Arc::new(ProviderBuilder::<_, _, AnyNetwork>::default().on_http(rpc_endpoint.parse()?));
+        let provider = Arc::new(ProviderBuilder::new().on_http(rpc_endpoint.parse()?));
 
         let (pool, synced_block) = initialize_weth_link_pool(provider.clone()).await?;
         let quoter = IQuoter::new(
@@ -1726,7 +1794,7 @@ mod test {
             provider.clone(),
         );
 
-        let amount_in = U256::from_str("1000000000000000000")?; // 1 ETH
+        let amount_in = U256::from(1000000000000000000_u128); // 1 ETH
 
         let amount_out = pool.simulate_swap(pool.token_b, amount_in)?;
         let expected_amount_out = quoter
@@ -1736,7 +1804,7 @@ mod test {
             .await?;
         assert_eq!(amount_out, expected_amount_out.amountOut);
 
-        let amount_in_1 = U256::from_str("10000000000000000000")?; // 10 ETH
+        let amount_in_1 = U256::from(10000000000000000000_u128); // 10 ETH
         let amount_out_1 = pool.simulate_swap(pool.token_b, amount_in_1)?;
 
         let expected_amount_out_1 = quoter
@@ -1753,7 +1821,7 @@ mod test {
 
         assert_eq!(amount_out_1, expected_amount_out_1.amountOut);
 
-        let amount_in_2 = U256::from_str("100000000000000000000")?; // 100 ETH
+        let amount_in_2 = U256::from(100000000000000000000_u128); // 100 ETH
         let amount_out_2 = pool.simulate_swap(pool.token_b, amount_in_2)?;
 
         let expected_amount_out_2 = quoter
@@ -1770,7 +1838,7 @@ mod test {
 
         assert_eq!(amount_out_2, expected_amount_out_2.amountOut);
 
-        let amount_in_3 = U256::from_str("100000000000000000000")?; // 100_000 ETH
+        let amount_in_3 = U256::from(100000000000000000000_u128); // 100_000 ETH
 
         let amount_out_3 = pool.simulate_swap(pool.token_b, amount_in_3)?;
 
@@ -1795,8 +1863,7 @@ mod test {
     #[ignore] //Ignoring to not throttle the Provider on workflows
     async fn test_get_new_from_address() -> eyre::Result<()> {
         let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
-        let provider =
-            Arc::new(ProviderBuilder::<_, _, AnyNetwork>::default().on_http(rpc_endpoint.parse()?));
+        let provider = Arc::new(ProviderBuilder::new().on_http(rpc_endpoint.parse()?));
 
         let pool = UniswapV3Pool::new_from_address(
             address!("88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640"),
@@ -1830,8 +1897,7 @@ mod test {
     #[ignore] //Ignoring to not throttle the Provider on workflows
     async fn test_get_pool_data() -> eyre::Result<()> {
         let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
-        let provider =
-            Arc::new(ProviderBuilder::<_, _, AnyNetwork>::default().on_http(rpc_endpoint.parse()?));
+        let provider = Arc::new(ProviderBuilder::new().on_http(rpc_endpoint.parse()?));
 
         let (pool, _synced_block) = initialize_usdc_weth_pool(provider.clone()).await?;
         assert_eq!(
@@ -1858,8 +1924,7 @@ mod test {
     #[tokio::test]
     async fn test_sync_pool() -> eyre::Result<()> {
         let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
-        let provider =
-            Arc::new(ProviderBuilder::<_, _, AnyNetwork>::default().on_http(rpc_endpoint.parse()?));
+        let provider = Arc::new(ProviderBuilder::new().on_http(rpc_endpoint.parse()?));
 
         let mut pool = UniswapV3Pool {
             address: address!("88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640"),
@@ -1876,8 +1941,7 @@ mod test {
     #[tokio::test]
     async fn test_calculate_virtual_reserves() -> eyre::Result<()> {
         let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
-        let provider =
-            Arc::new(ProviderBuilder::<_, _, AnyNetwork>::default().on_http(rpc_endpoint.parse()?));
+        let provider = Arc::new(ProviderBuilder::new().on_http(rpc_endpoint.parse()?));
 
         let mut pool = UniswapV3Pool {
             address: address!("88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640"),
@@ -1912,8 +1976,7 @@ mod test {
     #[tokio::test]
     async fn test_calculate_price() -> eyre::Result<()> {
         let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
-        let provider =
-            Arc::new(ProviderBuilder::<_, _, AnyNetwork>::default().on_http(rpc_endpoint.parse()?));
+        let provider = Arc::new(ProviderBuilder::new().on_http(rpc_endpoint.parse()?));
 
         let mut pool = UniswapV3Pool {
             address: address!("88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640"),

@@ -2,9 +2,7 @@ use std::sync::Arc;
 
 use crate::{amm::AutomatedMarketMaker, errors::AMMError};
 
-use alloy::{
-    network::AnyNetwork, primitives::U256, providers::Provider, sol, transports::Transport,
-};
+use alloy::{network::Network, primitives::U256, providers::Provider, sol, transports::Transport};
 
 use super::ERC4626Vault;
 
@@ -21,10 +19,15 @@ sol! {
     }
 }
 
-pub async fn get_4626_vault_data_batch_request<T: Transport + Clone, P: Provider<T, AnyNetwork>>(
+pub async fn get_4626_vault_data_batch_request<T, N, P>(
     vault: &mut ERC4626Vault,
     provider: Arc<P>,
-) -> Result<(), AMMError> {
+) -> Result<(), AMMError>
+where
+    T: Transport + Clone,
+    N: Network,
+    P: Provider<T, N>,
+{
     let deployer =
         IGetERC4626VaultDataBatchRequest::deploy_builder(provider.clone(), vec![vault.vault_token])
             .with_sol_decoder::<IGetERC4626VaultDataBatchReturn::constructorReturnCall>();

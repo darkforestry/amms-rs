@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use alloy::{
-    network::AnyNetwork,
+    network::Network,
     primitives::{Address, FixedBytes, B256, U256},
     providers::Provider,
     rpc::types::eth::Log,
@@ -53,13 +53,15 @@ impl UniswapV2Factory {
         }
     }
 
-    pub async fn get_all_pairs_via_batched_calls<
-        T: Transport + Clone,
-        P: Provider<T, AnyNetwork>,
-    >(
+    pub async fn get_all_pairs_via_batched_calls<T, N, P>(
         &self,
         provider: Arc<P>,
-    ) -> Result<Vec<AMM>, AMMError> {
+    ) -> Result<Vec<AMM>, AMMError>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
         let factory = IUniswapV2FactorySol::new(self.address, provider.clone());
 
         let IUniswapV2FactorySol::allPairsLengthReturn {
@@ -122,11 +124,12 @@ impl AutomatedMarketMakerFactory for UniswapV2Factory {
         PAIR_CREATED_EVENT_SIGNATURE
     }
 
-    async fn new_amm_from_log<T: Transport + Clone, P: Provider<T, AnyNetwork>>(
-        &self,
-        log: Log,
-        provider: Arc<P>,
-    ) -> Result<AMM, AMMError> {
+    async fn new_amm_from_log<T, N, P>(&self, log: Log, provider: Arc<P>) -> Result<AMM, AMMError>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
         let pair_created_event = IUniswapV2FactorySol::PairCreated::decode_log(log.as_ref(), true)?;
         Ok(AMM::UniswapV2Pool(
             UniswapV2Pool::new_from_address(pair_created_event.pair, self.fee, provider).await?,
@@ -149,21 +152,31 @@ impl AutomatedMarketMakerFactory for UniswapV2Factory {
     }
 
     #[instrument(skip(self, middleware) level = "debug")]
-    async fn get_all_amms<T: Transport + Clone, P: Provider<T, AnyNetwork>>(
+    async fn get_all_amms<T, N, P>(
         &self,
         _to_block: Option<u64>,
         middleware: Arc<P>,
         _step: u64,
-    ) -> Result<Vec<AMM>, AMMError> {
+    ) -> Result<Vec<AMM>, AMMError>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
         self.get_all_pairs_via_batched_calls(middleware).await
     }
 
-    async fn populate_amm_data<T: Transport + Clone, P: Provider<T, AnyNetwork>>(
+    async fn populate_amm_data<T, N, P>(
         &self,
         amms: &mut [AMM],
         _block_number: Option<u64>,
         middleware: Arc<P>,
-    ) -> Result<(), AMMError> {
+    ) -> Result<(), AMMError>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
         let step = 127; //Max batch size for call
         for amm_chunk in amms.chunks_mut(step) {
             batch_request::get_amm_data_batch_request(amm_chunk, middleware.clone()).await?;

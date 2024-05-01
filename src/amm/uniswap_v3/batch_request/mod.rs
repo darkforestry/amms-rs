@@ -1,6 +1,6 @@
 use std::{sync::Arc, vec};
 
-use alloy::{network::AnyNetwork, providers::Provider, sol, transports::Transport};
+use alloy::{network::Network, providers::Provider, sol, transports::Transport};
 use tracing::instrument;
 
 use crate::{
@@ -49,11 +49,16 @@ sol! {
     }
 }
 
-pub async fn get_v3_pool_data_batch_request<T: Transport + Clone, P: Provider<T, AnyNetwork>>(
+pub async fn get_v3_pool_data_batch_request<T, N, P>(
     pool: &mut UniswapV3Pool,
     block_number: Option<u64>,
     provider: Arc<P>,
-) -> Result<(), AMMError> {
+) -> Result<(), AMMError>
+where
+    T: Transport + Clone,
+    N: Network,
+    P: Provider<T, N>,
+{
     let deployer =
         IGetUniswapV3PoolDataBatchRequest::deploy_builder(provider.clone(), vec![pool.address])
             .with_sol_decoder::<IGetUniswapV3PoolDataBatchReturn::constructorReturnCall>();
@@ -95,17 +100,19 @@ pub struct UniswapV3TickData {
     pub liquidity_net: i128,
 }
 
-pub async fn get_uniswap_v3_tick_data_batch_request<
-    T: Transport + Clone,
-    P: Provider<T, AnyNetwork>,
->(
+pub async fn get_uniswap_v3_tick_data_batch_request<T, N, P>(
     pool: &UniswapV3Pool,
     tick_start: i32,
     zero_for_one: bool,
     num_ticks: u16,
     block_number: Option<u64>,
     provider: Arc<P>,
-) -> Result<(Vec<UniswapV3TickData>, u64), AMMError> {
+) -> Result<(Vec<UniswapV3TickData>, u64), AMMError>
+where
+    T: Transport + Clone,
+    N: Network,
+    P: Provider<T, N>,
+{
     let deployer = IGetUniswapV3TickDataBatchRequest::deploy_builder(
         provider.clone(),
         pool.address,
@@ -137,10 +144,15 @@ pub async fn get_uniswap_v3_tick_data_batch_request<
     Ok((tick_data, block_number as u64))
 }
 
-pub async fn sync_v3_pool_batch_request<T: Transport + Clone, P: Provider<T, AnyNetwork>>(
+pub async fn sync_v3_pool_batch_request<T, N, P>(
     pool: &mut UniswapV3Pool,
     provider: Arc<P>,
-) -> Result<(), AMMError> {
+) -> Result<(), AMMError>
+where
+    T: Transport + Clone,
+    N: Network,
+    P: Provider<T, N>,
+{
     let deployer = ISyncUniswapV3PoolBatchRequest::deploy_builder(provider.clone(), pool.address)
         .with_sol_decoder::<ISyncUniswapV3PoolBatchReturn::constructorReturnCall>();
 
@@ -169,11 +181,16 @@ pub async fn sync_v3_pool_batch_request<T: Transport + Clone, P: Provider<T, Any
 }
 
 #[instrument(skip(provider) level = "debug")]
-pub async fn get_amm_data_batch_request<T: Transport + Clone, P: Provider<T, AnyNetwork>>(
+pub async fn get_amm_data_batch_request<T, N, P>(
     amms: &mut [AMM],
     block_number: u64,
     provider: Arc<P>,
-) -> Result<(), AMMError> {
+) -> Result<(), AMMError>
+where
+    T: Transport + Clone,
+    N: Network,
+    P: Provider<T, N>,
+{
     let mut target_addresses = vec![];
 
     for amm in amms.iter() {
