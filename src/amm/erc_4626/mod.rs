@@ -16,11 +16,11 @@ use serde::{Deserialize, Serialize};
 use tracing::instrument;
 
 use crate::{
-    amm::AutomatedMarketMaker,
+    amm::{consts::U128_0X10000000000000000, AutomatedMarketMaker},
     errors::{AMMError, ArithmeticError, EventLogError, SwapSimulationError},
 };
 
-use super::uniswap_v2::{div_uu, q64_to_f64, U128_0X10000000000000000};
+use super::uniswap_v2::{div_uu, q64_to_f64};
 
 sol! {
     /// Interface of the IERC4626Valut contract

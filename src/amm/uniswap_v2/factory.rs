@@ -18,7 +18,7 @@ use crate::{
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
 
-use super::{batch_request, UniswapV2Pool};
+use super::{batch_request, UniswapV2Pool, U256_1};
 
 sol! {
     /// Interface of the UniswapV2Factory contract
@@ -92,7 +92,7 @@ impl UniswapV2Factory {
             idx_from = idx_to;
 
             if idx_to + U256::from(step) > pairs_length {
-                idx_to = pairs_length - U256::from(1)
+                idx_to = pairs_length - U256_1
             } else {
                 idx_to += U256::from(step);
             }

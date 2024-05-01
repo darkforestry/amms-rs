@@ -2,7 +2,7 @@ pub mod batch_request;
 pub mod factory;
 
 use crate::{
-    amm::AutomatedMarketMaker,
+    amm::{consts::*, AutomatedMarketMaker},
     errors::{AMMError, ArithmeticError, EventLogError, SwapSimulationError},
 };
 use alloy::{
@@ -24,6 +24,7 @@ use std::{
     sync::Arc,
 };
 use tracing::instrument;
+use uniswap_v3_math::tick_math::{MAX_SQRT_RATIO, MAX_TICK, MIN_SQRT_RATIO, MIN_TICK};
 
 use self::factory::POOL_CREATED_EVENT_SIGNATURE;
 
@@ -67,10 +68,6 @@ sol! {
     }
 }
 
-pub const MIN_SQRT_RATIO: U256 = U256::from_limbs([4295128739, 0, 0, 0]);
-pub const MAX_SQRT_RATIO: U256 =
-    U256::from_limbs([6743328256752651558, 17280870778742802505, 4294805859, 0]);
-pub const POPULATE_TICK_DATA_STEP: u64 = 100000;
 pub const SWAP_EVENT_SIGNATURE: B256 = FixedBytes([
     196, 32, 121, 249, 74, 99, 80, 215, 230, 35, 95, 41, 23, 73, 36, 249, 40, 204, 42, 200, 24,
     235, 100, 254, 216, 0, 78, 17, 95, 188, 202, 103,
@@ -87,10 +84,6 @@ pub const MINT_EVENT_SIGNATURE: B256 = FixedBytes([
     122, 83, 8, 11, 164, 20, 21, 139, 231, 236, 105, 185, 135, 181, 251, 125, 7, 222, 225, 1, 254,
     133, 72, 143, 8, 83, 174, 22, 35, 157, 11, 222,
 ]);
-
-pub const U256_TWO: U256 = U256::from_limbs([2, 0, 0, 0]);
-pub const Q128: U256 = U256::from_limbs([0, 0, 1, 0]);
-pub const Q224: U256 = U256::from_limbs([0, 0, 0, 4294967296]);
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct UniswapV3Pool {
@@ -216,9 +209,9 @@ impl AutomatedMarketMaker for UniswapV3Pool {
 
         // Set sqrt_price_limit_x_96 to the max or min sqrt price in the pool depending on zero_for_one
         let sqrt_price_limit_x_96 = if zero_for_one {
-            MIN_SQRT_RATIO + U256::from(1)
+            MIN_SQRT_RATIO + U256_1
         } else {
-            MAX_SQRT_RATIO - U256::from(1)
+            MAX_SQRT_RATIO - U256_1
         };
 
         // Initialize a mutable state state struct to hold the dynamic simulated state of the pool
@@ -353,9 +346,9 @@ impl AutomatedMarketMaker for UniswapV3Pool {
 
         // Set sqrt_price_limit_x_96 to the max or min sqrt price in the pool depending on zero_for_one
         let sqrt_price_limit_x_96 = if zero_for_one {
-            MIN_SQRT_RATIO + U256::from(1)
+            MIN_SQRT_RATIO + U256_1
         } else {
-            MAX_SQRT_RATIO - U256::from(1)
+            MAX_SQRT_RATIO - U256_1
         };
 
         // Initialize a mutable state state struct to hold the dynamic simulated state of the pool
@@ -1153,9 +1146,6 @@ pub struct StepComputations {
     pub amount_out: U256,
     pub fee_amount: U256,
 }
-
-const MIN_TICK: i32 = -887272;
-const MAX_TICK: i32 = 887272;
 
 pub struct Tick {
     pub liquidity_gross: u128,

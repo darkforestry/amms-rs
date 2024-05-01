@@ -4,7 +4,7 @@ pub mod factory;
 use std::sync::Arc;
 
 use crate::{
-    amm::AutomatedMarketMaker,
+    amm::{consts::*, AutomatedMarketMaker},
     errors::{AMMError, ArithmeticError, EventLogError, SwapSimulationError},
 };
 use alloy::{
@@ -46,7 +46,6 @@ sol! {
     }
 }
 
-pub const U128_0X10000000000000000: u128 = 18446744073709551616;
 pub const SYNC_EVENT_SIGNATURE: B256 = FixedBytes([
     28, 65, 30, 154, 150, 224, 113, 36, 28, 47, 33, 247, 114, 107, 23, 174, 137, 227, 202, 180,
     199, 139, 229, 14, 6, 43, 3, 169, 255, 251, 186, 209,
@@ -479,31 +478,6 @@ impl UniswapV2Pool {
         .into())
     }
 }
-
-pub const U256_0XFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF: U256 = U256::from_limbs([
-    18446744073709551615,
-    18446744073709551615,
-    18446744073709551615,
-    0,
-]);
-
-pub const U256_0XFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF: U256 =
-    U256::from_limbs([18446744073709551615, 18446744073709551615, 0, 0]);
-
-pub const U256_0X100000000: U256 = U256::from_limbs([4294967296, 0, 0, 0]);
-pub const U256_0X10000: U256 = U256::from_limbs([65536, 0, 0, 0]);
-pub const U256_0X100: U256 = U256::from_limbs([256, 0, 0, 0]);
-pub const U256_255: U256 = U256::from_limbs([255, 0, 0, 0]);
-pub const U256_192: U256 = U256::from_limbs([192, 0, 0, 0]);
-pub const U256_191: U256 = U256::from_limbs([191, 0, 0, 0]);
-pub const U256_128: U256 = U256::from_limbs([128, 0, 0, 0]);
-pub const U256_64: U256 = U256::from_limbs([64, 0, 0, 0]);
-pub const U256_32: U256 = U256::from_limbs([32, 0, 0, 0]);
-pub const U256_16: U256 = U256::from_limbs([16, 0, 0, 0]);
-pub const U256_8: U256 = U256::from_limbs([8, 0, 0, 0]);
-pub const U256_4: U256 = U256::from_limbs([4, 0, 0, 0]);
-pub const U256_2: U256 = U256::from_limbs([2, 0, 0, 0]);
-pub const U256_1: U256 = U256::from_limbs([1, 0, 0, 0]);
 
 pub fn div_uu(x: U256, y: U256) -> Result<u128, ArithmeticError> {
     if !y.is_zero() {
