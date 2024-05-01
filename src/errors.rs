@@ -1,45 +1,40 @@
-use ethers::prelude::{AbiError, ContractError};
-use ethers::providers::{Middleware, ProviderError};
-use ethers::types::{H160, U256};
+use alloy::primitives::{Address, U256};
+use alloy::transports::TransportError;
+
 use std::time::SystemTimeError;
 use thiserror::Error;
 use tokio::task::JoinError;
 use uniswap_v3_math::error::UniswapV3MathError;
 
 #[derive(Error, Debug)]
-pub enum AMMError<M>
-where
-    M: Middleware,
-{
-    #[error("Middleware error")]
-    MiddlewareError(<M as Middleware>::Error),
-    #[error("Provider error")]
-    ProviderError(#[from] ProviderError),
-    #[error("Contract error")]
-    ContractError(#[from] ContractError<M>),
-    #[error("ABI Codec error")]
-    ABICodecError(#[from] AbiError),
-    #[error("Eth ABI error")]
-    EthABIError(#[from] ethers::abi::Error),
-    #[error("Join error")]
+pub enum AMMError {
+    #[error(transparent)]
+    TransportError(#[from] TransportError),
+    #[error(transparent)]
+    ContractError(#[from] alloy::contract::Error),
+    #[error(transparent)]
+    ABICodecError(#[from] alloy::dyn_abi::Error),
+    #[error(transparent)]
+    EthABIError(#[from] alloy::sol_types::Error),
+    #[error(transparent)]
     JoinError(#[from] JoinError),
-    #[error("Serde json error")]
+    #[error(transparent)]
     SerdeJsonError(#[from] serde_json::error::Error),
-    #[error("IO error")]
+    #[error(transparent)]
     IOError(#[from] std::io::Error),
     #[error("Error when converting from hex to U256")]
     FromHexError,
-    #[error("Uniswap V3 math error")]
+    #[error(transparent)]
     UniswapV3MathError(#[from] UniswapV3MathError),
     #[error("Pair for token_a/token_b does not exist in provided dexes")]
-    PairDoesNotExistInDexes(H160, H160),
+    PairDoesNotExistInDexes(Address, Address),
     #[error("Could not initialize new pool from event log")]
     UnrecognizedPoolCreatedEventLog,
     #[error("Error when syncing pool")]
-    SyncError(H160),
+    SyncError(Address),
     #[error("Error when getting pool data")]
     PoolDataError,
-    #[error("Arithmetic error")]
+    #[error(transparent)]
     ArithmeticError(#[from] ArithmeticError),
     #[error("No initialized ticks during v3 swap simulation")]
     NoInitializedTicks,
@@ -49,16 +44,18 @@ where
     IncongruentAMMs,
     #[error("Invalid ERC4626 fee")]
     InvalidERC4626Fee,
-    #[error("Event log error")]
+    #[error(transparent)]
     EventLogError(#[from] EventLogError),
     #[error("Block number not found")]
     BlockNumberNotFound,
-    #[error("Swap simulation error")]
+    #[error(transparent)]
     SwapSimulationError(#[from] SwapSimulationError),
     #[error("Invalid data from batch request")]
-    BatchRequestError(H160),
-    #[error("Checkpoint error")]
+    BatchRequestError(Address),
+    #[error(transparent)]
     CheckpointError(#[from] CheckpointError),
+    #[error(transparent)]
+    EyreError(#[from] eyre::Error),
 }
 
 #[derive(Error, Debug)]
@@ -73,7 +70,7 @@ pub enum ArithmeticError {
     SqrtPriceOverflow,
     #[error("U128 conversion error")]
     U128ConversionError,
-    #[error("Uniswap v3 math error")]
+    #[error(transparent)]
     UniswapV3MathError(#[from] UniswapV3MathError),
 }
 
@@ -83,17 +80,17 @@ pub enum EventLogError {
     InvalidEventSignature,
     #[error("Log Block number not found")]
     LogBlockNumberNotFound,
-    #[error("Eth abi error")]
-    EthABIError(#[from] ethers::abi::Error),
-    #[error("ABI error")]
-    ABIError(#[from] AbiError),
+    #[error(transparent)]
+    EthABIError(#[from] alloy::sol_types::Error),
+    #[error(transparent)]
+    ABIError(#[from] alloy::dyn_abi::Error),
 }
 
 #[derive(Error, Debug)]
 pub enum SwapSimulationError {
     #[error("Could not get next tick")]
     InvalidTick,
-    #[error("Uniswap v3 math error")]
+    #[error(transparent)]
     UniswapV3MathError(#[from] UniswapV3MathError),
     #[error("Liquidity underflow")]
     LiquidityUnderflow,
@@ -101,10 +98,10 @@ pub enum SwapSimulationError {
 
 #[derive(Error, Debug)]
 pub enum CheckpointError {
-    #[error("System time error")]
+    #[error(transparent)]
     SystemTimeError(#[from] SystemTimeError),
-    #[error("Serde json error")]
+    #[error(transparent)]
     SerdeJsonError(#[from] serde_json::error::Error),
-    #[error("IO error")]
+    #[error(transparent)]
     IOError(#[from] std::io::Error),
 }

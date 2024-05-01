@@ -1,46 +1,58 @@
 use std::sync::Arc;
 
-use async_trait::async_trait;
-use ethers::{
-    providers::{Middleware, StreamExt},
-    types::{BlockNumber, Filter, Log, ValueOrArray, H160, H256, U64},
+use alloy::{
+    network::Network,
+    primitives::{Address, B256},
+    providers::Provider,
+    rpc::types::eth::{Filter, Log},
+    sol_types::SolEvent,
+    transports::Transport,
 };
-use futures::stream::FuturesUnordered;
+use async_trait::async_trait;
+use futures::stream::{FuturesUnordered, StreamExt};
 use serde::{Deserialize, Serialize};
 
 use crate::errors::{AMMError, EventLogError};
 
 use super::{
-    uniswap_v2::factory::{UniswapV2Factory, PAIR_CREATED_EVENT_SIGNATURE},
-    uniswap_v3::factory::{UniswapV3Factory, POOL_CREATED_EVENT_SIGNATURE},
+    uniswap_v2::factory::{IUniswapV2Factory, UniswapV2Factory},
+    uniswap_v3::factory::{IUniswapV3Factory, UniswapV3Factory},
     AMM,
 };
 
 #[async_trait]
 pub trait AutomatedMarketMakerFactory {
     /// Returns the address of the factory.
-    fn address(&self) -> H160;
+    fn address(&self) -> Address;
 
     /// Gets all Pools from the factory created logs up to the `to_block` block number.
     ///
     /// Returns a vector of AMMs.
-    async fn get_all_amms<M: 'static + Middleware>(
+    async fn get_all_amms<T, N, P>(
         &self,
         to_block: Option<u64>,
-        middleware: Arc<M>,
+        provider: Arc<P>,
         step: u64,
-    ) -> Result<Vec<AMM>, AMMError<M>>;
+    ) -> Result<Vec<AMM>, AMMError>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>;
 
     /// Populates all AMMs data via batched static calls.
-    async fn populate_amm_data<M: Middleware>(
+    async fn populate_amm_data<T, N, P>(
         &self,
         amms: &mut [AMM],
         block_number: Option<u64>,
-        middleware: Arc<M>,
-    ) -> Result<(), AMMError<M>>;
+        provider: Arc<P>,
+    ) -> Result<(), AMMError>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>;
 
     /// Returns the creation event signature for the factory.
-    fn amm_created_event_signature(&self) -> H256;
+    fn amm_created_event_signature(&self) -> B256;
 
     /// Returns the block number at which the factory was created.
     fn creation_block(&self) -> u64;
@@ -48,14 +60,14 @@ pub trait AutomatedMarketMakerFactory {
     /// Creates a new AMM from a log factory creation event.
     ///
     /// Returns a AMM with data populated.
-    async fn new_amm_from_log<M: 'static + Middleware>(
-        &self,
-        log: Log,
-        middleware: Arc<M>,
-    ) -> Result<AMM, AMMError<M>>;
+    async fn new_amm_from_log<T, N, P>(&self, log: Log, provider: Arc<P>) -> Result<AMM, AMMError>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>;
 
     /// Creates a new empty AMM from a log factory creation event.
-    fn new_empty_amm_from_log(&self, log: Log) -> Result<AMM, ethers::abi::Error>;
+    fn new_empty_amm_from_log(&self, log: Log) -> Result<AMM, alloy::sol_types::Error>;
 }
 
 macro_rules! factory {
@@ -67,39 +79,49 @@ macro_rules! factory {
 
         #[async_trait]
         impl AutomatedMarketMakerFactory for Factory {
-            fn address(&self) -> H160 {
+            fn address(&self) -> Address {
                 match self {
                     $(Factory::$factory_type(factory) => factory.address(),)+
                 }
             }
 
-            async fn get_all_amms<M: 'static + Middleware>(
+            async fn get_all_amms<T, N, P>(
                 &self,
                 to_block: Option<u64>,
-                middleware: Arc<M>,
+                provider: Arc<P>,
                 step: u64,
-            ) -> Result<Vec<AMM>, AMMError<M>> {
+            ) -> Result<Vec<AMM>, AMMError>
+            where
+                T: Transport + Clone,
+                N: Network,
+                P: Provider<T, N>,
+            {
                 match self {
                     $(Factory::$factory_type(factory) => {
-                        factory.get_all_amms(to_block, middleware, step).await
+                        factory.get_all_amms(to_block, provider, step).await
                     },)+
                 }
             }
 
-            async fn populate_amm_data<M: Middleware>(
+            async fn populate_amm_data<T, N, P>(
                 &self,
                 amms: &mut [AMM],
                 block_number: Option<u64>,
-                middleware: Arc<M>,
-            ) -> Result<(), AMMError<M>> {
+                provider: Arc<P>,
+            ) -> Result<(), AMMError>
+            where
+                T: Transport + Clone,
+                N: Network,
+                P: Provider<T, N>,
+            {
                 match self {
                     $(Factory::$factory_type(factory) => {
-                        factory.populate_amm_data(amms, block_number, middleware).await
+                        factory.populate_amm_data(amms, block_number, provider).await
                     },)+
                 }
             }
 
-            fn amm_created_event_signature(&self) -> H256 {
+            fn amm_created_event_signature(&self) -> B256 {
                 match self {
                     $(Factory::$factory_type(factory) => factory.amm_created_event_signature(),)+
                 }
@@ -111,17 +133,22 @@ macro_rules! factory {
                 }
             }
 
-            async fn new_amm_from_log<M: 'static + Middleware>(
+            async fn new_amm_from_log<T, N, P>(
                 &self,
                 log: Log,
-                middleware: Arc<M>,
-            ) -> Result<AMM, AMMError<M>> {
+                provider: Arc<P>,
+            ) -> Result<AMM, AMMError>
+            where
+                T: Transport + Clone,
+                N: Network,
+                P: Provider<T, N>,
+            {
                 match self {
-                    $(Factory::$factory_type(factory) => factory.new_amm_from_log(log, middleware).await,)+
+                    $(Factory::$factory_type(factory) => factory.new_amm_from_log(log, provider).await,)+
                 }
             }
 
-            fn new_empty_amm_from_log(&self, log: Log) -> Result<AMM, ethers::abi::Error> {
+            fn new_empty_amm_from_log(&self, log: Log) -> Result<AMM, alloy::sol_types::Error> {
                 match self {
                     $(Factory::$factory_type(factory) => factory.new_empty_amm_from_log(log),)+
                 }
@@ -133,13 +160,18 @@ macro_rules! factory {
 factory!(UniswapV2Factory, UniswapV3Factory);
 
 impl Factory {
-    pub async fn get_all_pools_from_logs<M: 'static + Middleware>(
+    pub async fn get_all_pools_from_logs<T, N, P>(
         &self,
         mut from_block: u64,
         to_block: u64,
         step: u64,
-        middleware: Arc<M>,
-    ) -> Result<Vec<AMM>, AMMError<M>> {
+        provider: Arc<P>,
+    ) -> Result<Vec<AMM>, AMMError>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
         let factory_address = self.address();
         let amm_created_event_signature = self.amm_created_event_signature();
         let mut futures = FuturesUnordered::new();
@@ -147,28 +179,28 @@ impl Factory {
         let mut aggregated_amms: Vec<AMM> = vec![];
 
         while from_block < to_block {
-            let middleware = middleware.clone();
+            let provider = provider.clone();
             let mut target_block = from_block + step - 1;
             if target_block > to_block {
                 target_block = to_block;
             }
 
             let filter = Filter::new()
-                .topic0(ValueOrArray::Value(amm_created_event_signature))
+                .event_signature(amm_created_event_signature)
                 .address(factory_address)
-                .from_block(BlockNumber::Number(U64([from_block])))
-                .to_block(BlockNumber::Number(U64([target_block])));
+                .from_block(from_block)
+                .to_block(target_block);
 
-            futures.push(async move { middleware.get_logs(&filter).await });
+            futures.push(async move { provider.get_logs(&filter).await });
 
             from_block += step;
         }
 
         while let Some(result) = futures.next().await {
-            let logs = result.map_err(AMMError::MiddlewareError)?;
+            let logs = result.map_err(AMMError::TransportError)?;
 
             for log in logs {
-                aggregated_amms.push(self.new_empty_amm_from_log(log)?);
+                aggregated_amms.push(self.new_empty_amm_from_log(log).unwrap());
             }
         }
 
@@ -176,13 +208,13 @@ impl Factory {
     }
 }
 
-impl TryFrom<H256> for Factory {
+impl TryFrom<B256> for Factory {
     type Error = EventLogError;
 
-    fn try_from(value: H256) -> Result<Self, Self::Error> {
-        if value == PAIR_CREATED_EVENT_SIGNATURE {
+    fn try_from(value: B256) -> Result<Self, Self::Error> {
+        if value == IUniswapV2Factory::PairCreated::SIGNATURE_HASH {
             Ok(Factory::UniswapV2Factory(UniswapV2Factory::default()))
-        } else if value == POOL_CREATED_EVENT_SIGNATURE {
+        } else if value == IUniswapV3Factory::PoolCreated::SIGNATURE_HASH {
             Ok(Factory::UniswapV3Factory(UniswapV3Factory::default()))
         } else {
             return Err(EventLogError::InvalidEventSignature);
