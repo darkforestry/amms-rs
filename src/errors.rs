@@ -8,33 +8,33 @@ use uniswap_v3_math::error::UniswapV3MathError;
 
 #[derive(Error, Debug)]
 pub enum AMMError {
-    #[error(transparent)]
+    #[error("Transport error")]
     TransportError(#[from] TransportError),
-    #[error(transparent)]
+    #[error("Contract error")]
     ContractError(#[from] alloy::contract::Error),
-    #[error(transparent)]
+    #[error("ABI Codec error")]
     ABICodecError(#[from] alloy::dyn_abi::Error),
-    #[error(transparent)]
+    #[error("Eth ABI error")]
     EthABIError(#[from] alloy::sol_types::Error),
-    #[error(transparent)]
+    #[error("Join error")]
     JoinError(#[from] JoinError),
-    #[error(transparent)]
+    #[error("Serde json error")]
     SerdeJsonError(#[from] serde_json::error::Error),
-    #[error(transparent)]
+    #[error("IO error")]
     IOError(#[from] std::io::Error),
     #[error("Error when converting from hex to U256")]
     FromHexError,
-    #[error(transparent)]
+    #[error("Uniswap V3 math error")]
     UniswapV3MathError(#[from] UniswapV3MathError),
-    #[error("Pair for {0}/{1} does not exist in provided dexes")]
+    #[error("Pair for token_a/token_b does not exist in provided dexes")]
     PairDoesNotExistInDexes(Address, Address),
     #[error("Could not initialize new pool from event log")]
     UnrecognizedPoolCreatedEventLog,
-    #[error("Error when syncing pool: {0}")]
+    #[error("Error when syncing pool")]
     SyncError(Address),
     #[error("Error when getting pool data")]
     PoolDataError,
-    #[error(transparent)]
+    #[error("Arithmetic error")]
     ArithmeticError(#[from] ArithmeticError),
     #[error("No initialized ticks during v3 swap simulation")]
     NoInitializedTicks,
@@ -44,23 +44,23 @@ pub enum AMMError {
     IncongruentAMMs,
     #[error("Invalid ERC4626 fee")]
     InvalidERC4626Fee,
-    #[error(transparent)]
+    #[error("Event log error")]
     EventLogError(#[from] EventLogError),
     #[error("Block number not found")]
     BlockNumberNotFound,
-    #[error(transparent)]
+    #[error("Swap simulation error")]
     SwapSimulationError(#[from] SwapSimulationError),
-    #[error("Invalid data from batch request for {0}")]
+    #[error("Invalid data from batch request")]
     BatchRequestError(Address),
-    #[error(transparent)]
+    #[error("Checkpoint error")]
     CheckpointError(#[from] CheckpointError),
-    #[error(transparent)]
+    #[error("General eyre error")]
     EyreError(#[from] eyre::Error),
 }
 
 #[derive(Error, Debug)]
 pub enum ArithmeticError {
-    #[error("Shadow overflow: {0}")]
+    #[error("Shadow overflow")]
     ShadowOverflow(U256),
     #[error("Rounding Error")]
     RoundingError,
@@ -70,7 +70,7 @@ pub enum ArithmeticError {
     SqrtPriceOverflow,
     #[error("U128 conversion error")]
     U128ConversionError,
-    #[error(transparent)]
+    #[error("Uniswap v3 math error")]
     UniswapV3MathError(#[from] UniswapV3MathError),
 }
 
@@ -80,9 +80,9 @@ pub enum EventLogError {
     InvalidEventSignature,
     #[error("Log Block number not found")]
     LogBlockNumberNotFound,
-    #[error(transparent)]
+    #[error("Eth abi error")]
     EthABIError(#[from] alloy::sol_types::Error),
-    #[error(transparent)]
+    #[error("ABI error")]
     ABIError(#[from] alloy::dyn_abi::Error),
 }
 
@@ -90,7 +90,7 @@ pub enum EventLogError {
 pub enum SwapSimulationError {
     #[error("Could not get next tick")]
     InvalidTick,
-    #[error(transparent)]
+    #[error("Uniswap v3 math error")]
     UniswapV3MathError(#[from] UniswapV3MathError),
     #[error("Liquidity underflow")]
     LiquidityUnderflow,
@@ -98,10 +98,10 @@ pub enum SwapSimulationError {
 
 #[derive(Error, Debug)]
 pub enum CheckpointError {
-    #[error(transparent)]
+    #[error("System time error")]
     SystemTimeError(#[from] SystemTimeError),
-    #[error(transparent)]
+    #[error("Serde json error")]
     SerdeJsonError(#[from] serde_json::error::Error),
-    #[error(transparent)]
+    #[error("IO error")]
     IOError(#[from] std::io::Error),
 }
