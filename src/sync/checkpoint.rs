@@ -5,7 +5,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use ethers::{providers::Middleware, types::H160};
+use alloy::{network::Network, primitives::Address, providers::Provider, transports::Transport};
 
 use serde::{Deserialize, Serialize};
 
@@ -48,46 +48,47 @@ impl Checkpoint {
     }
 }
 
-//Get all pairs from last synced block and sync reserve values for each Dex in the `dexes` vec.
-pub async fn sync_amms_from_checkpoint<M: 'static + Middleware>(
+// Get all pairs from last synced block and sync reserve values for each Dex in the `dexes` vec.
+pub async fn sync_amms_from_checkpoint<T, N, P>(
     path_to_checkpoint: &str,
     step: u64,
-    middleware: Arc<M>,
-) -> Result<(Vec<Factory>, Vec<AMM>), AMMError<M>> {
-    let current_block = middleware
-        .get_block_number()
-        .await
-        .map_err(AMMError::MiddlewareError)?
-        .as_u64();
+    provider: Arc<P>,
+) -> Result<(Vec<Factory>, Vec<AMM>), AMMError>
+where
+    T: Transport + Clone,
+    N: Network,
+    P: Provider<T, N> + 'static,
+{
+    let current_block = provider.get_block_number().await?;
 
     let checkpoint: Checkpoint =
         serde_json::from_str(read_to_string(path_to_checkpoint)?.as_str())?;
 
-    //Sort all of the pools from the checkpoint into uniswap_v2_pools and uniswap_v3_pools pools so we can sync them concurrently
+    // Sort all of the pools from the checkpoint into uniswap_v2_pools and uniswap_v3_pools pools so we can sync them concurrently
     let (uniswap_v2_pools, uniswap_v3_pools, erc_4626_pools) = sort_amms(checkpoint.amms);
 
     let mut aggregated_amms = vec![];
     let mut handles = vec![];
 
-    //Sync all uniswap v2 pools from checkpoint
+    // Sync all uniswap v2 pools from checkpoint
     if !uniswap_v2_pools.is_empty() {
         handles.push(
             batch_sync_amms_from_checkpoint(
                 uniswap_v2_pools,
                 Some(current_block),
-                middleware.clone(),
+                provider.clone(),
             )
             .await,
         );
     }
 
-    //Sync all uniswap v3 pools from checkpoint
+    // Sync all uniswap v3 pools from checkpoint
     if !uniswap_v3_pools.is_empty() {
         handles.push(
             batch_sync_amms_from_checkpoint(
                 uniswap_v3_pools,
                 Some(current_block),
-                middleware.clone(),
+                provider.clone(),
             )
             .await,
         );
@@ -101,14 +102,14 @@ pub async fn sync_amms_from_checkpoint<M: 'static + Middleware>(
         );
     }
 
-    //Sync all pools from the since synced block
+    // Sync all pools from the since synced block
     handles.extend(
         get_new_amms_from_range(
             checkpoint.factories.clone(),
             checkpoint.block_number,
             current_block,
             step,
-            middleware.clone(),
+            provider.clone(),
         )
         .await,
     );
@@ -138,78 +139,88 @@ pub async fn sync_amms_from_checkpoint<M: 'static + Middleware>(
     Ok((checkpoint.factories, aggregated_amms))
 }
 
-pub async fn get_new_amms_from_range<M: 'static + Middleware>(
+pub async fn get_new_amms_from_range<T, N, P>(
     factories: Vec<Factory>,
     from_block: u64,
     to_block: u64,
     step: u64,
-    middleware: Arc<M>,
-) -> Vec<JoinHandle<Result<Vec<AMM>, AMMError<M>>>> {
-    //Create the filter with all the pair created events
-    //Aggregate the populated pools from each thread
+    provider: Arc<P>,
+) -> Vec<JoinHandle<Result<Vec<AMM>, AMMError>>>
+where
+    T: Transport + Clone,
+    N: Network,
+    P: Provider<T, N> + 'static,
+{
+    // Create the filter with all the pair created events
+    // Aggregate the populated pools from each thread
     let mut handles = vec![];
 
     for factory in factories.into_iter() {
-        let middleware = middleware.clone();
+        let provider = provider.clone();
 
-        //Spawn a new thread to get all pools and sync data for each dex
+        // Spawn a new thread to get all pools and sync data for each dex
         handles.push(tokio::spawn(async move {
             let mut amms = factory
-                .get_all_pools_from_logs(from_block, to_block, step, middleware.clone())
+                .get_all_pools_from_logs(from_block, to_block, step, provider.clone())
                 .await?;
 
             factory
-                .populate_amm_data(&mut amms, Some(to_block), middleware.clone())
+                .populate_amm_data(&mut amms, Some(to_block), provider.clone())
                 .await?;
 
-            //Clean empty pools
+            // Clean empty pools
             amms = filters::filter_empty_amms(amms);
 
-            Ok::<_, AMMError<M>>(amms)
+            Ok::<_, AMMError>(amms)
         }));
     }
 
     handles
 }
 
-pub async fn batch_sync_amms_from_checkpoint<M: 'static + Middleware>(
+pub async fn batch_sync_amms_from_checkpoint<T, N, P>(
     mut amms: Vec<AMM>,
     block_number: Option<u64>,
-    middleware: Arc<M>,
-) -> JoinHandle<Result<Vec<AMM>, AMMError<M>>> {
+    provider: Arc<P>,
+) -> JoinHandle<Result<Vec<AMM>, AMMError>>
+where
+    T: Transport + Clone,
+    N: Network,
+    P: Provider<T, N> + 'static,
+{
     let factory = match amms[0] {
         AMM::UniswapV2Pool(_) => Some(Factory::UniswapV2Factory(UniswapV2Factory::new(
-            H160::zero(),
+            Address::ZERO,
             0,
             0,
         ))),
 
         AMM::UniswapV3Pool(_) => Some(Factory::UniswapV3Factory(UniswapV3Factory::new(
-            H160::zero(),
+            Address::ZERO,
             0,
         ))),
 
         AMM::ERC4626Vault(_) => None,
     };
 
-    //Spawn a new thread to get all pools and sync data for each dex
+    // Spawn a new thread to get all pools and sync data for each dex
     tokio::spawn(async move {
         if let Some(factory) = factory {
             if amms_are_congruent(&amms) {
-                //Get all pool data via batched calls
+                // Get all pool data via batched calls
                 factory
-                    .populate_amm_data(&mut amms, block_number, middleware)
+                    .populate_amm_data(&mut amms, block_number, provider)
                     .await?;
 
-                //Clean empty pools
+                // Clean empty pools
                 amms = filters::filter_empty_amms(amms);
 
-                Ok::<_, AMMError<M>>(amms)
+                Ok::<_, AMMError>(amms)
             } else {
                 Err(AMMError::IncongruentAMMs)
             }
         } else {
-            Ok::<_, AMMError<M>>(vec![])
+            Ok::<_, AMMError>(vec![])
         }
     })
 }
@@ -229,34 +240,39 @@ pub fn sort_amms(amms: Vec<AMM>) -> (Vec<AMM>, Vec<AMM>, Vec<AMM>) {
     (uniswap_v2_pools, uniswap_v3_pools, erc_4626_vaults)
 }
 
-pub async fn get_new_pools_from_range<M: 'static + Middleware>(
+pub async fn get_new_pools_from_range<T, N, P>(
     factories: Vec<Factory>,
     from_block: u64,
     to_block: u64,
     step: u64,
-    middleware: Arc<M>,
-) -> Vec<JoinHandle<Result<Vec<AMM>, AMMError<M>>>> {
-    //Create the filter with all the pair created events
-    //Aggregate the populated pools from each thread
+    provider: Arc<P>,
+) -> Vec<JoinHandle<Result<Vec<AMM>, AMMError>>>
+where
+    T: Transport + Clone,
+    N: Network,
+    P: Provider<T, N> + 'static,
+{
+    // Create the filter with all the pair created events
+    // Aggregate the populated pools from each thread
     let mut handles = vec![];
 
     for factory in factories {
-        let middleware = middleware.clone();
+        let provider = provider.clone();
 
-        //Spawn a new thread to get all pools and sync data for each dex
+        // Spawn a new thread to get all pools and sync data for each dex
         handles.push(tokio::spawn(async move {
             let mut pools = factory
-                .get_all_pools_from_logs(from_block, to_block, step, middleware.clone())
+                .get_all_pools_from_logs(from_block, to_block, step, provider.clone())
                 .await?;
 
             factory
-                .populate_amm_data(&mut pools, Some(to_block), middleware.clone())
+                .populate_amm_data(&mut pools, Some(to_block), provider.clone())
                 .await?;
 
-            //Clean empty pools
+            // Clean empty pools
             pools = filters::filter_empty_amms(pools);
 
-            Ok::<_, AMMError<M>>(pools)
+            Ok::<_, AMMError>(pools)
         }));
     }
 
@@ -281,7 +297,7 @@ pub fn construct_checkpoint(
     Ok(())
 }
 
-//Deconstructs the checkpoint into a Vec<AMM>
+// Deconstructs the checkpoint into a Vec<AMM>
 pub fn deconstruct_checkpoint(checkpoint_path: &str) -> Result<(Vec<AMM>, u64), CheckpointError> {
     let checkpoint: Checkpoint = serde_json::from_str(read_to_string(checkpoint_path)?.as_str())?;
     Ok((checkpoint.amms, checkpoint.block_number))

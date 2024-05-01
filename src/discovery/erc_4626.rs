@@ -1,13 +1,13 @@
 use std::{collections::HashSet, str::FromStr, sync::Arc};
 
-use ethers::{
-    providers::Middleware,
-    types::{Filter, U256},
+use alloy::{
+    network::Network, primitives::U256, providers::Provider, rpc::types::eth::Filter,
+    sol_types::SolEvent, transports::Transport,
 };
 use regex::Regex;
 
 use crate::{
-    amm::erc_4626::{ERC4626Vault, DEPOSIT_EVENT_SIGNATURE, WITHDRAW_EVENT_SIGNATURE},
+    amm::erc_4626::{ERC4626Vault, IERC4626Vault},
     errors::AMMError,
 };
 
@@ -16,38 +16,42 @@ lazy_static::lazy_static! {
 }
 
 // Returns a vec of empty factories that match one of the Factory interfaces specified by each DiscoverableFactory
-pub async fn discover_erc_4626_vaults<M: Middleware>(
-    middleware: Arc<M>,
+pub async fn discover_erc_4626_vaults<T, N, P>(
+    provider: Arc<P>,
     step: u64,
-) -> Result<Vec<ERC4626Vault>, AMMError<M>> {
-    let event_signatures = vec![DEPOSIT_EVENT_SIGNATURE, WITHDRAW_EVENT_SIGNATURE];
-    let block_filter = Filter::new().topic0(event_signatures.clone());
+) -> Result<Vec<ERC4626Vault>, AMMError>
+where
+    T: Transport + Clone,
+    N: Network,
+    P: Provider<T, N>,
+{
+    let event_signatures = vec![
+        IERC4626Vault::Deposit::SIGNATURE_HASH,
+        IERC4626Vault::Withdraw::SIGNATURE_HASH,
+    ];
+    let block_filter = Filter::new().event_signature(event_signatures.clone());
     tracing::trace!(?event_signatures);
 
-    let current_block = middleware
-        .get_block_number()
-        .await
-        .map_err(AMMError::MiddlewareError)?
-        .as_u64();
+    let current_block = provider.get_block_number().await?;
 
     let mut adheres_to_withdraw_event = HashSet::new();
     let mut adheres_to_deposit_event = HashSet::new();
     let mut identified_addresses = HashSet::new();
 
     let mut from_block = 0;
-    //TODO: make this async
+    // TODO: make this async
     while from_block < current_block {
-        //Get pair created event logs within the block range
+        // Get pair created event logs within the block range
         let mut to_block = from_block + step - 1;
         if to_block > current_block {
             to_block = current_block;
         }
 
         let block_filter = block_filter.clone();
-        //TODO: use a better method, this is just quick and scrappy
+        // TODO: use a better method, this is just quick and scrappy
         let fallback_block_filter = block_filter.clone();
 
-        let logs = match middleware
+        let logs = match provider
             .get_logs(&block_filter.from_block(from_block).to_block(to_block))
             .await
         {
@@ -65,23 +69,22 @@ pub async fn discover_erc_4626_vaults<M: Middleware>(
                 }
 
                 if block_range.is_empty() {
-                    return Err(AMMError::MiddlewareError(err));
+                    return Err(AMMError::TransportError(err));
                 } else {
                     tracing::warn!(
                         "getting logs from blocks {}-{} instead",
                         block_range[0],
                         block_range[1]
                     );
-                    let logs = middleware
+                    let logs = provider
                         .get_logs(
                             &fallback_block_filter
-                                .from_block(block_range[0].as_u64())
-                                .to_block(block_range[1].as_u64()),
+                                .from_block(block_range[0].to::<u64>())
+                                .to_block(block_range[1].to::<u64>()),
                         )
-                        .await
-                        .map_err(AMMError::MiddlewareError)?;
+                        .await?;
 
-                    from_block = block_range[1].as_u64();
+                    from_block = block_range[1].to::<u64>();
 
                     logs
                 }
@@ -89,10 +92,10 @@ pub async fn discover_erc_4626_vaults<M: Middleware>(
         };
 
         for log in logs {
-            if log.topics[0] == DEPOSIT_EVENT_SIGNATURE {
-                adheres_to_deposit_event.insert(log.address);
-            } else if log.topics[0] == WITHDRAW_EVENT_SIGNATURE {
-                adheres_to_withdraw_event.insert(log.address);
+            if log.topics()[0] == IERC4626Vault::Deposit::SIGNATURE_HASH {
+                adheres_to_deposit_event.insert(log.address());
+            } else if log.topics()[0] == IERC4626Vault::Withdraw::SIGNATURE_HASH {
+                adheres_to_withdraw_event.insert(log.address());
             }
         }
     }
@@ -109,7 +112,7 @@ pub async fn discover_erc_4626_vaults<M: Middleware>(
         //TODO: vaults. This approach is inefficient but should work for now.
 
         if let Ok(vault) =
-            ERC4626Vault::new_from_address(*identified_address, middleware.clone()).await
+            ERC4626Vault::new_from_address(*identified_address, provider.clone()).await
         {
             vaults.push(vault);
         }
