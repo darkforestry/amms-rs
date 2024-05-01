@@ -5,6 +5,7 @@ use alloy::{
     primitives::{Address, B256},
     providers::Provider,
     rpc::types::eth::{Filter, Log},
+    sol_types::SolEvent,
     transports::Transport,
 };
 use async_trait::async_trait;
@@ -14,8 +15,8 @@ use serde::{Deserialize, Serialize};
 use crate::errors::{AMMError, EventLogError};
 
 use super::{
-    uniswap_v2::factory::{UniswapV2Factory, PAIR_CREATED_EVENT_SIGNATURE},
-    uniswap_v3::factory::{UniswapV3Factory, POOL_CREATED_EVENT_SIGNATURE},
+    uniswap_v2::factory::{IUniswapV2Factory, UniswapV2Factory},
+    uniswap_v3::factory::{IUniswapV3Factory, UniswapV3Factory},
     AMM,
 };
 
@@ -211,9 +212,9 @@ impl TryFrom<B256> for Factory {
     type Error = EventLogError;
 
     fn try_from(value: B256) -> Result<Self, Self::Error> {
-        if value == PAIR_CREATED_EVENT_SIGNATURE {
+        if value == IUniswapV2Factory::PairCreated::SIGNATURE_HASH {
             Ok(Factory::UniswapV2Factory(UniswapV2Factory::default()))
-        } else if value == POOL_CREATED_EVENT_SIGNATURE {
+        } else if value == IUniswapV3Factory::PoolCreated::SIGNATURE_HASH {
             Ok(Factory::UniswapV3Factory(UniswapV3Factory::default()))
         } else {
             return Err(EventLogError::InvalidEventSignature);

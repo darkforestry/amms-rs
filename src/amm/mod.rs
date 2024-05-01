@@ -11,6 +11,7 @@ use alloy::{
     primitives::{Address, B256, U256},
     providers::Provider,
     rpc::types::eth::Log,
+    sol,
     transports::Transport,
 };
 use async_trait::async_trait;
@@ -19,6 +20,16 @@ use serde::{Deserialize, Serialize};
 use crate::errors::{AMMError, ArithmeticError, EventLogError, SwapSimulationError};
 
 use self::{erc_4626::ERC4626Vault, uniswap_v2::UniswapV2Pool, uniswap_v3::UniswapV3Pool};
+
+sol! {
+    /// Interface of the ERC20
+    #[derive(Debug, PartialEq, Eq)]
+    #[sol(rpc)]
+    contract IErc20 {
+        function balanceOf(address account) external view returns (uint256);
+        function decimals() external view returns (uint8);
+    }
+}
 
 #[async_trait]
 pub trait AutomatedMarketMaker {

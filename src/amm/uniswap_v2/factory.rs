@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use alloy::{
     network::Network,
-    primitives::{Address, FixedBytes, B256, U256},
+    primitives::{Address, B256, U256},
     providers::Provider,
     rpc::types::eth::Log,
     sol,
@@ -24,18 +24,13 @@ sol! {
     /// Interface of the UniswapV2Factory contract
     #[derive(Debug, PartialEq, Eq)]
     #[sol(rpc)]
-    contract IUniswapV2FactorySol {
+    contract IUniswapV2Factory {
         event PairCreated(address indexed token0, address indexed token1, address pair, uint256 index);
         function getPair(address tokenA, address tokenB) external view returns (address pair);
         function allPairs(uint256 index) external view returns (address pair);
         function allPairsLength() external view returns (uint256 length);
     }
 }
-
-pub const PAIR_CREATED_EVENT_SIGNATURE: B256 = FixedBytes([
-    13, 54, 72, 189, 15, 107, 168, 1, 52, 163, 59, 169, 39, 90, 197, 133, 217, 211, 21, 240, 173,
-    131, 85, 205, 222, 253, 227, 26, 250, 40, 208, 233,
-]);
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct UniswapV2Factory {
@@ -62,9 +57,9 @@ impl UniswapV2Factory {
         N: Network,
         P: Provider<T, N>,
     {
-        let factory = IUniswapV2FactorySol::new(self.address, provider.clone());
+        let factory = IUniswapV2Factory::new(self.address, provider.clone());
 
-        let IUniswapV2FactorySol::allPairsLengthReturn {
+        let IUniswapV2Factory::allPairsLengthReturn {
             length: pairs_length,
         } = factory.allPairsLength().call().await?;
 
@@ -121,7 +116,7 @@ impl AutomatedMarketMakerFactory for UniswapV2Factory {
     }
 
     fn amm_created_event_signature(&self) -> B256 {
-        PAIR_CREATED_EVENT_SIGNATURE
+        IUniswapV2Factory::PairCreated::SIGNATURE_HASH
     }
 
     async fn new_amm_from_log<T, N, P>(&self, log: Log, provider: Arc<P>) -> Result<AMM, AMMError>
@@ -130,14 +125,14 @@ impl AutomatedMarketMakerFactory for UniswapV2Factory {
         N: Network,
         P: Provider<T, N>,
     {
-        let pair_created_event = IUniswapV2FactorySol::PairCreated::decode_log(log.as_ref(), true)?;
+        let pair_created_event = IUniswapV2Factory::PairCreated::decode_log(log.as_ref(), true)?;
         Ok(AMM::UniswapV2Pool(
             UniswapV2Pool::new_from_address(pair_created_event.pair, self.fee, provider).await?,
         ))
     }
 
     fn new_empty_amm_from_log(&self, log: Log) -> Result<AMM, alloy::sol_types::Error> {
-        let pair_created_event = IUniswapV2FactorySol::PairCreated::decode_log(log.as_ref(), true)?;
+        let pair_created_event = IUniswapV2Factory::PairCreated::decode_log(log.as_ref(), true)?;
 
         Ok(AMM::UniswapV2Pool(UniswapV2Pool {
             address: pair_created_event.pair,

@@ -4,7 +4,7 @@ use std::{cmp::Ordering, sync::Arc};
 
 use alloy::{
     network::Network,
-    primitives::{Address, FixedBytes, B256, U256},
+    primitives::{Address, B256, U256},
     providers::Provider,
     rpc::types::eth::Log,
     sol,
@@ -34,16 +34,6 @@ sol! {
         function decimals() external view returns (uint8);
     }
 }
-
-pub const DEPOSIT_EVENT_SIGNATURE: B256 = FixedBytes([
-    220, 188, 28, 5, 36, 15, 49, 255, 58, 208, 103, 239, 30, 227, 92, 228, 153, 119, 98, 117, 46,
-    58, 9, 82, 132, 117, 69, 68, 244, 199, 9, 215,
-]);
-
-pub const WITHDRAW_EVENT_SIGNATURE: B256 = FixedBytes([
-    251, 222, 121, 125, 32, 28, 104, 27, 145, 5, 101, 41, 17, 158, 11, 2, 64, 124, 123, 185, 106,
-    74, 44, 117, 192, 31, 201, 102, 114, 50, 200, 219,
-]);
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ERC4626Vault {
@@ -94,18 +84,21 @@ impl AutomatedMarketMaker for ERC4626Vault {
     }
 
     fn sync_on_event_signatures(&self) -> Vec<B256> {
-        vec![DEPOSIT_EVENT_SIGNATURE, WITHDRAW_EVENT_SIGNATURE]
+        vec![
+            IERC4626Vault::Deposit::SIGNATURE_HASH,
+            IERC4626Vault::Withdraw::SIGNATURE_HASH,
+        ]
     }
 
     #[instrument(skip(self), level = "debug")]
     fn sync_from_log(&mut self, log: Log) -> Result<(), EventLogError> {
         let event_signature = log.data().topics()[0];
-        if event_signature == DEPOSIT_EVENT_SIGNATURE {
+        if event_signature == IERC4626Vault::Deposit::SIGNATURE_HASH {
             let deposit_event = IERC4626Vault::Deposit::decode_log(log.as_ref(), true)?;
             self.asset_reserve += deposit_event.assets;
             self.vault_reserve += deposit_event.shares;
             tracing::debug!(asset_reserve = ?self.asset_reserve, vault_reserve = ?self.vault_reserve, address = ?self.vault_token, "ER4626 deposit event");
-        } else if event_signature == WITHDRAW_EVENT_SIGNATURE {
+        } else if event_signature == IERC4626Vault::Withdraw::SIGNATURE_HASH {
             let withdraw_filter = IERC4626Vault::Withdraw::decode_log(log.as_ref(), true)?;
             self.asset_reserve -= withdraw_filter.assets;
             self.vault_reserve -= withdraw_filter.shares;

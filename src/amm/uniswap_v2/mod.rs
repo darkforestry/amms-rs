@@ -4,12 +4,12 @@ pub mod factory;
 use std::sync::Arc;
 
 use crate::{
-    amm::{consts::*, AutomatedMarketMaker},
+    amm::{consts::*, AutomatedMarketMaker, IErc20},
     errors::{AMMError, ArithmeticError, EventLogError, SwapSimulationError},
 };
 use alloy::{
     network::Network,
-    primitives::{Address, Bytes, FixedBytes, B256, U256},
+    primitives::{Address, Bytes, B256, U256},
     providers::Provider,
     rpc::types::eth::Log,
     sol,
@@ -21,7 +21,7 @@ use num_bigfloat::BigFloat;
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
 
-use self::factory::PAIR_CREATED_EVENT_SIGNATURE;
+use self::factory::IUniswapV2Factory;
 
 sol! {
     /// Interface of the UniswapV2Pair
@@ -35,21 +35,6 @@ sol! {
         function swap(uint256 amount0Out, uint256 amount1Out, address to, bytes calldata data);
     }
 }
-
-sol! {
-    /// Interface of the IERC20
-    #[derive(Debug, PartialEq, Eq)]
-    #[sol(rpc)]
-    contract IErc20 {
-        function balanceOf(address account) external view returns (uint256);
-        function decimals() external view returns (uint8);
-    }
-}
-
-pub const SYNC_EVENT_SIGNATURE: B256 = FixedBytes([
-    28, 65, 30, 154, 150, 224, 113, 36, 28, 47, 33, 247, 114, 107, 23, 174, 137, 227, 202, 180,
-    199, 139, 229, 14, 6, 43, 3, 169, 255, 251, 186, 209,
-]);
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct UniswapV2Pool {
@@ -102,14 +87,14 @@ impl AutomatedMarketMaker for UniswapV2Pool {
     }
 
     fn sync_on_event_signatures(&self) -> Vec<B256> {
-        vec![SYNC_EVENT_SIGNATURE]
+        vec![IUniswapV2Pair::Sync::SIGNATURE_HASH]
     }
 
     #[instrument(skip(self), level = "debug")]
     fn sync_from_log(&mut self, log: Log) -> Result<(), EventLogError> {
         let event_signature = log.topics()[0];
 
-        if event_signature == SYNC_EVENT_SIGNATURE {
+        if event_signature == IUniswapV2Pair::Sync::SIGNATURE_HASH {
             let sync_event = IUniswapV2Pair::Sync::decode_log(log.as_ref(), true)?;
             tracing::info!(reserve_0 = sync_event.reserve0, reserve_1 = sync_event.reserve1, address = ?self.address, "UniswapV2 sync event");
 
@@ -269,9 +254,9 @@ impl UniswapV2Pool {
     {
         let event_signature = log.data().topics()[0];
 
-        if event_signature == PAIR_CREATED_EVENT_SIGNATURE {
+        if event_signature == IUniswapV2Factory::PairCreated::SIGNATURE_HASH {
             let pair_created_event =
-                factory::IUniswapV2FactorySol::PairCreated::decode_log(log.as_ref(), true)?;
+                factory::IUniswapV2Factory::PairCreated::decode_log(log.as_ref(), true)?;
             UniswapV2Pool::new_from_address(pair_created_event.pair, fee, provider).await
         } else {
             Err(EventLogError::InvalidEventSignature)?
@@ -284,9 +269,9 @@ impl UniswapV2Pool {
     pub fn new_empty_pool_from_log(log: Log) -> Result<Self, EventLogError> {
         let event_signature = log.topics()[0];
 
-        if event_signature == PAIR_CREATED_EVENT_SIGNATURE {
+        if event_signature == IUniswapV2Factory::PairCreated::SIGNATURE_HASH {
             let pair_created_event =
-                factory::IUniswapV2FactorySol::PairCreated::decode_log(log.as_ref(), true)?;
+                factory::IUniswapV2Factory::PairCreated::decode_log(log.as_ref(), true)?;
 
             Ok(UniswapV2Pool {
                 address: pair_created_event.pair,

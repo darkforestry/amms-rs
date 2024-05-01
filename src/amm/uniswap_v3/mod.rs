@@ -2,12 +2,12 @@ pub mod batch_request;
 pub mod factory;
 
 use crate::{
-    amm::{consts::*, AutomatedMarketMaker},
+    amm::{consts::*, AutomatedMarketMaker, IErc20},
     errors::{AMMError, ArithmeticError, EventLogError, SwapSimulationError},
 };
 use alloy::{
     network::Network,
-    primitives::{Address, Bytes, FixedBytes, B256, I256, U256},
+    primitives::{Address, Bytes, B256, I256, U256},
     providers::Provider,
     rpc::types::eth::{Filter, Log},
     sol,
@@ -26,17 +26,7 @@ use std::{
 use tracing::instrument;
 use uniswap_v3_math::tick_math::{MAX_SQRT_RATIO, MAX_TICK, MIN_SQRT_RATIO, MIN_TICK};
 
-use self::factory::POOL_CREATED_EVENT_SIGNATURE;
-
-sol! {
-    /// Interface of the IUniswapV3Factory
-    #[derive(Debug, PartialEq, Eq)]
-    #[sol(rpc)]
-    contract IUniswapV3Factory {
-        event PoolCreated(address indexed token0, address indexed token1, uint24 indexed fee, int24 tickSpacing, address pool);
-        function getPool(address tokenA, address tokenB, uint24 fee) external view returns (address pool);
-    }
-}
+use self::factory::IUniswapV3Factory;
 
 sol! {
     /// Interface of the IUniswapV3Pool
@@ -57,33 +47,6 @@ sol! {
         function swap(address recipient, bool zeroForOne, int256 amountSpecified, uint160 sqrtPriceLimitX96, bytes calldata data) external returns (int256, int256);
     }
 }
-
-sol! {
-    /// Interface of the IUniswapV3Pool
-    #[derive(Debug, PartialEq, Eq)]
-    #[sol(rpc)]
-    contract IErc20 {
-        function balanceOf(address account) external view returns (uint256);
-        function decimals() external view returns (uint8);
-    }
-}
-
-pub const SWAP_EVENT_SIGNATURE: B256 = FixedBytes([
-    196, 32, 121, 249, 74, 99, 80, 215, 230, 35, 95, 41, 23, 73, 36, 249, 40, 204, 42, 200, 24,
-    235, 100, 254, 216, 0, 78, 17, 95, 188, 202, 103,
-]);
-
-// Burn event signature
-pub const BURN_EVENT_SIGNATURE: B256 = FixedBytes([
-    12, 57, 108, 217, 137, 163, 159, 68, 89, 181, 250, 26, 237, 106, 154, 141, 205, 188, 69, 144,
-    138, 207, 214, 126, 2, 140, 213, 104, 218, 152, 152, 44,
-]);
-
-// Mint event signature
-pub const MINT_EVENT_SIGNATURE: B256 = FixedBytes([
-    122, 83, 8, 11, 164, 20, 21, 139, 231, 236, 105, 185, 135, 181, 251, 125, 7, 222, 225, 1, 254,
-    133, 72, 143, 8, 83, 174, 22, 35, 157, 11, 222,
-]);
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct UniswapV3Pool {
@@ -138,9 +101,9 @@ impl AutomatedMarketMaker for UniswapV3Pool {
     // This defines the event signatures to listen to that will produce events to be passed into AMM::sync_from_log()
     fn sync_on_event_signatures(&self) -> Vec<B256> {
         vec![
-            SWAP_EVENT_SIGNATURE,
-            MINT_EVENT_SIGNATURE,
-            BURN_EVENT_SIGNATURE,
+            IUniswapV3Pool::Swap::SIGNATURE_HASH,
+            IUniswapV3Pool::Mint::SIGNATURE_HASH,
+            IUniswapV3Pool::Burn::SIGNATURE_HASH,
         ]
     }
 
@@ -148,11 +111,11 @@ impl AutomatedMarketMaker for UniswapV3Pool {
     fn sync_from_log(&mut self, log: Log) -> Result<(), EventLogError> {
         let event_signature = log.topics()[0];
 
-        if event_signature == BURN_EVENT_SIGNATURE {
+        if event_signature == IUniswapV3Pool::Burn::SIGNATURE_HASH {
             self.sync_from_burn_log(log)?;
-        } else if event_signature == MINT_EVENT_SIGNATURE {
+        } else if event_signature == IUniswapV3Pool::Mint::SIGNATURE_HASH {
             self.sync_from_mint_log(log)?;
-        } else if event_signature == SWAP_EVENT_SIGNATURE {
+        } else if event_signature == IUniswapV3Pool::Swap::SIGNATURE_HASH {
             self.sync_from_swap_log(log)?;
         } else {
             Err(EventLogError::InvalidEventSignature)?
@@ -577,7 +540,7 @@ impl UniswapV3Pool {
     {
         let event_signature = log.topics()[0];
 
-        if event_signature == POOL_CREATED_EVENT_SIGNATURE {
+        if event_signature == IUniswapV3Factory::PoolCreated::SIGNATURE_HASH {
             if let Some(block_number) = log.block_number {
                 let pool_created_event =
                     IUniswapV3Factory::PoolCreated::decode_log(&log.inner, true)?;
@@ -597,7 +560,7 @@ impl UniswapV3Pool {
     pub fn new_empty_pool_from_log(log: Log) -> Result<Self, EventLogError> {
         let event_signature = log.topics()[0];
 
-        if event_signature == POOL_CREATED_EVENT_SIGNATURE {
+        if event_signature == IUniswapV3Factory::PoolCreated::SIGNATURE_HASH {
             let pool_created_event =
                 IUniswapV3Factory::PoolCreated::decode_log(log.as_ref(), true)?;
 
@@ -656,7 +619,10 @@ impl UniswapV3Pool {
                 middleware
                     .get_logs(
                         &Filter::new()
-                            .event_signature(vec![BURN_EVENT_SIGNATURE, MINT_EVENT_SIGNATURE])
+                            .event_signature(vec![
+                                IUniswapV3Pool::Burn::SIGNATURE_HASH,
+                                IUniswapV3Pool::Mint::SIGNATURE_HASH,
+                            ])
                             .address(pool_address)
                             .from_block(from_block)
                             .to_block(target_block),
