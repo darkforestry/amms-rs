@@ -1,6 +1,6 @@
 use std::{sync::Arc, vec};
 
-use alloy::{network::Network, providers::Provider, sol, transports::Transport};
+use alloy::{network::AnyNetwork, providers::Provider, sol, transports::Transport};
 use tracing::instrument;
 
 use crate::{
@@ -49,7 +49,7 @@ sol! {
     }
 }
 
-pub async fn get_v3_pool_data_batch_request<T: Transport + Clone, N: Network, P: Provider<T, N>>(
+pub async fn get_v3_pool_data_batch_request<T: Transport + Clone, P: Provider<T, AnyNetwork>>(
     pool: &mut UniswapV3Pool,
     block_number: Option<u64>,
     provider: Arc<P>,
@@ -97,8 +97,7 @@ pub struct UniswapV3TickData {
 
 pub async fn get_uniswap_v3_tick_data_batch_request<
     T: Transport + Clone,
-    N: Network,
-    P: Provider<T, N>,
+    P: Provider<T, AnyNetwork>,
 >(
     pool: &UniswapV3Pool,
     tick_start: i32,
@@ -138,7 +137,7 @@ pub async fn get_uniswap_v3_tick_data_batch_request<
     Ok((tick_data, block_number as u64))
 }
 
-pub async fn sync_v3_pool_batch_request<T: Transport + Clone, N: Network, P: Provider<T, N>>(
+pub async fn sync_v3_pool_batch_request<T: Transport + Clone, P: Provider<T, AnyNetwork>>(
     pool: &mut UniswapV3Pool,
     provider: Arc<P>,
 ) -> Result<(), AMMError> {
@@ -170,7 +169,7 @@ pub async fn sync_v3_pool_batch_request<T: Transport + Clone, N: Network, P: Pro
 }
 
 #[instrument(skip(provider) level = "debug")]
-pub async fn get_amm_data_batch_request<T: Transport + Clone, N: Network, P: Provider<T, N>>(
+pub async fn get_amm_data_batch_request<T: Transport + Clone, P: Provider<T, AnyNetwork>>(
     amms: &mut [AMM],
     block_number: u64,
     provider: Arc<P>,
@@ -178,7 +177,7 @@ pub async fn get_amm_data_batch_request<T: Transport + Clone, N: Network, P: Pro
     let mut target_addresses = vec![];
 
     for amm in amms.iter() {
-        target_addresses.push(<AMM as AutomatedMarketMaker<T, N, P>>::address(amm));
+        target_addresses.push(amm.address());
     }
 
     let deployer =

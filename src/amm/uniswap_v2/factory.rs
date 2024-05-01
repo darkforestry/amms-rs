@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use alloy::{
-    network::Network,
+    network::AnyNetwork,
     primitives::{Address, FixedBytes, B256, U256},
     providers::Provider,
     rpc::types::eth::Log,
@@ -55,8 +55,7 @@ impl UniswapV2Factory {
 
     pub async fn get_all_pairs_via_batched_calls<
         T: Transport + Clone,
-        N: Network,
-        P: Provider<T, N>,
+        P: Provider<T, AnyNetwork>,
     >(
         &self,
         provider: Arc<P>,
@@ -114,12 +113,7 @@ impl UniswapV2Factory {
 }
 
 #[async_trait]
-impl<T, N, P> AutomatedMarketMakerFactory<T, N, P> for UniswapV2Factory
-where
-    T: Transport + Clone,
-    N: Network,
-    P: Provider<T, N>,
-{
+impl AutomatedMarketMakerFactory for UniswapV2Factory {
     fn address(&self) -> Address {
         self.address
     }
@@ -128,7 +122,11 @@ where
         PAIR_CREATED_EVENT_SIGNATURE
     }
 
-    async fn new_amm_from_log(&self, log: Log, provider: Arc<P>) -> Result<AMM, AMMError> {
+    async fn new_amm_from_log<T: Transport + Clone, P: Provider<T, AnyNetwork>>(
+        &self,
+        log: Log,
+        provider: Arc<P>,
+    ) -> Result<AMM, AMMError> {
         let pair_created_event = IUniswapV2FactorySol::PairCreated::decode_log(log.as_ref(), true)?;
         Ok(AMM::UniswapV2Pool(
             UniswapV2Pool::new_from_address(pair_created_event.pair, self.fee, provider).await?,
@@ -151,7 +149,7 @@ where
     }
 
     #[instrument(skip(self, middleware) level = "debug")]
-    async fn get_all_amms(
+    async fn get_all_amms<T: Transport + Clone, P: Provider<T, AnyNetwork>>(
         &self,
         _to_block: Option<u64>,
         middleware: Arc<P>,
@@ -160,7 +158,7 @@ where
         self.get_all_pairs_via_batched_calls(middleware).await
     }
 
-    async fn populate_amm_data(
+    async fn populate_amm_data<T: Transport + Clone, P: Provider<T, AnyNetwork>>(
         &self,
         amms: &mut [AMM],
         _block_number: Option<u64>,

@@ -2,7 +2,9 @@ use std::sync::Arc;
 
 use crate::{amm::AutomatedMarketMaker, errors::AMMError};
 
-use alloy::{network::Network, primitives::U256, providers::Provider, sol, transports::Transport};
+use alloy::{
+    network::AnyNetwork, primitives::U256, providers::Provider, sol, transports::Transport,
+};
 
 use super::ERC4626Vault;
 
@@ -19,11 +21,7 @@ sol! {
     }
 }
 
-pub async fn get_4626_vault_data_batch_request<
-    T: Transport + Clone,
-    N: Network,
-    P: Provider<T, N>,
->(
+pub async fn get_4626_vault_data_batch_request<T: Transport + Clone, P: Provider<T, AnyNetwork>>(
     vault: &mut ERC4626Vault,
     provider: Arc<P>,
 ) -> Result<(), AMMError> {
@@ -58,9 +56,7 @@ pub async fn get_4626_vault_data_batch_request<
             vault.deposit_fee = (deposit_fee_delta_1 / (deposit_no_fee / U256::from(10_000))).to();
         } else {
             // If not a relative fee or zero, ignore vault
-            return Err(AMMError::BatchRequestError(
-                <ERC4626Vault as AutomatedMarketMaker<T, N, P>>::address(vault),
-            ));
+            return Err(AMMError::BatchRequestError(vault.address()));
         }
 
         // If both deltas are zero, the fee is zero
@@ -73,9 +69,7 @@ pub async fn get_4626_vault_data_batch_request<
                 (withdraw_fee_delta_1 / (withdraw_no_fee / U256::from(10_000))).to();
         } else {
             // If not a relative fee or zero, ignore vault
-            return Err(AMMError::BatchRequestError(
-                <ERC4626Vault as AutomatedMarketMaker<T, N, P>>::address(vault),
-            ));
+            return Err(AMMError::BatchRequestError(vault.address()));
         }
 
         // if above does not error => populate the vault

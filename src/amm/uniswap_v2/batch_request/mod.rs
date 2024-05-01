@@ -1,5 +1,5 @@
 use alloy::{
-    network::Network,
+    network::AnyNetwork,
     primitives::{Address, U256},
     providers::Provider,
     sol,
@@ -40,7 +40,7 @@ sol! {
     }
 }
 
-pub async fn get_pairs_batch_request<T: Transport + Clone, N: Network, P: Provider<T, N>>(
+pub async fn get_pairs_batch_request<T: Transport + Clone, P: Provider<T, AnyNetwork>>(
     factory: Address,
     from: U256,
     step: U256,
@@ -55,13 +55,13 @@ pub async fn get_pairs_batch_request<T: Transport + Clone, N: Network, P: Provid
     Ok(pairs)
 }
 
-pub async fn get_amm_data_batch_request<T: Transport + Clone, N: Network, P: Provider<T, N>>(
+pub async fn get_amm_data_batch_request<T: Transport + Clone, P: Provider<T, AnyNetwork>>(
     amms: &mut [AMM],
     provider: Arc<P>,
 ) -> Result<(), AMMError> {
     let mut target_addresses = vec![];
     for amm in amms.iter() {
-        target_addresses.push(<AMM as AutomatedMarketMaker<T, N, P>>::address(amm));
+        target_addresses.push(amm.address());
     }
 
     let deployer =
@@ -94,7 +94,7 @@ pub async fn get_amm_data_batch_request<T: Transport + Clone, N: Network, P: Pro
     Ok(())
 }
 
-pub async fn get_v2_pool_data_batch_request<T: Transport + Clone, N: Network, P: Provider<T, N>>(
+pub async fn get_v2_pool_data_batch_request<T: Transport + Clone, P: Provider<T, AnyNetwork>>(
     pool: &mut UniswapV2Pool,
     provider: Arc<P>,
 ) -> Result<(), AMMError> {
