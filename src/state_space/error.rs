@@ -1,55 +1,40 @@
 use crate::errors::{AMMError, ArithmeticError, EventLogError};
 
-use ethers::prelude::{AbiError, ContractError};
+use alloy::{primitives::Address, rpc::types::eth::Block, transports::TransportError};
 
-use ethers::providers::{Middleware, ProviderError, PubsubClient};
-
-use ethers::signers::WalletError;
-use ethers::types::{Block, H160, H256};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
-pub enum StateSpaceError<M, P>
-where
-    M: Middleware + 'static,
-    M::Error: 'static,
-    P: Middleware + 'static,
-    P::Provider: PubsubClient,
-    P::Error: 'static,
-{
-    #[error("Middleware error")]
-    MiddlewareError(<M as Middleware>::Error),
-    #[error("Pubsub client error")]
-    PubsubClientError(<P as Middleware>::Error),
-    #[error("Provider error")]
-    ProviderError(#[from] ProviderError),
-    #[error("Contract error")]
-    ContractError(#[from] ContractError<M>),
-    #[error("ABI Codec error")]
-    ABICodecError(#[from] AbiError),
-    #[error("Eth ABI error")]
-    EthABIError(#[from] ethers::abi::Error),
-    #[error("AMM error")]
-    AMMError(#[from] AMMError<M>),
-    #[error("Arithmetic error")]
+pub enum StateSpaceError {
+    #[error(transparent)]
+    TransportError(#[from] TransportError),
+    #[error(transparent)]
+    ContractError(#[from] alloy::contract::Error),
+    #[error(transparent)]
+    ABICodecError(#[from] alloy::dyn_abi::Error),
+    #[error(transparent)]
+    EthABIError(#[from] alloy::sol_types::Error),
+    #[error(transparent)]
+    AMMError(#[from] AMMError),
+    #[error(transparent)]
     ArithmeticError(#[from] ArithmeticError),
-    #[error("Wallet error")]
-    WalletError(#[from] WalletError),
+    #[error(transparent)]
+    WalletError(#[from] alloy::signers::wallet::WalletError),
     #[error("Insufficient wallet funds for execution")]
     InsufficientWalletFunds(),
-    #[error("Event log error")]
+    #[error(transparent)]
     EventLogError(#[from] EventLogError),
-    #[error("State change error")]
+    #[error(transparent)]
     StateChangeError(#[from] StateChangeError),
     #[error("Block number not found")]
     BlockNumberNotFound,
-    #[error("Could not send state changes through channel")]
-    StateChangeSendError(#[from] tokio::sync::mpsc::error::SendError<Vec<H160>>),
-    #[error("Could not send block through channel")]
-    BlockSendError(#[from] tokio::sync::mpsc::error::SendError<Block<H256>>),
+    #[error(transparent)]
+    StateChangeSendError(#[from] tokio::sync::mpsc::error::SendError<Vec<Address>>),
+    #[error(transparent)]
+    BlockSendError(#[from] tokio::sync::mpsc::error::SendError<Block>),
     #[error("Already listening for state changes")]
     AlreadyListeningForStateChanges,
-    #[error("Could not send block through channel")]
+    #[error(transparent)]
     JoinError(#[from] tokio::task::JoinError),
 }
 
@@ -61,6 +46,6 @@ pub enum StateChangeError {
     PopFrontError,
     #[error("State change cache capacity error")]
     CapacityError,
-    #[error("Event log error")]
+    #[error(transparent)]
     EventLogError(#[from] EventLogError),
 }
