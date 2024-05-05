@@ -1,4 +1,5 @@
 use alloy::{
+    dyn_abi::DynSolType,
     network::Network,
     primitives::{Address, U256},
     providers::Provider,
@@ -51,6 +52,14 @@ where
     N: Network,
     P: Provider<T, N>,
 {
+    let deployer =
+        IGetUniswapV2PairsBatchRequest::deploy_builder(provider.clone(), from, step, factory);
+    let res = deployer.call_raw().await?;
+    let type_name = DynSolType::Array(Box::new(DynSolType::Address));
+    let lol = type_name.abi_decode_sequence(&res)?;
+    let fu = lol.as_array();
+    dbg!(fu);
+
     let deployer = IGetUniswapV2PairsBatchRequest::deploy_builder(provider, from, step, factory)
         .with_sol_decoder::<IGetUniswapV2PairsBatchReturn::constructorReturnCall>();
 
@@ -113,6 +122,23 @@ where
     N: Network,
     P: Provider<T, N>,
 {
+    let deployer =
+        IGetUniswapV2PoolDataBatchRequest::deploy_builder(provider.clone(), vec![pool.address]);
+    let res = deployer.call_raw().await?;
+
+    let type_name = DynSolType::Array(Box::new(DynSolType::Tuple(vec![
+        DynSolType::Address,
+        DynSolType::Uint(8),
+        DynSolType::Address,
+        DynSolType::Uint(8),
+        DynSolType::Uint(112),
+        DynSolType::Uint(112),
+    ])));
+
+    let lol = type_name.abi_decode_sequence(&res)?;
+    let fu = lol.as_array();
+    dbg!(fu);
+
     let deployer =
         IGetUniswapV2PoolDataBatchRequest::deploy_builder(provider.clone(), vec![pool.address])
             .with_sol_decoder::<IGetUniswapV2PoolDataBatchReturn::constructorReturnCall>();
