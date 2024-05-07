@@ -1,6 +1,12 @@
 use std::{sync::Arc, vec};
 
-use alloy::{network::Network, providers::Provider, sol, transports::Transport};
+use alloy::{
+    dyn_abi::{DynSolType, DynSolValue},
+    network::Network,
+    providers::Provider,
+    sol,
+    transports::Transport,
+};
 use tracing::instrument;
 
 use crate::{
@@ -18,22 +24,10 @@ sol! {
 }
 
 sol! {
-    contract IGetUniswapV3PoolDataBatchReturn {
-        function constructorReturn() external view returns ((address, uint8, address, uint8, uint128, uint160, int24, int24, uint24, int128)[] memory);
-    }
-}
-
-sol! {
     #[allow(missing_docs)]
     #[sol(rpc)]
     IGetUniswapV3TickDataBatchRequest,
     "src/amm/uniswap_v3/batch_request/GetUniswapV3TickDataBatchRequestABI.json"
-}
-
-sol! {
-    contract IGetUniswapV3TickDataBatchReturn {
-        function constructorReturn() external view returns ((bool, int24, int128)[] memory, uint32);
-    }
 }
 
 sol! {
@@ -43,10 +37,22 @@ sol! {
     "src/amm/uniswap_v3/batch_request/SyncUniswapV3PoolBatchRequestABI.json"
 }
 
-sol! {
-    contract ISyncUniswapV3PoolBatchReturn {
-        function constructorReturn() external view returns ((uint128, uint160, int24, int128)[] memory);
-    }
+#[inline]
+fn populate_pool_data_from_tokens(
+    mut pool: UniswapV3Pool,
+    tokens: &[DynSolValue],
+) -> Option<UniswapV3Pool> {
+    pool.token_a = tokens[0].as_address()?;
+    pool.token_a_decimals = tokens[1].as_uint()?.0.to::<u8>();
+    pool.token_b = tokens[2].as_address()?;
+    pool.token_b_decimals = tokens[3].as_uint()?.0.to::<u8>();
+    pool.liquidity = tokens[4].as_uint()?.0.to::<u128>();
+    pool.sqrt_price = tokens[5].as_uint()?.0;
+    pool.tick = tokens[6].as_int()?.0.as_i32();
+    pool.tick_spacing = tokens[7].as_int()?.0.as_i32();
+    pool.fee = tokens[8].as_uint()?.0.to::<u32>();
+
+    Some(pool)
 }
 
 pub async fn get_v3_pool_data_batch_request<T, N, P>(
@@ -59,37 +65,37 @@ where
     N: Network,
     P: Provider<T, N>,
 {
-    let deployer =
-        IGetUniswapV3PoolDataBatchRequest::deploy_builder(provider.clone(), vec![pool.address])
-            .with_sol_decoder::<IGetUniswapV3PoolDataBatchReturn::constructorReturnCall>();
+    let deployer = IGetUniswapV3PoolDataBatchRequest::deploy_builder(provider, vec![pool.address]);
+    let res = if let Some(block_number) = block_number {
+        deployer.block(block_number.into()).call_raw().await?
+    } else {
+        deployer.call_raw().await?
+    };
 
-    let IGetUniswapV3PoolDataBatchReturn::constructorReturnReturn { _0: pool_data } =
-        if let Some(block_number) = block_number {
-            deployer.block(block_number.into()).call().await?
-        } else {
-            deployer.call().await?
-        };
+    let constructor_return = DynSolType::Array(Box::new(DynSolType::Tuple(vec![
+        DynSolType::Address,
+        DynSolType::Uint(8),
+        DynSolType::Address,
+        DynSolType::Uint(8),
+        DynSolType::Uint(128),
+        DynSolType::Uint(160),
+        DynSolType::Int(24),
+        DynSolType::Int(24),
+        DynSolType::Uint(24),
+        DynSolType::Int(128),
+    ])));
+    let return_data_tokens = constructor_return.abi_decode_sequence(&res)?;
 
-    // make sure returned pool data len == 1
-    let pool_data_len = pool_data.len();
-    if pool_data_len != 1_usize {
-        return Err(AMMError::EyreError(eyre::eyre!(
-            "Unexpected return length, expected 1, returned {pool_data_len}"
-        )));
+    if let Some(tokens_arr) = return_data_tokens.as_array() {
+        for token in tokens_arr {
+            let pool_data = token
+                .as_tuple()
+                .ok_or(AMMError::BatchRequestError(pool.address))?;
+
+            *pool = populate_pool_data_from_tokens(pool.to_owned(), pool_data)
+                .ok_or(AMMError::BatchRequestError(pool.address))?;
+        }
     }
-
-    // Update pool data
-    pool.token_a = pool_data[0].0;
-    pool.token_a_decimals = pool_data[0].1;
-    pool.token_b = pool_data[0].2;
-    pool.token_b_decimals = pool_data[0].3;
-    pool.liquidity = pool_data[0].4;
-    pool.sqrt_price = pool_data[0].5;
-    pool.tick = pool_data[0].6;
-    pool.tick_spacing = pool_data[0].7;
-    pool.fee = pool_data[0].8;
-
-    tracing::trace!(?pool);
 
     Ok(())
 }
@@ -114,34 +120,71 @@ where
     P: Provider<T, N>,
 {
     let deployer = IGetUniswapV3TickDataBatchRequest::deploy_builder(
-        provider.clone(),
+        provider,
         pool.address,
         zero_for_one,
         tick_start,
         num_ticks,
         pool.tick_spacing,
-    )
-    .with_sol_decoder::<IGetUniswapV3TickDataBatchReturn::constructorReturnCall>();
-
-    let IGetUniswapV3TickDataBatchReturn::constructorReturnReturn {
-        _0: tick_data_raw,
-        _1: block_number,
-    } = if let Some(block_number) = block_number {
-        deployer.block(block_number.into()).call().await?
+    );
+    let res = if let Some(block_number) = block_number {
+        deployer.block(block_number.into()).call_raw().await?
     } else {
-        deployer.call().await?
+        deployer.call_raw().await?
     };
 
-    let tick_data = tick_data_raw
-        .into_iter()
-        .map(|(initialized, tick, liquidity_net)| UniswapV3TickData {
-            initialized,
-            tick,
-            liquidity_net,
-        })
-        .collect();
+    let constructor_return = DynSolType::Tuple(vec![
+        DynSolType::Array(Box::new(DynSolType::Tuple(vec![
+            DynSolType::Bool,
+            DynSolType::Int(24),
+            DynSolType::Int(128),
+        ]))),
+        DynSolType::Uint(32),
+    ]);
+    let return_data_tokens = constructor_return.abi_decode_sequence(&res)?;
 
-    Ok((tick_data, block_number as u64))
+    let return_data_tuple = return_data_tokens
+        .as_tuple()
+        .ok_or(AMMError::BatchRequestError(pool.address))?;
+
+    let tick_data_arr = return_data_tuple[0]
+        .as_array()
+        .ok_or(AMMError::BatchRequestError(pool.address))?;
+
+    let mut tick_data = vec![];
+    for tokens in tick_data_arr {
+        if let Some(tick_data_tuple) = tokens.as_tuple() {
+            let initialized = tick_data_tuple[0]
+                .as_bool()
+                .ok_or(AMMError::BatchRequestError(pool.address))?;
+
+            let tick = tick_data_tuple[1]
+                .as_int()
+                .ok_or(AMMError::BatchRequestError(pool.address))?
+                .0
+                .as_i32();
+
+            let liquidity_net = tick_data_tuple[2]
+                .as_int()
+                .ok_or(AMMError::BatchRequestError(pool.address))?
+                .0
+                .as_isize() as i128;
+
+            tick_data.push(UniswapV3TickData {
+                initialized,
+                tick,
+                liquidity_net,
+            });
+        }
+    }
+
+    let block_number = return_data_tuple[1]
+        .as_uint()
+        .ok_or(AMMError::BatchRequestError(pool.address))?
+        .0
+        .to::<u64>();
+
+    Ok((tick_data, block_number))
 }
 
 pub async fn sync_v3_pool_batch_request<T, N, P>(
@@ -153,28 +196,41 @@ where
     N: Network,
     P: Provider<T, N>,
 {
-    let deployer = ISyncUniswapV3PoolBatchRequest::deploy_builder(provider.clone(), pool.address)
-        .with_sol_decoder::<ISyncUniswapV3PoolBatchReturn::constructorReturnCall>();
+    let deployer = ISyncUniswapV3PoolBatchRequest::deploy_builder(provider, pool.address);
+    let res = deployer.call_raw().await?;
 
-    let ISyncUniswapV3PoolBatchReturn::constructorReturnReturn { _0: pool_data } =
-        deployer.call().await?;
+    let constructor_return = DynSolType::Tuple(vec![
+        DynSolType::Uint(128),
+        DynSolType::Uint(160),
+        DynSolType::Int(24),
+        DynSolType::Int(128),
+    ]);
+    let return_data_tokens = constructor_return.abi_decode_sequence(&res)?;
 
-    // make sure returned pool data len == 1
-    let pool_data_len = pool_data.len();
-    if pool_data_len != 1_usize {
-        return Err(AMMError::EyreError(eyre::eyre!(
-            "Unexpected return length, expected 1, returned {pool_data_len}"
-        )));
-    }
-
-    // Update pool data
-    // If the sqrt_price is not zero, signaling that the pool data was populated
-    if pool_data[0].1.is_zero() {
-        return Err(AMMError::BatchRequestError(pool.address));
-    } else {
-        pool.liquidity = pool_data[0].0;
-        pool.sqrt_price = pool_data[0].1;
-        pool.tick = pool_data[0].2;
+    if let Some(tokens_tup) = return_data_tokens.as_tuple() {
+        if tokens_tup[1]
+            .as_uint()
+            .ok_or(AMMError::BatchRequestError(pool.address))?
+            .0
+            .is_zero()
+        {
+            return Err(AMMError::BatchRequestError(pool.address));
+        } else {
+            pool.liquidity = tokens_tup[0]
+                .as_uint()
+                .ok_or(AMMError::BatchRequestError(pool.address))?
+                .0
+                .to::<u128>();
+            pool.sqrt_price = tokens_tup[1]
+                .as_uint()
+                .ok_or(AMMError::BatchRequestError(pool.address))?
+                .0;
+            pool.tick = tokens_tup[2]
+                .as_int()
+                .ok_or(AMMError::BatchRequestError(pool.address))?
+                .0
+                .as_i32();
+        }
     }
 
     Ok(())
@@ -197,33 +253,47 @@ where
         target_addresses.push(amm.address());
     }
 
-    let deployer =
-        IGetUniswapV3PoolDataBatchRequest::deploy_builder(provider.clone(), target_addresses)
-            .with_sol_decoder::<IGetUniswapV3PoolDataBatchReturn::constructorReturnCall>();
-    let IGetUniswapV3PoolDataBatchReturn::constructorReturnReturn { _0: amms_data } =
-        deployer.block(block_number.into()).call().await?;
+    let deployer = IGetUniswapV3PoolDataBatchRequest::deploy_builder(provider, target_addresses);
+    let res = deployer.block(block_number.into()).call_raw().await?;
+
+    let constructor_return = DynSolType::Array(Box::new(DynSolType::Tuple(vec![
+        DynSolType::Address,
+        DynSolType::Uint(8),
+        DynSolType::Address,
+        DynSolType::Uint(8),
+        DynSolType::Uint(128),
+        DynSolType::Uint(160),
+        DynSolType::Int(24),
+        DynSolType::Int(24),
+        DynSolType::Uint(24),
+        DynSolType::Int(128),
+    ])));
+    let return_data_tokens = constructor_return.abi_decode_sequence(&res)?;
 
     let mut pool_idx = 0;
-    for amm_data in amms_data {
-        if !amm_data.0.is_zero() {
-            if let AMM::UniswapV3Pool(uniswap_v3_pool) = amms
-                .get_mut(pool_idx)
-                .expect("Pool ifx should be in bounds")
-            {
-                uniswap_v3_pool.token_a = amm_data.0;
-                uniswap_v3_pool.token_a_decimals = amm_data.1;
-                uniswap_v3_pool.token_b = amm_data.2;
-                uniswap_v3_pool.token_b_decimals = amm_data.3;
-                uniswap_v3_pool.liquidity = amm_data.4;
-                uniswap_v3_pool.sqrt_price = amm_data.5;
-                uniswap_v3_pool.tick = amm_data.6;
-                uniswap_v3_pool.tick_spacing = amm_data.7;
-                uniswap_v3_pool.fee = amm_data.8;
+    if let Some(tokens_arr) = return_data_tokens.as_array() {
+        for token in tokens_arr {
+            if let Some(pool_data) = token.as_tuple() {
+                if let Some(address) = pool_data[0].as_address() {
+                    if !address.is_zero() {
+                        // Update pool data
+                        if let AMM::UniswapV3Pool(uniswap_v3_pool) = amms
+                            .get_mut(pool_idx)
+                            .expect("Pool idx should be in bounds")
+                        {
+                            if let Some(pool) = populate_pool_data_from_tokens(
+                                uniswap_v3_pool.to_owned(),
+                                pool_data,
+                            ) {
+                                tracing::trace!(?pool);
+                                *uniswap_v3_pool = pool;
+                            }
+                        }
+                    }
+                }
 
-                tracing::trace!(?uniswap_v3_pool);
+                pool_idx += 1;
             }
-
-            pool_idx += 1;
         }
     }
 

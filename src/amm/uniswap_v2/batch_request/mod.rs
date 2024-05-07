@@ -23,24 +23,13 @@ sol! {
 }
 
 sol! {
-    contract IGetUniswapV2PairsBatchReturn {
-        function constructorReturn() external view returns (address[] memory);
-    }
-}
-
-sol! {
     #[allow(missing_docs)]
     #[sol(rpc)]
     IGetUniswapV2PoolDataBatchRequest,
     "src/amm/uniswap_v2/batch_request/GetUniswapV2PoolDataBatchRequestABI.json"
 }
 
-sol! {
-    contract IGetUniswapV2PoolDataBatchReturn {
-        function constructorReturn() external view returns ((address, uint8, address, uint8, uint112, uint112)[] memory);
-    }
-}
-
+#[inline]
 fn populate_pool_data_from_tokens(
     mut pool: UniswapV2Pool,
     tokens: &[DynSolValue],
@@ -66,16 +55,15 @@ where
     N: Network,
     P: Provider<T, N>,
 {
-    let deployer =
-        IGetUniswapV2PairsBatchRequest::deploy_builder(provider.clone(), from, step, factory);
+    let deployer = IGetUniswapV2PairsBatchRequest::deploy_builder(provider, from, step, factory);
     let res = deployer.call_raw().await?;
 
     let constructor_return = DynSolType::Array(Box::new(DynSolType::Address));
     let return_data_tokens = constructor_return.abi_decode_sequence(&res)?;
 
     let mut pairs = vec![];
-    if let Some(arr) = return_data_tokens.as_array() {
-        for token in arr {
+    if let Some(tokens_arr) = return_data_tokens.as_array() {
+        for token in tokens_arr {
             if let Some(addr) = token.as_address() {
                 if !addr.is_zero() {
                     pairs.push(addr);
@@ -101,8 +89,7 @@ where
         target_addresses.push(amm.address());
     }
 
-    let deployer =
-        IGetUniswapV2PoolDataBatchRequest::deploy_builder(provider.clone(), target_addresses);
+    let deployer = IGetUniswapV2PoolDataBatchRequest::deploy_builder(provider, target_addresses);
     let res = deployer.call().await?;
 
     let constructor_return = DynSolType::Array(Box::new(DynSolType::Tuple(vec![
@@ -116,8 +103,8 @@ where
     let return_data_tokens = constructor_return.abi_decode_sequence(&res)?;
 
     let mut pool_idx = 0;
-    if let Some(arr) = return_data_tokens.as_array() {
-        for token in arr {
+    if let Some(tokens_arr) = return_data_tokens.as_array() {
+        for token in tokens_arr {
             if let Some(pool_data) = token.as_tuple() {
                 // If the pool token A is not zero, signaling that the pool data was polulated
                 if let Some(address) = pool_data[0].as_address() {
@@ -155,8 +142,7 @@ where
     N: Network,
     P: Provider<T, N>,
 {
-    let deployer =
-        IGetUniswapV2PoolDataBatchRequest::deploy_builder(provider.clone(), vec![pool.address]);
+    let deployer = IGetUniswapV2PoolDataBatchRequest::deploy_builder(provider, vec![pool.address]);
     let res = deployer.call_raw().await?;
 
     let constructor_return = DynSolType::Array(Box::new(DynSolType::Tuple(vec![
