@@ -106,6 +106,7 @@ impl AutomatedMarketMaker for UniswapV2Pool {
             Err(EventLogError::InvalidEventSignature)
         }
     }
+
     // Calculates base/quote, meaning the price of base token per quote (ie. exchange rate is X base per 1 quote)
     fn calculate_price(&self, base_token: Address) -> Result<f64, ArithmeticError> {
         Ok(q64_to_f64(self.calculate_price_64_x_64(base_token)?))
