@@ -168,7 +168,8 @@ where
                 .as_int()
                 .ok_or(AMMError::BatchRequestError(pool.address))?
                 .0
-                .as_isize() as i128;
+                .try_into()
+                .map_err(|e| AMMError::EyreError(eyre::eyre!("{e}")))?;
 
             tick_data.push(UniswapV3TickData {
                 initialized,
