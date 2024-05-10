@@ -106,6 +106,7 @@ impl AutomatedMarketMaker for UniswapV2Pool {
             Err(EventLogError::InvalidEventSignature)
         }
     }
+
     // Calculates base/quote, meaning the price of base token per quote (ie. exchange rate is X base per 1 quote)
     fn calculate_price(&self, base_token: Address) -> Result<f64, ArithmeticError> {
         Ok(q64_to_f64(self.calculate_price_64_x_64(base_token)?))
@@ -566,7 +567,7 @@ mod tests {
     use super::UniswapV2Pool;
 
     #[test]
-    fn test_swap_calldata() -> eyre::Result<()> {
+    fn test_swap_calldata() {
         let uniswap_v2_pool = UniswapV2Pool::default();
 
         let _calldata = uniswap_v2_pool.swap_calldata(
@@ -575,21 +576,20 @@ mod tests {
             address!("41c36f504BE664982e7519480409Caf36EE4f008"),
             vec![],
         );
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn test_get_new_from_address() -> eyre::Result<()> {
-        let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
-        let provider = Arc::new(ProviderBuilder::new().on_http(rpc_endpoint.parse()?));
+    async fn test_get_new_from_address() {
+        let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT").unwrap();
+        let provider = Arc::new(ProviderBuilder::new().on_http(rpc_endpoint.parse().unwrap()));
 
         let pool = UniswapV2Pool::new_from_address(
             address!("B4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc"),
             300,
             provider.clone(),
         )
-        .await?;
+        .await
+        .unwrap();
 
         assert_eq!(
             pool.address,
@@ -606,21 +606,19 @@ mod tests {
         );
         assert_eq!(pool.token_b_decimals, 18);
         assert_eq!(pool.fee, 300);
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn test_get_pool_data() -> eyre::Result<()> {
-        let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
-        let provider = Arc::new(ProviderBuilder::new().on_http(rpc_endpoint.parse()?));
+    async fn test_get_pool_data() {
+        let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT").unwrap();
+        let provider = Arc::new(ProviderBuilder::new().on_http(rpc_endpoint.parse().unwrap()));
 
         let mut pool = UniswapV2Pool {
             address: address!("B4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc"),
             ..Default::default()
         };
 
-        pool.populate_data(None, provider.clone()).await?;
+        pool.populate_data(None, provider.clone()).await.unwrap();
 
         assert_eq!(
             pool.address,
@@ -636,12 +634,10 @@ mod tests {
             address!("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2")
         );
         assert_eq!(pool.token_b_decimals, 18);
-
-        Ok(())
     }
 
     #[test]
-    fn test_calculate_price_edge_case() -> eyre::Result<()> {
+    fn test_calculate_price_edge_case() {
         let token_a = address!("0d500b1d8e8ef31e21c99d1db9a6444d3adf1270");
         let token_b = address!("8f18dc399594b451eda8c5da02d0563c0b2d0f16");
         let x = UniswapV2Pool {
@@ -655,57 +651,53 @@ mod tests {
             fee: 300,
         };
 
-        assert!(x.calculate_price(token_a)? != 0.0);
-        assert!(x.calculate_price(token_b)? != 0.0);
-
-        Ok(())
+        assert!(x.calculate_price(token_a).unwrap() != 0.0);
+        assert!(x.calculate_price(token_b).unwrap() != 0.0);
     }
+
     #[tokio::test]
-    async fn test_calculate_price() -> eyre::Result<()> {
-        let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
-        let provider = Arc::new(ProviderBuilder::new().on_http(rpc_endpoint.parse()?));
+    async fn test_calculate_price() {
+        let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT").unwrap();
+        let provider = Arc::new(ProviderBuilder::new().on_http(rpc_endpoint.parse().unwrap()));
 
         let mut pool = UniswapV2Pool {
             address: address!("B4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc"),
             ..Default::default()
         };
 
-        pool.populate_data(None, provider.clone()).await?;
+        pool.populate_data(None, provider.clone()).await.unwrap();
 
         pool.reserve_0 = 47092140895915;
         pool.reserve_1 = 28396598565590008529300;
 
-        let price_a_64_x = pool.calculate_price(pool.token_a)?;
+        let price_a_64_x = pool.calculate_price(pool.token_a).unwrap();
+        let price_b_64_x = pool.calculate_price(pool.token_b).unwrap();
 
-        let price_b_64_x = pool.calculate_price(pool.token_b)?;
-
-        assert_eq!(1658.3725965327264, price_b_64_x); //No precision loss: 30591574867092394336528 / 2**64
-        assert_eq!(0.0006030007985483893, price_a_64_x); //Precision loss: 11123401407064628 / 2**64
-
-        Ok(())
+        // No precision loss: 30591574867092394336528 / 2**64
+        assert_eq!(1658.3725965327264, price_b_64_x);
+        // Precision loss: 11123401407064628 / 2**64
+        assert_eq!(0.0006030007985483893, price_a_64_x);
     }
+
     #[tokio::test]
-    async fn test_calculate_price_64_x_64() -> eyre::Result<()> {
-        let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
-        let provider = Arc::new(ProviderBuilder::new().on_http(rpc_endpoint.parse()?));
+    async fn test_calculate_price_64_x_64() {
+        let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT").unwrap();
+        let provider = Arc::new(ProviderBuilder::new().on_http(rpc_endpoint.parse().unwrap()));
 
         let mut pool = UniswapV2Pool {
             address: address!("B4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc"),
             ..Default::default()
         };
 
-        pool.populate_data(None, provider.clone()).await?;
+        pool.populate_data(None, provider.clone()).await.unwrap();
 
         pool.reserve_0 = 47092140895915;
         pool.reserve_1 = 28396598565590008529300;
 
-        let price_a_64_x = pool.calculate_price_64_x_64(pool.token_a)?;
-
-        let price_b_64_x = pool.calculate_price_64_x_64(pool.token_b)?;
+        let price_a_64_x = pool.calculate_price_64_x_64(pool.token_a).unwrap();
+        let price_b_64_x = pool.calculate_price_64_x_64(pool.token_b).unwrap();
 
         assert_eq!(30591574867092394336528, price_b_64_x);
         assert_eq!(11123401407064628, price_a_64_x);
-
-        Ok(())
     }
 }

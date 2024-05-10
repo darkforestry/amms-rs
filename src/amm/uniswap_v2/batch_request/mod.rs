@@ -1,4 +1,5 @@
 use alloy::{
+    dyn_abi::{DynSolType, DynSolValue},
     network::Network,
     primitives::{Address, U256},
     providers::Provider,
@@ -22,22 +23,25 @@ sol! {
 }
 
 sol! {
-    contract IGetUniswapV2PairsBatchReturn {
-        function constructorReturn() external view returns (address[] memory);
-    }
-}
-
-sol! {
     #[allow(missing_docs)]
     #[sol(rpc)]
     IGetUniswapV2PoolDataBatchRequest,
     "src/amm/uniswap_v2/batch_request/GetUniswapV2PoolDataBatchRequestABI.json"
 }
 
-sol! {
-    contract IGetUniswapV2PoolDataBatchReturn {
-        function constructorReturn() external view returns ((address, uint8, address, uint8, uint112, uint112)[] memory);
-    }
+#[inline]
+fn populate_pool_data_from_tokens(
+    mut pool: UniswapV2Pool,
+    tokens: &[DynSolValue],
+) -> Option<UniswapV2Pool> {
+    pool.token_a = tokens[0].as_address()?;
+    pool.token_a_decimals = tokens[1].as_uint()?.0.to::<u8>();
+    pool.token_b = tokens[2].as_address()?;
+    pool.token_b_decimals = tokens[3].as_uint()?.0.to::<u8>();
+    pool.reserve_0 = tokens[4].as_uint()?.0.to::<u128>();
+    pool.reserve_1 = tokens[5].as_uint()?.0.to::<u128>();
+
+    Some(pool)
 }
 
 pub async fn get_pairs_batch_request<T, N, P>(
@@ -51,11 +55,22 @@ where
     N: Network,
     P: Provider<T, N>,
 {
-    let deployer = IGetUniswapV2PairsBatchRequest::deploy_builder(provider, from, step, factory)
-        .with_sol_decoder::<IGetUniswapV2PairsBatchReturn::constructorReturnCall>();
+    let deployer = IGetUniswapV2PairsBatchRequest::deploy_builder(provider, from, step, factory);
+    let res = deployer.call_raw().await?;
 
-    let IGetUniswapV2PairsBatchReturn::constructorReturnReturn { _0: pairs } =
-        deployer.call().await?;
+    let constructor_return = DynSolType::Array(Box::new(DynSolType::Address));
+    let return_data_tokens = constructor_return.abi_decode_sequence(&res)?;
+
+    let mut pairs = vec![];
+    if let Some(tokens_arr) = return_data_tokens.as_array() {
+        for token in tokens_arr {
+            if let Some(addr) = token.as_address() {
+                if !addr.is_zero() {
+                    pairs.push(addr);
+                }
+            }
+        }
+    };
 
     Ok(pairs)
 }
@@ -74,30 +89,44 @@ where
         target_addresses.push(amm.address());
     }
 
-    let deployer =
-        IGetUniswapV2PoolDataBatchRequest::deploy_builder(provider.clone(), target_addresses)
-            .with_sol_decoder::<IGetUniswapV2PoolDataBatchReturn::constructorReturnCall>();
-    let IGetUniswapV2PoolDataBatchReturn::constructorReturnReturn { _0: amms_data } =
-        deployer.call().await?;
+    let deployer = IGetUniswapV2PoolDataBatchRequest::deploy_builder(provider, target_addresses);
+    let res = deployer.call().await?;
+
+    let constructor_return = DynSolType::Array(Box::new(DynSolType::Tuple(vec![
+        DynSolType::Address,
+        DynSolType::Uint(8),
+        DynSolType::Address,
+        DynSolType::Uint(8),
+        DynSolType::Uint(112),
+        DynSolType::Uint(112),
+    ])));
+    let return_data_tokens = constructor_return.abi_decode_sequence(&res)?;
 
     let mut pool_idx = 0;
-    for amm_data in amms_data {
-        if !amm_data.0.is_zero() {
-            if let AMM::UniswapV2Pool(uniswap_v2_pool) = amms
-                .get_mut(pool_idx)
-                .expect("Pool idx should be in bounds")
-            {
-                uniswap_v2_pool.token_a = amm_data.0;
-                uniswap_v2_pool.token_a_decimals = amm_data.1;
-                uniswap_v2_pool.token_b = amm_data.2;
-                uniswap_v2_pool.token_b_decimals = amm_data.3;
-                uniswap_v2_pool.reserve_0 = amm_data.4;
-                uniswap_v2_pool.reserve_1 = amm_data.5;
+    if let Some(tokens_arr) = return_data_tokens.as_array() {
+        for token in tokens_arr {
+            if let Some(pool_data) = token.as_tuple() {
+                // If the pool token A is not zero, signaling that the pool data was polulated
+                if let Some(address) = pool_data[0].as_address() {
+                    if !address.is_zero() {
+                        // Update the pool data
+                        if let AMM::UniswapV2Pool(uniswap_v2_pool) = amms
+                            .get_mut(pool_idx)
+                            .expect("Pool idx should be in bounds")
+                        {
+                            if let Some(pool) = populate_pool_data_from_tokens(
+                                uniswap_v2_pool.to_owned(),
+                                pool_data,
+                            ) {
+                                tracing::trace!(?pool);
+                                *uniswap_v2_pool = pool;
+                            }
+                        }
+                    }
+                }
 
-                tracing::trace!(?uniswap_v2_pool);
+                pool_idx += 1;
             }
-
-            pool_idx += 1;
         }
     }
 
@@ -113,30 +142,28 @@ where
     N: Network,
     P: Provider<T, N>,
 {
-    let deployer =
-        IGetUniswapV2PoolDataBatchRequest::deploy_builder(provider.clone(), vec![pool.address])
-            .with_sol_decoder::<IGetUniswapV2PoolDataBatchReturn::constructorReturnCall>();
-    let IGetUniswapV2PoolDataBatchReturn::constructorReturnReturn { _0: pool_data } =
-        deployer.call().await?;
+    let deployer = IGetUniswapV2PoolDataBatchRequest::deploy_builder(provider, vec![pool.address]);
+    let res = deployer.call_raw().await?;
 
-    // make sure returned pool data len == 1
-    let pool_data_len = pool_data.len();
-    if pool_data_len != 1_usize {
-        return Err(AMMError::EyreError(eyre::eyre!(
-            "Unexpected return length, expected 1, returned {pool_data_len}"
-        )));
-    }
+    let constructor_return = DynSolType::Array(Box::new(DynSolType::Tuple(vec![
+        DynSolType::Address,
+        DynSolType::Uint(8),
+        DynSolType::Address,
+        DynSolType::Uint(8),
+        DynSolType::Uint(112),
+        DynSolType::Uint(112),
+    ])));
+    let return_data_tokens = constructor_return.abi_decode_sequence(&res)?;
 
-    // Update pool data
-    if !pool_data[0].0.is_zero() {
-        pool.token_a = pool_data[0].0;
-        pool.token_a_decimals = pool_data[0].1;
-        pool.token_b = pool_data[0].2;
-        pool.token_b_decimals = pool_data[0].3;
-        pool.reserve_0 = pool_data[0].4;
-        pool.reserve_1 = pool_data[0].5;
+    if let Some(tokens_arr) = return_data_tokens.as_array() {
+        for token in tokens_arr {
+            let pool_data = token
+                .as_tuple()
+                .ok_or(AMMError::BatchRequestError(pool.address))?;
 
-        tracing::trace!(?pool);
+            *pool = populate_pool_data_from_tokens(pool.to_owned(), pool_data)
+                .ok_or(AMMError::BatchRequestError(pool.address))?;
+        }
     }
 
     Ok(())
