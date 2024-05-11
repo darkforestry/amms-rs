@@ -1,19 +1,12 @@
 use std::{collections::HashMap, sync::Arc};
 
-use alloy::{
-    network::Network,
-    primitives::{Address, B256},
-    providers::Provider,
-    rpc::types::eth::Filter,
-    sol_types::SolEvent,
-    transports::Transport,
+use ethers::{
+    providers::Middleware,
+    types::{Filter, H160, H256},
 };
 
 use crate::{
-    amm::{
-        factory::Factory, uniswap_v2::factory::IUniswapV2Factory,
-        uniswap_v3::factory::IUniswapV3Factory,
-    },
+    amm::{self, factory::Factory},
     errors::AMMError,
 };
 
@@ -23,26 +16,26 @@ pub enum DiscoverableFactory {
 }
 
 impl DiscoverableFactory {
-    pub fn discovery_event_signature(&self) -> B256 {
+    pub fn discovery_event_signature(&self) -> H256 {
         match self {
-            DiscoverableFactory::UniswapV2Factory => IUniswapV2Factory::PairCreated::SIGNATURE_HASH,
-            DiscoverableFactory::UniswapV3Factory => IUniswapV3Factory::PoolCreated::SIGNATURE_HASH,
+            DiscoverableFactory::UniswapV2Factory => {
+                amm::uniswap_v2::factory::PAIR_CREATED_EVENT_SIGNATURE
+            }
+
+            DiscoverableFactory::UniswapV3Factory => {
+                amm::uniswap_v3::factory::POOL_CREATED_EVENT_SIGNATURE
+            }
         }
     }
 }
 
 // Returns a vec of empty factories that match one of the Factory interfaces specified by each DiscoverableFactory
-pub async fn discover_factories<T, N, P>(
+pub async fn discover_factories<M: Middleware>(
     factories: Vec<DiscoverableFactory>,
     number_of_amms_threshold: u64,
-    provider: Arc<P>,
+    middleware: Arc<M>,
     step: u64,
-) -> Result<Vec<Factory>, AMMError>
-where
-    T: Transport + Clone,
-    N: Network,
-    P: Provider<T, N>,
-{
+) -> Result<Vec<Factory>, AMMError<M>> {
     let mut event_signatures = vec![];
 
     for factory in factories {
@@ -50,51 +43,60 @@ where
     }
     tracing::trace!(?event_signatures);
 
-    let block_filter = Filter::new().event_signature(event_signatures);
+    let block_filter = Filter::new().topic0(event_signatures);
 
     let mut from_block = 0;
-    let current_block = provider.get_block_number().await?;
+    let current_block = middleware
+        .get_block_number()
+        .await
+        .map_err(AMMError::MiddlewareError)?
+        .as_u64();
 
-    // For each block within the range, get all pairs asynchronously
+    //For each block within the range, get all pairs asynchronously
     // let step = 100000;
 
-    // Set up filter and events to filter each block you are searching by
-    let mut identified_factories: HashMap<Address, (Factory, u64)> = HashMap::new();
+    //Set up filter and events to filter each block you are searching by
+    let mut identified_factories: HashMap<H160, (Factory, u64)> = HashMap::new();
 
-    // TODO: make this async
+    //TODO: make this async
     while from_block < current_block {
-        // Get pair created event logs within the block range
+        //Get pair created event logs within the block range
         let mut target_block = from_block + step - 1;
         if target_block > current_block {
             target_block = current_block;
         }
 
         let block_filter = block_filter.clone();
-        let logs = provider
+        let logs = middleware
             .get_logs(&block_filter.from_block(from_block).to_block(target_block))
-            .await?;
+            .await
+            .map_err(AMMError::MiddlewareError)?;
 
         for log in logs {
-            tracing::trace!("found matching event at factory {}", log.address());
-            if let Some((_, amms_length)) = identified_factories.get_mut(&log.address()) {
+            tracing::trace!("found matching event at factory {}", log.address);
+            if let Some((_, amms_length)) = identified_factories.get_mut(&log.address) {
                 *amms_length += 1;
             } else {
-                let mut factory = Factory::try_from(log.topics()[0])?;
+                let mut factory = Factory::try_from(log.topics[0])?;
 
                 match &mut factory {
                     Factory::UniswapV2Factory(uniswap_v2_factory) => {
-                        uniswap_v2_factory.address = log.address();
-                        uniswap_v2_factory.creation_block =
-                            log.block_number.ok_or(AMMError::BlockNumberNotFound)?;
+                        uniswap_v2_factory.address = log.address;
+                        uniswap_v2_factory.creation_block = log
+                            .block_number
+                            .ok_or(AMMError::BlockNumberNotFound)?
+                            .as_u64();
                     }
                     Factory::UniswapV3Factory(uniswap_v3_factory) => {
-                        uniswap_v3_factory.address = log.address();
-                        uniswap_v3_factory.creation_block =
-                            log.block_number.ok_or(AMMError::BlockNumberNotFound)?;
+                        uniswap_v3_factory.address = log.address;
+                        uniswap_v3_factory.creation_block = log
+                            .block_number
+                            .ok_or(AMMError::BlockNumberNotFound)?
+                            .as_u64();
                     }
                 }
 
-                identified_factories.insert(log.address(), (factory, 0));
+                identified_factories.insert(log.address, (factory, 0));
             }
         }
 
