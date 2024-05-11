@@ -1,37 +1,35 @@
+use std::sync::Arc;
+
+use alloy::{primitives::address, providers::ProviderBuilder, rpc::client::WsConnect};
+
 use amms::{
     amm::{factory::Factory, uniswap_v2::factory::UniswapV2Factory, AMM},
     discovery,
     state_space::StateSpaceManager,
     sync,
 };
-use ethers::{
-    providers::{Http, Provider, Ws},
-    types::H160,
-};
-use std::{str::FromStr, sync::Arc};
 
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
     tracing_subscriber::fmt::init();
 
-    let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
     let ws_endpoint = std::env::var("ETHEREUM_WS_ENDPOINT")?;
 
-    // Initialize middleware
-    let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint)?);
-    let stream_middleware = Arc::new(Provider::<Ws>::connect(ws_endpoint).await?);
+    // Initialize WS provider
+    let ws = WsConnect::new(ws_endpoint);
+    let provider = Arc::new(ProviderBuilder::new().on_ws(ws).await?);
 
     // Initialize factories
     let factories = vec![
-        //Add UniswapV2
+        // Add UniswapV2
         Factory::UniswapV2Factory(UniswapV2Factory::new(
-            H160::from_str("0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f")?,
+            address!("5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f"),
             2638438,
             300,
         )),
-        //Add Sushiswap
+        // Add Sushiswap
         Factory::UniswapV2Factory(UniswapV2Factory::new(
-            H160::from_str("0xC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac")?,
+            address!("C0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac"),
             10794229,
             300,
         )),
@@ -39,12 +37,12 @@ async fn main() -> eyre::Result<()> {
 
     let step: u64 = 1000;
 
-    //Sync amms
+    // Sync amms
     let (mut amms, last_synced_block) =
-        sync::sync_amms(factories, middleware.clone(), None, step).await?;
+        sync::sync_amms(factories, provider.clone(), None, step).await?;
 
     // Discover vaults and add them to amms
-    let vaults = discovery::erc_4626::discover_erc_4626_vaults(middleware.clone(), step)
+    let vaults = discovery::erc_4626::discover_erc_4626_vaults(provider.clone(), step)
         .await?
         .into_iter()
         .map(AMM::ERC4626Vault)
@@ -53,14 +51,7 @@ async fn main() -> eyre::Result<()> {
     amms.extend(vaults);
 
     // Initialize state space manager
-    let state_space_manager = StateSpaceManager::new(
-        amms,
-        last_synced_block,
-        100,
-        100,
-        middleware,
-        stream_middleware,
-    );
+    let state_space_manager = StateSpaceManager::new(amms, last_synced_block, 100, 100, provider);
 
     //Listen for state changes and print them out
     let (mut rx, _join_handles) = state_space_manager.subscribe_state_changes().await?;

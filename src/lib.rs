@@ -1,3 +1,5 @@
+#![cfg_attr(not(test), warn(unused_crate_dependencies))]
+
 pub mod amm;
 pub mod discovery;
 pub mod errors;
