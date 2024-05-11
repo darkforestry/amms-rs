@@ -12,8 +12,8 @@ on:
 env:
   ETHEREUM_RPC_ENDPOINT: ${{ secrets.ETHEREUM_RPC_ENDPOINT }}
   ETHEREUM_WS_ENDPOINT: ${{ secrets.ETHEREUM_WS_ENDPOINT }}
-  RUST_VERSION: "1.74"
-  NIGHTLY_VERSION: nightly-2023-08-29
+  RUST_VERSION: "1.78"
+  NIGHTLY_VERSION: nightly-2024-05-09
   CARGO_TERM_COLOR: always
   # Skip incremental build and debug info generation in CI
   CARGO_INCREMENTAL: 0
