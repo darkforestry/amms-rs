@@ -38,6 +38,7 @@ alloy = { git = "https://github.com/alloy-rs/alloy", rev = "3ccadcf", features =
     "signers",
     "signer-wallet",
 ] }
+reqwest = "0.12.4"
 
 [features]
 default = ["filters", "state-space"]
