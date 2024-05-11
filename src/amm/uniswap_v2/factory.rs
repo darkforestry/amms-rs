@@ -1,15 +1,12 @@
 use std::sync::Arc;
 
-use alloy::{
-    network::Network,
-    primitives::{Address, B256, U256},
-    providers::Provider,
-    rpc::types::eth::Log,
-    sol,
-    sol_types::SolEvent,
-    transports::Transport,
-};
 use async_trait::async_trait;
+use ethers::{
+    abi::RawLog,
+    prelude::EthEvent,
+    providers::Middleware,
+    types::{Log, H160, H256, U256},
+};
 
 use crate::{
     amm::{factory::AutomatedMarketMakerFactory, AMM},
@@ -18,29 +15,35 @@ use crate::{
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
 
-use super::{batch_request, UniswapV2Pool, U256_1};
+use super::{batch_request, UniswapV2Pool};
 
-sol! {
-    /// Interface of the UniswapV2Factory contract
-    #[derive(Debug, PartialEq, Eq)]
-    #[sol(rpc)]
-    contract IUniswapV2Factory {
-        event PairCreated(address indexed token0, address indexed token1, address pair, uint256 index);
-        function getPair(address tokenA, address tokenB) external view returns (address pair);
-        function allPairs(uint256 index) external view returns (address pair);
-        function allPairsLength() external view returns (uint256 length);
-    }
-}
+use ethers::prelude::abigen;
+
+abigen!(
+    IUniswapV2Factory,
+    r#"[
+        function getPair(address tokenA, address tokenB) external view returns (address pair)
+        function allPairs(uint256 index) external view returns (address)
+        event PairCreated(address indexed token0, address indexed token1, address pair, uint256)
+        function allPairsLength() external view returns (uint256)
+
+    ]"#;
+);
+
+pub const PAIR_CREATED_EVENT_SIGNATURE: H256 = H256([
+    13, 54, 72, 189, 15, 107, 168, 1, 52, 163, 59, 169, 39, 90, 197, 133, 217, 211, 21, 240, 173,
+    131, 85, 205, 222, 253, 227, 26, 250, 40, 208, 233,
+]);
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct UniswapV2Factory {
-    pub address: Address,
+    pub address: H160,
     pub creation_block: u64,
     pub fee: u32,
 }
 
 impl UniswapV2Factory {
-    pub fn new(address: Address, creation_block: u64, fee: u32) -> UniswapV2Factory {
+    pub fn new(address: H160, creation_block: u64, fee: u32) -> UniswapV2Factory {
         UniswapV2Factory {
             address,
             creation_block,
@@ -48,54 +51,46 @@ impl UniswapV2Factory {
         }
     }
 
-    pub async fn get_all_pairs_via_batched_calls<T, N, P>(
+    pub async fn get_all_pairs_via_batched_calls<M: Middleware>(
         &self,
-        provider: Arc<P>,
-    ) -> Result<Vec<AMM>, AMMError>
-    where
-        T: Transport + Clone,
-        N: Network,
-        P: Provider<T, N>,
-    {
-        let factory = IUniswapV2Factory::new(self.address, provider.clone());
+        middleware: Arc<M>,
+    ) -> Result<Vec<AMM>, AMMError<M>> {
+        let factory = IUniswapV2Factory::new(self.address, middleware.clone());
 
-        let IUniswapV2Factory::allPairsLengthReturn {
-            length: pairs_length,
-        } = factory.allPairsLength().call().await?;
+        let pairs_length: U256 = factory.all_pairs_length().call().await?;
 
         let mut pairs = vec![];
-        // NOTE: max batch size for this call until codesize is too large
-        let step = 766;
-        let mut idx_from = U256::ZERO;
-        let mut idx_to = if step > pairs_length.to::<usize>() {
+        let step = 766; //max batch size for this call until codesize is too large
+        let mut idx_from = U256::zero();
+        let mut idx_to = if step > pairs_length.as_usize() {
             pairs_length
         } else {
             U256::from(step)
         };
 
-        for _ in (0..pairs_length.to::<usize>()).step_by(step) {
+        for _ in (0..pairs_length.as_u128()).step_by(step) {
             pairs.append(
                 &mut batch_request::get_pairs_batch_request(
                     self.address,
                     idx_from,
                     idx_to,
-                    provider.clone(),
+                    middleware.clone(),
                 )
                 .await?,
             );
 
             idx_from = idx_to;
 
-            if idx_to + U256::from(step) > pairs_length {
-                idx_to = pairs_length - U256_1
+            if idx_to + step > pairs_length {
+                idx_to = pairs_length - 1
             } else {
-                idx_to += U256::from(step);
+                idx_to = idx_to + step;
             }
         }
 
         let mut amms = vec![];
 
-        // Create new empty pools for each pair
+        //Create new empty pools for each pair
         for addr in pairs {
             let amm = UniswapV2Pool {
                 address: addr,
@@ -111,33 +106,33 @@ impl UniswapV2Factory {
 
 #[async_trait]
 impl AutomatedMarketMakerFactory for UniswapV2Factory {
-    fn address(&self) -> Address {
+    fn address(&self) -> H160 {
         self.address
     }
 
-    fn amm_created_event_signature(&self) -> B256 {
-        IUniswapV2Factory::PairCreated::SIGNATURE_HASH
+    fn amm_created_event_signature(&self) -> H256 {
+        PAIR_CREATED_EVENT_SIGNATURE
     }
 
-    async fn new_amm_from_log<T, N, P>(&self, log: Log, provider: Arc<P>) -> Result<AMM, AMMError>
-    where
-        T: Transport + Clone,
-        N: Network,
-        P: Provider<T, N>,
-    {
-        let pair_created_event = IUniswapV2Factory::PairCreated::decode_log(log.as_ref(), true)?;
+    async fn new_amm_from_log<M: 'static + Middleware>(
+        &self,
+        log: Log,
+        middleware: Arc<M>,
+    ) -> Result<AMM, AMMError<M>> {
+        let pair_created_event: PairCreatedFilter =
+            PairCreatedFilter::decode_log(&RawLog::from(log))?;
         Ok(AMM::UniswapV2Pool(
-            UniswapV2Pool::new_from_address(pair_created_event.pair, self.fee, provider).await?,
+            UniswapV2Pool::new_from_address(pair_created_event.pair, self.fee, middleware).await?,
         ))
     }
 
-    fn new_empty_amm_from_log(&self, log: Log) -> Result<AMM, alloy::sol_types::Error> {
-        let pair_created_event = IUniswapV2Factory::PairCreated::decode_log(log.as_ref(), true)?;
+    fn new_empty_amm_from_log(&self, log: Log) -> Result<AMM, ethers::abi::Error> {
+        let pair_created_event = PairCreatedFilter::decode_log(&RawLog::from(log))?;
 
         Ok(AMM::UniswapV2Pool(UniswapV2Pool {
             address: pair_created_event.pair,
-            token_a: pair_created_event.token0,
-            token_b: pair_created_event.token1,
+            token_a: pair_created_event.token_0,
+            token_b: pair_created_event.token_1,
             token_a_decimals: 0,
             token_b_decimals: 0,
             reserve_0: 0,
@@ -147,31 +142,21 @@ impl AutomatedMarketMakerFactory for UniswapV2Factory {
     }
 
     #[instrument(skip(self, middleware) level = "debug")]
-    async fn get_all_amms<T, N, P>(
+    async fn get_all_amms<M: Middleware>(
         &self,
         _to_block: Option<u64>,
-        middleware: Arc<P>,
+        middleware: Arc<M>,
         _step: u64,
-    ) -> Result<Vec<AMM>, AMMError>
-    where
-        T: Transport + Clone,
-        N: Network,
-        P: Provider<T, N>,
-    {
+    ) -> Result<Vec<AMM>, AMMError<M>> {
         self.get_all_pairs_via_batched_calls(middleware).await
     }
 
-    async fn populate_amm_data<T, N, P>(
+    async fn populate_amm_data<M: Middleware>(
         &self,
         amms: &mut [AMM],
         _block_number: Option<u64>,
-        middleware: Arc<P>,
-    ) -> Result<(), AMMError>
-    where
-        T: Transport + Clone,
-        N: Network,
-        P: Provider<T, N>,
-    {
+        middleware: Arc<M>,
+    ) -> Result<(), AMMError<M>> {
         let step = 127; //Max batch size for call
         for amm_chunk in amms.chunks_mut(step) {
             batch_request::get_amm_data_batch_request(amm_chunk, middleware.clone()).await?;

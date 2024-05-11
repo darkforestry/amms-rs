@@ -1,6 +1,3 @@
-// TODO: re-integrate Artemis once its migrated to Alloy
-compile_error!("Artemis does not yet support Alloy");
-
 use artemis_core::types::{Collector, CollectorStream};
 use async_trait::async_trait;
 use ethers::{
