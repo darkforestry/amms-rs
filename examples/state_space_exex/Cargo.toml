@@ -6,4 +6,11 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-reth = {git = ""}
+reth = { git = "https://github.com/paradigmxyz/reth.git", rev = "ac29b4b" }
+reth-exex = { git = "https://github.com/paradigmxyz/reth.git", rev = "ac29b4b" }
+reth-node-api = { git = "https://github.com/paradigmxyz/reth.git", rev = "ac29b4b" }
+reth-node-core = { git = "https://github.com/paradigmxyz/reth.git", rev = "ac29b4b" }
+reth-node-ethereum = { git = "https://github.com/paradigmxyz/reth.git", rev = "ac29b4b" }
+reth-primitives = { git = "https://github.com/paradigmxyz/reth.git", rev = "ac29b4b" }
+reth-provider = { git = "https://github.com/paradigmxyz/reth.git", rev = "ac29b4b" }
+reth-tracing = { git = "https://github.com/paradigmxyz/reth.git", rev = "ac29b4b" }
