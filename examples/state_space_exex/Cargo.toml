@@ -6,6 +6,8 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+amms = { path = "../.." }
+eyre = "0.6.12"
 reth = { git = "https://github.com/paradigmxyz/reth.git", rev = "ac29b4b" }
 reth-exex = { git = "https://github.com/paradigmxyz/reth.git", rev = "ac29b4b" }
 reth-node-api = { git = "https://github.com/paradigmxyz/reth.git", rev = "ac29b4b" }
