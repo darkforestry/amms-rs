@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use alloy::{
+    dyn_abi::DynSolType,
     network::Network,
     primitives::{Address, U256},
     providers::Provider,
@@ -194,11 +195,20 @@ where
         factory_is_uni_v3,
         weth,
         weth_value_in_token_to_weth_pool_threshold,
-    )
-    .with_sol_decoder::<IGetWethValueInAMMBatchReturn::constructorOutputCall>();
+    );
+    let res = deployer.call_raw().await?;
 
-    let IGetWethValueInAMMBatchReturn::constructorOutputReturn { _0: weth_values } =
-        deployer.call().await?;
+    let constructor_return = DynSolType::Array(Box::new(DynSolType::Uint(256)));
+    let return_data_tokens = constructor_return.abi_decode_sequence(&res)?;
 
-    Ok(weth_values)
+    let mut weth_value_in_pools = vec![];
+    if let Some(tokens_arr) = return_data_tokens.as_array() {
+        for token in tokens_arr {
+            if let Some(weth_value_in_pool) = token.as_uint() {
+                weth_value_in_pools.push(weth_value_in_pool.0);
+            }
+        }
+    }
+
+    Ok(weth_value_in_pools)
 }
