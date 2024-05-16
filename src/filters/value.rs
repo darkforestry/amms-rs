@@ -24,12 +24,6 @@ sol! {
     "src/filters/batch_requests/GetWethValueInAMMBatchRequest.json"
 }
 
-sol! {
-    contract IGetWethValueInAMMBatchReturn {
-        function constructorOutput() external view returns (uint256[] memory);
-    }
-}
-
 #[allow(clippy::too_many_arguments)]
 /// Filter that removes AMMs with less aggregate token value than `usd_value_in_pool_threshold`.
 ///
