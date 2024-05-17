@@ -8,11 +8,11 @@ edition = "2021"
 [dependencies]
 amms = { path = "../.." }
 eyre = "0.6.12"
-reth = { git = "https://github.com/paradigmxyz/reth.git", rev = "ac29b4b" }
-reth-exex = { git = "https://github.com/paradigmxyz/reth.git", rev = "ac29b4b" }
-reth-node-api = { git = "https://github.com/paradigmxyz/reth.git", rev = "ac29b4b" }
-reth-node-core = { git = "https://github.com/paradigmxyz/reth.git", rev = "ac29b4b" }
-reth-node-ethereum = { git = "https://github.com/paradigmxyz/reth.git", rev = "ac29b4b" }
-reth-primitives = { git = "https://github.com/paradigmxyz/reth.git", rev = "ac29b4b" }
-reth-provider = { git = "https://github.com/paradigmxyz/reth.git", rev = "ac29b4b" }
-reth-tracing = { git = "https://github.com/paradigmxyz/reth.git", rev = "ac29b4b" }
+reth = { git = "https://github.com/paradigmxyz/reth.git", rev = "ac0a005dd0ca7a03ae61af7ab7a3ef4bf07b1f3b" }
+reth-exex = { git = "https://github.com/paradigmxyz/reth.git", rev = "ac0a005dd0ca7a03ae61af7ab7a3ef4bf07b1f3b" }
+reth-node-api = { git = "https://github.com/paradigmxyz/reth.git", rev = "ac0a005dd0ca7a03ae61af7ab7a3ef4bf07b1f3b" }
+reth-node-core = { git = "https://github.com/paradigmxyz/reth.git", rev = "ac0a005dd0ca7a03ae61af7ab7a3ef4bf07b1f3b" }
+reth-node-ethereum = { git = "https://github.com/paradigmxyz/reth.git", rev = "ac0a005dd0ca7a03ae61af7ab7a3ef4bf07b1f3b" }
+reth-primitives = { git = "https://github.com/paradigmxyz/reth.git", rev = "ac0a005dd0ca7a03ae61af7ab7a3ef4bf07b1f3b" }
+reth-provider = { git = "https://github.com/paradigmxyz/reth.git", rev = "ac0a005dd0ca7a03ae61af7ab7a3ef4bf07b1f3b" }
+reth-tracing = { git = "https://github.com/paradigmxyz/reth.git", rev = "ac0a005dd0ca7a03ae61af7ab7a3ef4bf07b1f3b" }
