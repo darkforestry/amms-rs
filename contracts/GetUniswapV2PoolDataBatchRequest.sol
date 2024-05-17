@@ -9,11 +9,7 @@ interface IUniswapV2Pair {
     function getReserves()
         external
         view
-        returns (
-            uint112 reserve0,
-            uint112 reserve1,
-            uint32 blockTimestampLast
-        );
+        returns (uint112 reserve0, uint112 reserve1, uint32 blockTimestampLast);
 }
 
 interface IERC20 {
@@ -55,7 +51,9 @@ contract GetUniswapV2PoolDataBatchRequest {
             (
                 bool tokenADecimalsSuccess,
                 bytes memory tokenADecimalsData
-            ) = poolData.tokenA.call(abi.encodeWithSignature("decimals()"));
+            ) = poolData.tokenA.call{gas: 20000}(
+                    abi.encodeWithSignature("decimals()")
+                );
 
             if (tokenADecimalsSuccess) {
                 uint256 tokenADecimals;
@@ -82,7 +80,9 @@ contract GetUniswapV2PoolDataBatchRequest {
             (
                 bool tokenBDecimalsSuccess,
                 bytes memory tokenBDecimalsData
-            ) = poolData.tokenB.call(abi.encodeWithSignature("decimals()"));
+            ) = poolData.tokenB.call{gas: 20000}(
+                    abi.encodeWithSignature("decimals()")
+                );
 
             if (tokenBDecimalsSuccess) {
                 uint256 tokenBDecimals;

@@ -68,7 +68,7 @@ contract GetERC4626VaultDataBatchRequest {
             (
                 bool assetTokenDecimalsSuccess,
                 bytes memory assetTokenDecimalsData
-            ) = vaultData.assetToken.call(
+            ) = vaultData.assetToken.call{gas: 20000}(
                     abi.encodeWithSignature("decimals()")
                 );
 

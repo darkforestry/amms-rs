@@ -464,7 +464,7 @@ contract GetWethValueInPoolBatchRequest {
         address token
     ) internal returns (uint8, bool) {
         (bool tokenDecimalsSuccess, bytes memory tokenDecimalsData) = token
-            .call(abi.encodeWithSignature("decimals()"));
+            .call{gas: 20000}(abi.encodeWithSignature("decimals()"));
 
         if (tokenDecimalsSuccess) {
             uint256 tokenDecimals;
