@@ -1,23 +1,17 @@
-#[cfg(feature = "artemis")]
-pub mod collector;
-pub mod error;
-#[cfg(feature = "reth")]
-pub mod exex;
-
 use crate::{
     amm::{AutomatedMarketMaker, AMM},
     errors::EventLogError,
 };
+
 use alloy::{
     network::Network,
     primitives::{Address, B256},
-    providers::Provider,
     rpc::types::eth::{Block, Filter, Log},
     transports::Transport,
 };
 use arraydeque::ArrayDeque;
-use error::{StateChangeError, StateSpaceError};
 use futures::StreamExt;
+use reth_node_api::{FullNodeComponents, FullNodeTypes};
 use std::{
     collections::{HashMap, HashSet},
     marker::PhantomData,
@@ -31,34 +25,34 @@ use tokio::{
     task::JoinHandle,
 };
 
-// TODO: bench this with a dashmap
-pub type StateSpace = HashMap<Address, AMM>;
-pub type StateChangeCache = ArrayDeque<StateChange, 150>;
+use super::{
+    error::{StateChangeError, StateSpaceError},
+    StateChangeCache, StateSpace,
+};
 
 #[derive(Debug)]
-pub struct StateSpaceManager<T, N, P> {
-    state: Arc<RwLock<StateSpace>>,
+pub struct StateSpaceManagerExEx<N>
+where
+    N: FullNodeComponents,
+{
+    state: Arc<RwLock<StateChange>>,
     latest_synced_block: u64,
     stream_buffer: usize,
     state_change_buffer: usize,
     state_change_cache: Arc<RwLock<StateChangeCache>>,
-    provider: Arc<P>,
-    transport: PhantomData<T>,
-    network: PhantomData<N>,
+    provider: Arc<N::Provider>,
 }
 
-impl<T, N, P> StateSpaceManager<T, N, P>
+impl<N> StateSpaceManagerExEx<N>
 where
-    T: Transport + Clone,
-    N: Network,
-    P: Provider<T, N> + 'static,
+    N: FullNodeComponents,
 {
     pub fn new(
         amms: Vec<AMM>,
         latest_synced_block: u64,
         stream_buffer: usize,
         state_change_buffer: usize,
-        provider: Arc<P>,
+        provider: Arc<N::Provider>,
     ) -> Self {
         let state: HashMap<Address, AMM> = amms
             .into_iter()
@@ -72,8 +66,6 @@ where
             state_change_buffer,
             state_change_cache: Arc::new(RwLock::new(ArrayDeque::new())),
             provider,
-            transport: PhantomData,
-            network: PhantomData,
         }
     }
 
@@ -423,112 +415,5 @@ pub fn get_block_number_from_log(log: &Log) -> Result<u64, EventLogError> {
         Ok(block_number)
     } else {
         Err(EventLogError::LogBlockNumberNotFound)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::{default, sync::Arc};
-
-    use crate::amm::{uniswap_v2::UniswapV2Pool, AMM};
-    use alloy::{providers::ProviderBuilder, rpc::client::WsConnect};
-
-    use super::*;
-
-    #[tokio::test]
-    async fn test_add_state_changes() -> eyre::Result<()> {
-        let state_change_cache = Arc::new(RwLock::new(StateChangeCache::new()));
-
-        for i in 0..=100 {
-            let new_amm = AMM::UniswapV2Pool(UniswapV2Pool {
-                address: Address::ZERO,
-                reserve_0: i,
-                ..default::Default::default()
-            });
-
-            add_state_change_to_cache(
-                state_change_cache.clone(),
-                StateChange::new(Some(vec![new_amm]), i as u64),
-            )
-            .await?;
-        }
-
-        let mut state_change_cache = state_change_cache.write().await;
-
-        if let Some(last_state_change) = state_change_cache.pop_front() {
-            if let Some(state_changes) = last_state_change.state_change {
-                assert_eq!(state_changes.len(), 1);
-
-                if let AMM::UniswapV2Pool(pool) = &state_changes[0] {
-                    assert_eq!(pool.reserve_0, 100);
-                } else {
-                    panic!("Unexpected AMM variant")
-                }
-            } else {
-                panic!("State changes not found")
-            }
-        }
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    #[ignore] // Ignoring to not throttle the Provider on workflows
-    async fn test_unwind_state_changes() -> eyre::Result<()> {
-        let ws_endpoint = std::env::var("ETHEREUM_WS_ENDPOINT")?;
-        let ws = WsConnect::new(ws_endpoint);
-        let provider = Arc::new(ProviderBuilder::new().on_ws(ws).await?);
-
-        let amms = vec![AMM::UniswapV2Pool(UniswapV2Pool {
-            address: Address::ZERO,
-            ..default::Default::default()
-        })];
-
-        let latest_block = provider.get_block_number().await?;
-
-        let state_space_manager = StateSpaceManager::new(amms, latest_block, 100, 100, provider);
-
-        let state_change_cache = Arc::new(RwLock::new(StateChangeCache::new()));
-
-        for i in 0..100 {
-            let new_amm = AMM::UniswapV2Pool(UniswapV2Pool {
-                address: Address::ZERO,
-                reserve_0: i,
-                ..default::Default::default()
-            });
-
-            add_state_change_to_cache(
-                state_change_cache.clone(),
-                StateChange::new(Some(vec![new_amm]), i as u64),
-            )
-            .await?;
-        }
-
-        unwind_state_changes(state_space_manager.state, state_change_cache, 50).await?;
-
-        // TODO: assert state changes
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_add_empty_state_changes() -> eyre::Result<()> {
-        let last_synced_block = 0;
-        let chain_head_block_number = 100;
-
-        let state_change_cache = Arc::new(RwLock::new(StateChangeCache::new()));
-
-        for block_number in last_synced_block..=chain_head_block_number {
-            add_state_change_to_cache(
-                state_change_cache.clone(),
-                StateChange::new(None, block_number),
-            )
-            .await?;
-        }
-
-        let state_change_cache_length = state_change_cache.read().await.len();
-        assert_eq!(state_change_cache_length, 101);
-
-        Ok(())
     }
 }

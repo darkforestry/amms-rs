@@ -16,3 +16,11 @@ reth-node-ethereum = { git = "https://github.com/paradigmxyz/reth.git", rev = "a
 reth-primitives = { git = "https://github.com/paradigmxyz/reth.git", rev = "ac0a005dd0ca7a03ae61af7ab7a3ef4bf07b1f3b" }
 reth-provider = { git = "https://github.com/paradigmxyz/reth.git", rev = "ac0a005dd0ca7a03ae61af7ab7a3ef4bf07b1f3b" }
 reth-tracing = { git = "https://github.com/paradigmxyz/reth.git", rev = "ac0a005dd0ca7a03ae61af7ab7a3ef4bf07b1f3b" }
+alloy = { git = "https://github.com/alloy-rs/alloy", rev = "dd7a999", features = [
+    "contract",
+    "network",
+    "providers",
+    "rpc-types-eth",
+    "signers",
+    "signer-wallet",
+] }

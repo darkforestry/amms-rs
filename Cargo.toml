@@ -8,11 +8,7 @@ readme = "README.md"
 homepage = "https://github.com/darkforestry/amms-rs"
 repository = "https://github.com/darkforestry/amms-rs"
 keywords = ["ethereum", "amm", "mev"]
-exclude = [
-    "target/*",
-    ".github/*",
-    ".gitignore"
-]
+exclude = ["target/*", ".github/*", ".gitignore"]
 
 [dependencies]
 arraydeque = { version = "0.5.1", optional = true }
@@ -26,9 +22,9 @@ regex = "1.10.4"
 serde = "1.0.200"
 serde_json = "1.0.116"
 thiserror = "1.0.60"
-tokio =  { version = "1.37.0", default-features = false }
+tokio = { version = "1.37.0", default-features = false }
 tracing = "0.1.40"
-uniswap_v3_math = { git = "https://github.com/0xKitsune/uniswap-v3-math.git", rev = "1120ff6" } 
+uniswap_v3_math = { git = "https://github.com/0xKitsune/uniswap-v3-math.git", rev = "1120ff6" }
 alloy = { git = "https://github.com/alloy-rs/alloy", rev = "dd7a999", features = [
     "contract",
     "network",
@@ -39,23 +35,37 @@ alloy = { git = "https://github.com/alloy-rs/alloy", rev = "dd7a999", features =
     "signer-wallet",
 ] }
 reqwest = "0.12.4"
+reth-exex = { git = "https://github.com/paradigmxyz/reth.git", rev = "ac0a005dd0ca7a03ae61af7ab7a3ef4bf07b1f3b", optional = true }
+reth-node-api = { git = "https://github.com/paradigmxyz/reth.git", rev = "ac0a005dd0ca7a03ae61af7ab7a3ef4bf07b1f3b", optional = true }
+reth-node-core = { git = "https://github.com/paradigmxyz/reth.git", rev = "ac0a005dd0ca7a03ae61af7ab7a3ef4bf07b1f3b", optional = true }
+reth-node-ethereum = { git = "https://github.com/paradigmxyz/reth.git", rev = "ac0a005dd0ca7a03ae61af7ab7a3ef4bf07b1f3b", optional = true }
+reth-primitives = { git = "https://github.com/paradigmxyz/reth.git", rev = "ac0a005dd0ca7a03ae61af7ab7a3ef4bf07b1f3b", optional = true }
+reth-provider = { git = "https://github.com/paradigmxyz/reth.git", rev = "ac0a005dd0ca7a03ae61af7ab7a3ef4bf07b1f3b", optional = true }
 
 [features]
-default = ["filters", "state-space"]
+default = ["filters", "state-space", "reth"]
 filters = []
 state-space = ["arraydeque"]
 artemis = ["artemis-core"]
+reth = [
+    "reth-exex",
+    "reth-node-api",
+    "reth-node-core",
+    "reth-node-ethereum",
+    "reth-primitives",
+    "reth-provider",
+]
 
 [workspace]
-members = [
-    "examples/state_space_exex"
-]
+members = ["examples/state_space_exex"]
 
 
 [dev-dependencies]
 tracing-subscriber = "0.3.18"
 criterion = "0.5.1"
-tokio =  { version = "1.37.0", default-features = false, features = [ "rt-multi-thread" ] }
+tokio = { version = "1.37.0", default-features = false, features = [
+    "rt-multi-thread",
+] }
 alloy = { git = "https://github.com/alloy-rs/alloy", rev = "dd7a999", features = [
     "rpc-client",
 ] }
