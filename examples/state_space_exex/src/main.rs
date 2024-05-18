@@ -1,7 +1,13 @@
-use amms::state_space::StateSpaceManager;
+use amms::{
+    amm::{factory::Factory, uniswap_v2::factory::UniswapV2Factory, AMM},
+    discovery,
+    state_space::StateSpaceManager,
+    sync,
+};
 use reth::builder::FullNodeComponents;
 use reth_exex::ExExContext;
 use reth_node_ethereum::EthereumNode;
+use reth_primitives::address;
 use std::future::Future;
 
 async fn init_exex<Node: FullNodeComponents>(
@@ -11,11 +17,6 @@ async fn init_exex<Node: FullNodeComponents>(
 
     let ws_endpoint = std::env::var("ETHEREUM_WS_ENDPOINT")?;
 
-    // Initialize WS provider
-    let ws = WsConnect::new(ws_endpoint);
-    let provider = Arc::new(ProviderBuilder::new().on_ws(ws).await?);
-
-    // Initialize factories
     let factories = vec![
         // Add UniswapV2
         Factory::UniswapV2Factory(UniswapV2Factory::new(
@@ -46,8 +47,9 @@ async fn init_exex<Node: FullNodeComponents>(
 
     amms.extend(vaults);
 
-    //TODO: init state space manager
-    // state_space_exex(ctx, state_space_manager)
+    // StateSpaceManager::new(amms, last_synced_block, )
+
+    state_space_exex(ctx, state_space_manager)
 }
 
 fn main() -> eyre::Result<()> {
@@ -67,7 +69,7 @@ fn main() -> eyre::Result<()> {
 
 async fn state_space_exex<Node: FullNodeComponents>(
     mut ctx: ExExContext<Node>,
-    mut state_space_manager: StateSpaceManager,
+    mut state_space_manager: StateSpaceManager<T, N, P>,
 ) -> eyre::Result<()> {
     while let Some(notification) = ctx.notifications.recv().await {
         match notification {}
