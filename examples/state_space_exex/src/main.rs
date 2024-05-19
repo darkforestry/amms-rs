@@ -1,31 +1,21 @@
-use alloy::providers::ProviderBuilder;
 use amms::{
     amm::{factory::Factory, uniswap_v2::factory::UniswapV2Factory, AMM},
     discovery,
-    state_space::StateSpaceManager,
+    state_space::{exex::StateSpaceManagerExEx, StateSpaceManager},
     sync,
 };
 use reth::builder::FullNodeComponents;
 use reth_exex::ExExContext;
 use reth_node_ethereum::EthereumNode;
 use reth_primitives::address;
-use std::{future::Future, sync::Arc};
+use std::future::Future;
 
 async fn init_exex<Node: FullNodeComponents>(
     ctx: ExExContext<Node>,
 ) -> eyre::Result<impl Future<Output = eyre::Result<()>>> {
-    //TODO: config
+    //TODO: load config
 
-    // Init a temporary provider to sync the state space
-    let provider = Arc::new(
-        ProviderBuilder::new()
-            .with_recommended_fillers()
-            .on_http("".parse()?),
-    );
-
-    // let provider = Arc::new(ctx.provider());
-
-    //TODO: use config
+    //TODO: package this into a function to init amms
     let factories = vec![
         // Add UniswapV2
         Factory::UniswapV2Factory(UniswapV2Factory::new(
@@ -41,16 +31,24 @@ async fn init_exex<Node: FullNodeComponents>(
         )),
     ];
 
-    // TODO: make this configurable
     let step: u64 = 1000;
 
     // Sync amms
     let (mut amms, last_synced_block) =
         sync::sync_amms(factories, provider.clone(), None, step).await?;
 
-    // StateSpaceManager::new(amms, last_synced_block, )
+    // Discover vaults and add them to amms
+    let vaults = discovery::erc_4626::discover_erc_4626_vaults(provider.clone(), step)
+        .await?
+        .into_iter()
+        .map(AMM::ERC4626Vault)
+        .collect::<Vec<AMM>>();
 
-    // state_space_exex(ctx, state_space_manager)
+    amms.extend(vaults);
+
+    let provider = ctx.provider();
+    let state_space_manager = StateSpaceManagerExEx::new(amms, last_synced_block, provider);
+    run_exex(ctx, state_space_manager)
 }
 
 fn main() -> eyre::Result<()> {
@@ -68,13 +66,16 @@ fn main() -> eyre::Result<()> {
     })
 }
 
-// async fn state_space_exex<Node: FullNodeComponents>(
-//     mut ctx: ExExContext<Node>,
-//     mut state_space_manager: StateSpaceManager<T, N, P>,
-// ) -> eyre::Result<()> {
-//     while let Some(notification) = ctx.notifications.recv().await {
-//         match notification {}
-//     }
+async fn run_exex<Node: FullNodeComponents>(
+    mut ctx: ExExContext<Node>,
+    mut state_space_manager: StateSpaceManagerExEx<Node>,
+) -> eyre::Result<()> {
+    while let Some(notification) = ctx.notifications.recv().await {
+        // TODO: return state changes
+        state_space_manager.process_notification(notification).await;
 
-//     Ok(())
-// }
+        // TODO: simple arb strategy
+    }
+
+    Ok(())
+}
