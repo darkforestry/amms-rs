@@ -111,17 +111,14 @@ where
         let mut updated_amms = vec![];
         let mut state_changes = vec![];
 
-        // TODO: need to collect block number with logs by getting the first block number from the bundled state
-        // TODO: then we can extract logs
+        let logs = (bundled_state.first_block()
+            ..=(bundled_state.first_block() + bundled_state.receipts().receipt_vec.len() as u64
+                - 1))
+            .filter_map(|block_number| bundled_state.logs(block_number))
+            .flatten()
+            .collect::<Vec<&Log>>();
 
-        let receipts = receipts
-            .iter()
-            .flat_map(|inner_vec| {
-                inner_vec
-                    .iter()
-                    .filter_map(|opt_receipt| opt_receipt.as_ref())
-            })
-            .collect::<Vec<&Receipt>>();
+        // TODO: handle state changes from logs and return affected amms addresses
 
         //------------------------------------------------------------
 
