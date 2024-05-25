@@ -7,9 +7,9 @@ use crate::{
 };
 use alloy::{
     network::Network,
-    primitives::{Address, Bytes, B256, I256, U256},
+    primitives::{Address, Bytes, Log, B256, I256, U256},
     providers::Provider,
-    rpc::types::eth::{Filter, Log},
+    rpc::types::eth::{Filter, Log as RpcLog},
     sol,
     sol_types::{SolCall, SolEvent},
     transports::Transport,
@@ -532,7 +532,7 @@ impl UniswapV3Pool {
     /// Creates a new instance of the pool from a log.
     ///
     /// This function will populate all pool data.
-    pub async fn new_from_log<T, N, P>(log: Log, provider: Arc<P>) -> Result<Self, AMMError>
+    pub async fn new_from_log<T, N, P>(log: RpcLog, provider: Arc<P>) -> Result<Self, AMMError>
     where
         T: Transport + Clone,
         N: Network,
@@ -561,8 +561,7 @@ impl UniswapV3Pool {
         let event_signature = log.topics()[0];
 
         if event_signature == IUniswapV3Factory::PoolCreated::SIGNATURE_HASH {
-            let pool_created_event =
-                IUniswapV3Factory::PoolCreated::decode_log(log.as_ref(), true)?;
+            let pool_created_event = IUniswapV3Factory::PoolCreated::decode_log(&log, true)?;
 
             Ok(UniswapV3Pool {
                 address: pool_created_event.pool,
@@ -603,7 +602,7 @@ impl UniswapV3Pool {
 
         let mut futures = FuturesOrdered::new();
 
-        let mut ordered_logs: BTreeMap<u64, Vec<Log>> = BTreeMap::new();
+        let mut ordered_logs: BTreeMap<u64, Vec<RpcLog>> = BTreeMap::new();
 
         let pool_address: Address = self.address;
 
@@ -652,7 +651,7 @@ impl UniswapV3Pool {
 
         for (_, log_group) in ordered_logs {
             for log in log_group {
-                self.sync_from_log(log)?;
+                self.sync_from_log(log.inner)?;
             }
         }
 
@@ -821,7 +820,7 @@ impl UniswapV3Pool {
 
     /// Updates the pool state from a burn event log.
     pub fn sync_from_burn_log(&mut self, log: Log) -> Result<(), alloy::dyn_abi::Error> {
-        let burn_event = IUniswapV3Pool::Burn::decode_log(log.as_ref(), true)?;
+        let burn_event = IUniswapV3Pool::Burn::decode_log(&log, true)?;
 
         self.modify_position(
             burn_event.tickLower,
@@ -836,7 +835,7 @@ impl UniswapV3Pool {
 
     /// Updates the pool state from a mint event log.
     pub fn sync_from_mint_log(&mut self, log: Log) -> Result<(), alloy::dyn_abi::Error> {
-        let mint_event = IUniswapV3Pool::Mint::decode_log(log.as_ref(), true)?;
+        let mint_event = IUniswapV3Pool::Mint::decode_log(&log, true)?;
 
         self.modify_position(
             mint_event.tickLower,
@@ -944,7 +943,7 @@ impl UniswapV3Pool {
 
     /// Updates the pool state from a swap event log.
     pub fn sync_from_swap_log(&mut self, log: Log) -> Result<(), alloy::sol_types::Error> {
-        let swap_event = IUniswapV3Pool::Swap::decode_log(log.as_ref(), true)?;
+        let swap_event = IUniswapV3Pool::Swap::decode_log(&log, true)?;
 
         self.sqrt_price = swap_event.sqrtPriceX96;
         self.liquidity = swap_event.liquidity;

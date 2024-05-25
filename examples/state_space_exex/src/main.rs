@@ -1,20 +1,21 @@
+use alloy::providers::ProviderBuilder;
 use amms::{
     amm::{factory::Factory, uniswap_v2::factory::UniswapV2Factory, AMM},
     discovery,
-    state_space::{exex::StateSpaceManagerExEx, StateSpaceManager},
+    state_space::exex::StateSpaceManagerExEx,
     sync,
 };
 use reth::builder::FullNodeComponents;
 use reth_exex::ExExContext;
 use reth_node_ethereum::EthereumNode;
 use reth_primitives::address;
-use std::future::Future;
+use std::{future::Future, sync::Arc};
 
 async fn init_exex<Node: FullNodeComponents>(
     ctx: ExExContext<Node>,
 ) -> eyre::Result<impl Future<Output = eyre::Result<()>>> {
     //TODO: load config
-
+    let provider = Arc::new(ProviderBuilder::new().on_http(env!("ETHEREUM_RPC_ENDPOINT").parse()?));
     //TODO: package this into a function to init amms
     let factories = vec![
         // Add UniswapV2
@@ -32,7 +33,6 @@ async fn init_exex<Node: FullNodeComponents>(
     ];
 
     let step: u64 = 1000;
-
     // Sync amms
     let (mut amms, last_synced_block) =
         sync::sync_amms(factories, provider.clone(), None, step).await?;
@@ -46,9 +46,10 @@ async fn init_exex<Node: FullNodeComponents>(
 
     amms.extend(vaults);
 
-    let provider = ctx.provider();
-    let state_space_manager = StateSpaceManagerExEx::new(amms, last_synced_block, provider);
-    run_exex(ctx, state_space_manager)
+    let provider = ctx.provider().clone();
+    let state_space_manager =
+        StateSpaceManagerExEx::new(amms, last_synced_block, Arc::new(provider));
+    Ok(run_exex(ctx, state_space_manager))
 }
 
 fn main() -> eyre::Result<()> {
@@ -72,7 +73,7 @@ async fn run_exex<Node: FullNodeComponents>(
 ) -> eyre::Result<()> {
     while let Some(notification) = ctx.notifications.recv().await {
         // TODO: return state changes
-        state_space_manager.process_notification(notification).await;
+        let affected_amms = state_space_manager.process_notification(notification).await;
 
         // TODO: simple arb strategy
     }

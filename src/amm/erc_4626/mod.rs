@@ -4,9 +4,8 @@ use std::{cmp::Ordering, sync::Arc};
 
 use alloy::{
     network::Network,
-    primitives::{Address, B256, U256},
+    primitives::{Address, Log, B256, U256},
     providers::Provider,
-    rpc::types::eth::Log,
     sol,
     sol_types::SolEvent,
     transports::Transport,
@@ -92,14 +91,14 @@ impl AutomatedMarketMaker for ERC4626Vault {
 
     #[instrument(skip(self), level = "debug")]
     fn sync_from_log(&mut self, log: Log) -> Result<(), EventLogError> {
-        let event_signature = log.data().topics()[0];
+        let event_signature = log.topics()[0];
         if event_signature == IERC4626Vault::Deposit::SIGNATURE_HASH {
-            let deposit_event = IERC4626Vault::Deposit::decode_log(log.as_ref(), true)?;
+            let deposit_event = IERC4626Vault::Deposit::decode_log(&log, true)?;
             self.asset_reserve += deposit_event.assets;
             self.vault_reserve += deposit_event.shares;
             tracing::debug!(asset_reserve = ?self.asset_reserve, vault_reserve = ?self.vault_reserve, address = ?self.vault_token, "ER4626 deposit event");
         } else if event_signature == IERC4626Vault::Withdraw::SIGNATURE_HASH {
-            let withdraw_filter = IERC4626Vault::Withdraw::decode_log(log.as_ref(), true)?;
+            let withdraw_filter = IERC4626Vault::Withdraw::decode_log(&log, true)?;
             self.asset_reserve -= withdraw_filter.assets;
             self.vault_reserve -= withdraw_filter.shares;
             tracing::debug!(asset_reserve = ?self.asset_reserve, vault_reserve = ?self.vault_reserve, address = ?self.vault_token, "ER4626 withdraw event");

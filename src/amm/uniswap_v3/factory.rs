@@ -227,12 +227,12 @@ impl UniswapV3Factory {
                     //If the event sig is the BURN_EVENT_SIGNATURE log is coming from the pool
                     if let Some(AMM::UniswapV3Pool(pool)) = aggregated_amms.get_mut(&log.address())
                     {
-                        pool.sync_from_burn_log(log)?;
+                        pool.sync_from_burn_log(log.inner)?;
                     }
                 } else if event_signature == IUniswapV3Pool::Mint::SIGNATURE_HASH {
                     if let Some(AMM::UniswapV3Pool(pool)) = aggregated_amms.get_mut(&log.address())
                     {
-                        pool.sync_from_mint_log(log)?;
+                        pool.sync_from_mint_log(log.inner)?;
                     }
                 }
             }

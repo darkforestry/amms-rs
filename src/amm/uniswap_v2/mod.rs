@@ -9,9 +9,9 @@ use crate::{
 };
 use alloy::{
     network::Network,
-    primitives::{Address, Bytes, B256, U256},
+    primitives::{Address, Bytes, Log, B256, U256},
     providers::Provider,
-    rpc::types::eth::Log,
+    rpc::types::eth::Log as RpcLog,
     sol,
     sol_types::{SolCall, SolEvent},
     transports::Transport,
@@ -95,7 +95,7 @@ impl AutomatedMarketMaker for UniswapV2Pool {
         let event_signature = log.topics()[0];
 
         if event_signature == IUniswapV2Pair::Sync::SIGNATURE_HASH {
-            let sync_event = IUniswapV2Pair::Sync::decode_log(log.as_ref(), true)?;
+            let sync_event = IUniswapV2Pair::Sync::decode_log(&log, true)?;
             tracing::info!(reserve_0 = sync_event.reserve0, reserve_1 = sync_event.reserve1, address = ?self.address, "UniswapV2 sync event");
 
             self.reserve_0 = sync_event.reserve0;
@@ -244,7 +244,7 @@ impl UniswapV2Pool {
     ///
     /// This method syncs the pool data.
     pub async fn new_from_log<T, N, P>(
-        log: Log,
+        log: RpcLog,
         fee: u32,
         provider: Arc<P>,
     ) -> Result<Self, AMMError>
@@ -267,7 +267,7 @@ impl UniswapV2Pool {
     /// Creates a new instance of a the pool from a `PairCreated` event log.
     ///
     /// This method does not sync the pool data.
-    pub fn new_empty_pool_from_log(log: Log) -> Result<Self, EventLogError> {
+    pub fn new_empty_pool_from_log(log: RpcLog) -> Result<Self, EventLogError> {
         let event_signature = log.topics()[0];
 
         if event_signature == IUniswapV2Factory::PairCreated::SIGNATURE_HASH {

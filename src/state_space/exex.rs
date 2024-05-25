@@ -1,35 +1,22 @@
-use crate::{
-    amm::{AutomatedMarketMaker, AMM},
-    errors::EventLogError,
-};
+use crate::amm::{AutomatedMarketMaker, AMM};
 
 use alloy::{
-    network::Network,
     primitives::{Address, B256},
-    rpc::types::eth::{Block, Filter},
-    transports::Transport,
+    rpc::types::eth::Filter,
 };
 use arraydeque::ArrayDeque;
-use futures::StreamExt;
-use reth_exex::{ExExContext, ExExNotification};
-use reth_node_api::{FullNodeComponents, FullNodeTypes};
-use reth_primitives::{Log, Receipt, Receipts};
+use reth_exex::ExExNotification;
+use reth_node_api::FullNodeComponents;
+use reth_primitives::Log;
 use reth_provider::BundleStateWithReceipts;
 use std::{
     collections::{HashMap, HashSet},
-    marker::PhantomData,
     sync::Arc,
 };
-use tokio::{
-    sync::{
-        mpsc::{Receiver, Sender},
-        RwLock,
-    },
-    task::JoinHandle,
-};
+use tokio::sync::RwLock;
 
 use super::{
-    error::{StateChangeError, StateSpaceError},
+    add_state_change_to_cache, error::StateChangeError, unwind_state_changes, StateChange,
     StateChangeCache, StateSpace,
 };
 
@@ -39,9 +26,9 @@ where
     Node: FullNodeComponents,
 {
     state: Arc<RwLock<StateSpace>>,
-    latest_synced_block: u64,
+    _latest_synced_block: u64,
     state_change_cache: Arc<RwLock<StateChangeCache>>,
-    provider: Arc<Node::Provider>,
+    _provider: Arc<Node::Provider>,
 }
 
 impl<N> StateSpaceManagerExEx<N>
@@ -56,9 +43,9 @@ where
 
         Self {
             state: Arc::new(RwLock::new(state)),
-            latest_synced_block,
+            _latest_synced_block: latest_synced_block,
             state_change_cache: Arc::new(RwLock::new(ArrayDeque::new())),
-            provider,
+            _provider: provider,
         }
     }
 
@@ -83,99 +70,91 @@ where
         Filter::new().event_signature(event_signatures)
     }
 
-    pub async fn process_notification(&self, notification: ExExNotification) {
+    pub async fn process_notification(
+        &self,
+        notification: ExExNotification,
+    ) -> Result<Vec<Address>, StateChangeError> {
         // TODO: return addresses affected by state changes
         match notification {
             ExExNotification::ChainCommitted { new } => {
                 let bundled_state = new.state();
-
-                self.handle_state_changes(
-                    self.state.clone(),
-                    self.state_change_cache.clone(),
-                    bundled_state,
-                );
+                self.handle_state_changes(bundled_state).await
             }
 
-            ExExNotification::ChainReorged { old, new } => {}
-            ExExNotification::ChainReverted { old } => {}
+            ExExNotification::ChainReorged { old: _old, new } => {
+                let bundled_state = new.state();
+                self.handle_reorgs(bundled_state).await
+            }
+            ExExNotification::ChainReverted { old: _old } => Ok(vec![]),
         }
+    }
+
+    pub async fn handle_reorgs(
+        &self,
+        new: &BundleStateWithReceipts,
+    ) -> Result<Vec<Address>, StateChangeError> {
+        let block_number = new.first_block();
+
+        let logs = (block_number..=(block_number + new.receipts().receipt_vec.len() as u64 - 1))
+            .filter_map(|block_number| new.logs(block_number))
+            .flatten()
+            .cloned()
+            .collect::<Vec<Log>>();
+        // Unwind the state changes from the old state to the new state
+        unwind_state_changes(
+            self.state.clone(),
+            self.state_change_cache.clone(),
+            block_number,
+        )
+        .await?;
+        self.modify_state_from_logs(logs, block_number).await
     }
 
     pub async fn handle_state_changes(
         &self,
-        state: Arc<RwLock<StateSpace>>,
-        state_change_cache: Arc<RwLock<StateChangeCache>>,
         bundled_state: &BundleStateWithReceipts,
+    ) -> Result<Vec<Address>, StateChangeError> {
+        let block_number = bundled_state.first_block();
+
+        let logs = (block_number
+            ..=(block_number + bundled_state.receipts().receipt_vec.len() as u64 - 1))
+            .filter_map(|block_number| bundled_state.logs(block_number))
+            .flatten()
+            .cloned()
+            .collect::<Vec<Log>>();
+
+        self.modify_state_from_logs(logs, block_number).await
+    }
+
+    async fn modify_state_from_logs(
+        &self,
+        logs: Vec<Log>,
+        block_number: u64,
     ) -> Result<Vec<Address>, StateChangeError> {
         let mut updated_amms_set = HashSet::new();
         let mut updated_amms = vec![];
         let mut state_changes = vec![];
 
-        let logs = (bundled_state.first_block()
-            ..=(bundled_state.first_block() + bundled_state.receipts().receipt_vec.len() as u64
-                - 1))
-            .filter_map(|block_number| bundled_state.logs(block_number))
-            .flatten()
-            .collect::<Vec<&Log>>();
+        for log in logs.into_iter() {
+            // check if the log is from an amm in the state space
+            if let Some(amm) = self.state.write().await.get_mut(&log.address) {
+                if !updated_amms_set.contains(&log.address) {
+                    updated_amms_set.insert(log.address);
+                    updated_amms.push(log.address);
+                }
+                amm.sync_from_log(log)?;
+                state_changes.push(amm.clone());
+            }
 
-        // TODO: handle state changes from logs and return affected amms addresses
-
-        //------------------------------------------------------------
-
-        // let mut last_log_block_number = if let Some(log) = logs.first() {
-        //     get_block_number_from_log(log)?
-        // } else {
-        //     return Ok(updated_amms);
-        // };
-
-        // for log in logs.into_iter() {
-        //     let log_block_number = get_block_number_from_log(&log)?;
-
-        //     // check if the log is from an amm in the state space
-        //     if let Some(amm) = state.write().await.get_mut(&log.address()) {
-        //         if !updated_amms_set.contains(&log.address()) {
-        //             updated_amms_set.insert(log.address());
-        //             updated_amms.push(log.address());
-        //         }
-
-        //         state_changes.push(amm.clone());
-        //         amm.sync_from_log(log)?;
-        //     }
-
-        //     // Commit state changes if the block has changed since last log
-        //     if log_block_number != last_log_block_number {
-        //         if state_changes.is_empty() {
-        //             add_state_change_to_cache(
-        //                 state_change_cache.clone(),
-        //                 StateChange::new(None, last_log_block_number),
-        //             )
-        //             .await?;
-        //         } else {
-        //             add_state_change_to_cache(
-        //                 state_change_cache.clone(),
-        //                 StateChange::new(Some(state_changes), last_log_block_number),
-        //             )
-        //             .await?;
-        //             state_changes = vec![];
-        //         };
-
-        //         last_log_block_number = log_block_number;
-        //     }
-        // }
-
-        // if state_changes.is_empty() {
-        //     add_state_change_to_cache(
-        //         state_change_cache,
-        //         StateChange::new(None, last_log_block_number),
-        //     )
-        //     .await?;
-        // } else {
-        //     add_state_change_to_cache(
-        //         state_change_cache,
-        //         StateChange::new(Some(state_changes), last_log_block_number),
-        //     )
-        //     .await?;
-        // };
+            // Commit the [`StateChange`] to the cache at `block_number`
+            if !state_changes.is_empty() {
+                add_state_change_to_cache(
+                    self.state_change_cache.clone(),
+                    StateChange::new(Some(state_changes.clone()), block_number),
+                )
+                .await?;
+            };
+        }
 
         Ok(updated_amms)
     }

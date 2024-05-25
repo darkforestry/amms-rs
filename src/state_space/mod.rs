@@ -377,7 +377,7 @@ pub async fn handle_state_changes_from_logs(
             }
 
             state_changes.push(amm.clone());
-            amm.sync_from_log(log)?;
+            amm.sync_from_log(log.inner)?;
         }
 
         // Commit state changes if the block has changed since last log

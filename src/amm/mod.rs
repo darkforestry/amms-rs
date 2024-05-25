@@ -8,9 +8,8 @@ use std::sync::Arc;
 
 use alloy::{
     network::Network,
-    primitives::{Address, B256, U256},
+    primitives::{Address, Log, B256, U256},
     providers::Provider,
-    rpc::types::eth::Log,
     sol,
     transports::Transport,
 };
