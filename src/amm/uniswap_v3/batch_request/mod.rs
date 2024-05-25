@@ -7,6 +7,7 @@ use alloy::{
     sol,
     transports::Transport,
 };
+use eyre::anyhow;
 use tracing::instrument;
 
 use crate::{
@@ -197,40 +198,49 @@ where
     N: Network,
     P: Provider<T, N>,
 {
-    let deployer = ISyncUniswapV3PoolBatchRequest::deploy_builder(provider, pool.address);
+    let deployer = ISyncUniswapV3PoolBatchRequest::deploy_builder(provider, vec![pool.address]);
     let res = deployer.call_raw().await?;
 
-    let constructor_return = DynSolType::Tuple(vec![
+    let constructor_return = DynSolType::Array(Box::new(DynSolType::Tuple(vec![
         DynSolType::Uint(128),
         DynSolType::Uint(160),
         DynSolType::Int(24),
         DynSolType::Int(128),
-    ]);
+    ])));
+
     let return_data_tokens = constructor_return.abi_decode_sequence(&res)?;
 
-    if let Some(tokens_tup) = return_data_tokens.as_tuple() {
-        if tokens_tup[1]
-            .as_uint()
-            .ok_or(AMMError::BatchRequestError(pool.address))?
-            .0
-            .is_zero()
-        {
-            return Err(AMMError::BatchRequestError(pool.address));
+    if let Some(tokens_arr) = return_data_tokens.as_array() {
+        if tokens_arr.len() == 1 {
+            if let Some(tokens_tup) = tokens_arr[0].as_tuple() {
+                if tokens_tup[1]
+                    .as_uint()
+                    .ok_or(AMMError::BatchRequestError(pool.address))?
+                    .0
+                    .is_zero()
+                {
+                    return Err(AMMError::BatchRequestError(pool.address));
+                } else {
+                    pool.liquidity = tokens_tup[0]
+                        .as_uint()
+                        .ok_or(AMMError::BatchRequestError(pool.address))?
+                        .0
+                        .to::<u128>();
+                    pool.sqrt_price = tokens_tup[1]
+                        .as_uint()
+                        .ok_or(AMMError::BatchRequestError(pool.address))?
+                        .0;
+                    pool.tick = tokens_tup[2]
+                        .as_int()
+                        .ok_or(AMMError::BatchRequestError(pool.address))?
+                        .0
+                        .as_i32();
+                }
+            }
         } else {
-            pool.liquidity = tokens_tup[0]
-                .as_uint()
-                .ok_or(AMMError::BatchRequestError(pool.address))?
-                .0
-                .to::<u128>();
-            pool.sqrt_price = tokens_tup[1]
-                .as_uint()
-                .ok_or(AMMError::BatchRequestError(pool.address))?
-                .0;
-            pool.tick = tokens_tup[2]
-                .as_int()
-                .ok_or(AMMError::BatchRequestError(pool.address))?
-                .0
-                .as_i32();
+            return Err(AMMError::EyreError(eyre::eyre!(
+                "Unexpected length of the batch static call"
+            )));
         }
     }
 
