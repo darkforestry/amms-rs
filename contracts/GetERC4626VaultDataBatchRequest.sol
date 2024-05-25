@@ -24,8 +24,8 @@ interface IERC20 {
 }
 
 /**
- @dev This contract is not meant to be deployed. Instead, use a static call with the
-      deployment bytecode as payload.
+ * @dev This contract is not meant to be deployed. Instead, use a static call with the
+ *       deployment bytecode as payload.
  */
 contract GetERC4626VaultDataBatchRequest {
     struct VaultData {
@@ -61,32 +61,22 @@ contract GetERC4626VaultDataBatchRequest {
             if (codeSizeIsZero(vaultData.assetToken)) continue;
 
             // Get vault token decimals
-            vaultData.vaultTokenDecimals = IERC4626Vault(vaultAddress)
-                .decimals();
+            vaultData.vaultTokenDecimals = IERC4626Vault(vaultAddress).decimals();
 
             // Get asset token decimals
-            (
-                bool assetTokenDecimalsSuccess,
-                bytes memory assetTokenDecimalsData
-            ) = vaultData.assetToken.call(
-                    abi.encodeWithSignature("decimals()")
-                );
+            (bool assetTokenDecimalsSuccess, bytes memory assetTokenDecimalsData) =
+                vaultData.assetToken.call{gas: 20000}(abi.encodeWithSignature("decimals()"));
 
             if (assetTokenDecimalsSuccess) {
                 uint256 assetTokenDecimals;
 
                 if (assetTokenDecimalsData.length == 32) {
-                    (assetTokenDecimals) = abi.decode(
-                        assetTokenDecimalsData,
-                        (uint256)
-                    );
+                    (assetTokenDecimals) = abi.decode(assetTokenDecimalsData, (uint256));
 
                     if (assetTokenDecimals == 0 || assetTokenDecimals > 255) {
                         continue;
                     } else {
-                        vaultData.assetTokenDecimals = uint8(
-                            assetTokenDecimals
-                        );
+                        vaultData.assetTokenDecimals = uint8(assetTokenDecimals);
                     }
                 } else {
                     continue;
@@ -96,53 +86,35 @@ contract GetERC4626VaultDataBatchRequest {
             }
 
             // Get token reserves
-            vaultData.vaultTokenReserve = IERC4626Vault(vaultAddress)
-                .totalSupply();
-            vaultData.assetTokenReserve = IERC4626Vault(vaultAddress)
-                .totalAssets();
+            vaultData.vaultTokenReserve = IERC4626Vault(vaultAddress).totalSupply();
+            vaultData.assetTokenReserve = IERC4626Vault(vaultAddress).totalAssets();
 
             // Get fee deltas
             // Deposit fee delta 1 - 100 asset tokens
-            vaultData.depositFeeDelta1 =
-                IERC4626Vault(vaultAddress).convertToShares(
-                    100 * 10 ** vaultData.assetTokenDecimals
-                ) -
-                IERC4626Vault(vaultAddress).previewDeposit(
-                    100 * 10 ** vaultData.assetTokenDecimals
-                );
+            vaultData.depositFeeDelta1 = IERC4626Vault(vaultAddress).convertToShares(
+                100 * 10 ** vaultData.assetTokenDecimals
+            ) - IERC4626Vault(vaultAddress).previewDeposit(100 * 10 ** vaultData.assetTokenDecimals);
 
             // Deposit fee delta 2 - 200 asset tokens
-            vaultData.depositFeeDelta2 =
-                IERC4626Vault(vaultAddress).convertToShares(
-                    200 * 10 ** vaultData.assetTokenDecimals
-                ) -
-                IERC4626Vault(vaultAddress).previewDeposit(
-                    200 * 10 ** vaultData.assetTokenDecimals
-                );
+            vaultData.depositFeeDelta2 = IERC4626Vault(vaultAddress).convertToShares(
+                200 * 10 ** vaultData.assetTokenDecimals
+            ) - IERC4626Vault(vaultAddress).previewDeposit(200 * 10 ** vaultData.assetTokenDecimals);
 
-            vaultData.depositNoFee = IERC4626Vault(vaultAddress)
-                .convertToShares(100 * 10 ** vaultData.assetTokenDecimals);
+            vaultData.depositNoFee =
+                IERC4626Vault(vaultAddress).convertToShares(100 * 10 ** vaultData.assetTokenDecimals);
 
             // Withdraw fee delta 1 - 100 vault tokens
-            vaultData.withdrawFeeDelta1 =
-                IERC4626Vault(vaultAddress).convertToAssets(
-                    100 * 10 ** vaultData.vaultTokenDecimals
-                ) -
-                IERC4626Vault(vaultAddress).previewRedeem(
-                    100 * 10 ** vaultData.vaultTokenDecimals
-                );
+            vaultData.withdrawFeeDelta1 = IERC4626Vault(vaultAddress).convertToAssets(
+                100 * 10 ** vaultData.vaultTokenDecimals
+            ) - IERC4626Vault(vaultAddress).previewRedeem(100 * 10 ** vaultData.vaultTokenDecimals);
 
             // Withdraw fee delta 2 - 200 vault tokens
-            vaultData.withdrawFeeDelta2 =
-                IERC4626Vault(vaultAddress).convertToAssets(
-                    200 * 10 ** vaultData.vaultTokenDecimals
-                ) -
-                IERC4626Vault(vaultAddress).previewRedeem(
-                    200 * 10 ** vaultData.vaultTokenDecimals
-                );
+            vaultData.withdrawFeeDelta2 = IERC4626Vault(vaultAddress).convertToAssets(
+                200 * 10 ** vaultData.vaultTokenDecimals
+            ) - IERC4626Vault(vaultAddress).previewRedeem(200 * 10 ** vaultData.vaultTokenDecimals);
 
-            vaultData.withdrawNoFee = IERC4626Vault(vaultAddress)
-                .convertToAssets(100 * 10 ** vaultData.vaultTokenDecimals);
+            vaultData.withdrawNoFee =
+                IERC4626Vault(vaultAddress).convertToAssets(100 * 10 ** vaultData.vaultTokenDecimals);
 
             allVaultData[i] = vaultData;
         }

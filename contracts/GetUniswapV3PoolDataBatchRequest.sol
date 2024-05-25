@@ -45,8 +45,8 @@ interface IERC20 {
 }
 
 /**
- @dev This contract is not meant to be deployed. Instead, use a static call with the
-      deployment bytecode as payload.
+ * @dev This contract is not meant to be deployed. Instead, use a static call with the
+ *       deployment bytecode as payload.
  */
 contract GetUniswapV3PoolDataBatchRequest {
     struct PoolData {
@@ -80,19 +80,14 @@ contract GetUniswapV3PoolDataBatchRequest {
             if (codeSizeIsZero(poolData.tokenB)) continue;
 
             //Get tokenA decimals
-            (
-                bool tokenADecimalsSuccess,
-                bytes memory tokenADecimalsData
-            ) = poolData.tokenA.call(abi.encodeWithSignature("decimals()"));
+            (bool tokenADecimalsSuccess, bytes memory tokenADecimalsData) =
+                poolData.tokenA.call{gas: 20000}(abi.encodeWithSignature("decimals()"));
 
             if (tokenADecimalsSuccess) {
                 uint256 tokenADecimals;
 
                 if (tokenADecimalsData.length == 32) {
-                    (tokenADecimals) = abi.decode(
-                        tokenADecimalsData,
-                        (uint256)
-                    );
+                    (tokenADecimals) = abi.decode(tokenADecimalsData, (uint256));
 
                     if (tokenADecimals == 0 || tokenADecimals > 255) {
                         continue;
@@ -106,18 +101,13 @@ contract GetUniswapV3PoolDataBatchRequest {
                 continue;
             }
 
-            (
-                bool tokenBDecimalsSuccess,
-                bytes memory tokenBDecimalsData
-            ) = poolData.tokenB.call(abi.encodeWithSignature("decimals()"));
+            (bool tokenBDecimalsSuccess, bytes memory tokenBDecimalsData) =
+                poolData.tokenB.call{gas: 20000}(abi.encodeWithSignature("decimals()"));
 
             if (tokenBDecimalsSuccess) {
                 uint256 tokenBDecimals;
                 if (tokenBDecimalsData.length == 32) {
-                    (tokenBDecimals) = abi.decode(
-                        tokenBDecimalsData,
-                        (uint256)
-                    );
+                    (tokenBDecimals) = abi.decode(tokenBDecimalsData, (uint256));
 
                     if (tokenBDecimals == 0 || tokenBDecimals > 255) {
                         continue;
@@ -131,12 +121,9 @@ contract GetUniswapV3PoolDataBatchRequest {
                 continue;
             }
 
-            (uint160 sqrtPriceX96, int24 tick, , , , , ) = IUniswapV3Pool(
-                poolAddress
-            ).slot0();
+            (uint160 sqrtPriceX96, int24 tick,,,,,) = IUniswapV3Pool(poolAddress).slot0();
 
-            (, int128 liquidityNet, , , , , , ) = IUniswapV3Pool(poolAddress)
-                .ticks(tick);
+            (, int128 liquidityNet,,,,,,) = IUniswapV3Pool(poolAddress).ticks(tick);
 
             poolData.liquidity = IUniswapV3Pool(poolAddress).liquidity();
             poolData.tickSpacing = IUniswapV3Pool(poolAddress).tickSpacing();
