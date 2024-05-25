@@ -116,33 +116,6 @@ contract GetWethValueInPoolBatchRequest {
         }
     }
 
-    ///Does not normalize to 18 decimals
-    function calculateV3VirtualReserves(address pool) internal view returns (uint256 r_0, uint256 r_1) {
-        (uint160 sqrtPriceX96,,,,,,) = IUniswapV3PoolState(pool).slot0();
-        uint128 liquidity = IUniswapV3PoolState(pool).liquidity();
-
-        if (liquidity == 0 || sqrtPriceX96 == 0) {
-            return (0, 0);
-        }
-
-        unchecked {
-            uint256 sqrtPriceInv = (2 ** 192 / sqrtPriceX96);
-
-            uint256 lo_r0 = (uint256(sqrtPriceInv) * (uint256(liquidity) & (2 ** 64))) >> 96;
-            uint256 hi_r0 = (uint256(sqrtPriceInv) * (uint256(liquidity) >> 96));
-            uint256 lo_r1 = (uint256(sqrtPriceX96) * (uint256(liquidity) & (2 ** 64))) >> 96;
-            uint256 hi_r1 = (uint256(sqrtPriceX96) * (uint256(liquidity) >> 96));
-
-            hi_r0 <<= 96;
-            hi_r1 <<= 96;
-
-            require(hi_r0 <= type(uint256).max, "hi_r0");
-            require(hi_r1 <= type(uint256).max, "hi_r1");
-
-            (r_0, r_1) = (hi_r0 + lo_r0, hi_r1 + lo_r1);
-        }
-    }
-
     function getTokenToWethPrice(
         address token,
         address weth,
