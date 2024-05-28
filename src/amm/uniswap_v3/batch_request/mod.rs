@@ -7,7 +7,6 @@ use alloy::{
     sol,
     transports::Transport,
 };
-use eyre::anyhow;
 use tracing::instrument;
 
 use crate::{

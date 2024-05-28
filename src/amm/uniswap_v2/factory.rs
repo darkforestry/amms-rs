@@ -172,7 +172,8 @@ impl AutomatedMarketMakerFactory for UniswapV2Factory {
         N: Network,
         P: Provider<T, N>,
     {
-        let step = 127; //Max batch size for call
+        // Max batch size for call
+        let step = 127;
         for amm_chunk in amms.chunks_mut(step) {
             batch_request::get_amm_data_batch_request(amm_chunk, middleware.clone()).await?;
         }
