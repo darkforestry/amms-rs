@@ -4,8 +4,8 @@ Cargo.lock
 # Foundry 
 
 # Compiler files
-cache/
-out/
+contracts/cache/
+contracts/out/
 
 # Ignores development broadcast logs
 !/broadcast
