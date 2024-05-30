@@ -1,7 +1,9 @@
-# amms-rs [![Github Actions][gha-badge]][gha]
+# amms-rs [![Github Actions][gha-badge]][gha] [![Chat][tg-badge]][tg-url]
 
 [gha]: https://github.com/darkforestry/amms-rs/actions
 [gha-badge]: https://github.com/darkforestry/amms-rs/actions/workflows/ci.yml/badge.svg
+[tg-url]: https://t.me/amms_rs
+[tg-badge]: https://img.shields.io/badge/chat-telegram-blue
 
 `amms-rs` is a Rust library to interact with automated market makers across EVM chains.
 
