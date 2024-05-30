@@ -59,12 +59,12 @@ where
     T: Transport + Clone,
     N: Network,
     P: Provider<T, N> + 'static,
-    A: AsRef<Path> + Copy,
+    A: AsRef<Path>,
 {
     let current_block = provider.get_block_number().await?;
 
     let checkpoint: Checkpoint =
-        serde_json::from_str(read_to_string(path_to_checkpoint)?.as_str())?;
+        serde_json::from_str(read_to_string(&path_to_checkpoint)?.as_str())?;
 
     // Sort all of the pools from the checkpoint into uniswap_v2_pools and uniswap_v3_pools pools so we can sync them concurrently
     let (uniswap_v2_pools, uniswap_v3_pools, erc_4626_pools) = sort_amms(checkpoint.amms);
