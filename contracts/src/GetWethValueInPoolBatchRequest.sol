@@ -256,7 +256,7 @@ contract GetWethValueInPoolBatchRequest {
             ///@notice The first value is a Q96 representation of p_token0, the second is 128X fixed point representation of p_token1.
             uint256 priceSquaredShiftQ96 = token0IsReserve0
                 ? priceSquaredX96 / Q96
-                : (Q96 * 0xffffffffffffffffffffffffffffffff) / (priceSquaredX96 / Q96);
+                : (Q96 * 0xffffffffffffffffffffffffffffffff) / (priceSquaredX96 << 128 / Q96);
 
             ///@notice Convert the first value to 128X fixed point by shifting it left 128 bits and normalizing the value by Q96.
             priceX128 = token0IsReserve0
