@@ -1,6 +1,7 @@
 use std::{
     fs::read_to_string,
     panic::resume_unwind,
+    path::Path,
     sync::Arc,
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -49,8 +50,8 @@ impl Checkpoint {
 }
 
 // Get all pairs from last synced block and sync reserve values for each Dex in the `dexes` vec.
-pub async fn sync_amms_from_checkpoint<T, N, P>(
-    path_to_checkpoint: &str,
+pub async fn sync_amms_from_checkpoint<T, N, P, A>(
+    path_to_checkpoint: A,
     step: u64,
     provider: Arc<P>,
 ) -> Result<(Vec<Factory>, Vec<AMM>), AMMError>
@@ -58,11 +59,12 @@ where
     T: Transport + Clone,
     N: Network,
     P: Provider<T, N> + 'static,
+    A: AsRef<Path>,
 {
     let current_block = provider.get_block_number().await?;
 
     let checkpoint: Checkpoint =
-        serde_json::from_str(read_to_string(path_to_checkpoint)?.as_str())?;
+        serde_json::from_str(read_to_string(&path_to_checkpoint)?.as_str())?;
 
     // Sort all of the pools from the checkpoint into uniswap_v2_pools and uniswap_v3_pools pools so we can sync them concurrently
     let (uniswap_v2_pools, uniswap_v3_pools, erc_4626_pools) = sort_amms(checkpoint.amms);
@@ -279,12 +281,15 @@ where
     handles
 }
 
-pub fn construct_checkpoint(
+pub fn construct_checkpoint<P>(
     factories: Vec<Factory>,
     amms: &[AMM],
     latest_block: u64,
-    checkpoint_path: &str,
-) -> Result<(), CheckpointError> {
+    checkpoint_path: P,
+) -> Result<(), CheckpointError>
+where
+    P: AsRef<Path>,
+{
     let checkpoint = Checkpoint::new(
         SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs_f64() as usize,
         latest_block,
@@ -298,7 +303,10 @@ pub fn construct_checkpoint(
 }
 
 // Deconstructs the checkpoint into a Vec<AMM>
-pub fn deconstruct_checkpoint(checkpoint_path: &str) -> Result<(Vec<AMM>, u64), CheckpointError> {
+pub fn deconstruct_checkpoint<P>(checkpoint_path: P) -> Result<(Vec<AMM>, u64), CheckpointError>
+where
+    P: AsRef<Path>,
+{
     let checkpoint: Checkpoint = serde_json::from_str(read_to_string(checkpoint_path)?.as_str())?;
     Ok((checkpoint.amms, checkpoint.block_number))
 }
