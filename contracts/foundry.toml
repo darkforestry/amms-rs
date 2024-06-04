@@ -1,5 +1,6 @@
 [profile.default]
 optimizer = false
+evm_version = "cancun"
 
 remappings = [
    "forge-std=lib/forge-std/src/",
