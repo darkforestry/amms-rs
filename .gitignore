@@ -17,3 +17,6 @@ docs/
 
 # Dotenv file
 .env
+
+# Temp checkpoint
+*.temp-checkpoint.json
