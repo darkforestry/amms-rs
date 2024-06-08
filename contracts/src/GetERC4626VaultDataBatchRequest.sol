@@ -72,8 +72,6 @@ contract GetERC4626VaultDataBatchRequest {
             vaultData.vaultToken = vaultAddress;
             vaultData.assetToken = assetToken;
 
-            if (codeSizeIsZero(vaultData.assetToken)) continue;
-
             // Get vault token decimals
             vaultData.vaultTokenDecimals = IERC4626Vault(vaultAddress).decimals();
             // Get asset token decimals
