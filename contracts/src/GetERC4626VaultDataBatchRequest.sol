@@ -51,39 +51,31 @@ contract GetERC4626VaultDataBatchRequest {
 
             if (codeSizeIsZero(vaultAddress)) continue;
 
+            address assetToken = IERC4626Vault(vaultAddress).asset();
+            // Check that assetToken exists and get assetTokenDecimals
+            if (codeSizeIsZero(assetToken)) continue;
+            (bool assetTokenDecimalsSuccess, bytes memory assetTokenDecimalsData) =
+                assetToken.call{gas: 20000}(abi.encodeWithSignature("decimals()"));
+
+            if (!assetTokenDecimalsSuccess || assetTokenDecimalsData.length == 32) {
+                continue;
+            }
+
+            (uint256 assetTokenDecimals) = abi.decode(assetTokenDecimalsData, (uint256));
+            if (assetTokenDecimals == 0 || assetTokenDecimals > 255) {
+                continue;
+            }
+
             VaultData memory vaultData;
 
             // Get tokens
             vaultData.vaultToken = vaultAddress;
-            vaultData.assetToken = IERC4626Vault(vaultAddress).asset();
-
-            // Check that assetToken exists
-            if (codeSizeIsZero(vaultData.assetToken)) continue;
+            vaultData.assetToken = assetToken;
 
             // Get vault token decimals
             vaultData.vaultTokenDecimals = IERC4626Vault(vaultAddress).decimals();
-
             // Get asset token decimals
-            (bool assetTokenDecimalsSuccess, bytes memory assetTokenDecimalsData) =
-                vaultData.assetToken.call{gas: 20000}(abi.encodeWithSignature("decimals()"));
-
-            if (assetTokenDecimalsSuccess) {
-                uint256 assetTokenDecimals;
-
-                if (assetTokenDecimalsData.length == 32) {
-                    (assetTokenDecimals) = abi.decode(assetTokenDecimalsData, (uint256));
-
-                    if (assetTokenDecimals == 0 || assetTokenDecimals > 255) {
-                        continue;
-                    } else {
-                        vaultData.assetTokenDecimals = uint8(assetTokenDecimals);
-                    }
-                } else {
-                    continue;
-                }
-            } else {
-                continue;
-            }
+            vaultData.assetTokenDecimals = uint8(assetTokenDecimals);
 
             // Get token reserves
             vaultData.vaultTokenReserve = IERC4626Vault(vaultAddress).totalSupply();
@@ -132,10 +124,6 @@ contract GetERC4626VaultDataBatchRequest {
     }
 
     function codeSizeIsZero(address target) internal view returns (bool) {
-        if (target.code.length == 0) {
-            return true;
-        } else {
-            return false;
-        }
+        return target.code.length == 0;
     }
 }
