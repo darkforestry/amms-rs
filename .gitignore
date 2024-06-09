@@ -17,3 +17,6 @@ docs/
 
 # Dotenv file
 .env
+
+# intellij 
+.idea/
