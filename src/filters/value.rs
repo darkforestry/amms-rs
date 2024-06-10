@@ -206,3 +206,86 @@ where
 
     Ok(weth_value_in_pools)
 }
+
+#[cfg(test)]
+mod test {
+
+    use alloy::{
+        primitives::{address, uint},
+        providers::ProviderBuilder,
+        rpc::client::WsConnect,
+    };
+    use std::{path::Path, sync::Arc};
+
+    use super::*;
+    use crate::amm::{
+        uniswap_v2::factory::UniswapV2Factory, uniswap_v3::factory::UniswapV3Factory,
+    };
+    use crate::sync::{checkpoint::sync_amms_from_checkpoint, sync_amms};
+
+    const WETH_VALUE_THREASHOLD: U256 = uint!(1_000_000_000_000_000_000_U256);
+    const MIN_TOKEN_PRICE_IN_WETH: U256 = uint!(0_U256);
+    const WETH_ADDRESS: Address = address!("C02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2");
+    const CHECKPOINT_PATH: &str = ".temp-checkpoint.json";
+
+    #[tokio::test]
+    #[ignore] // Ignoring to not throttle the Provider on workflows
+    async fn test_weth_value_filter() {
+        let ipc_endpoint = std::env::var("WS").unwrap();
+        let ws = WsConnect::new(ipc_endpoint.to_owned());
+        let provider = Arc::new(ProviderBuilder::new().on_ws(ws).await.unwrap());
+
+        let factories = vec![
+            // Add Uniswap V2
+            Factory::UniswapV2Factory(UniswapV2Factory::new(
+                address!("5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f"),
+                10000835,
+                300,
+            )),
+            // Add Uniswap v3
+            Factory::UniswapV3Factory(UniswapV3Factory::new(
+                address!("1F98431c8aD98523631AE4a59f267346ea31F984"),
+                12369621,
+            )),
+        ];
+
+        let checkpoint_exists = Path::new(CHECKPOINT_PATH).exists();
+
+        // sync all markets
+        let markets = if checkpoint_exists {
+            tracing::info!("Syncing pools from checkpoint");
+            let (_, markets) = sync_amms_from_checkpoint(CHECKPOINT_PATH, 500, provider.clone())
+                .await
+                .unwrap();
+
+            markets
+        } else {
+            tracing::info!("Syncing pools from inception");
+            let (markets, _) = sync_amms(
+                factories.clone(),
+                provider.clone(),
+                Some(CHECKPOINT_PATH),
+                500,
+            )
+            .await
+            .unwrap();
+
+            markets
+        };
+
+        filter_amms_below_weth_threshold(
+            markets,
+            &factories,
+            WETH_ADDRESS,
+            WETH_VALUE_THREASHOLD,
+            MIN_TOKEN_PRICE_IN_WETH,
+            500,
+            provider.clone(),
+        )
+        .await
+        .unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_usd_value_filter() {}
+}

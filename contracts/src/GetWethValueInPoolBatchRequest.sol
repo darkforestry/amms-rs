@@ -242,26 +242,35 @@ contract GetWethValueInPoolBatchRequest {
 
     function fromSqrtX96(uint160 sqrtPriceX96, bool token0IsReserve0, address token0, address token1)
         internal
-        view
         returns (uint256 priceX128)
     {
         unchecked {
+            ///@notice very weird edge case
+            if (sqrtPriceX96 == 0) {
+                return 0;
+            }
+
+            (uint8 token0Decimals, bool t0s) = getTokenDecimalsUnsafe(token0);
+            (uint8 token1Decimals, bool t1s) = getTokenDecimalsUnsafe(token1);
+
+            ///@notice if either of tokens does not implement `decimals()` return price as 0
+            if (!(t0s && t1s)) {
+                return 0;
+            }
+
             ///@notice Cache the difference between the input and output token decimals. p=y/x ==> p*10**(x_decimals-y_decimals)>>Q192 will be the proper price in base 10.
-            int8 decimalShift = int8(IERC20(token0).decimals()) - int8(IERC20(token1).decimals());
+            int8 decimalShift = int8(token0Decimals) - int8(token1Decimals);
             ///@notice Square the sqrtPrice ratio and normalize the value based on decimalShift.
             uint256 priceSquaredX96 = decimalShift < 0
                 ? uint256(sqrtPriceX96) ** 2 / uint256(10) ** (uint8(-decimalShift))
                 : uint256(sqrtPriceX96) ** 2 * 10 ** uint8(decimalShift);
 
             ///@notice The first value is a Q96 representation of p_token0, the second is 128X fixed point representation of p_token1.
-            uint256 priceSquaredShiftQ96 = token0IsReserve0
-                ? priceSquaredX96 / Q96
-                : (Q96 * 0xffffffffffffffffffffffffffffffff) / (priceSquaredX96 / Q96);
+            uint256 priceSquaredShiftQ96 =
+                token0IsReserve0 ? priceSquaredX96 << 128 / Q96 : type(uint256).max / (priceSquaredX96 << 128 / Q96);
 
             ///@notice Convert the first value to 128X fixed point by shifting it left 128 bits and normalizing the value by Q96.
-            priceX128 = token0IsReserve0
-                ? (uint256(priceSquaredShiftQ96) * 0xffffffffffffffffffffffffffffffff) / Q96
-                : priceSquaredShiftQ96;
+            priceX128 = token0IsReserve0 ? priceSquaredShiftQ96 / Q96 : priceSquaredShiftQ96;
             require(priceX128 <= type(uint256).max, "Overflow");
         }
     }
