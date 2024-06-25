@@ -19,7 +19,7 @@ pub enum StateSpaceError {
     #[error(transparent)]
     ArithmeticError(#[from] ArithmeticError),
     #[error(transparent)]
-    WalletError(#[from] alloy::signers::wallet::WalletError),
+    WalletError(#[from] alloy::signers::local::LocalSignerError),
     #[error("Insufficient wallet funds for execution")]
     InsufficientWalletFunds(),
     #[error(transparent)]
