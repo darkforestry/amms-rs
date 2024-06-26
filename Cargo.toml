@@ -20,25 +20,23 @@ artemis-core = { git = "https://github.com/paradigmxyz/artemis.git", branch = "m
 async-trait = "0.1.80"
 eyre = "0.6.12"
 futures = "0.3.30"
-lazy_static = "1.4.0"
+lazy_static = "1.5.0"
 num-bigfloat = "1.7.1"
-regex = "1.10.4"
-serde = "1.0.200"
-serde_json = "1.0.116"
-thiserror = "1.0.60"
-tokio =  { version = "1.37.0", default-features = false }
+regex = "1.10.5"
+serde = "1.0.203"
+serde_json = "1.0.118"
+thiserror = "1.0.61"
+tokio =  { version = "1.38.0", default-features = false }
 tracing = "0.1.40"
 uniswap_v3_math = { git = "https://github.com/0xKitsune/uniswap-v3-math.git", rev = "1120ff6" }
-alloy = { git = "https://github.com/alloy-rs/alloy", rev = "dd7a999", features = [
+alloy = { version = "0.1.3", features = [
     "contract",
     "network",
-    "providers",
     "provider-ws",
     "rpc-types-eth",
-    "signers",
-    "signer-wallet",
+    "signer-local",
 ] }
-reqwest = "0.12.4"
+reqwest = "0.12.5"
 
 [features]
 default = ["filters", "state-space"]
@@ -49,8 +47,8 @@ artemis = ["artemis-core"]
 [dev-dependencies]
 tracing-subscriber = "0.3.18"
 criterion = "0.5.1"
-tokio =  { version = "1.37.0", default-features = false, features = [ "rt-multi-thread" ] }
-alloy = { git = "https://github.com/alloy-rs/alloy", rev = "dd7a999", features = [
+tokio =  { version = "1.38.0", default-features = false, features = [ "rt-multi-thread" ] }
+alloy = { version = "0.1.3", features = [
     "rpc-client",
 ] }
 
