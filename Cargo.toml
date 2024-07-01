@@ -56,6 +56,10 @@ alloy = { version = "0.1.3", features = [
 name = "state_space"
 harness = false
 
+[[bench]]
+name = "uniswapv2_simulate"
+harness = false
+
 [profile.release]
 opt-level = 3
 lto = true
