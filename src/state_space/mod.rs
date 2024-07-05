@@ -294,6 +294,10 @@ impl StateChange {
             state_change,
         }
     }
+
+    pub fn state_change(&self) -> Option<&Vec<AMM>> {
+        self.state_change.as_ref()
+    }
 }
 
 /// Unwinds the state changes cache for every block from the most recent state change cache back to the block to unwind -1.
