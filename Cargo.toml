@@ -29,7 +29,7 @@ thiserror = "1.0.61"
 tokio =  { version = "1.38.0", default-features = false }
 tracing = "0.1.40"
 uniswap_v3_math = { git = "https://github.com/0xKitsune/uniswap-v3-math.git", rev = "1120ff6" }
-alloy = { version = "0.1.3", features = [
+alloy = { version = "0.2.0", features = [
     "contract",
     "network",
     "provider-ws",
@@ -48,7 +48,7 @@ artemis = ["artemis-core"]
 tracing-subscriber = "0.3.18"
 criterion = "0.5.1"
 tokio =  { version = "1.38.0", default-features = false, features = [ "rt-multi-thread" ] }
-alloy = { version = "0.1.3", features = [
+alloy = { version = "0.2.0", features = [
     "rpc-client",
 ] }
 
