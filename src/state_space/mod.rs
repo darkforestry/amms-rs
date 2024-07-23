@@ -428,20 +428,17 @@ pub fn get_block_number_from_log(log: &Log) -> Result<u64, EventLogError> {
     }
 }
 
-#[cfg(test)]
-mod tests {
+pub mod test_utils {
     use std::{default, sync::Arc};
 
     use crate::amm::{uniswap_v2::UniswapV2Pool, AMM};
-    use alloy::{providers::ProviderBuilder, rpc::client::WsConnect};
 
     use super::*;
 
-    #[tokio::test]
-    async fn test_add_state_changes() -> eyre::Result<()> {
+    pub async fn test_add_state_changes(n: u128) -> eyre::Result<()> {
         let state_change_cache = Arc::new(RwLock::new(StateChangeCache::new()));
 
-        for i in 0..=100 {
+        for i in 0..=n {
             let new_amm = AMM::UniswapV2Pool(UniswapV2Pool {
                 address: Address::ZERO,
                 reserve_0: i,
@@ -471,6 +468,42 @@ mod tests {
             }
         }
 
+        Ok(())
+    }
+
+    pub async fn test_add_empty_state_changes(n: u64) -> eyre::Result<()> {
+        let last_synced_block = 0;
+        let chain_head_block_number = n;
+
+        let state_change_cache = Arc::new(RwLock::new(StateChangeCache::new()));
+
+        for block_number in last_synced_block..=chain_head_block_number {
+            add_state_change_to_cache(
+                state_change_cache.clone(),
+                StateChange::new(None, block_number),
+            )
+            .await?;
+        }
+
+        let state_change_cache_length = state_change_cache.read().await.len();
+        assert_eq!(state_change_cache_length, 101);
+
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{default, sync::Arc};
+
+    use crate::amm::{uniswap_v2::UniswapV2Pool, AMM};
+    use alloy::{providers::ProviderBuilder, rpc::client::WsConnect};
+
+    use super::*;
+
+    #[tokio::test]
+    async fn test_add_state_changes() -> eyre::Result<()> {
+        test_utils::test_add_state_changes(100).await?;
         Ok(())
     }
 
@@ -515,22 +548,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_add_empty_state_changes() -> eyre::Result<()> {
-        let last_synced_block = 0;
-        let chain_head_block_number = 100;
-
-        let state_change_cache = Arc::new(RwLock::new(StateChangeCache::new()));
-
-        for block_number in last_synced_block..=chain_head_block_number {
-            add_state_change_to_cache(
-                state_change_cache.clone(),
-                StateChange::new(None, block_number),
-            )
-            .await?;
-        }
-
-        let state_change_cache_length = state_change_cache.read().await.len();
-        assert_eq!(state_change_cache_length, 101);
-
+        test_utils::test_add_empty_state_changes(100).await?;
         Ok(())
     }
 }
