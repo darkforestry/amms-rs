@@ -10,6 +10,7 @@ use crate::{
 };
 
 use alloy::{network::Network, providers::Provider, transports::Transport};
+use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 
 use std::{panic::resume_unwind, sync::Arc};
 
@@ -35,6 +36,12 @@ where
 
     let current_block = provider.get_block_number().await?;
 
+    let multi_progress = MultiProgress::new();
+    let style = ProgressStyle::default_bar()
+        .template("[{elapsed_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {msg}")
+        .unwrap()
+        .progress_chars("##-");
+
     // Aggregate the populated pools from each thread
     let mut aggregated_amms: Vec<AMM> = vec![];
     let mut handles = vec![];
@@ -42,17 +49,26 @@ where
     // For each dex supplied, get all pair created events and get reserve values
     for factory in factories.clone() {
         let provider = provider.clone();
-
+        let pb = multi_progress.add(ProgressBar::new(0));
+        pb.set_style(style.clone());
         // Spawn a new thread to get all pools and sync data for each dex
         handles.push(tokio::spawn(async move {
+
             tracing::info!(?factory, "Getting all AMMs from factory");
+
             // Get all of the amms from the factory
             let mut amms = factory
-                .get_all_amms(Some(current_block), provider.clone(), step)
+                .get_all_amms(Some(current_block),
+                         provider.clone(), step)
                 .await?;
 
+            pb.set_length(amms.len() as u64);
+
             tracing::info!(?factory, "Populating AMMs from factory");
-            populate_amms(&mut amms, current_block, provider.clone()).await?;
+
+            pb.set_message(format!("Syncing {}", factory.address()));
+
+            populate_amms(&mut amms, current_block, provider.clone(), &pb).await?;
 
             // Clean empty pools
             amms = filters::filter_empty_amms(amms);
@@ -115,6 +131,7 @@ pub async fn populate_amms<T, N, P>(
     amms: &mut [AMM],
     block_number: u64,
     provider: Arc<P>,
+    pb: &ProgressBar,
 ) -> Result<(), AMMError>
 where
     T: Transport + Clone,
@@ -132,6 +149,7 @@ where
                         provider.clone(),
                     )
                     .await?;
+                    pb.inc(amm_chunk.len() as u64);
                 }
             }
 
@@ -145,6 +163,7 @@ where
                         provider.clone(),
                     )
                     .await?;
+                    pb.inc(amm_chunk.len() as u64);
                 }
             }
 
@@ -152,6 +171,7 @@ where
             AMM::ERC4626Vault(_) => {
                 for amm in amms {
                     amm.populate_data(None, provider.clone()).await?;
+                    pb.inc(1);
                 }
             }
         }
