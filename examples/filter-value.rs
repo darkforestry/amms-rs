@@ -47,6 +47,7 @@ async fn main() -> eyre::Result<()> {
 
     // Filter out pools below usd threshold
     let weth_address = address!("0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270");
+    let usdc = address!("3c499c542cEF5E3811e1192ce70d8cC03d5c3359");
     let usd_weth_pair_address = address!("cd353F79d9FADe311fC3119B841e1f456b54e858");
     let usd_weth_pool = AMM::UniswapV2Pool(
         UniswapV2Pool::new_from_address(usd_weth_pair_address, 300, provider.clone()).await?,
@@ -61,6 +62,7 @@ async fn main() -> eyre::Result<()> {
         usd_weth_pool,
         15000.00, //Setting usd_threshold to 15000 filters out any pool that contains less than $15000.00 USD value
         weth_address,
+        usdc,
         weth_value_in_token_to_weth_pool_threshold,
         200,
         provider.clone(),

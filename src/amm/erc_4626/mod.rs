@@ -63,7 +63,11 @@ impl AutomatedMarketMaker for ERC4626Vault {
         vec![self.vault_token, self.asset_token]
     }
 
-    fn calculate_price(&self, base_token: Address) -> Result<f64, ArithmeticError> {
+    fn calculate_price(
+        &self,
+        base_token: Address,
+        _quote_token: Address,
+    ) -> Result<f64, ArithmeticError> {
         Ok(q64_to_f64(self.calculate_price_64_x_64(base_token)?))
     }
 
@@ -128,10 +132,11 @@ impl AutomatedMarketMaker for ERC4626Vault {
 
     fn simulate_swap(
         &self,
-        token_in: Address,
+        base_token: Address,
+        _quote_token: Address,
         amount_in: U256,
     ) -> Result<U256, SwapSimulationError> {
-        if self.vault_token == token_in {
+        if self.vault_token == base_token {
             Ok(self.get_amount_out(amount_in, self.vault_reserve, self.asset_reserve))
         } else {
             Ok(self.get_amount_out(amount_in, self.asset_reserve, self.vault_reserve))
@@ -140,10 +145,11 @@ impl AutomatedMarketMaker for ERC4626Vault {
 
     fn simulate_swap_mut(
         &mut self,
-        token_in: Address,
+        base_token: Address,
+        _quote_token: Address,
         amount_in: U256,
     ) -> Result<U256, SwapSimulationError> {
-        if self.vault_token == token_in {
+        if self.vault_token == base_token {
             let amount_out = self.get_amount_out(amount_in, self.vault_reserve, self.asset_reserve);
 
             self.vault_reserve -= amount_in;
@@ -157,14 +163,6 @@ impl AutomatedMarketMaker for ERC4626Vault {
             self.vault_reserve += amount_out;
 
             Ok(amount_out)
-        }
-    }
-
-    fn get_token_out(&self, token_in: Address) -> Address {
-        if self.vault_token == token_in {
-            self.asset_token
-        } else {
-            self.vault_token
         }
     }
 }
@@ -308,10 +306,10 @@ impl ERC4626Vault {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    use std::{ops::Add, sync::Arc};
 
     use alloy::{
-        primitives::{address, U256},
+        primitives::{address, Address, U256},
         providers::ProviderBuilder,
     };
 
@@ -357,8 +355,12 @@ mod tests {
         vault.asset_token_decimals = 6;
         vault.asset_reserve = U256::from(505434849031_u64);
 
-        let price_v_64_x = vault.calculate_price(vault.vault_token).unwrap();
-        let price_a_64_x = vault.calculate_price(vault.asset_token).unwrap();
+        let price_v_64_x = vault
+            .calculate_price(vault.vault_token, vault.asset_token)
+            .unwrap();
+        let price_a_64_x = vault
+            .calculate_price(vault.asset_token, vault.vault_token)
+            .unwrap();
 
         assert_eq!(price_v_64_x, 1.0070222372637234);
         assert_eq!(price_a_64_x, 0.99302673068789);
@@ -379,8 +381,12 @@ mod tests {
         vault.vault_reserve = U256::ZERO;
         vault.asset_reserve = U256::ZERO;
 
-        let price_v_64_x = vault.calculate_price(vault.vault_token).unwrap();
-        let price_a_64_x = vault.calculate_price(vault.asset_token).unwrap();
+        let price_v_64_x = vault
+            .calculate_price(vault.vault_token, Address::default())
+            .unwrap();
+        let price_a_64_x = vault
+            .calculate_price(vault.asset_token, Address::default())
+            .unwrap();
 
         assert_eq!(price_v_64_x, 1.0);
         assert_eq!(price_a_64_x, 1.0);
@@ -401,8 +407,12 @@ mod tests {
         vault.vault_reserve = U256::from(501910315708981197269904_u128);
         vault.asset_reserve = U256::from(505434849031054568651911_u128);
 
-        let price_v_64_x = vault.calculate_price(vault.vault_token).unwrap();
-        let price_a_64_x = vault.calculate_price(vault.asset_token).unwrap();
+        let price_v_64_x = vault
+            .calculate_price(vault.vault_token, Address::default())
+            .unwrap();
+        let price_a_64_x = vault
+            .calculate_price(vault.asset_token, Address::default())
+            .unwrap();
 
         assert_eq!(price_v_64_x, 1.0070222372638322);
         assert_eq!(price_a_64_x, 0.9930267306877828);
@@ -446,10 +456,18 @@ mod tests {
         vault.asset_reserve = U256::from(505434849031054568651911_u128);
 
         let assets_out = vault
-            .simulate_swap(vault.vault_token, U256::from(3000000000000000000_u128))
+            .simulate_swap(
+                vault.vault_token,
+                vault.asset_token,
+                U256::from(3000000000000000000_u128),
+            )
             .unwrap();
         let shares_out = vault
-            .simulate_swap(vault.asset_token, U256::from(3000000000000000000_u128))
+            .simulate_swap(
+                vault.asset_token,
+                vault.vault_token,
+                U256::from(3000000000000000000_u128),
+            )
             .unwrap();
 
         assert_eq!(assets_out, U256::from(3021066711791496478_u128));
