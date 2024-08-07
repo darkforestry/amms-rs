@@ -50,7 +50,11 @@ pub trait AutomatedMarketMaker {
     fn tokens(&self) -> Vec<Address>;
 
     /// Calculates a f64 representation of base token price in the AMM.
-    fn calculate_price(&self, base_token: Address) -> Result<f64, ArithmeticError>;
+    fn calculate_price(
+        &self,
+        base_token: Address,
+        quote_token: Address,
+    ) -> Result<f64, ArithmeticError>;
 
     /// Updates the AMM data from a log.
     fn sync_from_log(&mut self, log: Log) -> Result<(), EventLogError>;
@@ -71,7 +75,8 @@ pub trait AutomatedMarketMaker {
     /// Returns the amount received for `amount_in` of `token_in`.
     fn simulate_swap(
         &self,
-        token_in: Address,
+        base_token: Address,
+        quote_token: Address,
         amount_in: U256,
     ) -> Result<U256, SwapSimulationError>;
 
@@ -80,12 +85,10 @@ pub trait AutomatedMarketMaker {
     /// Returns the amount received for `amount_in` of `token_in`.
     fn simulate_swap_mut(
         &mut self,
-        token_in: Address,
+        base_token: Address,
+        quote_token: Address,
         amount_in: U256,
     ) -> Result<U256, SwapSimulationError>;
-
-    /// Returns the token out of the AMM for a given `token_in`.
-    fn get_token_out(&self, token_in: Address) -> Address;
 }
 
 macro_rules! amm {
@@ -126,21 +129,15 @@ macro_rules! amm {
                 }
             }
 
-            fn simulate_swap(&self, token_in: Address, amount_in: U256) -> Result<U256, SwapSimulationError> {
+            fn simulate_swap(&self, base_token: Address, quote_token: Address,amount_in: U256) -> Result<U256, SwapSimulationError> {
                 match self {
-                    $(AMM::$pool_type(pool) => pool.simulate_swap(token_in, amount_in),)+
+                    $(AMM::$pool_type(pool) => pool.simulate_swap(base_token, quote_token, amount_in),)+
                 }
             }
 
-            fn simulate_swap_mut(&mut self, token_in: Address, amount_in: U256) -> Result<U256, SwapSimulationError> {
+            fn simulate_swap_mut(&mut self, base_token: Address, quote_token: Address, amount_in: U256) -> Result<U256, SwapSimulationError> {
                 match self {
-                    $(AMM::$pool_type(pool) => pool.simulate_swap_mut(token_in, amount_in),)+
-                }
-            }
-
-            fn get_token_out(&self, token_in: Address) -> Address {
-                match self {
-                    $(AMM::$pool_type(pool) => pool.get_token_out(token_in),)+
+                    $(AMM::$pool_type(pool) => pool.simulate_swap_mut(base_token, quote_token, amount_in),)+
                 }
             }
 
@@ -161,9 +158,9 @@ macro_rules! amm {
                 }
             }
 
-            fn calculate_price(&self, base_token: Address) -> Result<f64, ArithmeticError> {
+            fn calculate_price(&self, base_token: Address, quote_token: Address) -> Result<f64, ArithmeticError> {
                 match self {
-                    $(AMM::$pool_type(pool) => pool.calculate_price(base_token),)+
+                    $(AMM::$pool_type(pool) => pool.calculate_price(base_token, quote_token),)+
                 }
             }
         }

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use alloy::{
-    primitives::{address, U256},
+    primitives::{address, Address, U256},
     providers::ProviderBuilder,
 };
 
@@ -20,7 +20,11 @@ async fn main() -> eyre::Result<()> {
 
     // Simulate a swap
     let token_in = address!("C02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2");
-    let amount_out = pool.simulate_swap(token_in, U256::from(1000000000000000000_u128))?;
+    let amount_out = pool.simulate_swap(
+        token_in,
+        Address::default(),
+        U256::from(1000000000000000000_u128),
+    )?;
 
     println!("Amount out: {amount_out}");
 

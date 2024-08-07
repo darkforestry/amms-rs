@@ -108,7 +108,11 @@ impl AutomatedMarketMaker for UniswapV2Pool {
     }
 
     // Calculates base/quote, meaning the price of base token per quote (ie. exchange rate is X base per 1 quote)
-    fn calculate_price(&self, base_token: Address) -> Result<f64, ArithmeticError> {
+    fn calculate_price(
+        &self,
+        base_token: Address,
+        _quote_token: Address,
+    ) -> Result<f64, ArithmeticError> {
         Ok(q64_to_f64(self.calculate_price_64_x_64(base_token)?))
     }
 
@@ -118,10 +122,11 @@ impl AutomatedMarketMaker for UniswapV2Pool {
 
     fn simulate_swap(
         &self,
-        token_in: Address,
+        base_token: Address,
+        _quote_token: Address,
         amount_in: U256,
     ) -> Result<U256, SwapSimulationError> {
-        if self.token_a == token_in {
+        if self.token_a == base_token {
             Ok(self.get_amount_out(
                 amount_in,
                 U256::from(self.reserve_0),
@@ -138,10 +143,11 @@ impl AutomatedMarketMaker for UniswapV2Pool {
 
     fn simulate_swap_mut(
         &mut self,
-        token_in: Address,
+        base_token: Address,
+        _quote_token: Address,
         amount_in: U256,
     ) -> Result<U256, SwapSimulationError> {
-        if self.token_a == token_in {
+        if self.token_a == base_token {
             let amount_out = self.get_amount_out(
                 amount_in,
                 U256::from(self.reserve_0),
@@ -173,14 +179,6 @@ impl AutomatedMarketMaker for UniswapV2Pool {
             tracing::trace!(?self.reserve_0, ?self.reserve_1, "pool reserves after");
 
             Ok(amount_out)
-        }
-    }
-
-    fn get_token_out(&self, token_in: Address) -> Address {
-        if self.token_a == token_in {
-            self.token_b
-        } else {
-            self.token_a
         }
     }
 }
@@ -555,10 +553,10 @@ pub fn q64_to_f64(x: u128) -> f64 {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    use std::{ops::Add, sync::Arc};
 
     use alloy::{
-        primitives::{address, U256},
+        primitives::{address, Address, U256},
         providers::ProviderBuilder,
     };
 
@@ -651,8 +649,8 @@ mod tests {
             fee: 300,
         };
 
-        assert!(x.calculate_price(token_a).unwrap() != 0.0);
-        assert!(x.calculate_price(token_b).unwrap() != 0.0);
+        assert!(x.calculate_price(token_a, Address::default()).unwrap() != 0.0);
+        assert!(x.calculate_price(token_b, Address::default()).unwrap() != 0.0);
     }
 
     #[tokio::test]
@@ -670,8 +668,12 @@ mod tests {
         pool.reserve_0 = 47092140895915;
         pool.reserve_1 = 28396598565590008529300;
 
-        let price_a_64_x = pool.calculate_price(pool.token_a).unwrap();
-        let price_b_64_x = pool.calculate_price(pool.token_b).unwrap();
+        let price_a_64_x = pool
+            .calculate_price(pool.token_a, Address::default())
+            .unwrap();
+        let price_b_64_x = pool
+            .calculate_price(pool.token_b, Address::default())
+            .unwrap();
 
         // No precision loss: 30591574867092394336528 / 2**64
         assert_eq!(1658.3725965327264, price_b_64_x);
