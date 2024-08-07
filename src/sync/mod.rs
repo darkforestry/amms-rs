@@ -53,13 +53,11 @@ where
         pb.set_style(style.clone());
         // Spawn a new thread to get all pools and sync data for each dex
         handles.push(tokio::spawn(async move {
-
             tracing::info!(?factory, "Getting all AMMs from factory");
 
             // Get all of the amms from the factory
             let mut amms = factory
-                .get_all_amms(Some(current_block),
-                         provider.clone(), step)
+                .get_all_amms(Some(current_block), provider.clone(), step)
                 .await?;
 
             pb.set_length(amms.len() as u64);
