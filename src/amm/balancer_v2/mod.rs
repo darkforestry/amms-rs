@@ -1,3 +1,4 @@
+pub mod batch_request;
 pub mod factory;
 
 use std::sync::Arc;
@@ -18,7 +19,7 @@ use crate::errors::{AMMError, ArithmeticError, EventLogError, SwapSimulationErro
 use super::AutomatedMarketMaker;
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct BalancerPool {
+pub struct BalancerV2Pool {
     /// The Pool Address.
     address: Address,
     /// The Pool Tokens.
@@ -32,7 +33,7 @@ pub struct BalancerPool {
 }
 
 #[async_trait]
-impl AutomatedMarketMaker for BalancerPool {
+impl AutomatedMarketMaker for BalancerV2Pool {
     /// Returns the address of the AMM.
     fn address(&self) -> Address {
         self.address
