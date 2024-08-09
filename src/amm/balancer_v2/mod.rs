@@ -1,3 +1,5 @@
+pub mod factory;
+
 use std::sync::Arc;
 
 use alloy::{
@@ -16,25 +18,17 @@ use crate::errors::{AMMError, ArithmeticError, EventLogError, SwapSimulationErro
 use super::AutomatedMarketMaker;
 
 #[derive(Debug, Serialize, Deserialize)]
-pub enum PoolType {
-    /// Balancer Stable Swap Pool
-    Stable,
-    /// Balancer Linear Swap Pool
-    Linear,
-    /// Balancer Weighted Swap Pool
-    Weighted,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
 pub struct BalancerPool {
-    /// The Pool Address
+    /// The Pool Address.
     address: Address,
-    /// The Pool Type
-    r#type: PoolType,
-    /// The Pool Tokens
+    /// The Pool Tokens.
     tokens: Vec<Address>,
-    /// The Pool Weights
+    /// The token decimals indexed by token.
+    decimals: Vec<u8>,
+    /// The Pool Weights indexed by token.
     liquidity: Vec<U256>,
+    /// The Swap Fee on the Pool.
+    fee: u32,
 }
 
 #[async_trait]
@@ -52,7 +46,7 @@ impl AutomatedMarketMaker for BalancerPool {
         N: Network,
         P: Provider<T, N>,
     {
-        Ok(())
+        todo!("Implement sync for BalancerPool")
     }
 
     /// Returns the vector of event signatures subscribed to when syncing the AMM.
@@ -71,12 +65,12 @@ impl AutomatedMarketMaker for BalancerPool {
         base_token: Address,
         quote_token: Address,
     ) -> Result<f64, ArithmeticError> {
-        todo!()
+        todo!("Implement calculate_price for BalancerPool")
     }
 
     /// Updates the AMM data from a log.
     fn sync_from_log(&mut self, log: Log) -> Result<(), EventLogError> {
-        todo!()
+        todo!("Implement sync_from_log for BalancerPool")
     }
 
     /// Populates the AMM data via batched static calls.
@@ -90,7 +84,7 @@ impl AutomatedMarketMaker for BalancerPool {
         N: Network,
         P: Provider<T, N>,
     {
-        todo!()
+        todo!("Implement populate_data for BalancerPool")
     }
 
     /// Locally simulates a swap in the AMM.
@@ -102,7 +96,7 @@ impl AutomatedMarketMaker for BalancerPool {
         quote_token: Address,
         amount_in: U256,
     ) -> Result<U256, SwapSimulationError> {
-        todo!()
+        todo!("Implement simulate_swap for BalancerPool")
     }
 
     /// Locally simulates a swap in the AMM.
@@ -114,6 +108,6 @@ impl AutomatedMarketMaker for BalancerPool {
         quote_token: Address,
         amount_in: U256,
     ) -> Result<U256, SwapSimulationError> {
-        todo!()
+        todo!("Implement simulate_swap_mut for BalancerPool")
     }
 }
