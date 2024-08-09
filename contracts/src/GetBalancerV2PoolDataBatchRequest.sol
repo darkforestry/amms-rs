@@ -35,29 +35,32 @@ contract GetBalancerV2PoolDataBatchRequest {
 
             // Get the tokens
             address[] memory tokens = IBPool(poolAddress).getCurrentTokens();
+            uint8[] memory decimals = new uint8[](tokens.length);
+            uint256[] memory liquidity = new uint256[](tokens.length);
             for (uint256 j = 0; j < tokens.length; ++j) {
-                if (!(codeSizeIsZero(tokens[j]))) {
-                    poolData.tokens[j] = tokens[j];
-                } else {
+                if (codeSizeIsZero(tokens[j])) {
                     continue;
                 }
             }
 
             // Grab the decimals/liquidity
-            for (uint256 j = 0; j < poolData.tokens.length; ++j) {
-                uint8 tokenDecimals = getTokenDecimals(poolData.tokens[j]);
+            for (uint256 j = 0; j < tokens.length; ++j) {
+                uint8 tokenDecimals = getTokenDecimals(tokens[j]);
                 if (tokenDecimals == 0) {
                     continue;
                 } else {
-                    poolData.decimals[j] = tokenDecimals;
+                    decimals[j] = tokenDecimals;
                 }
-                poolData.liquidity[j] = IBPool(poolAddress).getDenormalizedWeight(
-                    poolData.tokens[j]
+                liquidity[j] = IBPool(poolAddress).getDenormalizedWeight(
+                    tokens[j]
                 );
             }
 
             // Grab the swap fee
             poolData.fee = uint32(IBPool(poolAddress).getSwapFee());
+            poolData.tokens = tokens;
+            poolData.decimals = decimals;
+            poolData.liquidity = liquidity;
             allPoolData[i] = poolData;
         }
 
