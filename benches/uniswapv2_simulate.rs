@@ -1,4 +1,4 @@
-use alloy::primitives::{address, U256};
+use alloy::primitives::{address, Address, U256};
 use criterion::{criterion_group, criterion_main, Criterion};
 
 use amms::amm::uniswap_v2::UniswapV2Pool;
@@ -28,7 +28,9 @@ fn criterion_benchmark(c: &mut Criterion) {
             pool.reserve_0 = random_ether(1.0, 1000.0);
             pool.reserve_1 = random_ether(1.0, 1000.0);
             let swap_amount = U256::from(random_ether(1.0, 10.0));
-            let _ = pool.simulate_swap(token_a, swap_amount).unwrap();
+            let _ = pool
+                .simulate_swap(token_a, Address::default(), swap_amount)
+                .unwrap();
         })
     });
 }
