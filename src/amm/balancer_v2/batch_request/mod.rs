@@ -111,6 +111,7 @@ where
         DynSolType::Array(Box::new(DynSolType::Address)),
         DynSolType::Array(Box::new(DynSolType::Uint(8))),
         DynSolType::Array(Box::new(DynSolType::Uint(256))),
+        DynSolType::Array(Box::new(DynSolType::Uint(256))),
         DynSolType::Uint(32),
     ])));
 
