@@ -84,6 +84,7 @@ where
                 AMM::UniswapV2Pool(_) => 0,
                 AMM::UniswapV3Pool(_) => 1,
                 AMM::ERC4626Vault(_) => 2,
+                AMM::BalancerV2Pool(_) => 3,
             };
 
             if !amm_variants.contains(&variant) {

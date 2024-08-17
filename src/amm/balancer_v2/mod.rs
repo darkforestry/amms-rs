@@ -32,7 +32,7 @@ sol! {
     }
 }
 
-#[derive(Default, Debug, Serialize, Deserialize)]
+#[derive(Default, Debug, Serialize, Deserialize, Clone)]
 pub struct BalancerV2Pool {
     /// The Pool Address.
     address: Address,
