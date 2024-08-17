@@ -9,6 +9,7 @@ use alloy::{
     providers::Provider,
     rpc::types::Log,
     sol,
+    sol_types::SolEvent,
     transports::Transport,
 };
 use async_trait::async_trait;
@@ -20,18 +21,16 @@ use crate::errors::{AMMError, ArithmeticError, EventLogError, SwapSimulationErro
 use super::AutomatedMarketMaker;
 
 sol! {
-    /// Interface of the UniswapV2Pair
-    #[derive(Debug, PartialEq, Eq)]
-    #[sol(rpc)]
-    contract IUniswapV2Pair {
-        event Sync(uint112 reserve0, uint112 reserve1);
-        function getReserves() external view returns (uint112 reserve0, uint112 reserve1, uint32 blockTimestampLast);
-        function token0() external view returns (address);
-        function token1() external view returns (address);
-        function swap(uint256 amount0Out, uint256 amount1Out, address to, bytes calldata data);
+    contract IBPool {
+        event LOG_SWAP(
+            address indexed caller,
+            address indexed tokenIn,
+            address indexed tokenOut,
+            uint256         tokenAmountIn,
+            uint256         tokenAmountOut
+        );
     }
 }
-
 #[derive(Default, Debug, Serialize, Deserialize, Clone)]
 pub struct BalancerV2Pool {
     /// The Pool Address.
@@ -42,6 +41,8 @@ pub struct BalancerV2Pool {
     decimals: Vec<u8>,
     /// The Denormalized Pool Weights indexed by token.
     liquidity: Vec<U256>,
+    /// The weight of the Pool.
+    weights: Vec<U256>,
     /// The Swap Fee on the Pool.
     fee: u32,
 }
@@ -67,7 +68,7 @@ impl AutomatedMarketMaker for BalancerV2Pool {
 
     /// Returns the vector of event signatures subscribed to when syncing the AMM.
     fn sync_on_event_signatures(&self) -> Vec<B256> {
-        todo!("Implement sync_on_event_signatures for BalancerPool")
+        vec![IBPool::LOG_SWAP::SIGNATURE_HASH]
     }
 
     /// Returns a vector of tokens in the AMM.
@@ -86,7 +87,21 @@ impl AutomatedMarketMaker for BalancerV2Pool {
 
     /// Updates the AMM data from a log.
     fn sync_from_log(&mut self, log: Log) -> Result<(), EventLogError> {
-        todo!("Implement sync_from_log for BalancerPool")
+        let signature = log.topics()[0];
+        if IBPool::LOG_SWAP::SIGNATURE_HASH == signature {
+            let swap_event = IBPool::LOG_SWAP::decode_log(log.as_ref(), true)?;
+            let token_in = swap_event.tokenIn;
+            let token_out = swap_event.tokenOut;
+
+            let token_in_index = self.tokens.iter().position(|&r| r == token_in).unwrap();
+            let token_out_index = self.tokens.iter().position(|&r| r == token_out).unwrap();
+
+            // Update the pool liquidity
+            self.liquidity[token_in_index] += swap_event.tokenAmountIn;
+            self.liquidity[token_out_index] -= swap_event.tokenAmountOut;
+        }
+
+        Ok(())
     }
 
     /// Populates the AMM data via batched static calls.
@@ -164,7 +179,7 @@ mod tests {
         );
         assert_eq!(balancer_v2_pool.decimals, vec![18, 6]);
         assert_eq!(
-            balancer_v2_pool.liquidity,
+            balancer_v2_pool.weights,
             vec![
                 U256::from_str("25000000000000000000").unwrap(),
                 U256::from_str("25000000000000000000").unwrap()

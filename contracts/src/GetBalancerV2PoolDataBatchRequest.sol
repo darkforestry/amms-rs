@@ -5,6 +5,7 @@ interface IBPool {
     function getCurrentTokens() external returns (address[] memory);
     function getDenormalizedWeight(address token) external returns (uint);
     function getSwapFee() external returns (uint);
+    function getBalance(address token) external returns (uint);
 }
 
 interface IERC20 {
@@ -20,6 +21,7 @@ contract GetBalancerV2PoolDataBatchRequest {
         address[] tokens;
         uint8[] decimals;
         uint256[] liquidity;
+        uint256[] weights;
         uint32 fee;
     }
 
@@ -37,6 +39,8 @@ contract GetBalancerV2PoolDataBatchRequest {
             address[] memory tokens = IBPool(poolAddress).getCurrentTokens();
             uint8[] memory decimals = new uint8[](tokens.length);
             uint256[] memory liquidity = new uint256[](tokens.length);
+            uint256[] memory weights = new uint256[](tokens.length);
+
             for (uint256 j = 0; j < tokens.length; ++j) {
                 if (codeSizeIsZero(tokens[j])) {
                     continue;
@@ -51,9 +55,10 @@ contract GetBalancerV2PoolDataBatchRequest {
                 } else {
                     decimals[j] = tokenDecimals;
                 }
-                liquidity[j] = IBPool(poolAddress).getDenormalizedWeight(
+                weights[j] = IBPool(poolAddress).getDenormalizedWeight(
                     tokens[j]
                 );
+                liquidity[j] = IBPool(poolAddress).getBalance(tokens[j]);
             }
 
             // Grab the swap fee
@@ -61,6 +66,7 @@ contract GetBalancerV2PoolDataBatchRequest {
             poolData.tokens = tokens;
             poolData.decimals = decimals;
             poolData.liquidity = liquidity;
+            poolData.weights = weights;
             allPoolData[i] = poolData;
         }
 

@@ -43,7 +43,13 @@ fn populate_pool_data_from_tokens(pool: &mut BalancerV2Pool, tokens: &[DynSolVal
         .iter()
         .map(|t| t.as_uint().expect("Expected uint").0)
         .collect();
-    pool.fee = tokens[3].as_uint().expect("Expected uint").0.to::<u32>();
+    pool.weights = tokens[3]
+        .as_array()
+        .expect("Expected array")
+        .iter()
+        .map(|t| t.as_uint().expect("Expected uint").0)
+        .collect();
+    pool.fee = tokens[4].as_uint().expect("Expected uint").0.to::<u32>();
 }
 
 pub async fn get_balancer_v2_pool_data_batch_request<T, N, P>(
@@ -66,6 +72,7 @@ where
     let constructor_return = DynSolType::Array(Box::new(DynSolType::Tuple(vec![
         DynSolType::Array(Box::new(DynSolType::Address)),
         DynSolType::Array(Box::new(DynSolType::Uint(8))),
+        DynSolType::Array(Box::new(DynSolType::Uint(256))),
         DynSolType::Array(Box::new(DynSolType::Uint(256))),
         DynSolType::Uint(32),
     ])));
