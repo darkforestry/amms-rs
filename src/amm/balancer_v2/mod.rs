@@ -1,4 +1,5 @@
 pub mod batch_request;
+mod bmath;
 pub mod factory;
 
 use std::sync::Arc;
@@ -39,9 +40,9 @@ pub struct BalancerV2Pool {
     tokens: Vec<Address>,
     /// The token decimals indexed by token.
     decimals: Vec<u8>,
-    /// The Denormalized Pool Weights indexed by token.
+    /// The Pool Liquidity indexed by token.
     liquidity: Vec<U256>,
-    /// The weight of the Pool.
+    /// The Pool Weights indexed by token.
     weights: Vec<U256>,
     /// The Swap Fee on the Pool.
     fee: u32,
@@ -82,6 +83,7 @@ impl AutomatedMarketMaker for BalancerV2Pool {
         base_token: Address,
         quote_token: Address,
     ) -> Result<f64, ArithmeticError> {
+        // https://github.com/balancer/balancer-core/blob/f4ed5d65362a8d6cec21662fb6eae233b0babc1f/contracts/BMath.sol#L28
         todo!("Implement calculate_price for BalancerPool")
     }
 
@@ -130,6 +132,7 @@ impl AutomatedMarketMaker for BalancerV2Pool {
         quote_token: Address,
         amount_in: U256,
     ) -> Result<U256, SwapSimulationError> {
+        // https://github.com/balancer/balancer-core/blob/f4ed5d65362a8d6cec21662fb6eae233b0babc1f/contracts/BPool.sol#L423
         todo!("Implement simulate_swap for BalancerPool")
     }
 
@@ -142,6 +145,7 @@ impl AutomatedMarketMaker for BalancerV2Pool {
         quote_token: Address,
         amount_in: U256,
     ) -> Result<U256, SwapSimulationError> {
+        // https://github.com/balancer/balancer-core/blob/f4ed5d65362a8d6cec21662fb6eae233b0babc1f/contracts/BPool.sol#L423
         todo!("Implement simulate_swap_mut for BalancerPool")
     }
 }

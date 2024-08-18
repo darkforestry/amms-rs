@@ -21,6 +21,9 @@ pub const POPULATE_TICK_DATA_STEP: u64 = 100000;
 pub const Q128: U256 = U256::from_limbs([0, 0, 1, 0]);
 pub const Q224: U256 = U256::from_limbs([0, 0, 0, 4294967296]);
 
+// Balancer V2 specific
+pub const BONE: U256 = U256::from_limbs([0xDE0B6B3A7640000, 0, 0, 0]);
+
 // Others
 pub const U128_0X10000000000000000: u128 = 18446744073709551616;
 pub const U256_0XFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF: U256 = U256::from_limbs([
