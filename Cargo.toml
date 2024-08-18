@@ -24,7 +24,7 @@ serde_json = "1.0"
 thiserror = "1.0"
 tokio = { version = "1.38", default-features = false }
 tracing = "0.1"
-uniswap_v3_math = { git = "https://github.com/0xKitsune/uniswap-v3-math.git", rev = "1120ff6" }
+uniswap_v3_math = "0.5.1"
 alloy = { version = "0.2", features = [
     "contract",
     "network",
