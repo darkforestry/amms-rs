@@ -8,15 +8,11 @@ readme = "README.md"
 homepage = "https://github.com/darkforestry/amms-rs"
 repository = "https://github.com/darkforestry/amms-rs"
 keywords = ["ethereum", "amm", "mev"]
-exclude = [
-    "target/*",
-    ".github/*",
-    ".gitignore"
-]
+exclude = ["target/*", ".github/*", ".gitignore"]
 
 [dependencies]
 arraydeque = { version = "0.5", optional = true }
-artemis-core = { git = "https://github.com/paradigmxyz/artemis.git", branch = "main", optional = true }
+# artemis-core = { git = "https://github.com/paradigmxyz/artemis.git", branch = "main", optional = true }
 async-trait = "0.1"
 eyre = "0.6"
 futures = "0.3"
@@ -26,7 +22,7 @@ regex = "1.10"
 serde = "1.0"
 serde_json = "1.0"
 thiserror = "1.0"
-tokio =  { version = "1.38", default-features = false }
+tokio = { version = "1.38", default-features = false }
 tracing = "0.1"
 uniswap_v3_math = { git = "https://github.com/0xKitsune/uniswap-v3-math.git", rev = "1120ff6" }
 alloy = { version = "0.2", features = [
@@ -36,22 +32,23 @@ alloy = { version = "0.2", features = [
     "rpc-types-eth",
     "signer-local",
 ] }
-reqwest = "0.12"
 
 [features]
 default = ["filters", "state-space"]
 filters = []
 state-space = ["arraydeque"]
-artemis = ["artemis-core"]
+# TODO: Uncomment this when artemis is published as a crate
+# artemis = ["artemis-core"] 
+artemis = []
 
 [dev-dependencies]
 rand = "0.8.5"
 tracing-subscriber = "0.3"
 criterion = "0.5"
-tokio =  { version = "1.38", default-features = false, features = [ "rt-multi-thread" ] }
-alloy = { version = "0.2", features = [
-    "rpc-client",
+tokio = { version = "1.38", default-features = false, features = [
+    "rt-multi-thread",
 ] }
+alloy = { version = "0.2", features = ["rpc-client"] }
 
 [[bench]]
 name = "state_space"
