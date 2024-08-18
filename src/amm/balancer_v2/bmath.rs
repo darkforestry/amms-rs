@@ -1,6 +1,7 @@
 use alloy::primitives::U256;
+use rug::Float;
 
-use crate::amm::consts::{BONE, U256_2};
+use crate::amm::consts::{BONE, DECIMAL_RADIX, MPFR_T_PRECISION, U256_2};
 
 // Reference:
 // https://github.com/balancer/balancer-core/blob/f4ed5d65362a8d6cec21662fb6eae233b0babc1f/contracts/BNum.sol#L75
@@ -39,4 +40,13 @@ pub fn bmul(a: U256, b: U256) -> U256 {
     let c1 = c0 + (BONE / U256_2);
     assert!(c1 >= c0, "ERR_MUL_OVERFLOW");
     c1 / BONE
+}
+
+/// Converts a `U256` into a `Float` with a high precision.
+pub fn u256_to_float(value: U256) -> Float {
+    // convert U256 to a string - represented as a decimal string number
+    let value_string = value.to_string();
+    let parsed_value = Float::parse_radix(value_string, DECIMAL_RADIX)
+        .expect("U256 is always converted into a decimal string number.");
+    Float::with_val(MPFR_T_PRECISION, parsed_value)
 }

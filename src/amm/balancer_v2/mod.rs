@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use alloy::{
     network::Network,
-    primitives::{Address, B256, U256},
+    primitives::{ruint::BaseConvertError, Address, B256, U256},
     providers::Provider,
     rpc::types::Log,
     sol,
@@ -14,14 +14,16 @@ use alloy::{
     transports::Transport,
 };
 use async_trait::async_trait;
+use bmath::u256_to_float;
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
 
 use crate::errors::{AMMError, ArithmeticError, EventLogError, SwapSimulationError};
 
-use super::AutomatedMarketMaker;
+use super::{consts::BONE, AutomatedMarketMaker};
 
 sol! {
+    // TODO: Add Liquidity Provision event's to sync stream.
     contract IBPool {
         event LOG_SWAP(
             address indexed caller,
@@ -32,6 +34,7 @@ sol! {
         );
     }
 }
+
 #[derive(Default, Debug, Serialize, Deserialize, Clone)]
 pub struct BalancerV2Pool {
     /// The Pool Address.
@@ -78,13 +81,46 @@ impl AutomatedMarketMaker for BalancerV2Pool {
     }
 
     /// Calculates a f64 representation of base token price in the AMM.
+    /// **********************************************************************************************
+    /// calcSpotPrice                                                                             //
+    /// sP = spotPrice                                                                            //
+    /// bI = tokenBalanceIn                ( bI / wI )         1                                  //
+    /// bO = tokenBalanceOut         sP =  -----------  *  ----------                             //
+    /// wI = tokenWeightIn                 ( bO / wO )     ( 1 - sF )                             //
+    /// wO = tokenWeightOut                                                                       //
+    /// sF = swapFee                                                                              //
+    ///**********************************************************************************************/
     fn calculate_price(
         &self,
         base_token: Address,
         quote_token: Address,
     ) -> Result<f64, ArithmeticError> {
-        // https://github.com/balancer/balancer-core/blob/f4ed5d65362a8d6cec21662fb6eae233b0babc1f/contracts/BMath.sol#L28
-        todo!("Implement calculate_price for BalancerPool")
+        // Grab the indices of the tokens
+        let base_token_index = self
+            .tokens
+            .iter()
+            .position(|&r| r == base_token)
+            .expect("Base token not found");
+        let quote_token_index = self
+            .tokens
+            .iter()
+            .position(|&r| r == quote_token)
+            .expect("Quote token not found");
+        let b_i = self.liquidity[base_token_index];
+        let b_o = self.liquidity[quote_token_index];
+        let w_i = self.weights[base_token_index];
+        let w_o = self.weights[quote_token_index];
+        let s_f = self.fee;
+        let numer = bmath::bdiv(b_i, w_i);
+        let denom = bmath::bdiv(b_o, w_o);
+        let ratio = bmath::bdiv(numer, denom);
+        let scale = bmath::bdiv(BONE, bmath::bsub(BONE, U256::from(s_f)));
+        let spot_price = u256_to_float(bmath::bmul(ratio, scale));
+        // Convert back to f64 after normalizing by BONE
+        // TODO: Double check if spot will always have 10e18 precision.
+        // Could be we need to adjust by decimals num - decimals den
+        let normalized_spot_price = spot_price / u256_to_float(BONE);
+        Ok(normalized_spot_price.to_f64())
     }
 
     /// Updates the AMM data from a log.
