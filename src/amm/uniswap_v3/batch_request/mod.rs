@@ -180,12 +180,7 @@ where
                 .try_into()
                 .map_err(|e| AMMError::EyreError(eyre::eyre!("{e}")))?;
 
-            tick_data.push(UniswapV3TickData {
-                initialized,
-                tick,
-                liquidity_gross,
-                liquidity_net,
-            });
+            tick_data.push(UniswapV3TickData { initialized, tick, liquidity_gross, liquidity_net });
         }
     }
 
