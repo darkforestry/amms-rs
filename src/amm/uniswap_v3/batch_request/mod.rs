@@ -103,6 +103,7 @@ where
 pub struct UniswapV3TickData {
     pub initialized: bool,
     pub tick: i32,
+    pub liquidity_gross: u128,
     pub liquidity_net: i128,
 }
 
@@ -137,6 +138,7 @@ where
         DynSolType::Array(Box::new(DynSolType::Tuple(vec![
             DynSolType::Bool,
             DynSolType::Int(24),
+            DynSolType::Uint(128),
             DynSolType::Int(128),
         ]))),
         DynSolType::Uint(32),
@@ -164,7 +166,14 @@ where
                 .0
                 .as_i32();
 
-            let liquidity_net = tick_data_tuple[2]
+            let liquidity_gross = tick_data_tuple[2]
+                .as_uint()
+                .ok_or(AMMError::BatchRequestError(pool.address))?
+                .0
+                .try_into()
+                .map_err(|e| AMMError::EyreError(eyre::eyre!("{e}")))?;
+
+            let liquidity_net = tick_data_tuple[3]
                 .as_int()
                 .ok_or(AMMError::BatchRequestError(pool.address))?
                 .0
@@ -174,6 +183,7 @@ where
             tick_data.push(UniswapV3TickData {
                 initialized,
                 tick,
+                liquidity_gross,
                 liquidity_net,
             });
         }

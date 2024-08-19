@@ -13,6 +13,7 @@ contract GetUniswapV3TickDataBatchRequest {
     struct TickData {
         bool initialized;
         int24 tick;
+        uint128 liquidityGross;
         int128 liquidityNet;
     }
 
@@ -40,7 +41,7 @@ contract GetUniswapV3TickDataBatchRequest {
                 );
 
             //Make sure the next tick is initialized
-            (, int128 liquidityNet, , , , , , ) = IUniswapV3PoolState(pool)
+            (uint128 liquidityGross, int128 liquidityNet, , , , , , ) = IUniswapV3PoolState(pool)
                 .ticks(nextTick);
 
             //Make sure not to overshoot the max/min tick
@@ -49,17 +50,20 @@ contract GetUniswapV3TickDataBatchRequest {
                 nextTick = MIN_TICK;
                 tickData[counter].initialized = initialized;
                 tickData[counter].tick = nextTick;
+                tickData[counter].liquidityGross = liquidityGross;
                 tickData[counter].liquidityNet = liquidityNet;
                 break;
             } else if (nextTick > MAX_TICK) {
                 nextTick = MIN_TICK;
                 tickData[counter].initialized = initialized;
                 tickData[counter].tick = nextTick;
+                tickData[counter].liquidityGross = liquidityGross;
                 tickData[counter].liquidityNet = liquidityNet;
                 break;
             } else {
                 tickData[counter].initialized = initialized;
                 tickData[counter].tick = nextTick;
+                tickData[counter].liquidityGross = liquidityGross;
                 tickData[counter].liquidityNet = liquidityNet;
             }
 
