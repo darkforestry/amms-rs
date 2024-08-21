@@ -283,8 +283,8 @@ pub fn initialize_state_space(amms: Vec<AMM>) -> StateSpace {
 
 #[derive(Debug)]
 pub struct StateChange {
-    state_change: Option<Vec<AMM>>,
-    block_number: u64,
+    pub state_change: Option<Vec<AMM>>,
+    pub block_number: u64,
 }
 
 impl StateChange {
