@@ -137,7 +137,7 @@ where
     P: Provider<T, N>,
 {
     let deployer = IGetUniswapV3TickDataBatchRequest::deploy_builder(
-        provider.clone(),
+        provider,
         pool.address,
         zero_for_one,
         tick_start,
