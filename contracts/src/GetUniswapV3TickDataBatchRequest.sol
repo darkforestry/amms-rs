@@ -83,6 +83,8 @@ contract GetUniswapV3TickDataBatchRequest {
             blockNumber: block.number
         });
 
+        // ensure abi encoding, not needed here but increase reusability for different return types
+        // note: abi.encode add a first 32 bytes word with the address of the original data
         bytes memory abiEncodedData = abi.encode(ticksWithBlock);
 
         assembly {
