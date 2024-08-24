@@ -1,3 +1,4 @@
+pub mod cache;
 #[cfg(feature = "artemis")]
 pub mod collector;
 pub mod error;
@@ -14,6 +15,7 @@ use alloy::{
     transports::Transport,
 };
 use arraydeque::ArrayDeque;
+use cache::StateChangeCache;
 use error::{StateChangeError, StateSpaceError};
 use futures::StreamExt;
 use std::{
@@ -31,7 +33,6 @@ use tokio::{
 
 // TODO: bench this with a dashmap
 pub type StateSpace = HashMap<Address, AMM>;
-pub type StateChangeCache = ArrayDeque<StateChange, 150>;
 
 #[derive(Debug)]
 pub struct StateSpaceManager<T, N, P> {
@@ -68,7 +69,7 @@ where
             latest_synced_block,
             stream_buffer,
             state_change_buffer,
-            state_change_cache: Arc::new(RwLock::new(ArrayDeque::new())),
+            state_change_cache: Arc::new(RwLock::new(StateChangeCache::new())),
             provider,
             transport: PhantomData,
             network: PhantomData,
@@ -283,12 +284,12 @@ pub fn initialize_state_space(amms: Vec<AMM>) -> StateSpace {
 
 #[derive(Debug)]
 pub struct StateChange {
-    pub state_change: Option<Vec<AMM>>,
+    pub state_change: Vec<AMM>,
     pub block_number: u64,
 }
 
 impl StateChange {
-    pub fn new(state_change: Option<Vec<AMM>>, block_number: u64) -> Self {
+    pub fn new(state_change: Vec<AMM>, block_number: u64) -> Self {
         Self {
             block_number,
             state_change,
