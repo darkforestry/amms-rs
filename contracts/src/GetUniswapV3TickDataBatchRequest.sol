@@ -17,6 +17,11 @@ contract GetUniswapV3TickDataBatchRequest {
         int128 liquidityNet;
     }
 
+    struct TicksWithBlock {
+        TickData[] ticks;
+        uint256 blockNumber;
+    }
+
     constructor(
         address pool,
         bool zeroForOne,
@@ -73,9 +78,12 @@ contract GetUniswapV3TickDataBatchRequest {
             currentTick = zeroForOne ? nextTick - 1 : nextTick;
         }
 
-        // ensure abi encoding, not needed here but increase reusability for different return types
-        // note: abi.encode add a first 32 bytes word with the address of the original data
-        bytes memory abiEncodedData = abi.encode(tickData, block.number);
+        TicksWithBlock memory ticksWithBlock = TicksWithBlock({
+            ticks: tickData,
+            blockNumber: block.number
+        });
+
+        bytes memory abiEncodedData = abi.encode(ticksWithBlock);
 
         assembly {
             // Return from the start of the data (discarding the original data address)

@@ -3,8 +3,10 @@ use std::{sync::Arc, vec};
 use alloy::{
     dyn_abi::{DynSolType, DynSolValue},
     network::Network,
+    primitives::U256,
     providers::Provider,
     sol,
+    sol_types::SolType,
     transports::Transport,
 };
 use tracing::instrument;
@@ -35,6 +37,20 @@ sol! {
     #[sol(rpc)]
     ISyncUniswapV3PoolBatchRequest,
     "src/amm/uniswap_v3/batch_request/SyncUniswapV3PoolBatchRequestABI.json"
+}
+
+sol! {
+    struct TickData {
+        bool initialized;
+        int24 tick;
+        uint128 liquidityGross;
+        int128 liquidityNet;
+    }
+
+    struct TicksWithBlock {
+        TickData[] ticks;
+        uint256 blockNumber;
+    }
 }
 
 #[inline]
@@ -114,88 +130,40 @@ pub async fn get_uniswap_v3_tick_data_batch_request<T, N, P>(
     num_ticks: u16,
     block_number: Option<u64>,
     provider: Arc<P>,
-) -> Result<(Vec<UniswapV3TickData>, u64), AMMError>
+) -> Result<(Vec<UniswapV3TickData>, U256), AMMError>
 where
     T: Transport + Clone,
     N: Network,
     P: Provider<T, N>,
 {
     let deployer = IGetUniswapV3TickDataBatchRequest::deploy_builder(
-        provider,
+        provider.clone(),
         pool.address,
         zero_for_one,
         tick_start,
         num_ticks,
         pool.tick_spacing,
     );
-    let res = if let Some(block_number) = block_number {
-        deployer.block(block_number.into()).call_raw().await?
-    } else {
-        deployer.call_raw().await?
+
+    let data = match block_number {
+        Some(number) => deployer.block(number.into()).call_raw().await?,
+        None => deployer.call_raw().await?,
     };
 
-    let constructor_return = DynSolType::Tuple(vec![
-        DynSolType::Array(Box::new(DynSolType::Tuple(vec![
-            DynSolType::Bool,
-            DynSolType::Int(24),
-            DynSolType::Uint(128),
-            DynSolType::Int(128),
-        ]))),
-        DynSolType::Uint(32),
-    ]);
-    let return_data_tokens = constructor_return.abi_decode_sequence(&res)?;
+    let result = TicksWithBlock::abi_decode(&data, true)?;
 
-    let return_data_tuple = return_data_tokens
-        .as_tuple()
-        .ok_or(AMMError::BatchRequestError(pool.address))?;
+    let tick_data: Vec<UniswapV3TickData> = result
+        .ticks
+        .iter()
+        .map(|tick| UniswapV3TickData {
+            initialized: tick.initialized,
+            tick: tick.tick,
+            liquidity_gross: tick.liquidityGross,
+            liquidity_net: tick.liquidityNet,
+        })
+        .collect();
 
-    let tick_data_arr = return_data_tuple[0]
-        .as_array()
-        .ok_or(AMMError::BatchRequestError(pool.address))?;
-
-    let mut tick_data = vec![];
-    for tokens in tick_data_arr {
-        if let Some(tick_data_tuple) = tokens.as_tuple() {
-            let initialized = tick_data_tuple[0]
-                .as_bool()
-                .ok_or(AMMError::BatchRequestError(pool.address))?;
-
-            let tick = tick_data_tuple[1]
-                .as_int()
-                .ok_or(AMMError::BatchRequestError(pool.address))?
-                .0
-                .as_i32();
-
-            let liquidity_gross = tick_data_tuple[2]
-                .as_uint()
-                .ok_or(AMMError::BatchRequestError(pool.address))?
-                .0
-                .try_into()
-                .map_err(|e| AMMError::EyreError(eyre::eyre!("{e}")))?;
-
-            let liquidity_net = tick_data_tuple[3]
-                .as_int()
-                .ok_or(AMMError::BatchRequestError(pool.address))?
-                .0
-                .try_into()
-                .map_err(|e| AMMError::EyreError(eyre::eyre!("{e}")))?;
-
-            tick_data.push(UniswapV3TickData {
-                initialized,
-                tick,
-                liquidity_gross,
-                liquidity_net,
-            });
-        }
-    }
-
-    let block_number = return_data_tuple[1]
-        .as_uint()
-        .ok_or(AMMError::BatchRequestError(pool.address))?
-        .0
-        .to::<u64>();
-
-    Ok((tick_data, block_number))
+    Ok((tick_data, result.blockNumber))
 }
 
 pub async fn sync_v3_pool_batch_request<T, N, P>(
