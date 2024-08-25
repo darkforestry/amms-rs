@@ -11,6 +11,7 @@ pub const U256_128: U256 = U256::from_limbs([128, 0, 0, 0]);
 pub const U256_64: U256 = U256::from_limbs([64, 0, 0, 0]);
 pub const U256_32: U256 = U256::from_limbs([32, 0, 0, 0]);
 pub const U256_16: U256 = U256::from_limbs([16, 0, 0, 0]);
+pub const U256_10: U256 = U256::from_limbs([10, 0, 0, 0]);
 pub const U256_8: U256 = U256::from_limbs([8, 0, 0, 0]);
 pub const U256_4: U256 = U256::from_limbs([4, 0, 0, 0]);
 pub const U256_2: U256 = U256::from_limbs([2, 0, 0, 0]);
@@ -36,4 +37,5 @@ pub const U256_0XFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF: U256 =
     U256::from_limbs([18446744073709551615, 18446744073709551615, 0, 0]);
 
 pub const DECIMAL_RADIX: i32 = 10;
-pub const MPFR_T_PRECISION: u32 = 53;
+pub const MPFR_T_PRECISION: u32 = 70;
+

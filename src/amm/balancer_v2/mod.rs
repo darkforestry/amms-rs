@@ -15,15 +15,20 @@ use alloy::{
 };
 use async_trait::async_trait;
 use bmath::u256_to_float;
+use rug::{float::Round, Float};
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
 
 use crate::errors::{AMMError, ArithmeticError, EventLogError, SwapSimulationError};
 
-use super::{consts::BONE, AutomatedMarketMaker};
+use super::{
+    consts::{BONE, U256_10},
+    AutomatedMarketMaker,
+};
 
 sol! {
     // TODO: Add Liquidity Provision event's to sync stream.
+    #[sol(rpc)]
     contract IBPool {
         event LOG_SWAP(
             address indexed caller,
@@ -32,6 +37,7 @@ sol! {
             uint256         tokenAmountIn,
             uint256         tokenAmountOut
         );
+        function getSpotPrice(address tokenIn, address tokenOut) external returns (uint256);
     }
 }
 
@@ -79,7 +85,27 @@ impl AutomatedMarketMaker for BalancerV2Pool {
     fn tokens(&self) -> Vec<Address> {
         self.tokens.clone()
     }
-
+    // export function _spotPriceAfterSwapExactTokenInForTokenOut(
+    //     amount: OldBigNumber,
+    //     poolPairData: WeightedPoolPairData
+    // ): OldBigNumber {
+    //     const Bi = parseFloat(
+    //         formatFixed(poolPairData.balanceIn, poolPairData.decimalsIn)
+    //     );
+    //     const Bo = parseFloat(
+    //         formatFixed(poolPairData.balanceOut, poolPairData.decimalsOut)
+    //     );
+    //     const wi = parseFloat(formatFixed(poolPairData.weightIn, 18));
+    //     const wo = parseFloat(formatFixed(poolPairData.weightOut, 18));
+    //     const Ai = amount.toNumber();
+    //     const f = parseFloat(formatFixed(poolPairData.swapFee, 18));
+    //     return bnum(
+    //         -(
+    //             (Bi * wo) /
+    //             (Bo * (-1 + f) * (Bi / (Ai + Bi - Ai * f)) ** ((wi + wo) / wo) * wi)
+    //         )
+    //     );
+    // }
     /// Calculates a f64 representation of base token price in the AMM.
     /// **********************************************************************************************
     /// calcSpotPrice                                                                             //
@@ -106,21 +132,35 @@ impl AutomatedMarketMaker for BalancerV2Pool {
             .iter()
             .position(|&r| r == quote_token)
             .expect("Quote token not found");
-        let b_i = self.liquidity[base_token_index];
-        let b_o = self.liquidity[quote_token_index];
-        let w_i = self.weights[base_token_index];
-        let w_o = self.weights[quote_token_index];
-        let s_f = self.fee;
-        let numer = bmath::bdiv(b_i, w_i);
-        let denom = bmath::bdiv(b_o, w_o);
-        let ratio = bmath::bdiv(numer, denom);
-        let scale = bmath::bdiv(BONE, bmath::bsub(BONE, U256::from(s_f)));
-        let spot_price = u256_to_float(bmath::bmul(ratio, scale));
-        // Convert back to f64 after normalizing by BONE
-        // TODO: Double check if spot will always have 10e18 precision.
-        // Could be we need to adjust by decimals num - decimals den
-        let normalized_spot_price = spot_price / u256_to_float(BONE);
-        Ok(normalized_spot_price.to_f64())
+
+        let decimals_base = U256::from(self.decimals[base_token_index]);
+        let weight_base = self.weights[base_token_index];
+        let weight_quote = self.weights[quote_token_index];
+        let balance_base = self.liquidity[base_token_index];
+        let balance_quote = self.liquidity[quote_token_index];
+        // This is an after tax approximation of the spot price.
+        let epsilon = U256::from(10).pow(U256::from(12));
+
+        let out = u256_to_float(bmath::calculate_out_given_in(
+            balance_base,
+            weight_base,
+            balance_quote,
+            weight_quote,
+            epsilon,
+            U256::from(self.fee),
+        ));
+
+        let decimal_factor =
+            self.decimals[base_token_index] as i32 - self.decimals[quote_token_index] as i32;
+        let mut ratio = out / u256_to_float(epsilon);
+        let factor = u256_to_float(U256_10.pow(U256::from(decimal_factor.abs())));
+        ratio = if decimal_factor < 0 {
+            ratio / factor
+        } else {
+            ratio * factor
+        };
+
+        Ok(ratio.to_f64_round(Round::Nearest))
     }
 
     /// Updates the AMM data from a log.
@@ -191,11 +231,14 @@ mod tests {
     use std::{str::FromStr, sync::Arc};
 
     use alloy::{
+        eips::BlockId,
         primitives::{address, U256},
         providers::ProviderBuilder,
     };
 
     use crate::amm::AutomatedMarketMaker;
+
+    use super::IBPool;
 
     #[tokio::test]
     pub async fn test_populate_data() {
@@ -226,5 +269,41 @@ mod tests {
             ]
         );
         assert_eq!(balancer_v2_pool.fee, 640942080);
+    }
+
+    #[tokio::test]
+    pub async fn test_calculate_price() {
+        let provider =
+            Arc::new(ProviderBuilder::new().on_http(env!("ETHEREUM_PROVIDER").parse().unwrap()));
+        let mut balancer_v2_pool = super::BalancerV2Pool {
+            address: address!("8a649274E4d777FFC6851F13d23A86BBFA2f2Fbf"),
+            ..Default::default()
+        };
+        balancer_v2_pool
+            .populate_data(Some(20487793), provider.clone())
+            .await
+            .unwrap();
+        println!("Balancer V2 Pool: {:?}", balancer_v2_pool);
+        let balancer_v2_pool_instance = IBPool::new(balancer_v2_pool.address, provider.clone());
+        let expected = balancer_v2_pool_instance
+            .getSpotPrice(
+                address!("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"),
+                address!("a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"),
+            )
+            .block(BlockId::from(20487793))
+            .call()
+            .await
+            .unwrap()
+            ._0;
+        println!("USDC Balance: {:?}", balancer_v2_pool.liquidity[1]);
+        println!("WETH Balance: {:?}", balancer_v2_pool.liquidity[0]);
+        println!("Expected: {:?}", expected);
+        let calculated = balancer_v2_pool
+            .calculate_price(
+                address!("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"),
+                address!("a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"),
+            )
+            .unwrap();
+        println!("Calculated: {:?}", calculated);
     }
 }

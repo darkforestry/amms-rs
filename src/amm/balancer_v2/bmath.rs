@@ -3,6 +3,11 @@ use rug::Float;
 
 use crate::amm::consts::{BONE, DECIMAL_RADIX, MPFR_T_PRECISION, U256_2};
 
+pub fn badd(a: U256, b: U256) -> U256 {
+    let c = a + b;
+    assert!(c >= a, "ERR_ADD_OVERFLOW");
+    c
+}
 // Reference:
 // https://github.com/balancer/balancer-core/blob/f4ed5d65362a8d6cec21662fb6eae233b0babc1f/contracts/BNum.sol#L75
 pub fn bdiv(a: U256, b: U256) -> U256 {
@@ -41,6 +46,35 @@ pub fn bmul(a: U256, b: U256) -> U256 {
     assert!(c1 >= c0, "ERR_MUL_OVERFLOW");
     c1 / BONE
 }
+
+/**********************************************************************************************
+// calcOutGivenIn                                                                            //
+// aO = tokenAmountOut                                                                       //
+// bO = tokenBalanceOut                                                                      //
+// bI = tokenBalanceIn              /      /            bI             \    (wI / wO) \      //
+// aI = tokenAmountIn    aO = bO * |  1 - | --------------------------  | ^            |     //
+// wI = tokenWeightIn               \      \ ( bI + ( aI * ( 1 - sF )) /              /      //
+// wO = tokenWeightOut                                                                       //
+// sF = swapFee                                                                              //
+ **********************************************************************************************/
+pub fn calculate_out_given_in(
+    token_balance_in: U256,
+    token_weight_in: U256,
+    token_balance_out: U256,
+    token_weight_out: U256,
+    token_amount_in: U256,
+    swap_fee: U256,
+) -> U256 {
+    let weight_ratio = bdiv(token_weight_in, token_weight_out);
+    let adjusted_in = bsub(BONE, swap_fee);
+    let adjusted_in = bmul(token_amount_in, adjusted_in);
+    let y = bdiv(token_balance_in, badd(token_balance_in, adjusted_in));
+    let foo = y.pow(weight_ratio);
+    let bar = bsub(BONE, foo);
+    bmul(token_balance_out, bar)
+}
+
+
 
 /// Converts a `U256` into a `Float` with a high precision.
 pub fn u256_to_float(value: U256) -> Float {
