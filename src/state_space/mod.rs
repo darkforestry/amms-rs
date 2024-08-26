@@ -9,7 +9,7 @@ use crate::{
 };
 use alloy::{
     network::Network,
-    primitives::{Address, B256},
+    primitives::{Address, FixedBytes, B256},
     providers::Provider,
     rpc::types::eth::{Block, Filter, Log},
     transports::Transport,
@@ -77,27 +77,19 @@ where
     }
 
     pub async fn filter(&self) -> Filter {
-        let mut event_signatures: Vec<B256> = vec![];
-        let mut amm_variants = HashSet::new();
+        let event_signatures = self
+            .state
+            .read()
+            .await
+            .values()
+            .flat_map(|amm| amm.sync_on_event_signatures())
+            .collect::<Vec<FixedBytes<32>>>();
 
-        for amm in self.state.read().await.values() {
-            let variant = match amm {
-                AMM::UniswapV2Pool(_) => 0,
-                AMM::UniswapV3Pool(_) => 1,
-                AMM::ERC4626Vault(_) => 2,
-            };
-
-            if !amm_variants.contains(&variant) {
-                amm_variants.insert(variant);
-                event_signatures.extend(amm.sync_on_event_signatures());
-            }
-        }
-
-        // Create a new filter
         Filter::new().event_signature(event_signatures)
     }
 
     /// Listens to new blocks and handles state changes, sending a Vec<H160> containing each AMM address that incurred a state change in the block.
+    // TODO: refactor
     pub async fn subscribe_state_changes(
         &self,
     ) -> Result<
@@ -192,6 +184,7 @@ where
     }
 
     /// Listens to new blocks and handles state changes
+    // TODO: refactor
     pub async fn watch_state_changes(
         &self,
     ) -> Result<Vec<JoinHandle<Result<(), StateSpaceError>>>, StateSpaceError> {
@@ -291,6 +284,7 @@ impl StateChange {
     }
 }
 
+// TODO: refactor in to state space manager
 pub async fn handle_state_changes_from_logs(
     state: Arc<RwLock<StateSpace>>,
     state_change_cache: Arc<RwLock<StateChangeCache>>,
