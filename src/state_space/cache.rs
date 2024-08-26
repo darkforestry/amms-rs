@@ -40,16 +40,32 @@ impl StateChangeCache {
 
     // TODO: add state change to cache
 
-    // TODO: unwind state changes from cache
-}
+    pub fn add_state_change_to_cache(
+        &mut self,
+        state_change: StateChange,
+    ) -> Result<(), CapacityError<StateChange>> {
+        let cache = &mut self.0;
 
+        if cache.is_full() {
+            cache.pop_back();
+        }
+
+        cache.push_front(state_change)
+    }
+
+    async fn unwind_state_changes(
+        &mut self,
+        block_to_unwind: u64,
+    ) -> Result<(), CapacityError<StateChange>> {
+    }
+}
 /// Unwinds the state changes cache for every block from the most recent state change cache back to the block to unwind -1.
-async fn unwind_state_changes(
-    state: Arc<RwLock<StateSpace>>,
-    state_change_cache: Arc<RwLock<StateChangeCache>>,
-    block_to_unwind: u64,
-) -> Result<(), StateChangeError> {
+// TODO: return vec of current state of amms after unwinding
+async fn unwind_state_changes(block_to_unwind: u64) -> Result<(), StateChangeError> {
     let mut state_change_cache = state_change_cache.write().await;
+
+    // TODO: iterate through state changes
+    // TODO: check the block number, if it is >= block to unwind, keep going until we are < block to unwind and then, flatten and drain the updates
 
     loop {
         // check if the most recent state change block is >= the block to unwind,
@@ -75,23 +91,4 @@ async fn unwind_state_changes(
             return Err(StateChangeError::NoStateChangesInCache);
         }
     }
-}
-
-async fn add_state_change_to_cache(
-    state_change_cache: Arc<RwLock<StateChangeCache>>,
-    state_change: StateChange,
-) -> Result<(), StateChangeError> {
-    let mut state_change_cache = state_change_cache.write().await;
-
-    if state_change_cache.is_full() {
-        state_change_cache.pop_back();
-        state_change_cache
-            .push_front(state_change)
-            .map_err(|_| StateChangeError::CapacityError)?
-    } else {
-        state_change_cache
-            .push_front(state_change)
-            .map_err(|_| StateChangeError::CapacityError)?
-    }
-    Ok(())
 }
