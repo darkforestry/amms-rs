@@ -29,7 +29,7 @@ impl StateChangeCache {
         &mut self,
         state_change: StateChange,
     ) -> Result<(), CapacityError<StateChange>> {
-        let cache = &mut self.0;
+        let cache = &mut self.cache;
 
         if cache.is_full() {
             cache.pop_back();
@@ -40,7 +40,7 @@ impl StateChangeCache {
 
     /// Unwinds the state changes up to the given block number
     /// Returns the state of the affected AMMs at the block number provided
-    async fn unwind_state_changes(&mut self, block_to_unwind: u64) -> Vec<AMM> {
+    pub fn unwind_state_changes(&mut self, block_to_unwind: u64) -> Vec<AMM> {
         let cache = &mut self.cache;
 
         if block_to_unwind < self.init_block {

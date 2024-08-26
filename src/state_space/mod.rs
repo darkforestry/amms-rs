@@ -68,7 +68,7 @@ where
             latest_synced_block,
             stream_buffer,
             state_change_buffer,
-            state_change_cache: Arc::new(RwLock::new(StateChangeCache::new())),
+            state_change_cache: Arc::new(RwLock::new(StateChangeCache::new(latest_synced_block))),
             provider,
             transport: PhantomData,
             network: PhantomData,
@@ -142,12 +142,16 @@ where
                                 "reorg detected, unwinding state changes"
                             );
 
-                            unwind_state_changes(
-                                state.clone(),
-                                state_change_cache.clone(),
-                                chain_head_block_number,
-                            )
-                            .await?;
+                            let updated_amms = state_change_cache
+                                .write()
+                                .await
+                                .unwind_state_changes(chain_head_block_number);
+
+                            let mut state_writer = state.write().await;
+                            for amm in updated_amms {
+                                state_writer.insert(amm.address(), amm);
+                            }
+                            drop(state_writer);
 
                             // set the last synced block to the head block number
                             last_synced_block = chain_head_block_number - 1;
@@ -163,15 +167,7 @@ where
                             )
                             .await?;
 
-                        if logs.is_empty() {
-                            for block_number in from_block..=chain_head_block_number {
-                                add_state_change_to_cache(
-                                    state_change_cache.clone(),
-                                    StateChange::new(None, block_number),
-                                )
-                                .await?;
-                            }
-                        } else {
+                        if !logs.is_empty() {
                             let amms_updated = handle_state_changes_from_logs(
                                 state.clone(),
                                 state_change_cache.clone(),
@@ -225,12 +221,17 @@ where
                     if let Some(chain_head_block_number) = block.header.number {
                         // If there is a reorg, unwind state changes from last_synced block to the chain head block number
                         if chain_head_block_number <= last_synced_block {
-                            unwind_state_changes(
-                                state.clone(),
-                                state_change_cache.clone(),
-                                chain_head_block_number,
-                            )
-                            .await?;
+                            // NOTE: this can be drier
+                            let updated_amms = state_change_cache
+                                .write()
+                                .await
+                                .unwind_state_changes(chain_head_block_number);
+
+                            let mut state_writer = state.write().await;
+                            for amm in updated_amms {
+                                state_writer.insert(amm.address(), amm);
+                            }
+                            drop(state_writer);
 
                             // set the last synced block to the head block number
                             last_synced_block = chain_head_block_number - 1;
@@ -246,16 +247,8 @@ where
                             )
                             .await?;
 
-                        if logs.is_empty() {
-                            for block_number in from_block..=chain_head_block_number {
-                                add_state_change_to_cache(
-                                    state_change_cache.clone(),
-                                    StateChange::new(None, block_number),
-                                )
-                                .await?;
-                            }
-                        } else {
-                            let _amms_updated = handle_state_changes_from_logs(
+                        if !logs.is_empty() {
+                            handle_state_changes_from_logs(
                                 state.clone(),
                                 state_change_cache.clone(),
                                 logs,
@@ -295,10 +288,6 @@ impl StateChange {
             state_change,
         }
     }
-
-    pub fn state_change(&self) -> Option<&Vec<AMM>> {
-        self.state_change.as_ref()
-    }
 }
 
 pub async fn handle_state_changes_from_logs(
@@ -332,18 +321,14 @@ pub async fn handle_state_changes_from_logs(
 
         // Commit state changes if the block has changed since last log
         if log_block_number != last_log_block_number {
-            if state_changes.is_empty() {
-                add_state_change_to_cache(
-                    state_change_cache.clone(),
-                    StateChange::new(None, last_log_block_number),
-                )
-                .await?;
-            } else {
-                add_state_change_to_cache(
-                    state_change_cache.clone(),
-                    StateChange::new(Some(state_changes), last_log_block_number),
-                )
-                .await?;
+            if !state_changes.is_empty() {
+                let state_change = StateChange::new(state_changes, last_log_block_number);
+
+                state_change_cache
+                    .write()
+                    .await
+                    .add_state_change_to_cache(state_change);
+
                 state_changes = vec![];
             };
 
@@ -351,18 +336,13 @@ pub async fn handle_state_changes_from_logs(
         }
     }
 
-    if state_changes.is_empty() {
-        add_state_change_to_cache(
-            state_change_cache,
-            StateChange::new(None, last_log_block_number),
-        )
-        .await?;
-    } else {
-        add_state_change_to_cache(
-            state_change_cache,
-            StateChange::new(Some(state_changes), last_log_block_number),
-        )
-        .await?;
+    if !state_changes.is_empty() {
+        let state_change = StateChange::new(state_changes, last_log_block_number);
+
+        state_change_cache
+            .write()
+            .await
+            .add_state_change_to_cache(state_change);
     };
 
     Ok(updated_amms)
