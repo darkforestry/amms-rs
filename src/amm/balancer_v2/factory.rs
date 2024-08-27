@@ -21,7 +21,6 @@ use crate::{
 use super::{batch_request, BalancerV2Pool};
 
 sol! {
-    /// Interface of the UniswapV2Pairß
     #[derive(Debug, PartialEq, Eq)]
     #[sol(rpc)]
     contract IBFactory {
