@@ -32,10 +32,7 @@ impl StateChangeCache {
 
         if cache.is_full() {
             cache.pop_back();
-            self.oldest_block = cache
-                .back()
-                .expect("Could not get last item in cache")
-                .block_number;
+            self.oldest_block = cache.back().unwrap().block_number;
         }
 
         cache.push_front(state_change)
@@ -53,7 +50,7 @@ impl StateChangeCache {
         // If the block to unwind is greater than the latest state change in the block, exit early
         if cache
             .front()
-            .map_or(true, |latest| block_to_unwind >= latest.block_number)
+            .map_or(true, |latest| block_to_unwind > latest.block_number)
         {
             return vec![];
         }
