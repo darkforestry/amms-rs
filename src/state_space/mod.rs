@@ -66,7 +66,6 @@ impl From<Vec<AMM>> for StateSpace {
 pub struct StateSpaceManager<T, N, P> {
     state: Arc<RwLock<StateSpace>>,
     state_change_cache: Arc<RwLock<StateChangeCache>>,
-    buffer: usize,
     provider: Arc<P>,
     phantom: PhantomData<(T, N)>,
 }
@@ -79,13 +78,8 @@ where
     P: Provider<T, N> + 'static,
 {
     pub fn new(amms: Vec<AMM>, provider: Arc<P>) -> Self {
-        Self::new_with_buffer(amms, provider, 100)
-    }
-
-    pub fn new_with_buffer(amms: Vec<AMM>, provider: Arc<P>, buffer: usize) -> Self {
         Self {
             state: Arc::new(RwLock::new(amms.into())),
-            buffer,
             state_change_cache: Arc::new(RwLock::new(StateChangeCache::new())),
             provider,
             phantom: PhantomData,
@@ -105,10 +99,10 @@ where
     }
 
     /// Listens to new blocks and handles state changes, sending a Vec<H160> containing each AMM address that incurred a state change in the block.
-    // TODO: refactor
     pub async fn subscribe_state_changes(
         &self,
-        mut latest_synced_block: u64,
+        latest_synced_block: u64,
+        buffer: usize,
     ) -> Result<
         (
             Receiver<Vec<Address>>,
@@ -116,8 +110,21 @@ where
         ),
         StateSpaceError,
     > {
-        let (stream_tx, mut stream_rx): (Sender<Block>, Receiver<Block>) =
-            tokio::sync::mpsc::channel(self.buffer);
+        let (stream_rx, stream_handle) = self.subscribe_blocks_buffered(buffer).await;
+
+        let (sync_amms_rx, sync_amms_handle) = self
+            .subscribe_sync_amms(latest_synced_block, stream_rx, buffer)
+            .await;
+
+        Ok((sync_amms_rx, vec![stream_handle, sync_amms_handle]))
+    }
+
+    async fn subscribe_blocks_buffered(
+        &self,
+        buffer: usize,
+    ) -> (Receiver<Block>, JoinHandle<Result<(), StateSpaceError>>) {
+        let (stream_tx, stream_rx): (Sender<Block>, Receiver<Block>) =
+            tokio::sync::mpsc::channel(buffer);
 
         let provider = self.provider.clone();
         let stream_handle = tokio::spawn(async move {
@@ -130,12 +137,24 @@ where
             Ok::<(), StateSpaceError>(())
         });
 
-        let (amms_updated_tx, amms_updated_rx) = tokio::sync::mpsc::channel(self.buffer);
+        (stream_rx, stream_handle)
+    }
 
+    pub async fn subscribe_sync_amms(
+        &self,
+        mut latest_synced_block: u64,
+        mut stream_rx: Receiver<Block>,
+        buffer: usize,
+    ) -> (
+        Receiver<Vec<Address>>,
+        JoinHandle<Result<(), StateSpaceError>>,
+    ) {
         let state = self.state.clone();
         let provider = self.provider.clone();
         let filter = self.filter().await;
         let state_change_cache = self.state_change_cache.clone();
+
+        let (amms_updated_tx, amms_updated_rx) = tokio::sync::mpsc::channel(buffer);
 
         let updated_amms_handle: JoinHandle<Result<(), StateSpaceError>> =
             tokio::spawn(async move {
@@ -194,29 +213,14 @@ where
                 Ok::<(), StateSpaceError>(())
             });
 
-        Ok((amms_updated_rx, vec![stream_handle, updated_amms_handle]))
+        (amms_updated_rx, updated_amms_handle)
     }
 
-    /// Listens to new blocks and handles state changes
-    // TODO: refactor
-    pub async fn watch_state_changes(
+    pub async fn sync_amms(
         &self,
+        mut stream_rx: Receiver<Block>,
         mut latest_synced_block: u64,
-    ) -> Result<Vec<JoinHandle<Result<(), StateSpaceError>>>, StateSpaceError> {
-        let (stream_tx, mut stream_rx): (Sender<Block>, Receiver<Block>) =
-            tokio::sync::mpsc::channel(self.buffer);
-
-        let provider = self.provider.clone();
-        let stream_handle = tokio::spawn(async move {
-            let subscription = provider.subscribe_blocks().await?;
-            let mut block_stream = subscription.into_stream();
-            while let Some(block) = block_stream.next().await {
-                stream_tx.send(block).await?;
-            }
-
-            Ok::<(), StateSpaceError>(())
-        });
-
+    ) -> JoinHandle<Result<(), StateSpaceError>> {
         let state = self.state.clone();
         let provider = self.provider.clone();
         let filter = self.filter().await;
@@ -272,7 +276,20 @@ where
                 Ok::<(), StateSpaceError>(())
             });
 
-        Ok(vec![stream_handle, updated_amms_handle])
+        updated_amms_handle
+    }
+
+    /// Listens to new blocks and handles state changes
+    // TODO: refactor
+    pub async fn watch_state_changes(
+        &self,
+        latest_synced_block: u64,
+        buffer: usize,
+    ) -> Result<Vec<JoinHandle<Result<(), StateSpaceError>>>, StateSpaceError> {
+        let (stream_rx, stream_handle) = self.subscribe_blocks_buffered(buffer).await;
+        let sync_amms_handle = self.sync_amms(stream_rx, latest_synced_block).await;
+
+        Ok(vec![stream_handle, sync_amms_handle])
     }
 }
 
