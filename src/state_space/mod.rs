@@ -9,13 +9,13 @@ use crate::{
 };
 use alloy::{
     network::Network,
-    primitives::{Address, FixedBytes, B256},
+    primitives::{Address, FixedBytes},
     providers::Provider,
     rpc::types::eth::{Block, Filter, Log},
     transports::Transport,
 };
 use cache::StateChangeCache;
-use error::{StateChangeError, StateSpaceError};
+use error::StateSpaceError;
 use futures::StreamExt;
 use std::{
     collections::{HashMap, HashSet},
@@ -69,7 +69,7 @@ where
             latest_synced_block,
             stream_buffer,
             state_change_buffer,
-            state_change_cache: Arc::new(RwLock::new(StateChangeCache::new(latest_synced_block))),
+            state_change_cache: Arc::new(RwLock::new(StateChangeCache::new())),
             provider,
             transport: PhantomData,
             network: PhantomData,
@@ -289,7 +289,7 @@ pub async fn handle_state_changes_from_logs(
     state: Arc<RwLock<StateSpace>>,
     state_change_cache: Arc<RwLock<StateChangeCache>>,
     logs: Vec<Log>,
-) -> Result<Vec<Address>, StateChangeError> {
+) -> Result<Vec<Address>, StateSpaceError> {
     let mut updated_amms_set = HashSet::new();
     let mut updated_amms = vec![];
     let mut state_changes = vec![];

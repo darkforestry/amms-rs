@@ -8,15 +8,14 @@ use arraydeque::{ArrayDeque, CapacityError};
 #[derive(Debug)]
 
 pub struct StateChangeCache {
-    // TODO: add comment explaining why we need to store the initial block number
-    init_block: u64,
+    oldest_block: u64,
     cache: ArrayDeque<StateChange, 150>,
 }
 
 impl StateChangeCache {
-    pub fn new(init_block: u64) -> Self {
+    pub fn new() -> Self {
         StateChangeCache {
-            init_block,
+            oldest_block: 0,
             cache: ArrayDeque::new(),
         }
     }
@@ -33,6 +32,10 @@ impl StateChangeCache {
 
         if cache.is_full() {
             cache.pop_back();
+            self.oldest_block = cache
+                .back()
+                .expect("Could not get last item in cache")
+                .block_number;
         }
 
         cache.push_front(state_change)
@@ -43,8 +46,8 @@ impl StateChangeCache {
     pub fn unwind_state_changes(&mut self, block_to_unwind: u64) -> Vec<AMM> {
         let cache = &mut self.cache;
 
-        if block_to_unwind < self.init_block {
-            todo!("Handle error")
+        if block_to_unwind < self.oldest_block {
+            panic!("Block to unwind < oldest block in cache");
         }
 
         // If the block to unwind is greater than the latest state change in the block, exit early
