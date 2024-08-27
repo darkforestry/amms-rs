@@ -37,8 +37,7 @@ pub type StateSpace = HashMap<Address, AMM>;
 pub struct StateSpaceManager<T, N, P> {
     state: Arc<RwLock<StateSpace>>,
     latest_synced_block: u64,
-    stream_buffer: usize,
-    state_change_buffer: usize,
+    buffer: usize,
     state_change_cache: Arc<RwLock<StateChangeCache>>,
     provider: Arc<P>,
     transport: PhantomData<T>,
@@ -52,12 +51,15 @@ where
     N: Network,
     P: Provider<T, N> + 'static,
 {
-    pub fn new(
+    pub fn new(amms: Vec<AMM>, latest_synced_block: u64, provider: Arc<P>) -> Self {
+        Self::new_with_buffer(amms, latest_synced_block, provider, 100)
+    }
+
+    pub fn new_with_buffer(
         amms: Vec<AMM>,
         latest_synced_block: u64,
-        stream_buffer: usize,
-        state_change_buffer: usize,
         provider: Arc<P>,
+        buffer: usize,
     ) -> Self {
         let state: HashMap<Address, AMM> = amms
             .into_iter()
@@ -67,8 +69,7 @@ where
         Self {
             state: Arc::new(RwLock::new(state)),
             latest_synced_block,
-            stream_buffer,
-            state_change_buffer,
+            buffer,
             state_change_cache: Arc::new(RwLock::new(StateChangeCache::new())),
             provider,
             transport: PhantomData,
@@ -102,7 +103,7 @@ where
         let mut last_synced_block = self.latest_synced_block;
 
         let (stream_tx, mut stream_rx): (Sender<Block>, Receiver<Block>) =
-            tokio::sync::mpsc::channel(self.stream_buffer);
+            tokio::sync::mpsc::channel(self.buffer);
 
         let provider = self.provider.clone();
         let stream_handle = tokio::spawn(async move {
@@ -115,8 +116,7 @@ where
             Ok::<(), StateSpaceError>(())
         });
 
-        let (amms_updated_tx, amms_updated_rx) =
-            tokio::sync::mpsc::channel(self.state_change_buffer);
+        let (amms_updated_tx, amms_updated_rx) = tokio::sync::mpsc::channel(self.buffer);
 
         let state = self.state.clone();
         let provider = self.provider.clone();
@@ -191,7 +191,7 @@ where
         let mut last_synced_block = self.latest_synced_block;
 
         let (stream_tx, mut stream_rx): (Sender<Block>, Receiver<Block>) =
-            tokio::sync::mpsc::channel(self.stream_buffer);
+            tokio::sync::mpsc::channel(self.buffer);
 
         let provider = self.provider.clone();
         let stream_handle = tokio::spawn(async move {
