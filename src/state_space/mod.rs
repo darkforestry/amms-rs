@@ -65,12 +65,10 @@ impl From<Vec<AMM>> for StateSpace {
 #[derive(Debug)]
 pub struct StateSpaceManager<T, N, P> {
     state: Arc<RwLock<StateSpace>>,
-    latest_synced_block: u64,
-    buffer: usize,
     state_change_cache: Arc<RwLock<StateChangeCache>>,
+    buffer: usize,
     provider: Arc<P>,
-    transport: PhantomData<T>,
-    network: PhantomData<N>,
+    phantom: PhantomData<(T, N)>,
 }
 
 // TODO: Much of this can be simplified
@@ -80,24 +78,17 @@ where
     N: Network,
     P: Provider<T, N> + 'static,
 {
-    pub fn new(amms: Vec<AMM>, latest_synced_block: u64, provider: Arc<P>) -> Self {
-        Self::new_with_buffer(amms, latest_synced_block, provider, 100)
+    pub fn new(amms: Vec<AMM>, provider: Arc<P>) -> Self {
+        Self::new_with_buffer(amms, provider, 100)
     }
 
-    pub fn new_with_buffer(
-        amms: Vec<AMM>,
-        latest_synced_block: u64,
-        provider: Arc<P>,
-        buffer: usize,
-    ) -> Self {
+    pub fn new_with_buffer(amms: Vec<AMM>, provider: Arc<P>, buffer: usize) -> Self {
         Self {
             state: Arc::new(RwLock::new(amms.into())),
-            latest_synced_block,
             buffer,
             state_change_cache: Arc::new(RwLock::new(StateChangeCache::new())),
             provider,
-            transport: PhantomData,
-            network: PhantomData,
+            phantom: PhantomData,
         }
     }
 
@@ -117,6 +108,7 @@ where
     // TODO: refactor
     pub async fn subscribe_state_changes(
         &self,
+        mut latest_synced_block: u64,
     ) -> Result<
         (
             Receiver<Vec<Address>>,
@@ -124,8 +116,6 @@ where
         ),
         StateSpaceError,
     > {
-        let mut last_synced_block = self.latest_synced_block;
-
         let (stream_tx, mut stream_rx): (Sender<Block>, Receiver<Block>) =
             tokio::sync::mpsc::channel(self.buffer);
 
@@ -152,10 +142,10 @@ where
                 while let Some(block) = stream_rx.recv().await {
                     if let Some(chain_head_block_number) = block.header.number {
                         // If there is a reorg, unwind state changes from last_synced block to the chain head block number
-                        if chain_head_block_number <= last_synced_block {
+                        if chain_head_block_number <= latest_synced_block {
                             tracing::trace!(
                                 chain_head_block_number,
-                                last_synced_block,
+                                latest_synced_block,
                                 "reorg detected, unwinding state changes"
                             );
 
@@ -171,10 +161,10 @@ where
                             drop(state_writer);
 
                             // set the last synced block to the head block number
-                            last_synced_block = chain_head_block_number - 1;
+                            latest_synced_block = chain_head_block_number - 1;
                         }
 
-                        let from_block: u64 = last_synced_block + 1;
+                        let from_block: u64 = latest_synced_block + 1;
                         let logs = provider
                             .get_logs(
                                 &filter
@@ -195,7 +185,7 @@ where
                             amms_updated_tx.send(amms_updated).await?;
                         }
 
-                        last_synced_block = chain_head_block_number;
+                        latest_synced_block = chain_head_block_number;
                     } else {
                         return Err(StateSpaceError::BlockNumberNotFound);
                     }
@@ -211,9 +201,8 @@ where
     // TODO: refactor
     pub async fn watch_state_changes(
         &self,
+        mut latest_synced_block: u64,
     ) -> Result<Vec<JoinHandle<Result<(), StateSpaceError>>>, StateSpaceError> {
-        let mut last_synced_block = self.latest_synced_block;
-
         let (stream_tx, mut stream_rx): (Sender<Block>, Receiver<Block>) =
             tokio::sync::mpsc::channel(self.buffer);
 
@@ -238,7 +227,7 @@ where
                 while let Some(block) = stream_rx.recv().await {
                     if let Some(chain_head_block_number) = block.header.number {
                         // If there is a reorg, unwind state changes from last_synced block to the chain head block number
-                        if chain_head_block_number <= last_synced_block {
+                        if chain_head_block_number <= latest_synced_block {
                             // NOTE: this can be drier
                             let updated_amms = state_change_cache
                                 .write()
@@ -252,10 +241,10 @@ where
                             drop(state_writer);
 
                             // set the last synced block to the head block number
-                            last_synced_block = chain_head_block_number - 1;
+                            latest_synced_block = chain_head_block_number - 1;
                         }
 
-                        let from_block: u64 = last_synced_block + 1;
+                        let from_block: u64 = latest_synced_block + 1;
                         let logs = provider
                             .get_logs(
                                 &filter
@@ -274,7 +263,7 @@ where
                             .await?;
                         }
 
-                        last_synced_block = chain_head_block_number;
+                        latest_synced_block = chain_head_block_number;
                     } else {
                         return Err(StateSpaceError::BlockNumberNotFound);
                     }
