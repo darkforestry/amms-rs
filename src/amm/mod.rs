@@ -1,3 +1,4 @@
+pub mod balancer_v2;
 pub mod consts;
 pub mod erc_4626;
 pub mod factory;
@@ -15,6 +16,7 @@ use alloy::{
     transports::Transport,
 };
 use async_trait::async_trait;
+use balancer_v2::BalancerV2Pool;
 use serde::{Deserialize, Serialize};
 
 use crate::errors::{AMMError, ArithmeticError, EventLogError, SwapSimulationError};
@@ -167,4 +169,4 @@ macro_rules! amm {
     };
 }
 
-amm!(UniswapV2Pool, UniswapV3Pool, ERC4626Vault);
+amm!(UniswapV2Pool, UniswapV3Pool, ERC4626Vault, BalancerV2Pool);

@@ -37,6 +37,7 @@ alloy = { version = "0.2", features = [
     "signer-local",
 ] }
 reqwest = "0.12"
+rug = "1.24.1"
 
 [features]
 default = ["filters", "state-space"]
