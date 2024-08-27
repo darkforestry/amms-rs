@@ -72,6 +72,10 @@ pub enum ArithmeticError {
     U128ConversionError,
     #[error(transparent)]
     UniswapV3MathError(#[from] UniswapV3MathError),
+    #[error("base token does not exist in pool")]
+    BaseTokenDoesNotExist,
+    #[error("quote token does not exist in pool")]
+    QuoteTokenDoesNotExist,
 }
 
 #[derive(Error, Debug)]
@@ -94,6 +98,8 @@ pub enum SwapSimulationError {
     UniswapV3MathError(#[from] UniswapV3MathError),
     #[error("Liquidity underflow")]
     LiquidityUnderflow,
+    #[error(transparent)]
+    ArithmeticError(#[from] ArithmeticError),
 }
 
 #[derive(Error, Debug)]

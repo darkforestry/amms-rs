@@ -22,7 +22,7 @@ use tracing::instrument;
 use crate::errors::{AMMError, ArithmeticError, EventLogError, SwapSimulationError};
 
 use super::{
-    consts::{BONE, U256_10},
+    consts::{BONE, MPFR_T_PRECISION},
     AutomatedMarketMaker,
 };
 
@@ -38,6 +38,16 @@ sol! {
             uint256         tokenAmountOut
         );
         function getSpotPrice(address tokenIn, address tokenOut) external returns (uint256);
+        function calcOutGivenIn(
+            uint tokenBalanceIn,
+            uint tokenWeightIn,
+            uint tokenBalanceOut,
+            uint tokenWeightOut,
+            uint tokenAmountIn,
+            uint swapFee
+        )
+             external
+            returns (uint);
     }
 }
 
@@ -85,28 +95,8 @@ impl AutomatedMarketMaker for BalancerV2Pool {
     fn tokens(&self) -> Vec<Address> {
         self.tokens.clone()
     }
-    // export function _spotPriceAfterSwapExactTokenInForTokenOut(
-    //     amount: OldBigNumber,
-    //     poolPairData: WeightedPoolPairData
-    // ): OldBigNumber {
-    //     const Bi = parseFloat(
-    //         formatFixed(poolPairData.balanceIn, poolPairData.decimalsIn)
-    //     );
-    //     const Bo = parseFloat(
-    //         formatFixed(poolPairData.balanceOut, poolPairData.decimalsOut)
-    //     );
-    //     const wi = parseFloat(formatFixed(poolPairData.weightIn, 18));
-    //     const wo = parseFloat(formatFixed(poolPairData.weightOut, 18));
-    //     const Ai = amount.toNumber();
-    //     const f = parseFloat(formatFixed(poolPairData.swapFee, 18));
-    //     return bnum(
-    //         -(
-    //             (Bi * wo) /
-    //             (Bo * (-1 + f) * (Bi / (Ai + Bi - Ai * f)) ** ((wi + wo) / wo) * wi)
-    //         )
-    //     );
-    // }
-    /// Calculates a f64 representation of base token price in the AMM.
+
+    /// Calculates a f64 representation of base token price in the AMM. This is a "tax inclusive" spot approximation.
     /// **********************************************************************************************
     /// calcSpotPrice                                                                             //
     /// sP = spotPrice                                                                            //
@@ -126,40 +116,39 @@ impl AutomatedMarketMaker for BalancerV2Pool {
             .tokens
             .iter()
             .position(|&r| r == base_token)
-            .expect("Base token not found");
+            .map_or_else(|| Err(ArithmeticError::BaseTokenDoesNotExist), Ok)?;
         let quote_token_index = self
             .tokens
             .iter()
             .position(|&r| r == quote_token)
-            .expect("Quote token not found");
-
-        let decimals_base = U256::from(self.decimals[base_token_index]);
-        let weight_base = self.weights[base_token_index];
-        let weight_quote = self.weights[quote_token_index];
-        let balance_base = self.liquidity[base_token_index];
-        let balance_quote = self.liquidity[quote_token_index];
-        // This is an after tax approximation of the spot price.
-        let epsilon = U256::from(10).pow(U256::from(12));
-
-        let out = u256_to_float(bmath::calculate_out_given_in(
-            balance_base,
-            weight_base,
-            balance_quote,
-            weight_quote,
-            epsilon,
-            U256::from(self.fee),
-        ));
-
-        let decimal_factor =
-            self.decimals[base_token_index] as i32 - self.decimals[quote_token_index] as i32;
-        let mut ratio = out / u256_to_float(epsilon);
-        let factor = u256_to_float(U256_10.pow(U256::from(decimal_factor.abs())));
-        ratio = if decimal_factor < 0 {
-            ratio / factor
+            .map_or_else(|| Err(ArithmeticError::QuoteTokenDoesNotExist), Ok)?;
+        let bone = u256_to_float(BONE);
+        let norm_base = if self.decimals[base_token_index] < 18 {
+            Float::with_val(
+                MPFR_T_PRECISION,
+                10_u64.pow(18 - self.decimals[base_token_index] as u32),
+            )
         } else {
-            ratio * factor
+            Float::with_val(MPFR_T_PRECISION, 1)
+        };
+        let norm_quote = if self.decimals[quote_token_index] < 18 {
+            Float::with_val(
+                MPFR_T_PRECISION,
+                10_u64.pow(18 - self.decimals[quote_token_index] as u32),
+            )
+        } else {
+            Float::with_val(MPFR_T_PRECISION, 1)
         };
 
+        let norm_weight_base = u256_to_float(self.weights[base_token_index]) / norm_base;
+        let norm_weight_quote = u256_to_float(self.weights[quote_token_index]) / norm_quote;
+        let balance_base = u256_to_float(self.liquidity[base_token_index]);
+        let balance_quote = u256_to_float(self.liquidity[quote_token_index]);
+
+        let dividend = (balance_quote / norm_weight_quote) * bone.clone();
+        let divisor = (balance_base / norm_weight_base)
+            * (bone - Float::with_val(MPFR_T_PRECISION, self.fee as u32));
+        let ratio = dividend / divisor;
         Ok(ratio.to_f64_round(Round::Nearest))
     }
 
@@ -208,8 +197,44 @@ impl AutomatedMarketMaker for BalancerV2Pool {
         quote_token: Address,
         amount_in: U256,
     ) -> Result<U256, SwapSimulationError> {
-        // https://github.com/balancer/balancer-core/blob/f4ed5d65362a8d6cec21662fb6eae233b0babc1f/contracts/BPool.sol#L423
-        todo!("Implement simulate_swap for BalancerPool")
+        let base_token_index = self
+            .tokens
+            .iter()
+            .position(|&r| r == base_token)
+            .map_or_else(
+                || {
+                    Err(SwapSimulationError::ArithmeticError(
+                        ArithmeticError::BaseTokenDoesNotExist,
+                    ))
+                },
+                Ok,
+            )?;
+        let quote_token_index = self
+            .tokens
+            .iter()
+            .position(|&r| r == quote_token)
+            .map_or_else(
+                || {
+                    Err(SwapSimulationError::ArithmeticError(
+                        ArithmeticError::QuoteTokenDoesNotExist,
+                    ))
+                },
+                Ok,
+            )?;
+
+        let base_token_balance = self.liquidity[base_token_index];
+        let quote_token_balance = self.liquidity[quote_token_index];
+        let base_token_weight = self.weights[base_token_index];
+        let quote_token_weight = self.weights[quote_token_index];
+        let swap_fee = U256::from(self.fee);
+        Ok(bmath::calculate_out_given_in(
+            base_token_balance,
+            base_token_weight,
+            quote_token_balance,
+            quote_token_weight,
+            amount_in,
+            swap_fee,
+        ))
     }
 
     /// Locally simulates a swap in the AMM.
@@ -221,8 +246,47 @@ impl AutomatedMarketMaker for BalancerV2Pool {
         quote_token: Address,
         amount_in: U256,
     ) -> Result<U256, SwapSimulationError> {
-        // https://github.com/balancer/balancer-core/blob/f4ed5d65362a8d6cec21662fb6eae233b0babc1f/contracts/BPool.sol#L423
-        todo!("Implement simulate_swap_mut for BalancerPool")
+        let base_token_index = self
+            .tokens
+            .iter()
+            .position(|&r| r == base_token)
+            .map_or_else(
+                || {
+                    Err(SwapSimulationError::ArithmeticError(
+                        ArithmeticError::BaseTokenDoesNotExist,
+                    ))
+                },
+                Ok,
+            )?;
+        let quote_token_index = self
+            .tokens
+            .iter()
+            .position(|&r| r == quote_token)
+            .map_or_else(
+                || {
+                    Err(SwapSimulationError::ArithmeticError(
+                        ArithmeticError::QuoteTokenDoesNotExist,
+                    ))
+                },
+                Ok,
+            )?;
+
+        let base_token_balance = self.liquidity[base_token_index];
+        let quote_token_balance = self.liquidity[quote_token_index];
+        let base_token_weight = self.weights[base_token_index];
+        let quote_token_weight = self.weights[quote_token_index];
+        let swap_fee = U256::from(self.fee);
+        let out = bmath::calculate_out_given_in(
+            base_token_balance,
+            base_token_weight,
+            quote_token_balance,
+            quote_token_weight,
+            amount_in,
+            swap_fee,
+        );
+        self.liquidity[base_token_index] = bmath::badd(base_token_balance, amount_in);
+        self.liquidity[quote_token_index] = bmath::bsub(quote_token_balance, out);
+        Ok(out)
     }
 }
 
@@ -231,14 +295,11 @@ mod tests {
     use std::{str::FromStr, sync::Arc};
 
     use alloy::{
-        eips::BlockId,
         primitives::{address, U256},
         providers::ProviderBuilder,
     };
 
-    use crate::amm::AutomatedMarketMaker;
-
-    use super::IBPool;
+    use crate::amm::{balancer_v2::IBPool::IBPoolInstance, AutomatedMarketMaker};
 
     #[tokio::test]
     pub async fn test_populate_data() {
@@ -252,7 +313,7 @@ mod tests {
             .populate_data(Some(20487793), provider.clone())
             .await
             .unwrap();
-
+        println!("Balancer V2 Pool: {:?}", balancer_v2_pool);
         assert_eq!(
             balancer_v2_pool.tokens,
             vec![
@@ -283,27 +344,59 @@ mod tests {
             .populate_data(Some(20487793), provider.clone())
             .await
             .unwrap();
-        println!("Balancer V2 Pool: {:?}", balancer_v2_pool);
-        let balancer_v2_pool_instance = IBPool::new(balancer_v2_pool.address, provider.clone());
-        let expected = balancer_v2_pool_instance
-            .getSpotPrice(
-                address!("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"),
-                address!("a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"),
-            )
-            .block(BlockId::from(20487793))
-            .call()
-            .await
-            .unwrap()
-            ._0;
-        println!("USDC Balance: {:?}", balancer_v2_pool.liquidity[1]);
-        println!("WETH Balance: {:?}", balancer_v2_pool.liquidity[0]);
-        println!("Expected: {:?}", expected);
+
         let calculated = balancer_v2_pool
             .calculate_price(
                 address!("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"),
                 address!("a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"),
             )
             .unwrap();
-        println!("Calculated: {:?}", calculated);
+
+        assert_eq!(calculated, 2662.153859723404_f64);
+    }
+
+    #[tokio::test]
+    pub async fn test_simulate_swap() {
+        let provider =
+            Arc::new(ProviderBuilder::new().on_http(env!("ETHEREUM_PROVIDER").parse().unwrap()));
+        let mut balancer_v2_pool = super::BalancerV2Pool {
+            address: address!("8a649274E4d777FFC6851F13d23A86BBFA2f2Fbf"),
+            ..Default::default()
+        };
+        balancer_v2_pool
+            .populate_data(Some(20487793), provider.clone())
+            .await
+            .unwrap();
+        println!("Balancer V2 Pool: {:?}", balancer_v2_pool);
+
+        // 1 ETH
+        let amount_in = U256::from(10_u64.pow(18));
+        let calculated = balancer_v2_pool
+            .simulate_swap(
+                address!("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"),
+                address!("a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"),
+                amount_in,
+            )
+            .unwrap();
+
+        let b_pool_quoter = IBPoolInstance::new(
+            address!("8a649274E4d777FFC6851F13d23A86BBFA2f2Fbf"),
+            provider.clone(),
+        );
+
+        let expected = b_pool_quoter
+            .calcOutGivenIn(
+                balancer_v2_pool.liquidity[0],
+                balancer_v2_pool.weights[0],
+                balancer_v2_pool.liquidity[0],
+                balancer_v2_pool.weights[1],
+                amount_in,
+                U256::from(balancer_v2_pool.fee),
+            )
+            .call()
+            .await
+            .unwrap();
+
+        assert_eq!(calculated, expected._0);
     }
 }

@@ -48,6 +48,23 @@ pub fn bmul(a: U256, b: U256) -> U256 {
 }
 
 /**********************************************************************************************
+// calcSpotPrice                                                                             //
+// sP = spotPrice                                                                            //
+// bI = tokenBalanceIn                ( bI / wI )         1                                  //
+// bO = tokenBalanceOut         sP =  -----------  *  ----------                             //
+// wI = tokenWeightIn                 ( bO / wO )     ( 1 - sF )                             //
+// wO = tokenWeightOut                                                                       //
+// sF = swapFee                                                                              //
+ **********************************************************************************************/
+pub fn calculate_price(b_i: U256, w_i: U256, b_o: U256, w_o: U256, s_f: U256) -> U256 {
+    let numer = bdiv(b_i, w_i);
+    let denom = bdiv(b_o, w_o);
+    let ratio = bdiv(numer, denom);
+    let scale = bdiv(BONE, bsub(BONE, s_f));
+    bmul(ratio, scale)
+}
+
+/**********************************************************************************************
 // calcOutGivenIn                                                                            //
 // aO = tokenAmountOut                                                                       //
 // bO = tokenBalanceOut                                                                      //
@@ -57,6 +74,26 @@ pub fn bmul(a: U256, b: U256) -> U256 {
 // wO = tokenWeightOut                                                                       //
 // sF = swapFee                                                                              //
  **********************************************************************************************/
+//  function calcOutGivenIn(
+//     uint tokenBalanceIn,
+//     uint tokenWeightIn,
+//     uint tokenBalanceOut,
+//     uint tokenWeightOut,
+//     uint tokenAmountIn,
+//     uint swapFee
+// )
+//     public pure
+//     returns (uint tokenAmountOut)
+// {
+//     uint weightRatio = bdiv(tokenWeightIn, tokenWeightOut);
+//     uint adjustedIn = bsub(BONE, swapFee);
+//     adjustedIn = bmul(tokenAmountIn, adjustedIn);
+//     uint y = bdiv(tokenBalanceIn, badd(tokenBalanceIn, adjustedIn));
+//     uint foo = bpow(y, weightRatio);
+//     uint bar = bsub(BONE, foo);
+//     tokenAmountOut = bmul(tokenBalanceOut, bar);
+//     return tokenAmountOut;
+// }
 pub fn calculate_out_given_in(
     token_balance_in: U256,
     token_weight_in: U256,
@@ -73,8 +110,6 @@ pub fn calculate_out_given_in(
     let bar = bsub(BONE, foo);
     bmul(token_balance_out, bar)
 }
-
-
 
 /// Converts a `U256` into a `Float` with a high precision.
 pub fn u256_to_float(value: U256) -> Float {
