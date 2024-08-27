@@ -24,8 +24,6 @@ pub enum StateSpaceError {
     InsufficientWalletFunds(),
     #[error(transparent)]
     EventLogError(#[from] EventLogError),
-    #[error(transparent)]
-    StateChangeError(#[from] StateChangeError),
     #[error("Block number not found")]
     BlockNumberNotFound,
     #[error(transparent)]
@@ -36,16 +34,4 @@ pub enum StateSpaceError {
     AlreadyListeningForStateChanges,
     #[error(transparent)]
     JoinError(#[from] tokio::task::JoinError),
-}
-
-#[derive(Error, Debug)]
-pub enum StateChangeError {
-    #[error("No state changes in cache")]
-    NoStateChangesInCache,
-    #[error("Error when removing a state change from the front of the deque")]
-    PopFrontError,
-    #[error("State change cache capacity error")]
-    CapacityError,
-    #[error(transparent)]
-    EventLogError(#[from] EventLogError),
 }

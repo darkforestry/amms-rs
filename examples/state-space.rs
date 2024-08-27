@@ -51,10 +51,12 @@ async fn main() -> eyre::Result<()> {
     amms.extend(vaults);
 
     // Initialize state space manager
-    let state_space_manager = StateSpaceManager::new(amms, last_synced_block, 100, 100, provider);
+    let state_space_manager = StateSpaceManager::new(amms, provider);
 
     //Listen for state changes and print them out
-    let (mut rx, _join_handles) = state_space_manager.subscribe_state_changes().await?;
+    let (mut rx, _join_handles) = state_space_manager
+        .subscribe_state_changes(last_synced_block, 100)
+        .await?;
 
     for _ in 0..10 {
         if let Some(state_changes) = rx.recv().await {
