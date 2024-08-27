@@ -74,26 +74,6 @@ pub fn calculate_price(b_i: U256, w_i: U256, b_o: U256, w_o: U256, s_f: U256) ->
 // wO = tokenWeightOut                                                                       //
 // sF = swapFee                                                                              //
  **********************************************************************************************/
-//  function calcOutGivenIn(
-//     uint tokenBalanceIn,
-//     uint tokenWeightIn,
-//     uint tokenBalanceOut,
-//     uint tokenWeightOut,
-//     uint tokenAmountIn,
-//     uint swapFee
-// )
-//     public pure
-//     returns (uint tokenAmountOut)
-// {
-//     uint weightRatio = bdiv(tokenWeightIn, tokenWeightOut);
-//     uint adjustedIn = bsub(BONE, swapFee);
-//     adjustedIn = bmul(tokenAmountIn, adjustedIn);
-//     uint y = bdiv(tokenBalanceIn, badd(tokenBalanceIn, adjustedIn));
-//     uint foo = bpow(y, weightRatio);
-//     uint bar = bsub(BONE, foo);
-//     tokenAmountOut = bmul(tokenBalanceOut, bar);
-//     return tokenAmountOut;
-// }
 pub fn calculate_out_given_in(
     token_balance_in: U256,
     token_weight_in: U256,
