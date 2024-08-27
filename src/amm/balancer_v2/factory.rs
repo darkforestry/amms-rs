@@ -59,11 +59,7 @@ impl AutomatedMarketMakerFactory for BalancerV2Factory {
         N: Network,
         P: Provider<T, N>,
     {
-        let to = if let Some(to) = to_block {
-            to
-        } else {
-            provider.get_block_number().await?
-        };
+    let to = to_block.unwrap_or(provider.get_block_number().await?);
         Ok(self.get_all_pools_from_logs(to, step, provider).await?)
     }
 
