@@ -55,7 +55,7 @@ async fn main() -> eyre::Result<()> {
 
     //Listen for state changes and print them out
     let (mut rx, _join_handles) = state_space_manager
-        .subscribe_state_changes(last_synced_block)
+        .subscribe_state_changes(last_synced_block, 100)
         .await?;
 
     for _ in 0..10 {

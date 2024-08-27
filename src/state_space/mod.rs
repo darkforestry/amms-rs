@@ -159,137 +159,57 @@ where
         let updated_amms_handle: JoinHandle<Result<(), StateSpaceError>> =
             tokio::spawn(async move {
                 while let Some(block) = stream_rx.recv().await {
-                    if let Some(chain_head_block_number) = block.header.number {
-                        // If there is a reorg, unwind state changes from last_synced block to the chain head block number
-                        if chain_head_block_number <= latest_synced_block {
-                            tracing::trace!(
-                                chain_head_block_number,
-                                latest_synced_block,
-                                "reorg detected, unwinding state changes"
-                            );
+                    let chain_head_block_number = block
+                        .header
+                        .number
+                        .ok_or_else(|| StateSpaceError::BlockNumberNotFound)?;
 
-                            let updated_amms = state_change_cache
-                                .write()
-                                .await
-                                .unwind_state_changes(chain_head_block_number);
+                    // If the chain head block number <= latest synced block, a reorg has occurred
+                    if chain_head_block_number <= latest_synced_block {
+                        tracing::trace!(
+                            chain_head_block_number,
+                            latest_synced_block,
+                            "reorg detected, unwinding state changes"
+                        );
 
-                            let mut state_writer = state.write().await;
-                            for amm in updated_amms {
-                                state_writer.insert(amm.address(), amm);
-                            }
-                            drop(state_writer);
-
-                            // set the last synced block to the head block number
-                            latest_synced_block = chain_head_block_number - 1;
-                        }
-
-                        let from_block: u64 = latest_synced_block + 1;
-                        let logs = provider
-                            .get_logs(
-                                &filter
-                                    .clone()
-                                    .from_block(from_block)
-                                    .to_block(chain_head_block_number),
-                            )
-                            .await?;
-
-                        if !logs.is_empty() {
-                            let amms_updated = handle_state_changes_from_logs(
-                                state.clone(),
-                                state_change_cache.clone(),
-                                logs,
-                            )
-                            .await?;
-
-                            amms_updated_tx.send(amms_updated).await?;
-                        }
-
-                        latest_synced_block = chain_head_block_number;
-                    } else {
-                        return Err(StateSpaceError::BlockNumberNotFound);
+                        latest_synced_block = unwind_state_changes(
+                            state.clone(),
+                            state_change_cache.clone(),
+                            chain_head_block_number,
+                        )
+                        .await;
                     }
+
+                    // Get logs from the provider that match the event signatures from the state space
+                    let logs = provider
+                        .get_logs(
+                            &filter
+                                .clone()
+                                .from_block(latest_synced_block + 1)
+                                .to_block(chain_head_block_number),
+                        )
+                        .await?;
+
+                    // Handle any state changes from the logs
+                    if !logs.is_empty() {
+                        let amms_updated = handle_state_changes_from_logs(
+                            state.clone(),
+                            state_change_cache.clone(),
+                            logs,
+                        )
+                        .await?;
+
+                        amms_updated_tx.send(amms_updated).await?;
+                    }
+
+                    // Once all amms are synced, update the latest synced block
+                    latest_synced_block = chain_head_block_number;
                 }
 
                 Ok::<(), StateSpaceError>(())
             });
 
         (amms_updated_rx, updated_amms_handle)
-    }
-
-    pub async fn sync_amms(
-        &self,
-        mut stream_rx: Receiver<Block>,
-        mut latest_synced_block: u64,
-    ) -> JoinHandle<Result<(), StateSpaceError>> {
-        let state = self.state.clone();
-        let provider = self.provider.clone();
-        let filter = self.filter().await;
-        let state_change_cache = self.state_change_cache.clone();
-
-        let updated_amms_handle: JoinHandle<Result<(), StateSpaceError>> =
-            tokio::spawn(async move {
-                while let Some(block) = stream_rx.recv().await {
-                    if let Some(chain_head_block_number) = block.header.number {
-                        // If there is a reorg, unwind state changes from last_synced block to the chain head block number
-                        if chain_head_block_number <= latest_synced_block {
-                            // NOTE: this can be drier
-                            let updated_amms = state_change_cache
-                                .write()
-                                .await
-                                .unwind_state_changes(chain_head_block_number);
-
-                            let mut state_writer = state.write().await;
-                            for amm in updated_amms {
-                                state_writer.insert(amm.address(), amm);
-                            }
-                            drop(state_writer);
-
-                            // set the last synced block to the head block number
-                            latest_synced_block = chain_head_block_number - 1;
-                        }
-
-                        let from_block: u64 = latest_synced_block + 1;
-                        let logs = provider
-                            .get_logs(
-                                &filter
-                                    .clone()
-                                    .from_block(from_block)
-                                    .to_block(chain_head_block_number),
-                            )
-                            .await?;
-
-                        if !logs.is_empty() {
-                            handle_state_changes_from_logs(
-                                state.clone(),
-                                state_change_cache.clone(),
-                                logs,
-                            )
-                            .await?;
-                        }
-
-                        latest_synced_block = chain_head_block_number;
-                    } else {
-                        return Err(StateSpaceError::BlockNumberNotFound);
-                    }
-                }
-
-                Ok::<(), StateSpaceError>(())
-            });
-
-        updated_amms_handle
-    }
-
-    /// Listens to new blocks and handles state changes
-    // TODO: refactor
-    pub async fn watch_state_changes(
-        &self,
-        latest_synced_block: u64,
-        buffer: usize,
-    ) -> Result<Vec<JoinHandle<Result<(), StateSpaceError>>>, StateSpaceError> {
-        let (stream_rx, stream_handle) = self.subscribe_blocks_buffered(buffer).await;
-        let sync_amms_handle = self.sync_amms(stream_rx, latest_synced_block).await;
-
-        Ok(vec![stream_handle, sync_amms_handle])
     }
 }
 
@@ -374,6 +294,25 @@ async fn commit_state_changes(
             .add_state_change_to_cache(state_change);
     };
     prev_state.clear();
+}
+
+/// Unwinds the state changes up to the specified block number
+async fn unwind_state_changes(
+    state: Arc<RwLock<StateSpace>>,
+    state_change_cache: Arc<RwLock<StateChangeCache>>,
+    chain_head_block_number: u64,
+) -> u64 {
+    let updated_amms = state_change_cache
+        .write()
+        .await
+        .unwind_state_changes(chain_head_block_number);
+
+    let mut state_writer = state.write().await;
+    for amm in updated_amms {
+        state_writer.insert(amm.address(), amm);
+    }
+
+    chain_head_block_number - 1
 }
 
 /// Extracts the block number from a log
