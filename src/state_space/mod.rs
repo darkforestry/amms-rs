@@ -213,7 +213,7 @@ where
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct StateChange {
     pub state_change: Vec<AMM>,
     pub block_number: u64,
