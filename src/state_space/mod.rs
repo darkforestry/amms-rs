@@ -20,6 +20,7 @@ use futures::StreamExt;
 use std::{
     collections::{HashMap, HashSet},
     marker::PhantomData,
+    ops::{Deref, DerefMut},
     sync::Arc,
 };
 use tokio::{
@@ -31,7 +32,35 @@ use tokio::{
 };
 
 // TODO: bench this with a dashmap
-pub type StateSpace = HashMap<Address, AMM>;
+#[derive(Debug)]
+pub struct StateSpace(pub HashMap<Address, AMM>);
+
+impl StateSpace {
+    pub fn new() -> Self {
+        StateSpace(HashMap::new())
+    }
+}
+
+impl Deref for StateSpace {
+    type Target = HashMap<Address, AMM>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for StateSpace {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl From<Vec<AMM>> for StateSpace {
+    fn from(amms: Vec<AMM>) -> Self {
+        let state_space = amms.into_iter().map(|amm| (amm.address(), amm)).collect();
+        StateSpace(state_space)
+    }
+}
 
 #[derive(Debug)]
 pub struct StateSpaceManager<T, N, P> {
@@ -61,13 +90,8 @@ where
         provider: Arc<P>,
         buffer: usize,
     ) -> Self {
-        let state: HashMap<Address, AMM> = amms
-            .into_iter()
-            .map(|amm| (amm.address(), amm))
-            .collect::<HashMap<Address, AMM>>();
-
         Self {
-            state: Arc::new(RwLock::new(state)),
+            state: Arc::new(RwLock::new(amms.into())),
             latest_synced_block,
             buffer,
             state_change_cache: Arc::new(RwLock::new(StateChangeCache::new())),
@@ -263,12 +287,6 @@ where
     }
 }
 
-pub fn initialize_state_space(amms: Vec<AMM>) -> StateSpace {
-    amms.into_iter()
-        .map(|amm| (amm.address(), amm))
-        .collect::<HashMap<Address, AMM>>()
-}
-
 #[derive(Debug)]
 pub struct StateChange {
     pub state_change: Vec<AMM>,
@@ -284,65 +302,75 @@ impl StateChange {
     }
 }
 
-// TODO: refactor in to state space manager
 pub async fn handle_state_changes_from_logs(
     state: Arc<RwLock<StateSpace>>,
     state_change_cache: Arc<RwLock<StateChangeCache>>,
     logs: Vec<Log>,
 ) -> Result<Vec<Address>, StateSpaceError> {
-    let mut updated_amms_set = HashSet::new();
-    let mut updated_amms = vec![];
-    let mut state_changes = vec![];
-
-    let mut last_log_block_number = if let Some(log) = logs.first() {
-        get_block_number_from_log(log)?
-    } else {
-        return Ok(updated_amms);
+    // If there are no logs to process, return early
+    let Some(log) = logs.first() else {
+        return Ok(vec![]);
     };
 
+    // Track the block number for the most recently processed
+    // log to determine when to commit state changes to cache
+    let mut last_log_block_number = get_block_number_from_log(log)?;
+
+    let mut prev_state = vec![];
+    let mut updated_amms = HashSet::new();
+
+    // For each log, check if the log is from an amm in the state space and sync the updates
     for log in logs.into_iter() {
         let log_block_number = get_block_number_from_log(&log)?;
 
-        // check if the log is from an amm in the state space
-        if let Some(amm) = state.write().await.get_mut(&log.address()) {
-            if !updated_amms_set.contains(&log.address()) {
-                updated_amms_set.insert(log.address());
-                updated_amms.push(log.address());
-            }
+        let log_address = log.address();
+        if let Some(amm) = state.write().await.get_mut(&log_address) {
+            updated_amms.insert(log_address);
 
-            state_changes.push(amm.clone());
+            // Push the state of the amm before syncing to cache and then update the state
+            prev_state.push(amm.clone());
             amm.sync_from_log(log)?;
         }
 
-        // Commit state changes if the block has changed since last log
+        // If the block number has changed, commit the state changes to the cache
         if log_block_number != last_log_block_number {
-            if !state_changes.is_empty() {
-                let state_change = StateChange::new(state_changes, last_log_block_number);
-
-                let _ = state_change_cache
-                    .write()
-                    .await
-                    .add_state_change_to_cache(state_change);
-
-                state_changes = vec![];
-            };
+            commit_state_changes(
+                &mut prev_state,
+                last_log_block_number,
+                state_change_cache.clone(),
+            )
+            .await;
 
             last_log_block_number = log_block_number;
         }
     }
 
-    if !state_changes.is_empty() {
-        let state_change = StateChange::new(state_changes, last_log_block_number);
+    // Commit the state changes for the last block
+    commit_state_changes(&mut prev_state, last_log_block_number, state_change_cache).await;
+
+    // Return the addresses of the amms that were affected
+    Ok(updated_amms.into_iter().collect())
+}
+
+/// Commits state changes contained in `prev_state` to the state change cache
+/// and clears the `prev_state` vec
+async fn commit_state_changes(
+    prev_state: &mut Vec<AMM>,
+    block_number: u64,
+    state_change_cache: Arc<RwLock<StateChangeCache>>,
+) {
+    if !prev_state.is_empty() {
+        let state_change = StateChange::new(prev_state.clone(), block_number);
 
         let _ = state_change_cache
             .write()
             .await
             .add_state_change_to_cache(state_change);
     };
-
-    Ok(updated_amms)
+    prev_state.clear();
 }
 
+/// Extracts the block number from a log
 pub fn get_block_number_from_log(log: &Log) -> Result<u64, EventLogError> {
     if let Some(block_number) = log.block_number {
         Ok(block_number)
