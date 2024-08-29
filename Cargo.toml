@@ -34,8 +34,7 @@ alloy = { version = "0.2", features = [
 ] }
 
 [features]
-default = ["filters", "state-space"]
-filters = []
+default = ["state-space"]
 state-space = ["arraydeque"]
 # TODO: Uncomment this when artemis is published as a crate
 # artemis = ["artemis-core"] 
