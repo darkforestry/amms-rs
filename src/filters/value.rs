@@ -10,7 +10,11 @@ use alloy::{
 };
 
 use crate::{
-    amm::{factory::AutomatedMarketMakerFactory, factory::Factory, AutomatedMarketMaker, AMM},
+    amm::{
+        balancer_v2::factory::BalancerV2Factory,
+        factory::{AutomatedMarketMakerFactory, Factory},
+        AutomatedMarketMaker, AMM,
+    },
     errors::AMMError,
 };
 
@@ -175,6 +179,7 @@ where
         .map(|d| match d {
             Factory::UniswapV2Factory(_) => false,
             Factory::UniswapV3Factory(_) => true,
+            Factory::BalancerV2Factory(_) => false,
         })
         .collect::<Vec<bool>>();
 
