@@ -5,6 +5,8 @@ use alloy::{primitives::Address, rpc::types::eth::Block, transports::TransportEr
 use arraydeque::CapacityError;
 use thiserror::Error;
 
+use super::StateChange;
+
 #[derive(Error, Debug)]
 pub enum StateSpaceError {
     #[error(transparent)]
@@ -30,7 +32,7 @@ pub enum StateSpaceError {
     #[error(transparent)]
     StateChangeSendError(#[from] tokio::sync::mpsc::error::SendError<Vec<Address>>),
     #[error(transparent)]
-    CapacityError(#[from] CapacityError),
+    CapacityError(#[from] CapacityError<StateChange>),
     #[error(transparent)]
     BlockSendError(#[from] tokio::sync::mpsc::error::SendError<Block>),
     #[error("Already listening for state changes")]
