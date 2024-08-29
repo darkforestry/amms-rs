@@ -1,12 +1,13 @@
 pub mod batch_request;
-mod bmath;
+pub mod bmath;
+pub mod error;
 pub mod factory;
 
 use std::sync::Arc;
 
 use alloy::{
     network::Network,
-    primitives::{ruint::BaseConvertError, Address, B256, U256},
+    primitives::{Address, B256, U256},
     providers::Provider,
     rpc::types::Log,
     sol,
@@ -147,7 +148,7 @@ impl AutomatedMarketMaker for BalancerV2Pool {
 
         let dividend = (balance_quote / norm_weight_quote) * bone.clone();
         let divisor = (balance_base / norm_weight_base)
-            * (bone - Float::with_val(MPFR_T_PRECISION, self.fee as u32));
+            * (bone - Float::with_val(MPFR_T_PRECISION, self.fee));
         let ratio = dividend / divisor;
         Ok(ratio.to_f64_round(Round::Nearest))
     }
@@ -234,7 +235,7 @@ impl AutomatedMarketMaker for BalancerV2Pool {
             quote_token_weight,
             amount_in,
             swap_fee,
-        ))
+        )?)
     }
 
     /// Locally simulates a swap in the AMM.
@@ -283,9 +284,9 @@ impl AutomatedMarketMaker for BalancerV2Pool {
             quote_token_weight,
             amount_in,
             swap_fee,
-        );
-        self.liquidity[base_token_index] = bmath::badd(base_token_balance, amount_in);
-        self.liquidity[quote_token_index] = bmath::bsub(quote_token_balance, out);
+        )?;
+        self.liquidity[base_token_index] = bmath::badd(base_token_balance, amount_in)?;
+        self.liquidity[quote_token_index] = bmath::bsub(quote_token_balance, out)?;
         Ok(out)
     }
 }
@@ -388,7 +389,7 @@ mod tests {
             .calcOutGivenIn(
                 balancer_v2_pool.liquidity[0],
                 balancer_v2_pool.weights[0],
-                balancer_v2_pool.liquidity[0],
+                balancer_v2_pool.liquidity[1],
                 balancer_v2_pool.weights[1],
                 amount_in,
                 U256::from(balancer_v2_pool.fee),

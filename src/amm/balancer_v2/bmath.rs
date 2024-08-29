@@ -3,28 +3,111 @@ use rug::Float;
 
 use crate::amm::consts::{BONE, DECIMAL_RADIX, MPFR_T_PRECISION, U256_2};
 
-pub fn badd(a: U256, b: U256) -> U256 {
-    let c = a + b;
-    assert!(c >= a, "ERR_ADD_OVERFLOW");
-    c
+use super::error::BMathError;
+
+pub fn btoi(a: U256) -> U256 {
+    a / BONE
 }
+
+pub fn badd(a: U256, b: U256) -> Result<U256, BMathError> {
+    let c = a + b;
+    if c < a {
+        return Err(BMathError::AddOverflow);
+    }
+    Ok(c)
+}
+
+pub fn bpowi(a: U256, n: U256) -> Result<U256, BMathError> {
+    let mut z = if n % U256::from(2u64) != U256::ZERO {
+        a
+    } else {
+        BONE
+    };
+
+    let mut a = a;
+    let mut n = n / U256::from(2u64);
+    while n != U256::ZERO {
+        a = bmul(a, a)?;
+        if n % U256::from(2u64) != U256::ZERO {
+            z = bmul(z, a)?;
+        }
+        n /= U256::from(2u64);
+    }
+    Ok(z)
+}
+
+pub fn bpow(base: U256, exp: U256) -> Result<U256, BMathError> {
+    let whole = bfloor(exp);
+    let remain = bsub(exp, whole)?;
+    let whole_pow = bpowi(base, btoi(whole))?;
+    if remain == U256::ZERO {
+        return Ok(whole_pow);
+    }
+    let precision = BONE / U256::from(10_u64.pow(10));
+    let partial_result = bpow_approx(base, remain, precision)?;
+    bmul(whole_pow, partial_result)
+}
+
+pub fn bpow_approx(base: U256, exp: U256, precision: U256) -> Result<U256, BMathError> {
+    let a = exp;
+    let (x, xneg) = bsub_sign(base, BONE);
+    let mut term = BONE;
+    let mut sum = term;
+    let mut negative = false;
+    let mut i = 1;
+    while term >= precision {
+        let big_k = U256::from(i) * BONE;
+        let (c, cneg) = bsub_sign(a, bsub(big_k, BONE)?);
+        term = bmul(term, bmul(c, x)?)?;
+        term = bdiv(term, big_k)?;
+        if term == U256::ZERO {
+            break;
+        }
+        if xneg {
+            negative = !negative;
+        }
+        if cneg {
+            negative = !negative;
+        }
+        if negative {
+            sum = bsub(sum, term)?;
+        } else {
+            sum = badd(sum, term)?;
+        }
+        i += 1;
+    }
+    Ok(sum)
+}
+
+pub fn bfloor(a: U256) -> U256 {
+    btoi(a) * BONE
+}
+
 // Reference:
 // https://github.com/balancer/balancer-core/blob/f4ed5d65362a8d6cec21662fb6eae233b0babc1f/contracts/BNum.sol#L75
-pub fn bdiv(a: U256, b: U256) -> U256 {
-    assert!(b != U256::ZERO, "ERR_DIV_ZERO");
+pub fn bdiv(a: U256, b: U256) -> Result<U256, BMathError> {
+    if b == U256::ZERO {
+        return Err(BMathError::DivZero);
+    }
     let c0 = a * BONE;
-    assert!(a == U256::ZERO || c0 / a == BONE, "ERR_DIV_INTERNAL");
+    if a != U256::ZERO && c0 / a != BONE {
+        return Err(BMathError::DivInternal);
+    }
     let c1 = c0 + (b / U256_2);
-    assert!(c1 >= c0, "ERR_DIV_INTERNAL");
-    c1 / b
+    if c1 < c0 {
+        return Err(BMathError::DivInternal);
+    }
+    Ok(c1 / b)
 }
 
 // Reference:
 // https://github.com/balancer/balancer-core/blob/f4ed5d65362a8d6cec21662fb6eae233b0babc1f/contracts/BNum.sol#L43
-pub fn bsub(a: U256, b: U256) -> U256 {
+pub fn bsub(a: U256, b: U256) -> Result<U256, BMathError> {
     let (c, flag) = bsub_sign(a, b);
-    assert!(!flag, "ERR_SUB_UNDERFLOW");
-    c
+    if flag {
+        return Err(BMathError::SubUnderflow);
+    }
+    Ok(c)
 }
 
 // Reference:
@@ -39,12 +122,16 @@ pub fn bsub_sign(a: U256, b: U256) -> (U256, bool) {
 
 // Reference:
 // https://github.com/balancer/balancer-core/blob/f4ed5d65362a8d6cec21662fb6eae233b0babc1f/contracts/BNum.sol#L63C4-L73C6
-pub fn bmul(a: U256, b: U256) -> U256 {
+pub fn bmul(a: U256, b: U256) -> Result<U256, BMathError> {
     let c0 = a * b;
-    assert!(a == U256::ZERO || c0 / a == b, "ERR_MUL_OVERFLOW");
+    if a != U256::ZERO && c0 / a != b {
+        return Err(BMathError::MulOverflow);
+    }
     let c1 = c0 + (BONE / U256_2);
-    assert!(c1 >= c0, "ERR_MUL_OVERFLOW");
-    c1 / BONE
+    if c1 < c0 {
+        return Err(BMathError::MulOverflow);
+    }
+    Ok(c1 / BONE)
 }
 
 /**********************************************************************************************
@@ -56,11 +143,17 @@ pub fn bmul(a: U256, b: U256) -> U256 {
 // wO = tokenWeightOut                                                                       //
 // sF = swapFee                                                                              //
  **********************************************************************************************/
-pub fn calculate_price(b_i: U256, w_i: U256, b_o: U256, w_o: U256, s_f: U256) -> U256 {
-    let numer = bdiv(b_i, w_i);
-    let denom = bdiv(b_o, w_o);
-    let ratio = bdiv(numer, denom);
-    let scale = bdiv(BONE, bsub(BONE, s_f));
+pub fn calculate_price(
+    b_i: U256,
+    w_i: U256,
+    b_o: U256,
+    w_o: U256,
+    s_f: U256,
+) -> Result<U256, BMathError> {
+    let numer = bdiv(b_i, w_i)?;
+    let denom = bdiv(b_o, w_o)?;
+    let ratio = bdiv(numer, denom)?;
+    let scale = bdiv(BONE, bsub(BONE, s_f)?)?;
     bmul(ratio, scale)
 }
 
@@ -81,13 +174,13 @@ pub fn calculate_out_given_in(
     token_weight_out: U256,
     token_amount_in: U256,
     swap_fee: U256,
-) -> U256 {
-    let weight_ratio = bdiv(token_weight_in, token_weight_out);
-    let adjusted_in = bsub(BONE, swap_fee);
-    let adjusted_in = bmul(token_amount_in, adjusted_in);
-    let y = bdiv(token_balance_in, badd(token_balance_in, adjusted_in));
-    let foo = y.pow(weight_ratio);
-    let bar = bsub(BONE, foo);
+) -> Result<U256, BMathError> {
+    let weight_ratio = bdiv(token_weight_in, token_weight_out)?;
+    let adjusted_in = bsub(BONE, swap_fee)?;
+    let adjusted_in = bmul(token_amount_in, adjusted_in)?;
+    let y = bdiv(token_balance_in, badd(token_balance_in, adjusted_in)?)?;
+    let foo = bpow(y, weight_ratio)?;
+    let bar = bsub(BONE, foo)?;
     bmul(token_balance_out, bar)
 }
 
