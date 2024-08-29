@@ -63,12 +63,7 @@ pub fn bpow_approx(base: U256, exp: U256, precision: U256) -> Result<U256, BMath
         if term == U256::ZERO {
             break;
         }
-        if xneg {
-            negative = !negative;
-        }
-        if cneg {
-            negative = !negative;
-        }
+negative ^= xneg ^ cneg;
         if negative {
             sum = bsub(sum, term)?;
         } else {
