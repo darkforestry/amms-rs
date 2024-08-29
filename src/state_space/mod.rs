@@ -63,15 +63,14 @@ impl From<Vec<AMM>> for StateSpace {
 }
 
 #[derive(Debug)]
-pub struct StateSpaceManager<T, N, P> {
+pub struct StateSpaceManager<T, N, P, const CAP: usize> {
     state: Arc<RwLock<StateSpace>>,
-    state_change_cache: Arc<RwLock<StateChangeCache>>,
+    state_change_cache: Arc<RwLock<StateChangeCache<CAP>>>,
     provider: Arc<P>,
     phantom: PhantomData<(T, N)>,
 }
 
-// TODO: Much of this can be simplified
-impl<T, N, P> StateSpaceManager<T, N, P>
+impl<T, N, P> StateSpaceManager<T, N, P, 30>
 where
     T: Transport + Clone,
     N: Network,
@@ -213,6 +212,21 @@ where
     }
 }
 
+impl<T, N, P, const CAP: usize> StateSpaceManager<T, N, P, CAP>
+where
+    T: Transport + Clone,
+    N: Network,
+    P: Provider<T, N> + 'static,
+{
+    pub fn new_with_capacity(amms: Vec<AMM>, provider: Arc<P>) -> Self {
+        Self {
+            state: Arc::new(RwLock::new(amms.into())),
+            state_change_cache: Arc::new(RwLock::new(StateChangeCache::new())),
+            provider,
+            phantom: PhantomData,
+        }
+    }
+}
 #[derive(Debug, Clone)]
 pub struct StateChange {
     pub state_change: Vec<AMM>,
@@ -228,9 +242,9 @@ impl StateChange {
     }
 }
 
-pub async fn handle_state_changes_from_logs(
+pub async fn handle_state_changes_from_logs<const CAP: usize>(
     state: Arc<RwLock<StateSpace>>,
-    state_change_cache: Arc<RwLock<StateChangeCache>>,
+    state_change_cache: Arc<RwLock<StateChangeCache<CAP>>>,
     logs: Vec<Log>,
 ) -> Result<Vec<Address>, StateSpaceError> {
     // If there are no logs to process, return early
@@ -280,10 +294,10 @@ pub async fn handle_state_changes_from_logs(
 
 /// Commits state changes contained in `prev_state` to the state change cache
 /// and clears the `prev_state` vec
-async fn commit_state_changes(
+async fn commit_state_changes<const CAP: usize>(
     prev_state: &mut Vec<AMM>,
     block_number: u64,
-    state_change_cache: Arc<RwLock<StateChangeCache>>,
+    state_change_cache: Arc<RwLock<StateChangeCache<CAP>>>,
 ) {
     if !prev_state.is_empty() {
         let state_change = StateChange::new(prev_state.clone(), block_number);
@@ -297,9 +311,9 @@ async fn commit_state_changes(
 }
 
 /// Unwinds the state changes up to the specified block number
-async fn unwind_state_changes(
+async fn unwind_state_changes<const CAP: usize>(
     state: Arc<RwLock<StateSpace>>,
-    state_change_cache: Arc<RwLock<StateChangeCache>>,
+    state_change_cache: Arc<RwLock<StateChangeCache<CAP>>>,
     chain_head_block_number: u64,
 ) -> u64 {
     let updated_amms = state_change_cache

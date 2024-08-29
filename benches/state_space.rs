@@ -19,7 +19,7 @@ pub fn add_state_changes_benchmark(c: &mut Criterion) {
     // Benchmark adding state changes to the cache with setup
     c.bench_function("add state changes to cache with setup", |b| {
         b.iter_batched(
-            || StateChangeCache::new(),
+            || StateChangeCache::<150>::new(),
             |mut cache| {
                 for state_change in state_changes.clone() {
                     cache
