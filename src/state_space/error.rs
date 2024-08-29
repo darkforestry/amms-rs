@@ -2,6 +2,7 @@ use crate::errors::{AMMError, ArithmeticError, EventLogError};
 
 use alloy::{primitives::Address, rpc::types::eth::Block, transports::TransportError};
 
+use arraydeque::CapacityError;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -28,6 +29,8 @@ pub enum StateSpaceError {
     BlockNumberNotFound,
     #[error(transparent)]
     StateChangeSendError(#[from] tokio::sync::mpsc::error::SendError<Vec<Address>>),
+    #[error(transparent)]
+    CapacityError(#[from] CapacityError),
     #[error(transparent)]
     BlockSendError(#[from] tokio::sync::mpsc::error::SendError<Block>),
     #[error("Already listening for state changes")]
