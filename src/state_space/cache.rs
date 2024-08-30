@@ -7,12 +7,12 @@ use arraydeque::{ArrayDeque, CapacityError};
 
 #[derive(Debug)]
 
-pub struct StateChangeCache {
+pub struct StateChangeCache<const CAP: usize> {
     oldest_block: u64,
-    cache: ArrayDeque<StateChange, 150>,
+    cache: ArrayDeque<StateChange, CAP>,
 }
 
-impl StateChangeCache {
+impl<const CAP: usize> StateChangeCache<CAP> {
     pub fn new() -> Self {
         StateChangeCache {
             oldest_block: 0,
