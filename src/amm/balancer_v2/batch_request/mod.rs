@@ -118,7 +118,7 @@ where
     let return_data_tokens = constructor_return.abi_decode_sequence(&res)?;
 
     if let Some(tokens_arr) = return_data_tokens.as_array() {
-        for (i, token) in tokens_arr.into_iter().enumerate() {
+        for (i, token) in tokens_arr.iter().enumerate() {
             let pool_data = token
                 .as_tuple()
                 .ok_or(AMMError::BatchRequestError(amms[i].address()))?;

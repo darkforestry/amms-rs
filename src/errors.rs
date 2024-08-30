@@ -6,6 +6,8 @@ use thiserror::Error;
 use tokio::task::JoinError;
 use uniswap_v3_math::error::UniswapV3MathError;
 
+use crate::amm::balancer_v2::error::BMathError;
+
 #[derive(Error, Debug)]
 pub enum AMMError {
     #[error(transparent)]
@@ -100,6 +102,8 @@ pub enum SwapSimulationError {
     LiquidityUnderflow,
     #[error(transparent)]
     ArithmeticError(#[from] ArithmeticError),
+    #[error(transparent)]
+    BMathError(#[from] BMathError),
 }
 
 #[derive(Error, Debug)]

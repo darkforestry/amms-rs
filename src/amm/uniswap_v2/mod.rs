@@ -553,7 +553,7 @@ pub fn q64_to_f64(x: u128) -> f64 {
 
 #[cfg(test)]
 mod tests {
-    use std::{ops::Add, sync::Arc};
+    use std::sync::Arc;
 
     use alloy::{
         primitives::{address, Address, U256},

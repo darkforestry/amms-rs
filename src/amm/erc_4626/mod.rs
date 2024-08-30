@@ -306,7 +306,7 @@ impl ERC4626Vault {
 
 #[cfg(test)]
 mod tests {
-    use std::{ops::Add, sync::Arc};
+    use std::sync::Arc;
 
     use alloy::{
         primitives::{address, Address, U256},

@@ -11,7 +11,6 @@ use alloy::{
 
 use crate::{
     amm::{
-        balancer_v2::factory::BalancerV2Factory,
         factory::{AutomatedMarketMakerFactory, Factory},
         AutomatedMarketMaker, AMM,
     },

@@ -36,7 +36,6 @@ alloy = { version = "0.2", features = [
     "rpc-types-eth",
     "signer-local",
 ] }
-reqwest = "0.12"
 rug = "1.24.1"
 
 [features]
