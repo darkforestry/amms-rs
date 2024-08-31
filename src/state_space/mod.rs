@@ -93,7 +93,7 @@ where
             .values()
             .flat_map(|amm| amm.sync_on_event_signatures())
             .collect::<Vec<FixedBytes<32>>>();
-      
+
         Filter::new().event_signature(event_signatures)
     }
 
