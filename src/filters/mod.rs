@@ -1,4 +1,4 @@
-use crate::amm::AMM;
+use crate::amm::{AutomatedMarketMaker, AMM};
 
 pub mod address;
 pub mod value;
@@ -20,6 +20,11 @@ pub fn filter_empty_amms(amms: Vec<AMM>) -> Vec<AMM> {
             }
             AMM::ERC4626Vault(ref erc4626_vault) => {
                 if !erc4626_vault.vault_token.is_zero() && !erc4626_vault.asset_token.is_zero() {
+                    cleaned_amms.push(amm)
+                }
+            }
+            AMM::BalancerV2Pool(ref balancer_v2_pool) => {
+                if !balancer_v2_pool.tokens().is_empty() {
                     cleaned_amms.push(amm)
                 }
             }

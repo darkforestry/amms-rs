@@ -6,6 +6,8 @@ use thiserror::Error;
 use tokio::task::JoinError;
 use uniswap_v3_math::error::UniswapV3MathError;
 
+use crate::amm::balancer_v2::error::BMathError;
+
 #[derive(Error, Debug)]
 pub enum AMMError {
     #[error(transparent)]
@@ -72,6 +74,10 @@ pub enum ArithmeticError {
     U128ConversionError,
     #[error(transparent)]
     UniswapV3MathError(#[from] UniswapV3MathError),
+    #[error("base token does not exist in pool")]
+    BaseTokenDoesNotExist,
+    #[error("quote token does not exist in pool")]
+    QuoteTokenDoesNotExist,
 }
 
 #[derive(Error, Debug)]
@@ -94,6 +100,10 @@ pub enum SwapSimulationError {
     UniswapV3MathError(#[from] UniswapV3MathError),
     #[error("Liquidity underflow")]
     LiquidityUnderflow,
+    #[error(transparent)]
+    ArithmeticError(#[from] ArithmeticError),
+    #[error(transparent)]
+    BMathError(#[from] BMathError),
 }
 
 #[derive(Error, Debug)]
