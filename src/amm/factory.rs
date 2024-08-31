@@ -1,4 +1,7 @@
-use std::sync::Arc;
+use std::{
+    hash::{Hash, Hasher},
+    sync::Arc,
+};
 
 use alloy::{
     network::Network,
@@ -155,6 +158,20 @@ macro_rules! factory {
                 }
             }
         }
+
+        impl Hash for Factory {
+            fn hash<H: Hasher>(&self, state: &mut H) {
+                self.address().hash(state);
+            }
+        }
+
+        impl PartialEq for Factory {
+            fn eq(&self, other: &Self) -> bool {
+                self.address() == other.address()
+            }
+        }
+
+        impl Eq for Factory {}
     };
 }
 

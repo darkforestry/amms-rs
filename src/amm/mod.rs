@@ -5,7 +5,10 @@ pub mod factory;
 pub mod uniswap_v2;
 pub mod uniswap_v3;
 
-use std::sync::Arc;
+use std::{
+    hash::{Hash, Hasher},
+    sync::Arc,
+};
 
 use alloy::{
     network::Network,
@@ -166,6 +169,20 @@ macro_rules! amm {
                 }
             }
         }
+
+        impl Hash for AMM {
+            fn hash<H: Hasher>(&self, state: &mut H) {
+                self.address().hash(state);
+            }
+        }
+
+        impl PartialEq for AMM {
+            fn eq(&self, other: &Self) -> bool {
+                self.address() == other.address()
+            }
+        }
+
+        impl Eq for AMM {}
     };
 }
 

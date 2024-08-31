@@ -19,7 +19,6 @@ This lib provides functionality to [discover](https://github.com/darkforestry/am
 | UniswapV2 Pools | ✅     |
 | UniswapV3 Pools | ✅     |
 | ERC4626 Vaults  | ✅     |
-| Izumi Pools     | 🟨     |
+| Balancer Pools  | 🟨     |
 | Curve Pools     | ❌     |
-| Balancer Pools  | ❌     |
 | Bancor Pools    | ❌     |

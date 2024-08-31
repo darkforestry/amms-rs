@@ -2,7 +2,10 @@ use crate::errors::{AMMError, ArithmeticError, EventLogError};
 
 use alloy::{primitives::Address, rpc::types::eth::Block, transports::TransportError};
 
+use arraydeque::CapacityError;
 use thiserror::Error;
+
+use super::StateChange;
 
 #[derive(Error, Debug)]
 pub enum StateSpaceError {
@@ -24,28 +27,16 @@ pub enum StateSpaceError {
     InsufficientWalletFunds(),
     #[error(transparent)]
     EventLogError(#[from] EventLogError),
-    #[error(transparent)]
-    StateChangeError(#[from] StateChangeError),
     #[error("Block number not found")]
     BlockNumberNotFound,
     #[error(transparent)]
     StateChangeSendError(#[from] tokio::sync::mpsc::error::SendError<Vec<Address>>),
+    #[error(transparent)]
+    CapacityError(#[from] CapacityError<StateChange>),
     #[error(transparent)]
     BlockSendError(#[from] tokio::sync::mpsc::error::SendError<Block>),
     #[error("Already listening for state changes")]
     AlreadyListeningForStateChanges,
     #[error(transparent)]
     JoinError(#[from] tokio::task::JoinError),
-}
-
-#[derive(Error, Debug)]
-pub enum StateChangeError {
-    #[error("No state changes in cache")]
-    NoStateChangesInCache,
-    #[error("Error when removing a state change from the front of the deque")]
-    PopFrontError,
-    #[error("State change cache capacity error")]
-    CapacityError,
-    #[error(transparent)]
-    EventLogError(#[from] EventLogError),
 }
