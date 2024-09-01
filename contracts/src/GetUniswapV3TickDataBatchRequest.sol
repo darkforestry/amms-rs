@@ -13,7 +13,13 @@ contract GetUniswapV3TickDataBatchRequest {
     struct TickData {
         bool initialized;
         int24 tick;
+        uint128 liquidityGross;
         int128 liquidityNet;
+    }
+
+    struct TicksWithBlock {
+        TickData[] ticks;
+        uint256 blockNumber;
     }
 
     constructor(
@@ -40,7 +46,7 @@ contract GetUniswapV3TickDataBatchRequest {
                 );
 
             //Make sure the next tick is initialized
-            (, int128 liquidityNet, , , , , , ) = IUniswapV3PoolState(pool)
+            (uint128 liquidityGross, int128 liquidityNet, , , , , , ) = IUniswapV3PoolState(pool)
                 .ticks(nextTick);
 
             //Make sure not to overshoot the max/min tick
@@ -49,17 +55,20 @@ contract GetUniswapV3TickDataBatchRequest {
                 nextTick = MIN_TICK;
                 tickData[counter].initialized = initialized;
                 tickData[counter].tick = nextTick;
+                tickData[counter].liquidityGross = liquidityGross;
                 tickData[counter].liquidityNet = liquidityNet;
                 break;
             } else if (nextTick > MAX_TICK) {
                 nextTick = MIN_TICK;
                 tickData[counter].initialized = initialized;
                 tickData[counter].tick = nextTick;
+                tickData[counter].liquidityGross = liquidityGross;
                 tickData[counter].liquidityNet = liquidityNet;
                 break;
             } else {
                 tickData[counter].initialized = initialized;
                 tickData[counter].tick = nextTick;
+                tickData[counter].liquidityGross = liquidityGross;
                 tickData[counter].liquidityNet = liquidityNet;
             }
 
@@ -69,9 +78,14 @@ contract GetUniswapV3TickDataBatchRequest {
             currentTick = zeroForOne ? nextTick - 1 : nextTick;
         }
 
+        TicksWithBlock memory ticksWithBlock = TicksWithBlock({
+            ticks: tickData,
+            blockNumber: block.number
+        });
+
         // ensure abi encoding, not needed here but increase reusability for different return types
         // note: abi.encode add a first 32 bytes word with the address of the original data
-        bytes memory abiEncodedData = abi.encode(tickData, block.number);
+        bytes memory abiEncodedData = abi.encode(ticksWithBlock);
 
         assembly {
             // Return from the start of the data (discarding the original data address)
