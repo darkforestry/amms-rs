@@ -127,7 +127,7 @@ impl AutomatedMarketMakerFactory for UniswapV2Factory {
     {
         let pair_created_event = IUniswapV2Factory::PairCreated::decode_log(log.as_ref(), true)?;
         Ok(AMM::UniswapV2Pool(
-            UniswapV2Pool::new_from_address(pair_created_event.pair, self.fee, provider).await?,
+            UniswapV2Pool::new_from_address(pair_created_event.pair, log.address(), self.fee, provider).await?,
         ))
     }
 
@@ -136,6 +136,7 @@ impl AutomatedMarketMakerFactory for UniswapV2Factory {
 
         Ok(AMM::UniswapV2Pool(UniswapV2Pool {
             address: pair_created_event.pair,
+            factory_address: log.address(),
             token_a: pair_created_event.token0,
             token_b: pair_created_event.token1,
             token_a_decimals: 0,

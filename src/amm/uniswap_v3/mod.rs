@@ -51,6 +51,7 @@ sol! {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct UniswapV3Pool {
     pub address: Address,
+    pub factory_address: Address,
     pub token_a: Address,
     pub token_a_decimals: u8,
     pub token_b: Address,
@@ -454,6 +455,7 @@ impl UniswapV3Pool {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         address: Address,
+        factory_address: Address,
         token_a: Address,
         token_a_decimals: u8,
         token_b: Address,
@@ -468,6 +470,7 @@ impl UniswapV3Pool {
     ) -> UniswapV3Pool {
         UniswapV3Pool {
             address,
+            factory_address,
             token_a,
             token_a_decimals,
             token_b,
@@ -487,6 +490,7 @@ impl UniswapV3Pool {
     /// This function will populate all pool data.
     pub async fn new_from_address<T, N, P>(
         pair_address: Address,
+        factory_address: Address,
         creation_block: u64,
         provider: Arc<P>,
     ) -> Result<Self, AMMError>
@@ -497,6 +501,7 @@ impl UniswapV3Pool {
     {
         let mut pool = UniswapV3Pool {
             address: pair_address,
+            factory_address,
             token_a: Address::ZERO,
             token_a_decimals: 0,
             token_b: Address::ZERO,
@@ -543,7 +548,7 @@ impl UniswapV3Pool {
                 let pool_created_event =
                     IUniswapV3Factory::PoolCreated::decode_log(&log.inner, true)?;
 
-                UniswapV3Pool::new_from_address(pool_created_event.pool, block_number, provider)
+                UniswapV3Pool::new_from_address(pool_created_event.pool, log.address(), block_number, provider)
                     .await
             } else {
                 Err(EventLogError::LogBlockNumberNotFound)?
@@ -564,6 +569,7 @@ impl UniswapV3Pool {
 
             Ok(UniswapV3Pool {
                 address: pool_created_event.pool,
+                factory_address: log.address(),
                 token_a: pool_created_event.token0,
                 token_b: pool_created_event.token1,
                 token_a_decimals: 0,
@@ -1859,6 +1865,7 @@ mod test {
 
         let pool = UniswapV3Pool::new_from_address(
             address!("88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640"),
+            address!("1F98431c8aD98523631AE4a59f267346ea31F984"),
             12369620,
             provider.clone(),
         )
