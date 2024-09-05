@@ -3,6 +3,7 @@ use std::{sync::Arc, vec};
 use alloy::{
     dyn_abi::{DynSolType, DynSolValue},
     network::Network,
+    primitives::aliases::I24,
     providers::Provider,
     sol,
     transports::Transport,
@@ -123,9 +124,9 @@ where
         provider,
         pool.address,
         zero_for_one,
-        tick_start,
+        I24::unchecked_from(tick_start),
         num_ticks,
-        pool.tick_spacing,
+        I24::unchecked_from(pool.tick_spacing),
     );
     let res = if let Some(block_number) = block_number {
         deployer.block(block_number.into()).call_raw().await?

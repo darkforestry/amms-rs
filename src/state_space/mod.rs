@@ -8,10 +8,10 @@ use crate::{
     errors::EventLogError,
 };
 use alloy::{
-    network::Network,
+    network::{BlockResponse, HeaderResponse, Network},
     primitives::{Address, FixedBytes},
     providers::Provider,
-    rpc::types::eth::{Block, Filter, Log},
+    rpc::types::eth::{Filter, Log},
     transports::Transport,
 };
 use cache::StateChangeCache;
@@ -24,12 +24,11 @@ use std::{
     sync::Arc,
 };
 use tokio::{
-    sync::{
-        mpsc::{Receiver, Sender},
-        RwLock,
-    },
+    sync::{mpsc::Receiver, RwLock},
     task::JoinHandle,
 };
+
+use self::error::{BlockSendErrorWrapper, StateChangeSendErrorWrapper};
 
 // TODO: bench this with a dashmap
 #[derive(Debug)]
@@ -38,6 +37,12 @@ pub struct StateSpace(pub HashMap<Address, AMM>);
 impl StateSpace {
     pub fn new() -> Self {
         StateSpace(HashMap::new())
+    }
+}
+
+impl Default for StateSpace {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -105,9 +110,9 @@ where
     ) -> Result<
         (
             Receiver<Vec<Address>>,
-            Vec<JoinHandle<Result<(), StateSpaceError>>>,
+            Vec<JoinHandle<Result<(), StateSpaceError<N>>>>,
         ),
-        StateSpaceError,
+        StateSpaceError<N>,
     > {
         let (stream_rx, stream_handle) = self.subscribe_blocks_buffered(buffer).await;
 
@@ -121,19 +126,24 @@ where
     async fn subscribe_blocks_buffered(
         &self,
         buffer: usize,
-    ) -> (Receiver<Block>, JoinHandle<Result<(), StateSpaceError>>) {
-        let (stream_tx, stream_rx): (Sender<Block>, Receiver<Block>) =
-            tokio::sync::mpsc::channel(buffer);
+    ) -> (
+        Receiver<<N as alloy::providers::Network>::BlockResponse>,
+        JoinHandle<Result<(), StateSpaceError<N>>>,
+    ) {
+        let (stream_tx, stream_rx) = tokio::sync::mpsc::channel(buffer);
 
         let provider = self.provider.clone();
         let stream_handle = tokio::spawn(async move {
             let subscription = provider.subscribe_blocks().await?;
             let mut block_stream = subscription.into_stream();
             while let Some(block) = block_stream.next().await {
-                stream_tx.send(block).await?;
+                stream_tx
+                    .send(block)
+                    .await
+                    .map_err(BlockSendErrorWrapper::<N>)?;
             }
 
-            Ok::<(), StateSpaceError>(())
+            Ok::<(), StateSpaceError<N>>(())
         });
 
         (stream_rx, stream_handle)
@@ -142,11 +152,11 @@ where
     pub async fn subscribe_sync_amms(
         &self,
         mut latest_synced_block: u64,
-        mut stream_rx: Receiver<Block>,
+        mut stream_rx: Receiver<<N as alloy::providers::Network>::BlockResponse>,
         buffer: usize,
     ) -> (
         Receiver<Vec<Address>>,
-        JoinHandle<Result<(), StateSpaceError>>,
+        JoinHandle<Result<(), StateSpaceError<N>>>,
     ) {
         let state = self.state.clone();
         let provider = self.provider.clone();
@@ -155,13 +165,10 @@ where
 
         let (amms_updated_tx, amms_updated_rx) = tokio::sync::mpsc::channel(buffer);
 
-        let updated_amms_handle: JoinHandle<Result<(), StateSpaceError>> =
+        let updated_amms_handle: JoinHandle<Result<(), StateSpaceError<N>>> =
             tokio::spawn(async move {
                 while let Some(block) = stream_rx.recv().await {
-                    let chain_head_block_number = block
-                        .header
-                        .number
-                        .ok_or_else(|| StateSpaceError::BlockNumberNotFound)?;
+                    let chain_head_block_number = block.header().number();
 
                     // If the chain head block number <= latest synced block, a reorg has occurred
                     if chain_head_block_number <= latest_synced_block {
@@ -198,14 +205,17 @@ where
                         )
                         .await?;
 
-                        amms_updated_tx.send(amms_updated).await?;
+                        amms_updated_tx
+                            .send(amms_updated)
+                            .await
+                            .map_err(StateChangeSendErrorWrapper)?;
                     }
 
                     // Once all amms are synced, update the latest synced block
                     latest_synced_block = chain_head_block_number;
                 }
 
-                Ok::<(), StateSpaceError>(())
+                Ok::<(), StateSpaceError<N>>(())
             });
 
         (amms_updated_rx, updated_amms_handle)
@@ -242,11 +252,11 @@ impl StateChange {
     }
 }
 
-pub async fn handle_state_changes_from_logs<const CAP: usize>(
+pub async fn handle_state_changes_from_logs<const CAP: usize, N: Network>(
     state: Arc<RwLock<StateSpace>>,
     state_change_cache: Arc<RwLock<StateChangeCache<CAP>>>,
     logs: Vec<Log>,
-) -> Result<Vec<Address>, StateSpaceError> {
+) -> Result<Vec<Address>, StateSpaceError<N>> {
     // If there are no logs to process, return early
     let Some(log) = logs.first() else {
         return Ok(vec![]);
