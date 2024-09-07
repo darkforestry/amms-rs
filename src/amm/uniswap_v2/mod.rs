@@ -395,6 +395,14 @@ impl UniswapV2Pool {
         Ok(token1)
     }
 
+    pub fn get_token_out(&self, token_in: Address) -> Address {
+        if self.token_a == token_in {
+            self.token_b
+        } else {
+            self.token_a
+        }
+    }
+
     /// Calculates the price of the base token in terms of the quote token.
     ///
     /// Returned as a Q64 fixed point number.
