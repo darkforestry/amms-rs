@@ -212,7 +212,7 @@ where
         ))),
 
         AMM::ERC4626Vault(_) => None,
-        AMM::BalancerV2Pool(_) => None,
+        AMM::BalancerPool(_) => None,
     };
 
     // Spawn a new thread to get all pools and sync data for each dex
@@ -247,7 +247,7 @@ pub fn sort_amms(amms: Vec<AMM>) -> (Vec<AMM>, Vec<AMM>, Vec<AMM>, Vec<AMM>) {
             AMM::UniswapV2Pool(_) => uniswap_v2_pools.push(amm),
             AMM::UniswapV3Pool(_) => uniswap_v3_pools.push(amm),
             AMM::ERC4626Vault(_) => erc_4626_vaults.push(amm),
-            AMM::BalancerV2Pool(_) => balancer_v2_pools.push(amm),
+            AMM::BalancerPool(_) => balancer_v2_pools.push(amm),
         }
     }
 

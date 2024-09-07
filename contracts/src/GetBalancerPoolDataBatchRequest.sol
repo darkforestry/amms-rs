@@ -30,13 +30,18 @@ contract GetBalancerV2PoolDataBatchRequest {
 
         for (uint256 i = 0; i < pools.length; ++i) {
             address poolAddress = pools[i];
-
             if (codeSizeIsZero(poolAddress)) continue;
 
             PoolData memory poolData;
-
+            address[] memory tokens;
             // Get the tokens
-            address[] memory tokens = IBPool(poolAddress).getCurrentTokens();
+            try IBPool(poolAddress).getCurrentTokens() returns (
+                address[] memory _tokens
+            ) {
+                tokens = _tokens;
+            } catch {
+                continue;
+            }
             uint8[] memory decimals = new uint8[](tokens.length);
             uint256[] memory liquidity = new uint256[](tokens.length);
             uint256[] memory weights = new uint256[](tokens.length);
@@ -55,14 +60,29 @@ contract GetBalancerV2PoolDataBatchRequest {
                 } else {
                     decimals[j] = tokenDecimals;
                 }
-                weights[j] = IBPool(poolAddress).getDenormalizedWeight(
-                    tokens[j]
-                );
-                liquidity[j] = IBPool(poolAddress).getBalance(tokens[j]);
+                try
+                    IBPool(poolAddress).getDenormalizedWeight(tokens[j])
+                returns (uint256 weight) {
+                    weights[j] = weight;
+                } catch {
+                    continue;
+                }
+
+                try IBPool(poolAddress).getBalance(tokens[j]) returns (
+                    uint256 balance
+                ) {
+                    liquidity[j] = balance;
+                } catch {
+                    continue;
+                }
             }
 
             // Grab the swap fee
-            poolData.fee = uint32(IBPool(poolAddress).getSwapFee());
+            try IBPool(poolAddress).getSwapFee() returns (uint256 fee) {
+                poolData.fee = uint32(fee);
+            } catch {
+                continue;
+            }
             poolData.tokens = tokens;
             poolData.decimals = decimals;
             poolData.liquidity = liquidity;

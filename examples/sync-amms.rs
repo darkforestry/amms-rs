@@ -4,8 +4,8 @@ use alloy::{primitives::address, providers::ProviderBuilder};
 
 use amms::{
     amm::{
-        factory::Factory, uniswap_v2::factory::UniswapV2Factory,
-        uniswap_v3::factory::UniswapV3Factory,
+        balancer::factory::BalancerFactory, factory::Factory,
+        uniswap_v2::factory::UniswapV2Factory, uniswap_v3::factory::UniswapV3Factory,
     },
     sync,
 };
@@ -19,6 +19,11 @@ async fn main() -> eyre::Result<()> {
     let provider = Arc::new(ProviderBuilder::new().on_http(rpc_endpoint.parse()?));
 
     let factories = vec![
+        // Add Balancer
+        Factory::BalancerFactory(BalancerFactory {
+            address: address!("9424B1412450D0f8Fc2255FAf6046b98213B76Bd"),
+            creation_block: 9562480,
+        }),
         // Add UniswapV2
         Factory::UniswapV2Factory(UniswapV2Factory::new(
             address!("5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f"),
@@ -34,12 +39,12 @@ async fn main() -> eyre::Result<()> {
         // Add UniswapV3
         Factory::UniswapV3Factory(UniswapV3Factory::new(
             address!("1F98431c8aD98523631AE4a59f267346ea31F984"),
-            185,
+            12369621,
         )),
     ];
 
     // Sync pairs
-    sync::sync_amms(factories, provider, None, 500).await?;
+    sync::sync_amms(factories, provider, None, 10000000).await?;
 
     Ok(())
 }
