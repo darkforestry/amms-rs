@@ -12,6 +12,12 @@ pub struct StateChangeCache<const CAP: usize> {
     cache: ArrayDeque<StateChange, CAP>,
 }
 
+impl<const CAP: usize> Default for StateChangeCache<CAP> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<const CAP: usize> StateChangeCache<CAP> {
     pub fn new() -> Self {
         StateChangeCache {
