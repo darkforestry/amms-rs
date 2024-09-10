@@ -1034,6 +1034,15 @@ impl UniswapV3Pool {
 
         Ok(token_1)
     }
+
+    pub fn get_token_out(&self, token_in: Address) -> Address {
+        if self.token_a == token_in {
+            self.token_b
+        } else {
+            self.token_a
+        }
+    }
+
     /* Legend:
        sqrt(price) = sqrt(y/x)
        L = sqrt(x*y)
