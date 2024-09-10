@@ -23,7 +23,7 @@ pub fn filter_empty_amms(amms: Vec<AMM>) -> Vec<AMM> {
                     cleaned_amms.push(amm)
                 }
             }
-            AMM::BalancerV2Pool(ref balancer_v2_pool) => {
+            AMM::BalancerPool(ref balancer_v2_pool) => {
                 if !balancer_v2_pool.tokens().is_empty() {
                     cleaned_amms.push(amm)
                 }

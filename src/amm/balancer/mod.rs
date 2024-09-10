@@ -53,7 +53,7 @@ sol! {
 }
 
 #[derive(Default, Debug, Serialize, Deserialize, Clone)]
-pub struct BalancerV2Pool {
+pub struct BalancerPool {
     /// The Pool Address.
     address: Address,
     /// The Pool Tokens.
@@ -69,7 +69,7 @@ pub struct BalancerV2Pool {
 }
 
 #[async_trait]
-impl AutomatedMarketMaker for BalancerV2Pool {
+impl AutomatedMarketMaker for BalancerPool {
     /// Returns the address of the AMM.
     fn address(&self) -> Address {
         self.address
@@ -300,11 +300,14 @@ mod tests {
         providers::ProviderBuilder,
     };
 
-    use crate::amm::{balancer_v2::IBPool::IBPoolInstance, AutomatedMarketMaker};
+    use crate::amm::{
+        balancer::{BalancerPool, IBPool::IBPoolInstance},
+        AutomatedMarketMaker,
+    };
 
     #[tokio::test]
     pub async fn test_populate_data() {
-        let mut balancer_v2_pool = super::BalancerV2Pool {
+        let mut balancer_v2_pool = BalancerPool {
             address: address!("8a649274E4d777FFC6851F13d23A86BBFA2f2Fbf"),
             ..Default::default()
         };
@@ -339,7 +342,7 @@ mod tests {
         let provider = Arc::new(
             ProviderBuilder::new().on_http(env!("ETHEREUM_RPC_ENDPOINT").parse().unwrap()),
         );
-        let mut balancer_v2_pool = super::BalancerV2Pool {
+        let mut balancer_v2_pool = BalancerPool {
             address: address!("8a649274E4d777FFC6851F13d23A86BBFA2f2Fbf"),
             ..Default::default()
         };
@@ -363,7 +366,7 @@ mod tests {
         let provider = Arc::new(
             ProviderBuilder::new().on_http(env!("ETHEREUM_RPC_ENDPOINT").parse().unwrap()),
         );
-        let mut balancer_v2_pool = super::BalancerV2Pool {
+        let mut balancer_v2_pool = BalancerPool {
             address: address!("8a649274E4d777FFC6851F13d23A86BBFA2f2Fbf"),
             ..Default::default()
         };

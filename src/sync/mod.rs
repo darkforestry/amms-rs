@@ -155,7 +155,7 @@ where
                 }
             }
 
-            AMM::BalancerV2Pool(_) => {
+            AMM::BalancerPool(_) => {
                 for amm in amms {
                     amm.populate_data(None, provider.clone()).await?;
                 }

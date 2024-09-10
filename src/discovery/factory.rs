@@ -11,7 +11,7 @@ use alloy::{
 
 use crate::{
     amm::{
-        balancer_v2::factory::IBFactory, factory::Factory, uniswap_v2::factory::IUniswapV2Factory,
+        balancer::factory::IBFactory, factory::Factory, uniswap_v2::factory::IUniswapV2Factory,
         uniswap_v3::factory::IUniswapV3Factory,
     },
     errors::AMMError,
@@ -20,7 +20,7 @@ use crate::{
 pub enum DiscoverableFactory {
     UniswapV2Factory,
     UniswapV3Factory,
-    BalancerV2Factory,
+    BalancerFactory,
 }
 
 impl DiscoverableFactory {
@@ -28,7 +28,7 @@ impl DiscoverableFactory {
         match self {
             DiscoverableFactory::UniswapV2Factory => IUniswapV2Factory::PairCreated::SIGNATURE_HASH,
             DiscoverableFactory::UniswapV3Factory => IUniswapV3Factory::PoolCreated::SIGNATURE_HASH,
-            DiscoverableFactory::BalancerV2Factory => IBFactory::LOG_NEW_POOL::SIGNATURE_HASH,
+            DiscoverableFactory::BalancerFactory => IBFactory::LOG_NEW_POOL::SIGNATURE_HASH,
         }
     }
 }
@@ -94,7 +94,7 @@ where
                         uniswap_v3_factory.creation_block =
                             log.block_number.ok_or(AMMError::BlockNumberNotFound)?;
                     }
-                    Factory::BalancerV2Factory(balancer_v2_factory) => {
+                    Factory::BalancerFactory(balancer_v2_factory) => {
                         balancer_v2_factory.address = log.address();
                         balancer_v2_factory.creation_block =
                             log.block_number.ok_or(AMMError::BlockNumberNotFound)?;
