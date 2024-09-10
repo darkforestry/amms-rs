@@ -1,0 +1,9 @@
+[profile.default]
+optimizer = false
+evm_version = "cancun"
+
+remappings = [
+   "forge-std=lib/forge-std/src/",
+]
+
+# See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options

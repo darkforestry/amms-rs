@@ -1,0 +1,64 @@
+[package]
+name = "pamms"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "A library to interact with automated market makers across EVM chains."
+readme = "README.md"
+homepage = "https://github.com/darkforestry/amms-rs"
+repository = "https://github.com/darkforestry/amms-rs"
+keywords = ["ethereum", "amm", "mev"]
+exclude = ["target/*", ".github/*", ".gitignore"]
+
+[dependencies]
+arraydeque = { version = "0.5", optional = true }
+# artemis-core = { git = "https://github.com/paradigmxyz/artemis.git", branch = "main", optional = true }
+eyre = "0.6"
+futures = "0.3"
+lazy_static = "1.5"
+num-bigfloat = "1.7"
+regex = "1.10"
+serde = "1.0"
+serde_json = "1.0"
+thiserror = "1.0"
+tokio = { version = "1.38", default-features = false }
+tracing = "0.1"
+uniswap_v3_math = "0.5.1"
+alloy = { version = "0.2", features = [
+    "contract",
+    "network",
+    "provider-ws",
+    "rpc-types-eth",
+    "signer-local",
+] }
+
+rug = "1.24.1"
+
+[features]
+default = ["state-space"]
+state-space = ["arraydeque"]
+# TODO: Uncomment this when artemis is published as a crate
+# artemis = ["artemis-core"] 
+artemis = []
+
+[dev-dependencies]
+rand = "0.8.5"
+tracing-subscriber = "0.3"
+criterion = "0.5"
+tokio = { version = "1.38", default-features = false, features = [
+    "rt-multi-thread",
+] }
+alloy = { version = "0.2", features = ["rpc-client"] }
+
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+
+[profile.dev]
+opt-level = 3
+lto = true
+codegen-units = 1
+debug = "full"

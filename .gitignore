@@ -1,0 +1,22 @@
+/target
+Cargo.lock
+
+# Foundry 
+
+# Compiler files
+contracts/cache/
+contracts/out/
+
+# Ignores development broadcast logs
+!/broadcast
+/broadcast/*/31337/
+/broadcast/**/dry-run/
+
+# Dotenv file
+*.env
+
+# Temp checkpoint
+*.temp-checkpoint.json
+
+# intellij 
+*.idea/
