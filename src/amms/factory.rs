@@ -16,8 +16,10 @@ use serde::{Deserialize, Serialize};
 
 use super::error::AMMError;
 
+use super::uniswap_v2::UniswapV2Factory;
+
 //TODO: add consts for steps, batch size, etc.
-pub trait AutomatedMarketMakerFactory {
+pub trait AutomatedMarketMakerFactory: Into<Factory> {
     //TODO: GAT for AMM
 
     /// Returns the address of the factory.
@@ -68,4 +70,4 @@ macro_rules! factory {
     };
 }
 
-// factory!(UniswapV2Factory);
+factory!(UniswapV2Factory);
