@@ -16,6 +16,7 @@ pub const CACHE_SIZE: usize = 30;
 pub struct StateSpaceManager<T, N, P> {
     pub provider: Arc<P>,
     pub factories: Vec<Factory>,
+    // TODO: think about making the state space a trait, so we can have different implementations and bench whatever is best?
     pub state: Arc<RwLock<StateSpace>>,
     // NOTE: explore more efficient rw locks
     state_change_cache: Arc<RwLock<StateChangeCache<CACHE_SIZE>>>,
@@ -24,6 +25,7 @@ pub struct StateSpaceManager<T, N, P> {
     discovery_manager: DiscoveryManager,
     // TODO: add support for caching
     phantom: PhantomData<(T, N)>,
+    // TODO: think about making cache trait then we could experiment with different implementations
 }
 
 // NOTE: Drop impl, create a checkpoint
