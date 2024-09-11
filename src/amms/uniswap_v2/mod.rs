@@ -1,4 +1,8 @@
-use super::{amm::AutomatedMarketMaker, error::AMMError};
+use super::{
+    amm::AutomatedMarketMaker,
+    error::AMMError,
+    factory::{AutomatedMarketMakerFactory, Factory},
+};
 
 use alloy::{
     network::Network,
@@ -66,5 +70,36 @@ impl AutomatedMarketMaker for UniswapV2Pool {
 
     fn calculate_price(&self, base_token: Address, quote_token: Address) -> Result<f64, AMMError> {
         todo!()
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Hash, PartialEq, Eq)]
+pub struct UniswapV2Factory {
+    pub address: Address,
+    pub creation_block: u64,
+}
+
+impl UniswapV2Factory {
+    pub fn new(address: Address, creation_block: u64) -> Self {
+        Self {
+            address,
+            creation_block,
+        }
+    }
+}
+
+impl Into<Factory> for UniswapV2Factory {
+    fn into(self) -> Factory {
+        Factory::UniswapV2Factory(self)
+    }
+}
+
+impl AutomatedMarketMakerFactory for UniswapV2Factory {
+    fn address(&self) -> Address {
+        self.address
+    }
+
+    fn creation_block(&self) -> u64 {
+        self.creation_block
     }
 }
