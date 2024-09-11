@@ -26,6 +26,8 @@ pub struct StateSpaceManager<T, N, P> {
     phantom: PhantomData<(T, N)>,
 }
 
+// NOTE: Drop impl, create a checkpoint
+
 #[derive(Debug, Default)]
 pub struct StateSpaceBuilder<T, N, P> {
     pub provider: Arc<P>,
