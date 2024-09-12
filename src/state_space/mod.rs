@@ -32,6 +32,7 @@ pub struct StateSpaceManager<T, N, P> {
 
 #[derive(Debug, Default)]
 pub struct StateSpaceBuilder<T, N, P> {
+    // TODO: do we want to add optional amms? for example, if someone wants to sync specific pools but does not care about discovering pools.
     pub provider: Arc<P>,
     pub latest_block: u64,
     pub factories: Vec<Factory>,

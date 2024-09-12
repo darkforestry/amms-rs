@@ -19,16 +19,6 @@ pub trait AutomatedMarketMaker {
     /// Returns the address of the AMM.
     fn address(&self) -> Address;
 
-    // TODO: need some way to keep in sync, maybe sync from log, maybe more elegant
-    fn sync<T, N, P>(
-        &mut self,
-        provider: Arc<P>,
-    ) -> impl Future<Output = Result<(), AMMError>> + Send
-    where
-        T: Transport + Clone,
-        N: Network,
-        P: Provider<T, N>;
-
     // TODO: rename or rethink
     // NOTE: we should rethink how we are handling event signatures.
     // Ideally, the state space manager is able to know what it needs for discovery and sync signatures (discovery related to the factory). Revisit
@@ -73,17 +63,6 @@ macro_rules! amm {
             fn address(&self) -> Address{
                 match self {
                     $(AMM::$pool_type(pool) => pool.address(),)+
-                }
-            }
-
-            async fn sync<T, N, P>(&mut self, middleware: Arc<P>) -> Result<(), AMMError>
-            where
-                T: Transport + Clone,
-                N: Network,
-                P: Provider<T, N>,
-            {
-                match self {
-                    $(AMM::$pool_type(pool) => pool.sync(middleware).await,)+
                 }
             }
 

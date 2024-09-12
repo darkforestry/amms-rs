@@ -33,15 +33,6 @@ impl AutomatedMarketMaker for UniswapV2Pool {
         self.address
     }
 
-    async fn sync<T, N, P>(&mut self, middleware: Arc<P>) -> Result<(), AMMError>
-    where
-        T: Transport + Clone,
-        N: Network,
-        P: Provider<T, N>,
-    {
-        todo!()
-    }
-
     fn sync_signatures(&self) -> Vec<B256> {
         todo!()
     }
