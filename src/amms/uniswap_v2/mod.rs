@@ -65,7 +65,7 @@ impl AutomatedMarketMaker for UniswapV2Pool {
     }
 
     fn tokens(&self) -> Vec<Address> {
-        todo!()
+        vec![self.token_a, self.token_b]
     }
 
     fn calculate_price(&self, base_token: Address, quote_token: Address) -> Result<f64, AMMError> {
