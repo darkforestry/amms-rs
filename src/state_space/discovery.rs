@@ -1,14 +1,15 @@
 use crate::amms::factory::Factory;
 
+use super::filters::Filter;
+
 #[derive(Debug, Default)]
 pub struct DiscoveryManager {
     pub factories: Vec<Factory>,
-    // NOTE: this is the list of filters each discovered pool will go through
-    // pub filters: Vec<Filter>,
+    pub filters: Vec<Filter>,
 }
 
 impl DiscoveryManager {
-    pub fn new(factories: Vec<Factory>) -> Self {
-        Self { factories }
+    pub fn new(factories: Vec<Factory>, filters: Vec<Filter>) -> Self {
+        Self { factories, filters }
     }
 }

@@ -11,19 +11,10 @@ keywords = ["ethereum", "amm", "mev"]
 exclude = ["target/*", ".github/*", ".gitignore"]
 
 [dependencies]
-arraydeque = { version = "0.5", optional = true }
-# artemis-core = { git = "https://github.com/paradigmxyz/artemis.git", branch = "main", optional = true }
-eyre = "0.6"
-futures = "0.3"
-lazy_static = "1.5"
-num-bigfloat = "1.7"
-regex = "1.10"
-serde = "1.0"
-serde_json = "1.0"
-thiserror = "1.0"
-tokio = { version = "1.38", default-features = false }
-tracing = "0.1"
+# darkforest
 uniswap_v3_math = "0.5.1"
+
+# alloy
 alloy = { version = "0.2", features = [
     "contract",
     "network",
@@ -32,6 +23,25 @@ alloy = { version = "0.2", features = [
     "signer-local",
 ] }
 
+# tracing
+eyre = "0.6"
+tracing = "0.1"
+
+# async
+tokio = { version = "1.38", default-features = false }
+futures = "0.3"
+
+# serde
+serde = "1.0"
+serde_json = "1.0"
+
+# misc
+arraydeque = { version = "0.5", optional = true }
+# artemis-core = { git = "https://github.com/paradigmxyz/artemis.git", branch = "main", optional = true }
+lazy_static = "1.5"
+num-bigfloat = "1.7"
+regex = "1.10"
+thiserror = "1.0"
 rug = "1.24.1"
 
 [features]

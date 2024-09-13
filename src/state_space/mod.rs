@@ -89,7 +89,7 @@ where
             state: Arc::new(RwLock::new(StateSpace::default())),
             state_change_cache: Arc::new(RwLock::new(StateChangeCache::new())),
             factories: self.factories.clone(),
-            discovery_manager: DiscoveryManager::new(self.factories),
+            discovery_manager: DiscoveryManager::new(self.factories, vec![]),
             phantom: PhantomData,
         }
     }
