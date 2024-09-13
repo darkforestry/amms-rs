@@ -1,10 +1,10 @@
-mod filter;
-pub use filter::{AmmFilter, Filter};
+pub mod filter;
+pub use filter::{AMMFilter, Filter};
 
-mod blacklist;
+pub mod blacklist;
 pub use blacklist::BlacklistFilter;
 
-mod whitelist;
+pub mod whitelist;
 pub use whitelist::WhitelistFilter;
 
 mod value;

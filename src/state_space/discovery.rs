@@ -9,7 +9,14 @@ pub struct DiscoveryManager {
 }
 
 impl DiscoveryManager {
-    pub fn new(factories: Vec<Factory>, filters: Vec<Filter>) -> Self {
-        Self { factories, filters }
+    pub fn new(factories: Vec<Factory>) -> Self {
+        Self {
+            factories,
+            ..Default::default()
+        }
+    }
+
+    pub fn with_filters(self, filters: Vec<Filter>) -> Self {
+        Self { filters, ..self }
     }
 }

@@ -2,7 +2,7 @@ use alloy::primitives::Address;
 
 use crate::amms::amm::{AutomatedMarketMaker, AMM};
 
-use super::filter::AmmFilter;
+use super::filter::AMMFilter;
 
 #[derive(Debug, Clone)]
 pub struct BlacklistFilter {
@@ -16,7 +16,7 @@ impl BlacklistFilter {
     }
 }
 
-impl AmmFilter for BlacklistFilter {
+impl AMMFilter for BlacklistFilter {
     /// Filter for any AMMs or tokens not in the blacklist
     fn filter(&self, amms: Vec<AMM>) -> Vec<AMM> {
         amms.into_iter()
