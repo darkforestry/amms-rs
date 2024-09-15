@@ -62,7 +62,7 @@ contract WethValueInPoolsTest is Test {
         WethValueInPools.PoolInfoReturn[] memory pools = wethValueInPools
             .getWethValueInPools(testFixtureValidNoWeth);
         assertEq(pools.length, 3);
-        // Check weth value = 0
+        // Check weth value > 0
         assertGt(pools[0].wethValue, 0);
         assertGt(pools[1].wethValue, 0);
         assertGt(pools[2].wethValue, 0);
