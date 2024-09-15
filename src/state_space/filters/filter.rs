@@ -1,9 +1,11 @@
+use eyre::Result;
+
 use crate::amms::amm::AMM;
 use crate::state_space::filters::BlacklistFilter;
 use crate::state_space::filters::WhitelistFilter;
 
 pub trait AMMFilter {
-    fn filter(&self, amms: Vec<AMM>) -> Vec<AMM>;
+    fn filter(&self, amms: Vec<AMM>) -> Result<Vec<AMM>>;
 }
 
 macro_rules! filter {
@@ -14,7 +16,7 @@ macro_rules! filter {
         }
 
         impl AMMFilter for Filter {
-            fn filter(&self, amms: Vec<AMM>) -> Vec<AMM> {
+            fn filter(&self, amms: Vec<AMM>) -> Result<Vec<AMM>> {
                 match self {
                     $(Filter::$filter_type(filter) => filter.filter(amms),)+
                 }

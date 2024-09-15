@@ -6,4 +6,6 @@ remappings = [
    "forge-std=lib/forge-std/src/",
 ]
 
+fork_url = "http://192.168.0.5:8545"
+
 

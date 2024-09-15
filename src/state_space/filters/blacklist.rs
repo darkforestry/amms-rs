@@ -1,4 +1,5 @@
 use alloy::primitives::Address;
+use eyre::Result;
 
 use crate::amms::amm::{AutomatedMarketMaker, AMM};
 
@@ -18,12 +19,13 @@ impl BlacklistFilter {
 
 impl AMMFilter for BlacklistFilter {
     /// Filter for any AMMs or tokens not in the blacklist
-    fn filter(&self, amms: Vec<AMM>) -> Vec<AMM> {
-        amms.into_iter()
+    fn filter(&self, amms: Vec<AMM>) -> Result<Vec<AMM>> {
+        Ok(amms
+            .into_iter()
             .filter(|amm| {
                 !self.blacklist.contains(&amm.address())
                     && amm.tokens().iter().all(|t| !self.blacklist.contains(t))
             })
-            .collect()
+            .collect())
     }
 }

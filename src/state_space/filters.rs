@@ -7,4 +7,5 @@ pub use blacklist::BlacklistFilter;
 pub mod whitelist;
 pub use whitelist::WhitelistFilter;
 
-mod value;
+pub mod value;
+pub use value::ValueFilter;
