@@ -14,8 +14,7 @@ library FixedPointMath {
                 return 0;
             }
 
-            uint256 lo = (uint256(x) *
-                (y & 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF)) >> 64;
+            uint256 lo = (uint256(x) * (y & 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF)) >> 64;
             uint256 hi = uint256(x) * (y >> 128);
 
             if (hi > 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF) {
@@ -23,11 +22,7 @@ library FixedPointMath {
             }
             hi <<= 64;
 
-            if (
-                hi >
-                0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -
-                    lo
-            ) {
+            if (hi > 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff - lo) {
                 return 0;
             }
             return hi + lo;
@@ -111,31 +106,29 @@ library FixedPointMath {
         }
     }
 
-    function fromSqrtX96(
-        uint160 sqrtPriceX96,
-        bool token0IsReserve0,
-        int8 token0Decimals,
-        int8 token1Decimals
-    ) internal pure returns (uint256 priceX128) {
+    function fromSqrtX96(uint160 sqrtPriceX96, bool token0IsReserve0, int8 token0Decimals, int8 token1Decimals)
+        internal
+        pure
+        returns (uint256 priceX128)
+    {
         unchecked {
             ///@notice Cache the difference between the input and output token decimals. p=y/x ==> p*10**(x_decimals-y_decimals)>>Q192 will be the proper price in base 10.
             int8 decimalShift = token0Decimals - token1Decimals;
             ///@notice Square the sqrtPrice ratio and normalize the value based on decimalShift.
             uint256 priceSquaredX96 = decimalShift < 0
-                ? uint256(sqrtPriceX96) ** 2 /
-                    uint256(10) ** (uint8(-decimalShift))
+                ? uint256(sqrtPriceX96) ** 2 / uint256(10) ** (uint8(-decimalShift))
                 : uint256(sqrtPriceX96) ** 2 * 10 ** uint8(decimalShift);
-
+            if (Q96 > priceSquaredX96) {
+                return 0;
+            }
             ///@notice The first value is a Q96 representation of p_token0, the second is 128X fixed point representation of p_token1.
             uint256 priceSquaredShiftQ96 = token0IsReserve0
                 ? priceSquaredX96 / Q96
-                : (Q96 * 0xffffffffffffffffffffffffffffffff) /
-                    (priceSquaredX96 / Q96);
+                : (Q96 * 0xffffffffffffffffffffffffffffffff) / (priceSquaredX96 / Q96);
 
             ///@notice Convert the first value to 128X fixed point by shifting it left 128 bits and normalizing the value by Q96.
             priceX128 = token0IsReserve0
-                ? (uint256(priceSquaredShiftQ96) *
-                    0xffffffffffffffffffffffffffffffff) / Q96
+                ? (uint256(priceSquaredShiftQ96) * 0xffffffffffffffffffffffffffffffff) / Q96
                 : priceSquaredShiftQ96;
 
             if (priceX128 > type(uint256).max) {

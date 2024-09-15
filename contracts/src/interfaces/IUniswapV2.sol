@@ -11,4 +11,3 @@ interface IUniswapV2Factory {
     function allPairs(uint256 idx) external returns (address);
     function getPair(address tokenA, address tokenB) external view returns (address pair);
 }
-
