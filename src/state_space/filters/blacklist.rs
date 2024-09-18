@@ -1,4 +1,5 @@
 use alloy::primitives::Address;
+use async_trait::async_trait;
 use eyre::Result;
 
 use crate::amms::amm::{AutomatedMarketMaker, AMM};
@@ -17,9 +18,10 @@ impl BlacklistFilter {
     }
 }
 
+#[async_trait]
 impl AMMFilter for BlacklistFilter {
     /// Filter for any AMMs or tokens not in the blacklist
-    fn filter(&self, amms: Vec<AMM>) -> Result<Vec<AMM>> {
+    async fn filter(&self, amms: Vec<AMM>) -> Result<Vec<AMM>> {
         Ok(amms
             .into_iter()
             .filter(|amm| {
