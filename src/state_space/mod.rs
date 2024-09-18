@@ -103,6 +103,10 @@ where
             None
         };
 
+        // TODO: sync from logs for all factories
+        // TODO: implement a batch contract for getting all token decimals
+        // TODO: if discovery is enabled, pass this hashmap of seen tokens to discovery?
+
         StateSpaceManager {
             provider: self.provider,
             latest_block: self.latest_block,
