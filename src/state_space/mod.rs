@@ -15,14 +15,13 @@ pub const CACHE_SIZE: usize = 30;
 
 pub struct StateSpaceManager<T, N, P> {
     pub provider: Arc<P>,
-    pub factories: Vec<Factory>,
     // TODO: think about making the state space a trait, so we can have different implementations and bench whatever is best?
     pub state: Arc<RwLock<StateSpace>>,
     // NOTE: explore more efficient rw locks
     state_change_cache: Arc<RwLock<StateChangeCache<CACHE_SIZE>>>,
     // NOTE: does this need to be atomic u64?
     latest_block: u64,
-    discovery_manager: DiscoveryManager,
+    discovery_manager: Option<DiscoveryManager>,
     // TODO: add support for caching
     phantom: PhantomData<(T, N)>,
     // TODO: think about making cache trait then we could experiment with different implementations
@@ -35,7 +34,8 @@ pub struct StateSpaceBuilder<T, N, P> {
     // TODO: do we want to add optional amms? for example, if someone wants to sync specific pools but does not care about discovering pools.
     pub provider: Arc<P>,
     pub latest_block: u64,
-    pub factories: Vec<Factory>,
+    pub factories: Option<Vec<Factory>>,
+    pub amms: Option<Vec<AMM>>,
     // NOTE: this is the list of filters each discovered pool will go through
     // pub filters: Vec<Filter>,
     pub discovery: bool,
@@ -54,7 +54,8 @@ where
         Self {
             provider,
             latest_block: 0,
-            factories: vec![],
+            factories: None,
+            amms: None,
             discovery: false,
             phantom: PhantomData,
         }
@@ -68,9 +69,18 @@ where
     }
 
     pub fn with_factories(self, factories: Vec<Factory>) -> StateSpaceBuilder<T, N, P> {
-        StateSpaceBuilder { factories, ..self }
+        StateSpaceBuilder {
+            factories: Some(factories),
+            ..self
+        }
     }
 
+    pub fn with_amms(self, amms: Vec<AMM>) -> StateSpaceBuilder<T, N, P> {
+        StateSpaceBuilder {
+            amms: Some(amms),
+            ..self
+        }
+    }
     // pub fn with_filters(self, filters: Vec<Filter>) -> StateSpaceBuilder<T, N, P> {
     //     StateSpaceBuilder { filters, ..self }
     // }
@@ -83,13 +93,22 @@ where
     }
 
     pub async fn sync(self) -> StateSpaceManager<T, N, P> {
+        let discovery_manager = if let Some(factories) = self.factories {
+            if self.discovery {
+                Some(DiscoveryManager::new(factories))
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
         StateSpaceManager {
             provider: self.provider,
             latest_block: self.latest_block,
             state: Arc::new(RwLock::new(StateSpace::default())),
             state_change_cache: Arc::new(RwLock::new(StateChangeCache::new())),
-            factories: self.factories.clone(),
-            discovery_manager: DiscoveryManager::new(self.factories),
+            discovery_manager,
             phantom: PhantomData,
         }
     }
