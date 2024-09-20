@@ -8,6 +8,7 @@ use alloy::{
     network::Network,
     primitives::{Address, B256, U256},
     providers::Provider,
+    rpc::types::Filter,
     transports::Transport,
 };
 use serde::{Deserialize, Serialize};
@@ -88,6 +89,10 @@ impl Into<Factory> for UniswapV2Factory {
 impl AutomatedMarketMakerFactory for UniswapV2Factory {
     fn address(&self) -> Address {
         self.address
+    }
+
+    fn discovery_events(&self) -> Vec<B256> {
+        todo!()
     }
 
     fn creation_block(&self) -> u64 {

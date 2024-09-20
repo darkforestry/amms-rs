@@ -1,11 +1,15 @@
-use crate::amms::factory::Factory;
+use std::collections::HashSet;
+
+use alloy::rpc::types::FilterSet;
+
+use crate::amms::factory::{AutomatedMarketMakerFactory, Factory};
 
 use super::filters::Filter;
 
 #[derive(Debug, Default)]
 pub struct DiscoveryManager {
     pub factories: Vec<Factory>,
-    pub filters: Vec<Filter>,
+    pub filters: Option<Vec<Filter>>,
 }
 
 impl DiscoveryManager {
@@ -17,6 +21,7 @@ impl DiscoveryManager {
     }
 
     pub fn with_filters(self, filters: Vec<Filter>) -> Self {
+        let filters = Some(filters);
         Self { filters, ..self }
     }
 }

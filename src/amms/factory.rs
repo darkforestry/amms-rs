@@ -29,6 +29,10 @@ pub trait AutomatedMarketMakerFactory: Into<Factory> {
 
     /// Returns the block number at which the factory was created.
     fn creation_block(&self) -> u64;
+
+    fn discovery_events(&self) -> Vec<B256>;
+
+    // TODO: new_pool (empty pool from log), need to think through the best way to get decimals
 }
 
 macro_rules! factory {
@@ -45,7 +49,11 @@ macro_rules! factory {
                 }
             }
 
-            // TODO: event sig
+            fn discovery_events(&self) -> Vec<B256> {
+                match self {
+                    $(Factory::$factory_type(factory) => factory.discovery_events(),)+
+                }
+            }
 
             fn creation_block(&self) -> u64 {
                 match self {

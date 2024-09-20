@@ -4,12 +4,18 @@ pub mod filters;
 
 use std::{collections::HashMap, marker::PhantomData, sync::Arc};
 
-use alloy::{network::Network, primitives::Address, providers::Provider, transports::Transport};
+use crate::amms::amm::AMM;
+use crate::amms::factory::AutomatedMarketMakerFactory;
+use crate::amms::factory::Factory;
+use alloy::rpc::types::FilterSet;
+use alloy::{
+    network::Network, primitives::Address, providers::Provider, rpc::types::Filter,
+    transports::Transport,
+};
 use cache::StateChangeCache;
 use discovery::DiscoveryManager;
+use std::collections::HashSet;
 use tokio::sync::RwLock;
-
-use crate::amms::{amm::AMM, factory::Factory};
 
 pub const CACHE_SIZE: usize = 30;
 
@@ -22,6 +28,7 @@ pub struct StateSpaceManager<T, N, P> {
     // NOTE: does this need to be atomic u64?
     latest_block: u64,
     discovery_manager: Option<DiscoveryManager>,
+    pub block_filter: Filter,
     // TODO: add support for caching
     phantom: PhantomData<(T, N)>,
     // TODO: think about making cache trait then we could experiment with different implementations
@@ -93,6 +100,34 @@ where
     }
 
     pub async fn sync(self) -> StateSpaceManager<T, N, P> {
+        let (disc_events, factory_addresses) = self.factories.as_ref().map_or_else(
+            || (HashSet::new(), HashSet::new()),
+            |factories| {
+                factories.iter().fold(
+                    (HashSet::new(), HashSet::new()),
+                    |(mut events_set, mut addresses_set), factory| {
+                        events_set.extend(factory.discovery_events());
+                        addresses_set.insert(factory.address());
+                        (events_set, addresses_set)
+                    },
+                )
+            },
+        );
+
+        // let block_filter = alloy::rpc::types::Filter::new()
+        //     .address(address)
+        //     .event_signature(FilterSet::from(disc_events));
+
+        // TODO: implement a batch contract for getting all token decimals?
+
+        //TODO: add all AMM filters to sync filter
+        let mut state_space = StateSpace::default();
+        let state_change_cache = StateChangeCache::<30>::new();
+        let token_decimals = HashMap::<Address, usize>::new();
+
+        // NOTE: TODO: sync through the block range and get all the events
+        // NOTE: we can check if the log is a disc event or a sync event and then handle accordingly
+
         let discovery_manager = if let Some(factories) = self.factories {
             if self.discovery {
                 Some(DiscoveryManager::new(factories))
@@ -103,18 +138,16 @@ where
             None
         };
 
-        // TODO: sync from logs for all factories
-        // TODO: implement a batch contract for getting all token decimals
-        // TODO: if discovery is enabled, pass this hashmap of seen tokens to discovery?
-
-        StateSpaceManager {
-            provider: self.provider,
-            latest_block: self.latest_block,
-            state: Arc::new(RwLock::new(StateSpace::default())),
-            state_change_cache: Arc::new(RwLock::new(StateChangeCache::new())),
-            discovery_manager,
-            phantom: PhantomData,
-        }
+        todo!();
+        // StateSpaceManager {
+        //     provider: self.provider,
+        //     latest_block: self.latest_block,
+        //     state: Arc::new(RwLock::new(StateSpace::default())),
+        //     state_change_cache: Arc::new(RwLock::new(StateChangeCache::new())),
+        //     discovery_manager,
+        //     block_filter,
+        //     phantom: PhantomData,
+        // }
     }
 }
 
