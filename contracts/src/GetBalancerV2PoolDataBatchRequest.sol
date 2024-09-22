@@ -3,9 +3,9 @@ pragma solidity ^0.8.0;
 
 interface IBPool {
     function getCurrentTokens() external returns (address[] memory);
-    function getDenormalizedWeight(address token) external returns (uint);
-    function getSwapFee() external returns (uint);
-    function getBalance(address token) external returns (uint);
+    function getDenormalizedWeight(address token) external returns (uint256);
+    function getSwapFee() external returns (uint256);
+    function getBalance(address token) external returns (uint256);
 }
 
 interface IERC20 {
@@ -55,9 +55,7 @@ contract GetBalancerV2PoolDataBatchRequest {
                 } else {
                     decimals[j] = tokenDecimals;
                 }
-                weights[j] = IBPool(poolAddress).getDenormalizedWeight(
-                    tokens[j]
-                );
+                weights[j] = IBPool(poolAddress).getDenormalizedWeight(tokens[j]);
                 liquidity[j] = IBPool(poolAddress).getBalance(tokens[j]);
             }
 
@@ -80,9 +78,7 @@ contract GetBalancerV2PoolDataBatchRequest {
     }
 
     function getTokenDecimals(address token) internal returns (uint8) {
-        (bool success, bytes memory data) = token.call(
-            abi.encodeWithSignature("decimals()")
-        );
+        (bool success, bytes memory data) = token.call(abi.encodeWithSignature("decimals()"));
 
         if (success) {
             uint256 decimals;

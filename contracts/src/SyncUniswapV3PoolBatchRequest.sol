@@ -2,10 +2,9 @@
 pragma solidity ^0.8.0;
 
 /**
- @dev This contract is not meant to be deployed. Instead, use a static call with the
-      deployment bytecode as payload.
+ * @dev This contract is not meant to be deployed. Instead, use a static call with the
+ *       deployment bytecode as payload.
  */
-
 pragma solidity ^0.8.0;
 
 interface IUniswapV3Pool {
@@ -52,8 +51,8 @@ interface IERC20 {
 }
 
 /**
- @dev This contract is not meant to be deployed. Instead, use a static call with the
-      deployment bytecode as payload.
+ * @dev This contract is not meant to be deployed. Instead, use a static call with the
+ *       deployment bytecode as payload.
  */
 contract SyncUniswapV3PoolBatchRequest {
     struct PoolData {
@@ -72,12 +71,9 @@ contract SyncUniswapV3PoolBatchRequest {
 
             PoolData memory poolData;
 
-            (uint160 sqrtPriceX96, int24 tick, , , , , ) = IUniswapV3Pool(
-                poolAddress
-            ).slot0();
+            (uint160 sqrtPriceX96, int24 tick,,,,,) = IUniswapV3Pool(poolAddress).slot0();
 
-            (, int128 liquidityNet, , , , , , ) = IUniswapV3Pool(poolAddress)
-                .ticks(tick);
+            (, int128 liquidityNet,,,,,,) = IUniswapV3Pool(poolAddress).ticks(tick);
 
             poolData.liquidity = IUniswapV3Pool(poolAddress).liquidity();
             poolData.sqrtPrice = sqrtPriceX96;
