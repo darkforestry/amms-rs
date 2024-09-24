@@ -128,6 +128,18 @@ where
         // NOTE: TODO: sync through the block range and get all the events
         // NOTE: we can check if the log is a disc event or a sync event and then handle accordingly
 
+        let mut last_synced_block = self.latest_block;
+
+        let chain_tip = self
+            .provider
+            .get_block_number()
+            .await
+            .expect("TODO: handle error");
+
+        while last_synced_block <= chain_tip {
+            // NOTE: get all events by step
+        }
+
         let discovery_manager = if let Some(factories) = self.factories {
             if self.discovery {
                 Some(DiscoveryManager::new(factories))
