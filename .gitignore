@@ -6,6 +6,7 @@ Cargo.lock
 # Compiler files
 contracts/cache/
 contracts/out/
+contracts/src/flattened/
 
 # Ignores development broadcast logs
 !/broadcast

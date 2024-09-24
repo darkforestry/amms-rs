@@ -1,4 +1,6 @@
 use alloy::primitives::Address;
+use async_trait::async_trait;
+use eyre::Result;
 
 use crate::amms::amm::{AutomatedMarketMaker, AMM};
 
@@ -16,14 +18,16 @@ impl WhitelistFilter {
     }
 }
 
+#[async_trait]
 impl AMMFilter for WhitelistFilter {
     /// Filter for any AMMs or tokens in the whitelist
-    fn filter(&self, amms: Vec<AMM>) -> Vec<AMM> {
-        amms.into_iter()
+    async fn filter(&self, amms: Vec<AMM>) -> Result<Vec<AMM>> {
+        Ok(amms
+            .into_iter()
             .filter(|amm| {
                 self.whitelist.contains(&amm.address())
                     || amm.tokens().iter().any(|t| self.whitelist.contains(t))
             })
-            .collect()
+            .collect())
     }
 }

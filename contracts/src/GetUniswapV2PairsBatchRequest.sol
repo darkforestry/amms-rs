@@ -6,15 +6,11 @@ interface IFactory {
 }
 
 /**
- @dev This contract is not meant to be deployed. Instead, use a static call with the
-      deployment bytecode as payload.
+ * @dev This contract is not meant to be deployed. Instead, use a static call with the
+ *       deployment bytecode as payload.
  */
 contract GetUniswapV2PairsBatchRequest {
-    constructor(
-        uint256 from,
-        uint256 step,
-        address factory
-    ) {
+    constructor(uint256 from, uint256 step, address factory) {
         uint256 distance = step - from;
 
         // There is a max number of pool as a too big returned data times out the rpc

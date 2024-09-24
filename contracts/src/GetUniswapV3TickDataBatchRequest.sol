@@ -2,10 +2,9 @@
 pragma solidity ^0.8.0;
 
 /**
- @dev This contract is not meant to be deployed. Instead, use a static call with the
-      deployment bytecode as payload.
+ * @dev This contract is not meant to be deployed. Instead, use a static call with the
+ *       deployment bytecode as payload.
  */
-
 contract GetUniswapV3TickDataBatchRequest {
     int24 internal constant MIN_TICK = -887272;
     int24 internal constant MAX_TICK = -MIN_TICK;
@@ -16,32 +15,18 @@ contract GetUniswapV3TickDataBatchRequest {
         int128 liquidityNet;
     }
 
-    constructor(
-        address pool,
-        bool zeroForOne,
-        int24 currentTick,
-        uint16 numTicks,
-        int24 tickSpacing
-    ) {
+    constructor(address pool, bool zeroForOne, int24 currentTick, uint16 numTicks, int24 tickSpacing) {
         TickData[] memory tickData = new TickData[](numTicks);
 
         //Instantiate current word position to keep track of the word count
         uint256 counter = 0;
 
         while (counter < numTicks) {
-            (
-                int24 nextTick,
-                bool initialized
-            ) = nextInitializedTickWithinOneWord(
-                    pool,
-                    currentTick,
-                    tickSpacing,
-                    zeroForOne
-                );
+            (int24 nextTick, bool initialized) =
+                nextInitializedTickWithinOneWord(pool, currentTick, tickSpacing, zeroForOne);
 
             //Make sure the next tick is initialized
-            (, int128 liquidityNet, , , , , , ) = IUniswapV3PoolState(pool)
-                .ticks(nextTick);
+            (, int128 liquidityNet,,,,,,) = IUniswapV3PoolState(pool).ticks(nextTick);
 
             //Make sure not to overshoot the max/min tick
             //If we do, break the loop, and set the last initialized tick to the max/min tick=
@@ -81,23 +66,18 @@ contract GetUniswapV3TickDataBatchRequest {
         }
     }
 
-    function position(int24 tick)
-        private
-        pure
-        returns (int16 wordPos, uint8 bitPos)
-    {
+    function position(int24 tick) private pure returns (int16 wordPos, uint8 bitPos) {
         unchecked {
             wordPos = int16(tick >> 8);
             bitPos = uint8(int8(tick % 256));
         }
     }
 
-    function nextInitializedTickWithinOneWord(
-        address pool,
-        int24 tick,
-        int24 tickSpacing,
-        bool lte
-    ) internal view returns (int24 next, bool initialized) {
+    function nextInitializedTickWithinOneWord(address pool, int24 tick, int24 tickSpacing, bool lte)
+        internal
+        view
+        returns (int24 next, bool initialized)
+    {
         unchecked {
             int24 compressed = tick / tickSpacing;
             if (tick < 0 && tick % tickSpacing != 0) compressed--; // round towards negative infinity
@@ -107,38 +87,27 @@ contract GetUniswapV3TickDataBatchRequest {
 
                 // all the 1s at or to the right of the current bitPos
                 uint256 mask = (1 << bitPos) - 1 + (1 << bitPos);
-                uint256 masked = IUniswapV3PoolState(pool).tickBitmap(wordPos) &
-                    mask;
+                uint256 masked = IUniswapV3PoolState(pool).tickBitmap(wordPos) & mask;
 
                 // if there are no initialized ticks to the right of or at the current tick, return rightmost in the word
                 initialized = masked != 0;
                 // overflow/underflow is possible, but prevented externally by limiting both tickSpacing and tick
                 next = initialized
-                    ? (compressed -
-                        int24(
-                            uint24(bitPos - BitMath.mostSignificantBit(masked))
-                        )) * tickSpacing
+                    ? (compressed - int24(uint24(bitPos - BitMath.mostSignificantBit(masked)))) * tickSpacing
                     : (compressed - int24(uint24(bitPos))) * tickSpacing;
             } else {
                 // start from the word of the next tick, since the current tick state doesn't matter
                 (int16 wordPos, uint8 bitPos) = position(compressed + 1);
                 // all the 1s at or to the left of the bitPos
                 uint256 mask = ~((1 << bitPos) - 1);
-                uint256 masked = IUniswapV3PoolState(pool).tickBitmap(wordPos) &
-                    mask;
+                uint256 masked = IUniswapV3PoolState(pool).tickBitmap(wordPos) & mask;
 
                 // if there are no initialized ticks to the left of the current tick, return leftmost in the word
                 initialized = masked != 0;
                 // overflow/underflow is possible, but prevented externally by limiting both tickSpacing and tick
                 next = initialized
-                    ? (compressed +
-                        1 +
-                        int24(
-                            uint24(BitMath.leastSignificantBit(masked) - bitPos)
-                        )) * tickSpacing
-                    : (compressed +
-                        1 +
-                        int24(uint24(type(uint8).max - bitPos))) * tickSpacing;
+                    ? (compressed + 1 + int24(uint24(BitMath.leastSignificantBit(masked) - bitPos))) * tickSpacing
+                    : (compressed + 1 + int24(uint24(type(uint8).max - bitPos))) * tickSpacing;
             }
         }
     }
