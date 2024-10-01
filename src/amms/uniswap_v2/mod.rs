@@ -34,7 +34,7 @@ impl AutomatedMarketMaker for UniswapV2Pool {
         self.address
     }
 
-    fn sync_signatures(&self) -> Vec<B256> {
+    fn sync_events(&self) -> Vec<B256> {
         todo!()
     }
 

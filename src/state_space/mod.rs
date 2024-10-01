@@ -100,13 +100,19 @@ where
     }
 
     pub async fn sync(self) -> StateSpaceManager<T, N, P> {
-        let (disc_events, factory_addresses) = self.factories.as_ref().map_or_else(
+        let (events, factory_addresses) = self.factories.as_ref().map_or_else(
             || (HashSet::new(), HashSet::new()),
             |factories| {
                 factories.iter().fold(
                     (HashSet::new(), HashSet::new()),
                     |(mut events_set, mut addresses_set), factory| {
                         events_set.extend(factory.discovery_events());
+                        match factory {
+                            Factory::UniswapV2Factory(factory) => {
+                                // TODO: add sync events for uniswap v2
+                                // events_set.extend(factory.sync_events());
+                            }
+                        }
                         addresses_set.insert(factory.address());
                         (events_set, addresses_set)
                     },
@@ -114,9 +120,11 @@ where
             },
         );
 
-        // let block_filter = alloy::rpc::types::Filter::new()
-        //     .address(address)
-        //     .event_signature(FilterSet::from(disc_events));
+        // TODO: iterate through amms and get sync events add to the sync filter
+
+        let block_filter = alloy::rpc::types::Filter::new()
+            .address(address)
+            .event_signature(FilterSet::from(events));
 
         // TODO: implement a batch contract for getting all token decimals?
 
