@@ -62,7 +62,7 @@ impl AutomatedMarketMaker for UniswapV2Pool {
         P: Provider<T, N>,
     {
         let (reserve_0, reserve_1) = self.get_reserves(provider.clone()).await?;
-        tracing::info!(?reserve_0, ?reserve_1, address = ?self.address, "UniswapV2 sync");
+        tracing::debug!(?reserve_0, ?reserve_1, address = ?self.address, "UniswapV2 sync event");
 
         self.reserve_0 = reserve_0;
         self.reserve_1 = reserve_1;
@@ -102,7 +102,7 @@ impl AutomatedMarketMaker for UniswapV2Pool {
                 sync_event.reserve1.to::<u128>(),
             );
 
-            tracing::info!(reserve_0, reserve_1, address = ?self.address, "UniswapV2 sync event");
+            tracing::debug!(?reserve_0, ?reserve_1, address = ?self.address, "UniswapV2 sync event");
 
             self.reserve_0 = reserve_0;
             self.reserve_1 = reserve_1;
