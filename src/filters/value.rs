@@ -259,7 +259,7 @@ mod test {
         // sync all markets
         let markets = if checkpoint_exists {
             tracing::info!("Syncing pools from checkpoint");
-            let (_, markets) = sync_amms_from_checkpoint(CHECKPOINT_PATH, 500, provider.clone())
+            let (_, markets, _) = sync_amms_from_checkpoint(CHECKPOINT_PATH, 500, provider.clone())
                 .await
                 .unwrap();
 

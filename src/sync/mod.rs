@@ -85,7 +85,6 @@ where
     }
 
     // Save a checkpoint if a path is provided
-
     if let Some(checkpoint_path) = checkpoint_path {
         checkpoint::construct_checkpoint(
             factories,
