@@ -15,6 +15,7 @@ fn criterion_benchmark(c: &mut Criterion) {
 
     let mut pool = UniswapV2Pool {
         address: address!("ddF8390cEd9fAD414b1ca1DD4Fe14F881C2Cfa70"),
+        factory_address: None,
         token_a,
         token_a_decimals: 18,
         token_b: address!("fc0d6cf33e38bce7ca7d89c0e292274031b7157a"),

@@ -50,7 +50,7 @@ async fn main() -> eyre::Result<()> {
     let usdc = address!("3c499c542cEF5E3811e1192ce70d8cC03d5c3359");
     let usd_weth_pair_address = address!("cd353F79d9FADe311fC3119B841e1f456b54e858");
     let usd_weth_pool = AMM::UniswapV2Pool(
-        UniswapV2Pool::new_from_address(usd_weth_pair_address, 300, provider.clone()).await?,
+        UniswapV2Pool::new_from_address(usd_weth_pair_address, None, 300, provider.clone()).await?,
     );
     let weth_value_in_token_to_weth_pool_threshold = U256::from(100000000000000000_u128); // 10 weth
 

@@ -16,7 +16,7 @@ async fn main() -> eyre::Result<()> {
 
     // Initialize the pool
     let pool_address = address!("B4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc"); // WETH/USDC
-    let pool = UniswapV2Pool::new_from_address(pool_address, 300, provider.clone()).await?;
+    let pool = UniswapV2Pool::new_from_address(pool_address, None, 300, provider.clone()).await?;
 
     // Simulate a swap
     let token_in = address!("C02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2");
