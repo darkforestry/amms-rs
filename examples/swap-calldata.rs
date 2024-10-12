@@ -16,7 +16,7 @@ async fn main() -> eyre::Result<()> {
 
     // Initialize the pool
     let pool_address = address!("B4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc");
-    let pool = UniswapV2Pool::new_from_address(pool_address, 300, provider.clone()).await?;
+    let pool = UniswapV2Pool::new_from_address(pool_address, None, 300, provider.clone()).await?;
 
     // Generate the swap calldata
     let to_address = address!("DecafC0ffee15BadDecafC0ffee15BadDecafC0f");

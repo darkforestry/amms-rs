@@ -39,6 +39,8 @@ sol! {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct UniswapV2Pool {
     pub address: Address,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub factory_address: Option<Address>,
     pub token_a: Address,
     pub token_a_decimals: u8,
     pub token_b: Address,
@@ -193,6 +195,7 @@ impl UniswapV2Pool {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         address: Address,
+        factory_address: Address,
         token_a: Address,
         token_a_decimals: u8,
         token_b: Address,
@@ -203,6 +206,7 @@ impl UniswapV2Pool {
     ) -> UniswapV2Pool {
         UniswapV2Pool {
             address,
+            factory_address: Some(factory_address),
             token_a,
             token_a_decimals,
             token_b,
@@ -216,6 +220,7 @@ impl UniswapV2Pool {
     /// Creates a new instance of the pool from the pair address, and syncs the pool data.
     pub async fn new_from_address<T, N, P>(
         pair_address: Address,
+        factory_address: Option<Address>,
         fee: u32,
         provider: Arc<P>,
     ) -> Result<Self, AMMError>
@@ -226,6 +231,7 @@ impl UniswapV2Pool {
     {
         let mut pool = UniswapV2Pool {
             address: pair_address,
+            factory_address,
             token_a: Address::ZERO,
             token_a_decimals: 0,
             token_b: Address::ZERO,
@@ -262,7 +268,7 @@ impl UniswapV2Pool {
         if event_signature == IUniswapV2Factory::PairCreated::SIGNATURE_HASH {
             let pair_created_event =
                 factory::IUniswapV2Factory::PairCreated::decode_log(log.as_ref(), true)?;
-            UniswapV2Pool::new_from_address(pair_created_event.pair, fee, provider).await
+            UniswapV2Pool::new_from_address(pair_created_event.pair, Some(log.address()), fee, provider).await
         } else {
             Err(EventLogError::InvalidEventSignature)?
         }
@@ -280,6 +286,7 @@ impl UniswapV2Pool {
 
             Ok(UniswapV2Pool {
                 address: pair_created_event.pair,
+                factory_address: Some(log.address()),
                 token_a: pair_created_event.token0,
                 token_b: pair_created_event.token1,
                 token_a_decimals: 0,
@@ -599,6 +606,7 @@ mod tests {
 
         let pool = UniswapV2Pool::new_from_address(
             address!("B4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc"),
+            Some(address!("5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f")),
             300,
             provider.clone(),
         )
@@ -608,6 +616,10 @@ mod tests {
         assert_eq!(
             pool.address,
             address!("B4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc")
+        );
+        assert_eq!(
+            pool.factory_address,
+            Some(address!("5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f"))
         );
         assert_eq!(
             pool.token_a,
@@ -656,6 +668,7 @@ mod tests {
         let token_b = address!("8f18dc399594b451eda8c5da02d0563c0b2d0f16");
         let x = UniswapV2Pool {
             address: address!("652a7b75c229850714d4a11e856052aac3e9b065"),
+            factory_address: Some(address!("5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f")),
             token_a,
             token_a_decimals: 18,
             token_b,
