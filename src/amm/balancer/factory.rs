@@ -18,7 +18,7 @@ use crate::{
     errors::AMMError,
 };
 
-use super::{batch_request, BalancerV2Pool};
+use super::{batch_request, BalancerPool};
 
 sol! {
     #[derive(Debug, PartialEq, Eq)]
@@ -32,13 +32,13 @@ sol! {
 }
 
 #[derive(Default, Debug, Clone, Copy, Serialize, Deserialize)]
-pub struct BalancerV2Factory {
+pub struct BalancerFactory {
     pub address: Address,
     pub creation_block: u64,
 }
 
 #[async_trait]
-impl AutomatedMarketMakerFactory for BalancerV2Factory {
+impl AutomatedMarketMakerFactory for BalancerFactory {
     /// Returns the address of the factory.
     fn address(&self) -> Address {
         self.address
@@ -109,15 +109,15 @@ impl AutomatedMarketMakerFactory for BalancerV2Factory {
     /// Creates a new empty AMM from a log factory creation event.
     fn new_empty_amm_from_log(&self, log: Log) -> Result<AMM, alloy::sol_types::Error> {
         let pair_created_event = IBFactory::LOG_NEW_POOL::decode_log(log.as_ref(), true)?;
-        let pool = BalancerV2Pool {
+        let pool = BalancerPool {
             address: pair_created_event.pool,
             ..Default::default()
         };
-        Ok(AMM::BalancerV2Pool(pool))
+        Ok(AMM::BalancerPool(pool))
     }
 }
 
-impl BalancerV2Factory {
+impl BalancerFactory {
     // Function to get all pair created events for a given Dex factory address and sync pool data
     pub async fn get_all_pools_from_logs<T, N, P>(
         self,

@@ -178,7 +178,7 @@ where
         .map(|d| match d {
             Factory::UniswapV2Factory(_) => false,
             Factory::UniswapV3Factory(_) => true,
-            Factory::BalancerV2Factory(_) => false,
+            Factory::BalancerFactory(_) => false,
         })
         .collect::<Vec<bool>>();
 

@@ -13,17 +13,17 @@ use crate::{
     errors::AMMError,
 };
 
-use super::BalancerV2Pool;
+use super::BalancerPool;
 
 sol! {
     #[allow(missing_docs)]
     #[sol(rpc)]
-    IGetBalancerV2PoolDataBatchRequest,
-    "src/amm/balancer_v2/batch_request/GetBalancerV2PoolDataBatchRequest.json"
+    IGetBalancerPoolDataBatchRequest,
+    "src/amm/balancer/batch_request/GetBalancerPoolDataBatchRequest.json"
 }
 
 #[inline]
-fn populate_pool_data_from_tokens(pool: &mut BalancerV2Pool, tokens: &[DynSolValue]) {
+fn populate_pool_data_from_tokens(pool: &mut BalancerPool, tokens: &[DynSolValue]) {
     // TODO: Add error handling
     pool.tokens = tokens[0]
         .as_array()
@@ -53,7 +53,7 @@ fn populate_pool_data_from_tokens(pool: &mut BalancerV2Pool, tokens: &[DynSolVal
 }
 
 pub async fn get_balancer_v2_pool_data_batch_request<T, N, P>(
-    pool: &mut BalancerV2Pool,
+    pool: &mut BalancerPool,
     block_number: Option<u64>,
     provider: Arc<P>,
 ) -> Result<(), AMMError>
@@ -62,7 +62,7 @@ where
     N: Network,
     P: Provider<T, N>,
 {
-    let deployer = IGetBalancerV2PoolDataBatchRequest::deploy_builder(provider, vec![pool.address]);
+    let deployer = IGetBalancerPoolDataBatchRequest::deploy_builder(provider, vec![pool.address]);
     let res = if let Some(block_number) = block_number {
         deployer.block(block_number.into()).call_raw().await?
     } else {
@@ -101,7 +101,7 @@ where
     N: Network,
     P: Provider<T, N>,
 {
-    let deployer = IGetBalancerV2PoolDataBatchRequest::deploy_builder(
+    let deployer = IGetBalancerPoolDataBatchRequest::deploy_builder(
         provider,
         amms.iter().map(|amm| amm.address()).collect(),
     );
@@ -122,7 +122,7 @@ where
             let pool_data = token
                 .as_tuple()
                 .ok_or(AMMError::BatchRequestError(amms[i].address()))?;
-            if let AMM::BalancerV2Pool(pool) = &mut amms[i] {
+            if let AMM::BalancerPool(pool) = &mut amms[i] {
                 populate_pool_data_from_tokens(pool, pool_data);
             }
         }

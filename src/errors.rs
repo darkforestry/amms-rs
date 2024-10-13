@@ -6,7 +6,7 @@ use thiserror::Error;
 use tokio::task::JoinError;
 use uniswap_v3_math::error::UniswapV3MathError;
 
-use crate::amm::balancer_v2::error::BMathError;
+use crate::amm::balancer::error::BMathError;
 
 #[derive(Error, Debug)]
 pub enum AMMError {
