@@ -142,7 +142,7 @@ impl AutomatedMarketMakerFactory for UniswapV2Factory {
             token_b_decimals: 0,
             reserve_0: 0,
             reserve_1: 0,
-            fee: 0,
+            fee: self.fee,
         }))
     }
 
