@@ -153,9 +153,10 @@ where
             .expect("TODO: handle error");
 
         while self.latest_block <= chain_tip {
-            let next_block = self.latest_block + 1;
-            block_filter = block_filter.from_block(next_block);
-            block_filter = block_filter.to_block(next_block + self.sync_step);
+            let from_block = self.latest_block + 1;
+            let to_block = from_block + self.sync_step;
+            block_filter = block_filter.from_block(from_block);
+            block_filter = block_filter.to_block(to_block);
 
             let logs = self
                 .provider
@@ -163,38 +164,29 @@ where
                 .await
                 .expect("TODO: handle error");
 
-            // NOTE: get all events by step
-
             for log in logs {
                 if let Some(factory) = discovery_manager.factories.get(&log.address()) {
                     let pool = factory.create_pool(log).expect("handle errors");
                     state_space.state.insert(pool.address(), pool);
                 } else if let Some(amm) = state_space.state.get_mut(&log.address()) {
-                    // NOTE: update pool
                     amm.sync(log);
                 }
             }
 
-            // NOTE: Check if event is from factories and create new pool.
-            // NOTE: if not, check if event is from existing pool in state space and update accordlingly
-
-            self.latest_block += self.sync_step;
+            self.latest_block = to_block;
         }
 
-        // TODO: filter amms based on specified filters
+        // TODO: filter amms with specified filters
 
-        todo!();
-        // NOTE: before passing in the block filter if discovery is not enabled, we need to remove discovery events from the block filter
-
-        // StateSpaceManager {
-        //     provider: self.provider,
-        //     latest_block: self.latest_block,
-        //     state: Arc::new(RwLock::new(StateSpace::default())),
-        //     state_change_cache: Arc::new(RwLock::new(StateChangeCache::new())),
-        //     discovery_manager,
-        //     block_filter,
-        //     phantom: PhantomData,
-        // }
+        StateSpaceManager {
+            provider: self.provider,
+            latest_block: self.latest_block,
+            state: Arc::new(RwLock::new(state_space)),
+            state_change_cache: Arc::new(RwLock::new(state_change_cache)),
+            discovery_manager: Some(discovery_manager),
+            block_filter,
+            phantom: PhantomData,
+        }
     }
 }
 
