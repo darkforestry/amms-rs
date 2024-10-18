@@ -4,12 +4,17 @@ pub mod filters;
 
 use std::{collections::HashMap, marker::PhantomData, sync::Arc};
 
+use crate::amms::amm::AutomatedMarketMaker;
 use crate::amms::amm::AMM;
 use crate::amms::factory::AutomatedMarketMakerFactory;
 use crate::amms::factory::Factory;
+use crate::amms::uniswap_v2::UniswapV2Pool;
 use alloy::rpc::types::FilterSet;
 use alloy::{
-    network::Network, primitives::Address, providers::Provider, rpc::types::Filter,
+    network::Network,
+    primitives::{Address, FixedBytes},
+    providers::Provider,
+    rpc::types::Filter,
     transports::Transport,
 };
 use cache::StateChangeCache;
@@ -46,6 +51,7 @@ pub struct StateSpaceBuilder<T, N, P> {
     // NOTE: this is the list of filters each discovered pool will go through
     // pub filters: Vec<Filter>,
     pub discovery: bool,
+    pub sync_step: u64,
     phantom: PhantomData<(T, N)>,
     // TODO: add support for caching
     // TODO: add support to load from cache
@@ -64,6 +70,7 @@ where
             factories: None,
             amms: None,
             discovery: false,
+            sync_step: 10000,
             phantom: PhantomData,
         }
     }
@@ -88,6 +95,11 @@ where
             ..self
         }
     }
+
+    pub fn sync_step(self, sync_step: u64) -> StateSpaceBuilder<T, N, P> {
+        StateSpaceBuilder { sync_step, ..self }
+    }
+
     // pub fn with_filters(self, filters: Vec<Filter>) -> StateSpaceBuilder<T, N, P> {
     //     StateSpaceBuilder { filters, ..self }
     // }
@@ -99,36 +111,40 @@ where
         }
     }
 
-    pub async fn sync(self) -> StateSpaceManager<T, N, P> {
-        let (disc_events, factory_addresses) = self.factories.as_ref().map_or_else(
-            || (HashSet::new(), HashSet::new()),
-            |factories| {
-                factories.iter().fold(
-                    (HashSet::new(), HashSet::new()),
-                    |(mut events_set, mut addresses_set), factory| {
-                        events_set.extend(factory.discovery_events());
-                        addresses_set.insert(factory.address());
-                        (events_set, addresses_set)
-                    },
-                )
-            },
-        );
+    // TODO: pub fn with_filters(self) -> StateSpaceBuilder<T, N, P> {}
 
-        // let block_filter = alloy::rpc::types::Filter::new()
-        //     .address(address)
-        //     .event_signature(FilterSet::from(disc_events));
+    pub async fn sync(mut self) -> StateSpaceManager<T, N, P> {
+        let discovery_manager = DiscoveryManager::new(self.factories.unwrap_or_default());
+
+        // Create an initial filter set with all discovery events for each factory
+        let mut filter_set = discovery_manager.disc_events();
+        let mut sync_events = HashSet::new();
+
+        // Add pool events to block filter for all factory related amms
+        for (_, factory) in discovery_manager.factories.iter() {
+            sync_events.extend(factory.pool_events());
+        }
+
+        // Add sync events to block filter for all specified amms
+        if let Some(amms) = self.amms {
+            for amm in amms.iter() {
+                sync_events.extend(amm.sync_events());
+            }
+        }
+
+        // We keep disc events and sync events separate in the case discovery
+        // is disabled within the state space manager
+        filter_set.extend(sync_events);
+
+        let mut block_filter = Filter::new().event_signature(FilterSet::from(
+            filter_set.into_iter().collect::<Vec<FixedBytes<32>>>(),
+        ));
 
         // TODO: implement a batch contract for getting all token decimals?
 
-        //TODO: add all AMM filters to sync filter
         let mut state_space = StateSpace::default();
         let state_change_cache = StateChangeCache::<30>::new();
         let token_decimals = HashMap::<Address, usize>::new();
-
-        // NOTE: TODO: sync through the block range and get all the events
-        // NOTE: we can check if the log is a disc event or a sync event and then handle accordingly
-
-        let mut last_synced_block = self.latest_block;
 
         let chain_tip = self
             .provider
@@ -136,21 +152,40 @@ where
             .await
             .expect("TODO: handle error");
 
-        while last_synced_block <= chain_tip {
+        while self.latest_block <= chain_tip {
+            let next_block = self.latest_block + 1;
+            block_filter = block_filter.from_block(next_block);
+            block_filter = block_filter.to_block(next_block + self.sync_step);
+
+            let logs = self
+                .provider
+                .get_logs(&block_filter)
+                .await
+                .expect("TODO: handle error");
+
             // NOTE: get all events by step
+
+            for log in logs {
+                if let Some(factory) = discovery_manager.factories.get(&log.address()) {
+                    let pool = factory.create_pool(log).expect("handle errors");
+                    state_space.state.insert(pool.address(), pool);
+                } else if let Some(amm) = state_space.state.get_mut(&log.address()) {
+                    // NOTE: update pool
+                    amm.sync(log);
+                }
+            }
+
+            // NOTE: Check if event is from factories and create new pool.
+            // NOTE: if not, check if event is from existing pool in state space and update accordlingly
+
+            self.latest_block += self.sync_step;
         }
 
-        let discovery_manager = if let Some(factories) = self.factories {
-            if self.discovery {
-                Some(DiscoveryManager::new(factories))
-            } else {
-                None
-            }
-        } else {
-            None
-        };
+        // TODO: filter amms based on specified filters
 
         todo!();
+        // NOTE: before passing in the block filter if discovery is not enabled, we need to remove discovery events from the block filter
+
         // StateSpaceManager {
         //     provider: self.provider,
         //     latest_block: self.latest_block,

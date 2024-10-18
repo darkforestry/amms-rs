@@ -1,5 +1,5 @@
 use super::{
-    amm::AutomatedMarketMaker,
+    amm::{AutomatedMarketMaker, AMM},
     error::AMMError,
     factory::{AutomatedMarketMakerFactory, Factory},
 };
@@ -8,7 +8,7 @@ use alloy::{
     network::Network,
     primitives::{Address, B256, U256},
     providers::Provider,
-    rpc::types::Filter,
+    rpc::types::{Filter, Log},
     transports::Transport,
 };
 use serde::{Deserialize, Serialize};
@@ -34,7 +34,11 @@ impl AutomatedMarketMaker for UniswapV2Pool {
         self.address
     }
 
-    fn sync_signatures(&self) -> Vec<B256> {
+    fn sync_events(&self) -> Vec<B256> {
+        todo!()
+    }
+
+    fn sync(&self, log: Log) {
         todo!()
     }
 
@@ -87,11 +91,17 @@ impl Into<Factory> for UniswapV2Factory {
 }
 
 impl AutomatedMarketMakerFactory for UniswapV2Factory {
+    type PoolVariant = UniswapV2Pool;
+
     fn address(&self) -> Address {
         self.address
     }
 
     fn discovery_events(&self) -> Vec<B256> {
+        todo!()
+    }
+
+    fn create_pool(&self, log: Log) -> Result<AMM, AMMError> {
         todo!()
     }
 

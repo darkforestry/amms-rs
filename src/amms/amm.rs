@@ -2,6 +2,7 @@ use alloy::{
     network::Network,
     primitives::{Address, B256, U256},
     providers::Provider,
+    rpc::types::Log,
     transports::Transport,
 };
 use serde::{Deserialize, Serialize};
@@ -19,12 +20,9 @@ pub trait AutomatedMarketMaker {
     /// Returns the address of the AMM.
     fn address(&self) -> Address;
 
-    // TODO: rename or rethink
-    // NOTE: we should rethink how we are handling event signatures.
-    // Ideally, the state space manager is able to know what it needs for discovery and sync signatures (discovery related to the factory). Revisit
-    // maybe there is a way to have a specific action happen on a signature, implementing a type for each sig, just initial thoughts atm
-    // TODO:
-    fn sync_signatures(&self) -> Vec<B256>;
+    fn sync_events(&self) -> Vec<B256>;
+
+    fn sync(&self, log: Log);
 
     /// Returns a vector of tokens in the AMM.
     fn tokens(&self) -> Vec<Address>;
@@ -66,9 +64,15 @@ macro_rules! amm {
                 }
             }
 
-            fn sync_signatures(&self) -> Vec<B256> {
+            fn sync_events(&self) -> Vec<B256> {
                 match self {
-                    $(AMM::$pool_type(pool) => pool.sync_signatures(),)+
+                    $(AMM::$pool_type(pool) => pool.sync_events(),)+
+                }
+            }
+
+            fn sync(&self, log: Log) {
+                match self {
+                    $(AMM::$pool_type(pool) => pool.sync(log),)+
                 }
             }
 

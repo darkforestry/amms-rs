@@ -13,15 +13,15 @@ pub trait AMMFilter {
 macro_rules! filter {
     ($($filter_type:ident),+ $(,)?) => {
         #[derive(Debug, Clone)]
-        pub enum Filter {
+        pub enum PoolFilter {
             $($filter_type($filter_type),)+
         }
 
         #[async_trait]
-        impl AMMFilter for Filter {
+        impl AMMFilter for PoolFilter {
             async fn filter(&self, amms: Vec<AMM>) -> Result<Vec<AMM>> {
                 match self {
-                    $(Filter::$filter_type(filter) => filter.filter(amms).await,)+
+                    $(PoolFilter::$filter_type(filter) => filter.filter(amms).await,)+
                 }
             }
         }
