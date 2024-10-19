@@ -166,8 +166,15 @@ where
 
             for log in logs {
                 if let Some(factory) = discovery_manager.factories.get(&log.address()) {
-                    let pool = factory.create_pool(log).expect("handle errors");
-                    state_space.state.insert(pool.address(), pool);
+                    let amm = factory.create_pool(log).expect("handle errors");
+
+                    for token in amm.tokens() {
+                        if token_decimals.get(&token).is_none() {
+                            // TODO: get decimals, if cant get decimals, continue to next token
+                        }
+                    }
+
+                    state_space.state.insert(amm.address(), amm);
                 } else if let Some(amm) = state_space.state.get_mut(&log.address()) {
                     amm.sync(log);
                 }
