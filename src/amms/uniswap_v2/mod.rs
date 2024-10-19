@@ -9,6 +9,8 @@ use alloy::{
     primitives::{Address, B256, U256},
     providers::Provider,
     rpc::types::{Filter, Log},
+    sol,
+    sol_types::SolEvent,
     transports::Transport,
 };
 use serde::{Deserialize, Serialize};
@@ -26,7 +28,7 @@ pub struct UniswapV2Pool {
     pub token_b_decimals: u8,
     pub reserve_0: u128,
     pub reserve_1: u128,
-    pub fee: u32,
+    pub fee: usize,
 }
 
 impl AutomatedMarketMaker for UniswapV2Pool {
@@ -69,17 +71,23 @@ impl AutomatedMarketMaker for UniswapV2Pool {
     }
 }
 
+sol!(
+    #[allow(missing_docs)]
+    #[derive(Debug)]
+    event PairCreated(address indexed token0, address indexed token1, address pair, uint256););
 #[derive(Debug, Clone, Serialize, Deserialize, Hash, PartialEq, Eq)]
 pub struct UniswapV2Factory {
     pub address: Address,
+    pub fee: usize,
     pub creation_block: u64,
 }
 
 impl UniswapV2Factory {
-    pub fn new(address: Address, creation_block: u64) -> Self {
+    pub fn new(address: Address, fee: usize, creation_block: u64) -> Self {
         Self {
             address,
             creation_block,
+            fee,
         }
     }
 }
@@ -102,7 +110,17 @@ impl AutomatedMarketMakerFactory for UniswapV2Factory {
     }
 
     fn create_pool(&self, log: Log) -> Result<AMM, AMMError> {
-        todo!()
+        let event = PairCreated::decode_log(&log.inner, false).expect("TODO: handle this error");
+        Ok(AMM::UniswapV2Pool(UniswapV2Pool {
+            address: event.pair,
+            token_a: event.token0,
+            token_a_decimals: 0,
+            token_b: event.token1,
+            token_b_decimals: 0,
+            reserve_0: 0,
+            reserve_1: 0,
+            fee: self.fee,
+        }))
     }
 
     fn creation_block(&self) -> u64 {
