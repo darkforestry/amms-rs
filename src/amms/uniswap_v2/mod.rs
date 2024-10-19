@@ -19,6 +19,18 @@ use std::{
     sync::Arc,
 };
 
+sol!(
+    // UniswapV2Factory
+    #[allow(missing_docs)]
+    #[derive(Debug)]
+    event PairCreated(address indexed token0, address indexed token1, address pair, uint256);
+
+    // UniswapV2Pair
+    #[allow(missing_docs)]
+    #[derive(Debug)]
+    event Sync(uint128 reserve0, uint128 reserve1);
+);
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct UniswapV2Pool {
     pub address: Address,
@@ -37,11 +49,13 @@ impl AutomatedMarketMaker for UniswapV2Pool {
     }
 
     fn sync_events(&self) -> Vec<B256> {
-        todo!()
+        vec![Sync::SIGNATURE_HASH]
     }
 
-    fn sync(&self, log: Log) {
-        todo!()
+    fn sync(&mut self, log: Log) {
+        let sync_log = Sync::decode_log(&log.inner, false).expect("TODO: handle this error");
+        self.reserve_0 = sync_log.reserve0;
+        self.reserve_1 = sync_log.reserve1;
     }
 
     fn simulate_swap(
@@ -71,10 +85,6 @@ impl AutomatedMarketMaker for UniswapV2Pool {
     }
 }
 
-sol!(
-    #[allow(missing_docs)]
-    #[derive(Debug)]
-    event PairCreated(address indexed token0, address indexed token1, address pair, uint256););
 #[derive(Debug, Clone, Serialize, Deserialize, Hash, PartialEq, Eq)]
 pub struct UniswapV2Factory {
     pub address: Address,
