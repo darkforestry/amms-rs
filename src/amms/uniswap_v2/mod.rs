@@ -20,16 +20,19 @@ use std::{
 };
 
 sol!(
-    // UniswapV2Factory
-    #[allow(missing_docs)]
-    #[derive(Debug)]
-    event PairCreated(address indexed token0, address indexed token1, address pair, uint256);
+// UniswapV2Factory
+#[allow(missing_docs)]
+#[derive(Debug)]
+event PairCreated(address indexed token0, address indexed token1, address pair, uint256);
 
-    // UniswapV2Pair
-    #[allow(missing_docs)]
-    #[derive(Debug)]
-    event Sync(uint128 reserve0, uint128 reserve1);
-);
+#[derive(Debug, PartialEq, Eq)]
+#[sol(rpc)]
+contract IUniswapV2Pair {
+    event Sync(uint112 reserve0, uint112 reserve1);
+    function token0() external view returns (address);
+    function token1() external view returns (address);
+    function swap(uint256 amount0Out, uint256 amount1Out, address to, bytes calldata data);
+});
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct UniswapV2Pool {
@@ -49,13 +52,21 @@ impl AutomatedMarketMaker for UniswapV2Pool {
     }
 
     fn sync_events(&self) -> Vec<B256> {
-        vec![Sync::SIGNATURE_HASH]
+        vec![IUniswapV2Pair::Sync::SIGNATURE_HASH]
     }
 
     fn sync(&mut self, log: Log) {
-        let sync_log = Sync::decode_log(&log.inner, false).expect("TODO: handle this error");
-        self.reserve_0 = sync_log.reserve0;
-        self.reserve_1 = sync_log.reserve1;
+        let sync_event =
+            IUniswapV2Pair::Sync::decode_log(&log.inner, false).expect("TODO: handle this error");
+
+        let (reserve_0, reserve_1) = (
+            sync_event.reserve0.to::<u128>(),
+            sync_event.reserve1.to::<u128>(),
+        );
+        // tracing::info!(reserve_0, reserve_1, address = ?self.address, "UniswapV2 sync event");
+
+        self.reserve_0 = reserve_0;
+        self.reserve_1 = reserve_1;
     }
 
     fn simulate_swap(
