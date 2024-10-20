@@ -1,6 +1,7 @@
 pub mod cache;
 pub mod discovery;
 pub mod filters;
+pub mod tokens;
 
 use std::{collections::HashMap, marker::PhantomData, sync::Arc};
 
@@ -20,6 +21,7 @@ use alloy::{
 use cache::StateChangeCache;
 use discovery::DiscoveryManager;
 use std::collections::HashSet;
+use tokens::populate_token_decimals;
 use tokio::sync::RwLock;
 
 pub const CACHE_SIZE: usize = 30;
@@ -144,7 +146,7 @@ where
 
         let mut state_space = StateSpace::default();
         let state_change_cache = StateChangeCache::<30>::new();
-        let token_decimals = HashMap::<Address, usize>::new();
+        let mut tokens = HashSet::new();
 
         let chain_tip = self
             .provider
@@ -169,9 +171,7 @@ where
                     let amm = factory.create_pool(log).expect("handle errors");
 
                     for token in amm.tokens() {
-                        if token_decimals.get(&token).is_none() {
-                            // TODO: get decimals, if cant get decimals, continue to next token
-                        }
+                        tokens.insert(token);
                     }
 
                     state_space.state.insert(amm.address(), amm);
@@ -181,6 +181,15 @@ where
             }
 
             self.latest_block = to_block;
+        }
+
+        // TODO: This might exceed max gas per static on some clients depending on the chain.
+        let token_decimals = populate_token_decimals(tokens, self.provider.clone())
+            .await
+            .expect("TODO: handle error");
+
+        for (_, amm) in state_space.state.iter_mut() {
+            amm.set_decimals(&token_decimals);
         }
 
         // TODO: filter amms with specified filters
