@@ -44,9 +44,31 @@ pub struct UniswapV3Pool {
     pub token_a_decimals: u8,
     pub token_b: Address,
     pub token_b_decimals: u8,
-    pub fee: usize,
+    pub liquidity: u128,
+    pub sqrt_price: U256,
+    pub fee: u32,
+    pub tick: i32,
+    pub tick_spacing: i32,
+    pub tick_bitmap: HashMap<i16, U256>,
+    pub ticks: HashMap<i32, Info>,
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct Info {
+    pub liquidity_gross: u128,
+    pub liquidity_net: i128,
+    pub initialized: bool,
+}
+
+impl Info {
+    pub fn new(liquidity_gross: u128, liquidity_net: i128, initialized: bool) -> Self {
+        Info {
+            liquidity_gross,
+            liquidity_net,
+            initialized,
+        }
+    }
+}
 impl AutomatedMarketMaker for UniswapV3Pool {
     fn address(&self) -> Address {
         self.address
