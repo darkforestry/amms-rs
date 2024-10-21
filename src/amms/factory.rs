@@ -22,6 +22,7 @@ use super::{
 };
 
 use super::uniswap_v2::UniswapV2Factory;
+use super::uniswap_v3::UniswapV3Factory;
 
 //TODO: add consts for steps, batch size, etc.
 pub trait AutomatedMarketMakerFactory: Into<Factory> {
@@ -37,7 +38,7 @@ pub trait AutomatedMarketMakerFactory: Into<Factory> {
     /// Returns the block number at which the factory was created.
     fn creation_block(&self) -> u64;
 
-    fn discovery_events(&self) -> Vec<B256>;
+    fn discovery_event(&self) -> B256;
 
     fn pool_events(&self) -> Vec<B256> {
         Self::PoolVariant::default().sync_events()
@@ -62,9 +63,9 @@ macro_rules! factory {
                 }
             }
 
-            fn discovery_events(&self) -> Vec<B256> {
+            fn discovery_event(&self) -> B256 {
                 match self {
-                    $(Factory::$factory_type(factory) => factory.discovery_events(),)+
+                    $(Factory::$factory_type(factory) => factory.discovery_event(),)+
                 }
             }
 
@@ -97,7 +98,7 @@ macro_rules! factory {
     };
 }
 
-factory!(UniswapV2Factory);
+factory!(UniswapV2Factory, UniswapV3Factory);
 
 #[derive(Default)]
 struct NoopAMM;

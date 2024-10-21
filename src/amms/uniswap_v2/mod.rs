@@ -134,8 +134,8 @@ impl AutomatedMarketMakerFactory for UniswapV2Factory {
         self.address
     }
 
-    fn discovery_events(&self) -> Vec<B256> {
-        vec![IUniswapV2Factory::PairCreated::SIGNATURE_HASH]
+    fn discovery_event(&self) -> B256 {
+        IUniswapV2Factory::PairCreated::SIGNATURE_HASH
     }
 
     fn create_pool(&self, log: Log) -> Result<AMM, AMMError> {
