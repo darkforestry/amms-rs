@@ -183,7 +183,17 @@ impl AutomatedMarketMakerFactory for UniswapV3Factory {
     }
 
     fn create_pool(&self, log: Log) -> Result<AMM, AMMError> {
-        todo!()
+        let pool_created_event =
+            IUniswapV3Factory::PoolCreated::decode_log(&log.inner, true).expect("TODO:");
+
+        Ok(AMM::UniswapV3Pool(UniswapV3Pool {
+            address: pool_created_event.pool,
+            token_a: pool_created_event.token0,
+            token_b: pool_created_event.token1,
+            fee: pool_created_event.fee.to::<u32>(),
+            tick_spacing: pool_created_event.tickSpacing.unchecked_into(),
+            ..Default::default()
+        }))
     }
 
     fn creation_block(&self) -> u64 {

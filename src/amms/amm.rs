@@ -13,7 +13,7 @@ use std::{
     sync::Arc,
 };
 
-use super::{error::AMMError, uniswap_v2::UniswapV2Pool};
+use super::{error::AMMError, uniswap_v2::UniswapV2Pool, uniswap_v3::UniswapV3Pool};
 
 pub trait AutomatedMarketMaker {
     // TODO: maybe add a sync step and batch size GAT that will be implemented for each amm
@@ -126,4 +126,4 @@ macro_rules! amm {
     };
 }
 
-amm!(UniswapV2Pool);
+amm!(UniswapV2Pool, UniswapV3Pool);
