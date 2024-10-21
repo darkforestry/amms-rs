@@ -38,7 +38,7 @@ impl DiscoveryManager {
         self.factories
             .iter()
             .fold(HashSet::new(), |mut events_set, (_, factory)| {
-                events_set.extend(factory.discovery_events());
+                events_set.extend(factory.discovery_event());
                 events_set
             })
     }
