@@ -16,12 +16,14 @@ async fn main() -> eyre::Result<()> {
         UniswapV2Factory::new(
             address!("5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f"),
             2638438,
+            300,
         )
         .into(),
         // Sushiswap
         UniswapV2Factory::new(
             address!("C0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac"),
             10794229,
+            300,
         )
         .into(),
     ];

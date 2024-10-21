@@ -1,5 +1,5 @@
 pub mod filter;
-pub use filter::{AMMFilter, Filter};
+pub use filter::{AMMFilter, PoolFilter};
 
 pub mod blacklist;
 pub use blacklist::BlacklistFilter;
