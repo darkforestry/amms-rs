@@ -80,19 +80,53 @@ impl AutomatedMarketMaker for UniswapV2Pool {
     fn simulate_swap(
         &self,
         base_token: Address,
-        quote_token: Address,
+        _quote_token: Address,
         amount_in: U256,
     ) -> Result<U256, AMMError> {
-        todo!()
+        if self.token_a == base_token {
+            Ok(self.get_amount_out(
+                amount_in,
+                U256::from(self.reserve_0),
+                U256::from(self.reserve_1),
+            ))
+        } else {
+            Ok(self.get_amount_out(
+                amount_in,
+                U256::from(self.reserve_1),
+                U256::from(self.reserve_0),
+            ))
+        }
     }
 
     fn simulate_swap_mut(
         &mut self,
         base_token: Address,
-        quote_token: Address,
+        _quote_token: Address,
         amount_in: U256,
     ) -> Result<U256, AMMError> {
-        todo!()
+        if self.token_a == base_token {
+            let amount_out = self.get_amount_out(
+                amount_in,
+                U256::from(self.reserve_0),
+                U256::from(self.reserve_1),
+            );
+
+            self.reserve_0 += amount_in.to::<u128>();
+            self.reserve_1 -= amount_out.to::<u128>();
+
+            Ok(amount_out)
+        } else {
+            let amount_out = self.get_amount_out(
+                amount_in,
+                U256::from(self.reserve_1),
+                U256::from(self.reserve_0),
+            );
+
+            self.reserve_0 -= amount_out.to::<u128>();
+            self.reserve_1 += amount_in.to::<u128>();
+
+            Ok(amount_out)
+        }
     }
 
     fn tokens(&self) -> Vec<Address> {
@@ -101,6 +135,24 @@ impl AutomatedMarketMaker for UniswapV2Pool {
 
     fn calculate_price(&self, base_token: Address, quote_token: Address) -> Result<f64, AMMError> {
         todo!()
+    }
+}
+
+impl UniswapV2Pool {
+    /// Calculates the amount received for a given `amount_in` `reserve_in` and `reserve_out`.
+    pub fn get_amount_out(&self, amount_in: U256, reserve_in: U256, reserve_out: U256) -> U256 {
+        if amount_in.is_zero() || reserve_in.is_zero() || reserve_out.is_zero() {
+            return U256::ZERO;
+        }
+
+        // TODO: we could set this as the fee on the pool instead of calculating this
+        let fee = (10000 - (self.fee / 10)) / 10; //Fee of 300 => (10,000 - 30) / 10  = 997
+        let amount_in_with_fee = amount_in * U256::from(fee);
+        let numerator = amount_in_with_fee * reserve_out;
+        // TODO: update U256::from(1000) to const
+        let denominator = reserve_in * U256::from(1000) + amount_in_with_fee;
+
+        numerator / denominator
     }
 }
 
