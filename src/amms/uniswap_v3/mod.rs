@@ -25,6 +25,14 @@ sol!(
 #[allow(missing_docs)]
 #[derive(Debug)]
 contract IUniswapV3Factory {
+    /// @notice Emitted when a pool is created
+    event PoolCreated(
+        address indexed token0,
+        address indexed token1,
+        uint24 indexed fee,
+        int24 tickSpacing,
+        address pool
+    );
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -62,8 +70,7 @@ contract IUniswapV3PoolEvents {
         int24 tick
     );
 
-}
-);
+});
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct UniswapV3Pool {
@@ -149,7 +156,6 @@ impl AutomatedMarketMaker for UniswapV3Pool {
 #[derive(Debug, Clone, Serialize, Deserialize, Hash, PartialEq, Eq)]
 pub struct UniswapV3Factory {
     pub address: Address,
-    pub fee: usize,
     pub creation_block: u64,
 }
 
@@ -172,8 +178,8 @@ impl AutomatedMarketMakerFactory for UniswapV3Factory {
         self.address
     }
 
-    fn discovery_events(&self) -> Vec<B256> {
-        todo!()
+    fn discovery_event(&self) -> B256 {
+        IUniswapV3Factory::PoolCreated::SIGNATURE_HASH
     }
 
     fn create_pool(&self, log: Log) -> Result<AMM, AMMError> {
