@@ -22,6 +22,7 @@ use super::{
 };
 
 use super::uniswap_v2::UniswapV2Factory;
+use super::uniswap_v3::UniswapV3Factory;
 
 //TODO: add consts for steps, batch size, etc.
 pub trait AutomatedMarketMakerFactory: Into<Factory> {
@@ -97,7 +98,7 @@ macro_rules! factory {
     };
 }
 
-factory!(UniswapV2Factory);
+factory!(UniswapV2Factory, UniswapV3Factory);
 
 #[derive(Default)]
 struct NoopAMM;
