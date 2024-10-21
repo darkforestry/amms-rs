@@ -29,11 +29,39 @@ contract IUniswapV3Factory {
 
 #[derive(Debug, PartialEq, Eq)]
 #[sol(rpc)]
-contract IUniswapV3Pool {
-    event Sync(uint112 reserve0, uint112 reserve1);
-    function token0() external view returns (address);
-    function token1() external view returns (address);
-    function swap(uint256 amount0Out, uint256 amount1Out, address to, bytes calldata data);
+contract IUniswapV3PoolEvents {
+    /// @notice Emitted when liquidity is minted for a given position
+    event Mint(
+        address sender,
+        address indexed owner,
+        int24 indexed tickLower,
+        int24 indexed tickUpper,
+        uint128 amount,
+        uint256 amount0,
+        uint256 amount1
+    );
+
+    /// @notice Emitted when a position's liquidity is removed
+    event Burn(
+        address indexed owner,
+        int24 indexed tickLower,
+        int24 indexed tickUpper,
+        uint128 amount,
+        uint256 amount0,
+        uint256 amount1
+    );
+
+    /// @notice Emitted by the pool for any swaps between token0 and token1
+    event Swap(
+        address indexed sender,
+        address indexed recipient,
+        int256 amount0,
+        int256 amount1,
+        uint160 sqrtPriceX96,
+        uint128 liquidity,
+        int24 tick
+    );
+
 }
 );
 
@@ -75,11 +103,16 @@ impl AutomatedMarketMaker for UniswapV3Pool {
     }
 
     fn sync_events(&self) -> Vec<B256> {
-        todo!()
+        vec![
+            IUniswapV3PoolEvents::Mint::SIGNATURE_HASH,
+            IUniswapV3PoolEvents::Burn::SIGNATURE_HASH,
+            IUniswapV3PoolEvents::Swap::SIGNATURE_HASH,
+        ]
     }
 
     fn set_decimals(&mut self, token_decimals: &HashMap<Address, u8>) {
-        todo!()
+        self.token_a_decimals = *token_decimals.get(&self.token_a).expect("TODO:");
+        self.token_b_decimals = *token_decimals.get(&self.token_b).expect("TODO:");
     }
 
     fn sync(&mut self, log: Log) {
