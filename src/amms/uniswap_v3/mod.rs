@@ -160,8 +160,11 @@ pub struct UniswapV3Factory {
 }
 
 impl UniswapV3Factory {
-    pub fn new(address: Address, fee: usize, creation_block: u64) -> Self {
-        todo!()
+    pub fn new(address: Address, creation_block: u64) -> Self {
+        UniswapV3Factory {
+            address,
+            creation_block,
+        }
     }
 }
 
