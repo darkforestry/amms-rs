@@ -24,7 +24,9 @@ sol!(
 // UniswapV2Factory
 #[allow(missing_docs)]
 #[derive(Debug)]
+contract IUniswapV2Factory {
 event PairCreated(address indexed token0, address indexed token1, address pair, uint256);
+}
 
 #[derive(Debug, PartialEq, Eq)]
 #[sol(rpc)]
@@ -133,11 +135,12 @@ impl AutomatedMarketMakerFactory for UniswapV2Factory {
     }
 
     fn discovery_events(&self) -> Vec<B256> {
-        todo!()
+        vec![IUniswapV2Factory::PairCreated::SIGNATURE_HASH]
     }
 
     fn create_pool(&self, log: Log) -> Result<AMM, AMMError> {
-        let event = PairCreated::decode_log(&log.inner, false).expect("TODO: handle this error");
+        let event = IUniswapV2Factory::PairCreated::decode_log(&log.inner, false)
+            .expect("TODO: handle this error");
         Ok(AMM::UniswapV2Pool(UniswapV2Pool {
             address: event.pair,
             token_a: event.token0,
