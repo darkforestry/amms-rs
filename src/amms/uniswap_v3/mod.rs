@@ -286,6 +286,12 @@ impl UniswapV3Pool {
     }
 }
 
+impl Into<AMM> for UniswapV3Pool {
+    fn into(self) -> AMM {
+        AMM::UniswapV3Pool(self)
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Hash, PartialEq, Eq)]
 pub struct UniswapV3Factory {
     pub address: Address,

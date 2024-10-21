@@ -104,6 +104,12 @@ impl AutomatedMarketMaker for UniswapV2Pool {
     }
 }
 
+impl Into<AMM> for UniswapV2Pool {
+    fn into(self) -> AMM {
+        AMM::UniswapV2Pool(self)
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Hash, PartialEq, Eq)]
 pub struct UniswapV2Factory {
     pub address: Address,
