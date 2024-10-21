@@ -125,39 +125,42 @@ impl AutomatedMarketMaker for UniswapV3Pool {
 
     fn sync(&mut self, log: Log) {
         let event_signature = log.topics()[0];
+        match event_signature {
+            IUniswapV3PoolEvents::Swap::SIGNATURE_HASH => {
+                let swap_event =
+                    IUniswapV3PoolEvents::Swap::decode_log(log.as_ref(), false).expect("TODO: ");
 
-        if event_signature == IUniswapV3PoolEvents::Swap::SIGNATURE_HASH {
-            // TODO: we could use a feature flag to enable/disable validation
-            let swap_event =
-                IUniswapV3PoolEvents::Swap::decode_log(log.as_ref(), false).expect("TODO: ");
+                self.sqrt_price = swap_event.sqrtPriceX96.to();
+                self.liquidity = swap_event.liquidity;
+                self.tick = swap_event.tick.unchecked_into();
 
-            self.sqrt_price = swap_event.sqrtPriceX96.to();
-            self.liquidity = swap_event.liquidity;
-            self.tick = swap_event.tick.unchecked_into();
+                // tracing::debug!(?swap_event, address = ?self.address, sqrt_price = ?self.sqrt_price, liquidity = ?self.liquidity, tick = ?self.tick, "UniswapV3 swap event");
+            }
+            IUniswapV3PoolEvents::Mint::SIGNATURE_HASH => {
+                let mint_event =
+                    IUniswapV3PoolEvents::Mint::decode_log(log.as_ref(), false).expect("TODO: ");
 
-            // tracing::debug!(?swap_event, address = ?self.address, sqrt_price = ?self.sqrt_price, liquidity = ?self.liquidity, tick = ?self.tick, "UniswapV3 swap event");
-        } else if event_signature == IUniswapV3PoolEvents::Mint::SIGNATURE_HASH {
-            let mint_event =
-                IUniswapV3PoolEvents::Mint::decode_log(log.as_ref(), false).expect("TODO: ");
+                self.modify_position(
+                    mint_event.tickLower.unchecked_into(),
+                    mint_event.tickUpper.unchecked_into(),
+                    mint_event.amount as i128,
+                );
+                // tracing::debug!(?mint_event, address = ?self.address, sqrt_price = ?self.sqrt_price, liquidity = ?self.liquidity, tick = ?self.tick, "UniswapV3 mint event");
+            }
+            IUniswapV3PoolEvents::Burn::SIGNATURE_HASH => {
+                let burn_event =
+                    IUniswapV3PoolEvents::Burn::decode_log(log.as_ref(), false).expect("TODO: ");
 
-            self.modify_position(
-                mint_event.tickLower.unchecked_into(),
-                mint_event.tickUpper.unchecked_into(),
-                mint_event.amount as i128,
-            );
-            // tracing::debug!(?mint_event, address = ?self.address, sqrt_price = ?self.sqrt_price, liquidity = ?self.liquidity, tick = ?self.tick, "UniswapV3 mint event");
-        } else if event_signature == IUniswapV3PoolEvents::Burn::SIGNATURE_HASH {
-            let burn_event =
-                IUniswapV3PoolEvents::Burn::decode_log(log.as_ref(), false).expect("TODO: ");
-
-            self.modify_position(
-                burn_event.tickLower.unchecked_into(),
-                burn_event.tickUpper.unchecked_into(),
-                -(burn_event.amount as i128),
-            );
-            // tracing::debug!(?burn_event, address = ?self.address, sqrt_price = ?self.sqrt_price, liquidity = ?self.liquidity, tick = ?self.tick, "UniswapV3 burn event");
-        } else {
-            todo!("TODO: Handle this error")
+                self.modify_position(
+                    burn_event.tickLower.unchecked_into(),
+                    burn_event.tickUpper.unchecked_into(),
+                    -(burn_event.amount as i128),
+                );
+                // tracing::debug!(?burn_event, address = ?self.address, sqrt_price = ?self.sqrt_price, liquidity = ?self.liquidity, tick = ?self.tick, "UniswapV3 burn event");
+            }
+            _ => {
+                todo!("TODO: Handle this error")
+            }
         }
     }
 
