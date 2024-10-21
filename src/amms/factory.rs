@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     default,
     hash::{Hash, Hasher},
     sync::Arc,
@@ -109,7 +110,11 @@ impl AutomatedMarketMaker for NoopAMM {
         unreachable!()
     }
 
-    fn sync(&mut self, log: Log) {
+    fn sync(&mut self, _log: Log) {
+        unreachable!()
+    }
+
+    fn set_decimals(&mut self, _token_decimals: &HashMap<Address, u8>) {
         unreachable!()
     }
 

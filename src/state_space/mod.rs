@@ -207,7 +207,27 @@ where
 }
 
 #[derive(Debug, Default)]
+
+//TODO: maybe just do StateSpace(HashMap<Address,AMM>) and use all inner functions
 pub struct StateSpace {
     // NOTE: bench dashmap instead
     state: HashMap<Address, AMM>,
+}
+
+impl StateSpace {
+    pub fn insert(&mut self, address: Address, pool: AMM) {
+        self.state.insert(address, pool);
+    }
+
+    pub fn remove(&mut self, address: Address) {
+        self.state.remove(&address);
+    }
+
+    pub fn get(&self, address: &Address) -> Option<&AMM> {
+        self.state.get(address)
+    }
+
+    pub fn get_mut(&mut self, address: &Address) -> Option<&mut AMM> {
+        self.state.get_mut(&address)
+    }
 }
