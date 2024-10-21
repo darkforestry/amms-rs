@@ -15,6 +15,7 @@ use alloy::{
 };
 use serde::{Deserialize, Serialize};
 use std::{
+    collections::HashMap,
     hash::{Hash, Hasher},
     sync::Arc,
 };
@@ -53,6 +54,11 @@ impl AutomatedMarketMaker for UniswapV2Pool {
 
     fn sync_events(&self) -> Vec<B256> {
         vec![IUniswapV2Pair::Sync::SIGNATURE_HASH]
+    }
+
+    fn set_decimals(&mut self, token_decimals: &HashMap<Address, u8>) {
+        self.token_a_decimals = *token_decimals.get(&self.token_a).expect("TODO:");
+        self.token_b_decimals = *token_decimals.get(&self.token_b).expect("TODO:");
     }
 
     fn sync(&mut self, log: Log) {

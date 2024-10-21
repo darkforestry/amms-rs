@@ -7,6 +7,7 @@ use alloy::{
 };
 use serde::{Deserialize, Serialize};
 use std::{
+    collections::HashMap,
     future::Future,
     hash::{Hash, Hasher},
     sync::Arc,
@@ -21,6 +22,8 @@ pub trait AutomatedMarketMaker {
     fn address(&self) -> Address;
 
     fn sync_events(&self) -> Vec<B256>;
+
+    fn set_decimals(&mut self, token_decimals: &HashMap<Address, u8>);
 
     fn sync(&mut self, log: Log);
 
@@ -67,6 +70,12 @@ macro_rules! amm {
             fn sync_events(&self) -> Vec<B256> {
                 match self {
                     $(AMM::$pool_type(pool) => pool.sync_events(),)+
+                }
+            }
+
+            fn set_decimals(&mut self, token_decimals: &HashMap<Address, u8>) {
+                match self {
+                    $(AMM::$pool_type(pool) => pool.set_decimals(token_decimals),)+
                 }
             }
 
