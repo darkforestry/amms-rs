@@ -7,23 +7,14 @@ use super::{
 };
 
 use alloy::{
-    network::Network,
     primitives::{Address, B256, I256, U256},
-    providers::Provider,
-    rpc::types::{Filter, Log},
+    rpc::types::Log,
     sol,
     sol_types::SolEvent,
-    transports::Transport,
 };
 use eyre::{eyre, Result};
 use serde::{Deserialize, Serialize};
-use std::{
-    cmp::Ordering,
-    collections::HashMap,
-    hash::{Hash, Hasher},
-    sync::Arc,
-};
-use tracing::event;
+use std::{cmp::Ordering, collections::HashMap, hash::Hash};
 use uniswap_v3_math::tick_math::{MAX_SQRT_RATIO, MAX_TICK, MIN_SQRT_RATIO, MIN_TICK};
 
 sol!(
