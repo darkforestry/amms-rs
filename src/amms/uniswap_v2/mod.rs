@@ -136,7 +136,7 @@ impl AutomatedMarketMaker for UniswapV2Pool {
 
     fn calculate_price(&self, base_token: Address, _quote_token: Address) -> Result<f64> {
         let price = self.calculate_price_64_x_64(base_token)?;
-        Ok((price as f64) / (U128_0X10000000000000000 as f64))
+        Ok(q64_to_float(price)?)
     }
 }
 
