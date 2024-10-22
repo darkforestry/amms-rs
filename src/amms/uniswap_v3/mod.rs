@@ -13,6 +13,7 @@ use alloy::{
     sol_types::SolEvent,
     transports::Transport,
 };
+use eyre::Result;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
@@ -169,7 +170,7 @@ impl AutomatedMarketMaker for UniswapV3Pool {
         base_token: Address,
         quote_token: Address,
         amount_in: U256,
-    ) -> Result<U256, AMMError> {
+    ) -> Result<U256> {
         todo!()
     }
 
@@ -178,7 +179,7 @@ impl AutomatedMarketMaker for UniswapV3Pool {
         base_token: Address,
         quote_token: Address,
         amount_in: U256,
-    ) -> Result<U256, AMMError> {
+    ) -> Result<U256> {
         todo!()
     }
 
@@ -186,7 +187,7 @@ impl AutomatedMarketMaker for UniswapV3Pool {
         vec![self.token_a, self.token_b]
     }
 
-    fn calculate_price(&self, base_token: Address, quote_token: Address) -> Result<f64, AMMError> {
+    fn calculate_price(&self, base_token: Address, quote_token: Address) -> Result<f64> {
         todo!()
     }
 }

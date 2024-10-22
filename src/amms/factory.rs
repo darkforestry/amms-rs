@@ -13,6 +13,7 @@ use alloy::{
     sol_types::SolEvent,
     transports::Transport,
 };
+use eyre::Result;
 use futures::stream::{FuturesUnordered, StreamExt};
 use serde::{Deserialize, Serialize};
 
@@ -124,7 +125,7 @@ impl AutomatedMarketMaker for NoopAMM {
         _base_token: Address,
         _quote_token: Address,
         _amount_in: U256,
-    ) -> Result<U256, AMMError> {
+    ) -> Result<U256> {
         unreachable!()
     }
 
@@ -133,14 +134,10 @@ impl AutomatedMarketMaker for NoopAMM {
         _base_token: Address,
         _quote_token: Address,
         _amount_in: U256,
-    ) -> Result<U256, AMMError> {
+    ) -> Result<U256> {
         unreachable!()
     }
-    fn calculate_price(
-        &self,
-        _base_token: Address,
-        _quote_token: Address,
-    ) -> Result<f64, AMMError> {
+    fn calculate_price(&self, _base_token: Address, _quote_token: Address) -> Result<f64> {
         unreachable!()
     }
 

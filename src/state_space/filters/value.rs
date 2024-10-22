@@ -134,6 +134,7 @@ where
                 // TODO FIXME: Need to update this when we have balancer/v3 support
                 let pool_type = match amm {
                     AMM::UniswapV2Pool(_) => 0,
+                    AMM::UniswapV3Pool(_) => 1,
                 };
 
                 PoolInfo {
