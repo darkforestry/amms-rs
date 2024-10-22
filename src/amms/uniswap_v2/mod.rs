@@ -153,13 +153,6 @@ pub fn u128_to_float(num: u128) -> Result<Float> {
     Ok(Float::with_val(MPFR_T_PRECISION, parsed_value))
 }
 
-pub fn u256_to_float(num: U256) -> Result<Float> {
-    let value_string = num.to_string();
-    let parsed_value =
-        Float::parse_radix(value_string, 10).expect("Failed to parse U256 to string");
-    Ok(Float::with_val(MPFR_T_PRECISION, parsed_value))
-}
-
 impl UniswapV2Pool {
     /// Calculates the amount received for a given `amount_in` `reserve_in` and `reserve_out`.
     pub fn get_amount_out(&self, amount_in: U256, reserve_in: U256, reserve_out: U256) -> U256 {
