@@ -125,7 +125,7 @@ impl AutomatedMarketMaker for NoopAMM {
         _base_token: Address,
         _quote_token: Address,
         _amount_in: U256,
-    ) -> Result<U256> {
+    ) -> Result<U256, AMMError> {
         unreachable!()
     }
 
@@ -134,10 +134,14 @@ impl AutomatedMarketMaker for NoopAMM {
         _base_token: Address,
         _quote_token: Address,
         _amount_in: U256,
-    ) -> Result<U256> {
+    ) -> Result<U256, AMMError> {
         unreachable!()
     }
-    fn calculate_price(&self, _base_token: Address, _quote_token: Address) -> Result<f64> {
+    fn calculate_price(
+        &self,
+        _base_token: Address,
+        _quote_token: Address,
+    ) -> Result<f64, AMMError> {
         unreachable!()
     }
 

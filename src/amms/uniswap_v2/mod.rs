@@ -16,7 +16,7 @@ use alloy::{
     sol,
     sol_types::SolEvent,
 };
-use eyre::{eyre, Result};
+use eyre::Result;
 use rug::Float;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, hash::Hash};
@@ -83,7 +83,7 @@ impl AutomatedMarketMaker for UniswapV2Pool {
         base_token: Address,
         _quote_token: Address,
         amount_in: U256,
-    ) -> Result<U256> {
+    ) -> Result<U256, AMMError> {
         if self.token_a == base_token {
             Ok(self.get_amount_out(
                 amount_in,
@@ -104,7 +104,7 @@ impl AutomatedMarketMaker for UniswapV2Pool {
         base_token: Address,
         _quote_token: Address,
         amount_in: U256,
-    ) -> Result<U256> {
+    ) -> Result<U256, AMMError> {
         if self.token_a == base_token {
             let amount_out = self.get_amount_out(
                 amount_in,
@@ -134,22 +134,22 @@ impl AutomatedMarketMaker for UniswapV2Pool {
         vec![self.token_a, self.token_b]
     }
 
-    fn calculate_price(&self, base_token: Address, _quote_token: Address) -> Result<f64> {
+    fn calculate_price(&self, base_token: Address, _quote_token: Address) -> Result<f64, AMMError> {
         let price = self.calculate_price_64_x_64(base_token)?;
         Ok(q64_to_float(price)?)
     }
 }
 
-pub fn q64_to_float(num: u128) -> Result<f64> {
+pub fn q64_to_float(num: u128) -> Result<f64, AMMError> {
     let float_num = u128_to_float(num)?;
     let divisor = u128_to_float(U128_0X10000000000000000)?;
     Ok((float_num / divisor).to_f64())
 }
 
-pub fn u128_to_float(num: u128) -> Result<Float> {
+pub fn u128_to_float(num: u128) -> Result<Float, AMMError> {
     let value_string = num.to_string();
     let parsed_value =
-        Float::parse_radix(value_string, 10).expect("Failed to parse u128 to string");
+        Float::parse_radix(value_string, 10).map_err(|_| AMMError::ParseFloatError)?;
     Ok(Float::with_val(MPFR_T_PRECISION, parsed_value))
 }
 
@@ -173,7 +173,7 @@ impl UniswapV2Pool {
     /// Calculates the price of the base token in terms of the quote token.
     ///
     /// Returned as a Q64 fixed point number.
-    pub fn calculate_price_64_x_64(&self, base_token: Address) -> Result<u128> {
+    pub fn calculate_price_64_x_64(&self, base_token: Address) -> Result<u128, AMMError> {
         let decimal_shift = self.token_a_decimals as i8 - self.token_b_decimals as i8;
 
         let (r_0, r_1) = if decimal_shift < 0 {
@@ -263,7 +263,7 @@ impl AutomatedMarketMakerFactory for UniswapV2Factory {
     }
 }
 
-pub fn div_uu(x: U256, y: U256) -> Result<u128> {
+pub fn div_uu(x: U256, y: U256) -> Result<u128, AMMError> {
     if !y.is_zero() {
         let mut answer;
 
@@ -329,7 +329,7 @@ pub fn div_uu(x: U256, y: U256) -> Result<u128> {
         xl = xl.overflowing_sub(lo).0;
 
         if xh != hi >> U256_128 {
-            return Err(eyre!("Rounding error"));
+            return Err(AMMError::RoundingError);
         }
 
         answer += xl / y;
@@ -340,6 +340,6 @@ pub fn div_uu(x: U256, y: U256) -> Result<u128> {
 
         Ok(answer.to::<u128>())
     } else {
-        Err(eyre!("Division by zero"))
+        Err(AMMError::DivisionByZero)
     }
 }

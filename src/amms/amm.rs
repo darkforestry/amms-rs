@@ -32,7 +32,7 @@ pub trait AutomatedMarketMaker {
     fn tokens(&self) -> Vec<Address>;
 
     /// Calculates a f64 representation of base token price in the AMM.
-    fn calculate_price(&self, base_token: Address, quote_token: Address) -> Result<f64>;
+    fn calculate_price(&self, base_token: Address, quote_token: Address) -> Result<f64, AMMError>;
 
     /// Locally simulates a swap in the AMM.
     /// Returns the amount received for `amount_in` of `token_in`.
@@ -41,7 +41,7 @@ pub trait AutomatedMarketMaker {
         base_token: Address,
         quote_token: Address,
         amount_in: U256,
-    ) -> Result<U256>;
+    ) -> Result<U256, AMMError>;
 
     /// Locally simulates a swap in the AMM.
     /// Mutates the AMM state to the state of the AMM after swapping.
@@ -51,7 +51,7 @@ pub trait AutomatedMarketMaker {
         base_token: Address,
         quote_token: Address,
         amount_in: U256,
-    ) -> Result<U256>;
+    ) -> Result<U256, AMMError>;
 }
 
 macro_rules! amm {
@@ -86,13 +86,13 @@ macro_rules! amm {
                 }
             }
 
-            fn simulate_swap(&self, base_token: Address, quote_token: Address,amount_in: U256) -> Result<U256> {
+            fn simulate_swap(&self, base_token: Address, quote_token: Address,amount_in: U256) -> Result<U256, AMMError> {
                 match self {
                     $(AMM::$pool_type(pool) => pool.simulate_swap(base_token, quote_token, amount_in),)+
                 }
             }
 
-            fn simulate_swap_mut(&mut self, base_token: Address, quote_token: Address, amount_in: U256) -> Result<U256> {
+            fn simulate_swap_mut(&mut self, base_token: Address, quote_token: Address, amount_in: U256) -> Result<U256, AMMError> {
                 match self {
                     $(AMM::$pool_type(pool) => pool.simulate_swap_mut(base_token, quote_token, amount_in),)+
                 }
@@ -104,7 +104,7 @@ macro_rules! amm {
                 }
             }
 
-            fn calculate_price(&self, base_token: Address, quote_token: Address) -> Result<f64> {
+            fn calculate_price(&self, base_token: Address, quote_token: Address) -> Result<f64, AMMError> {
                 match self {
                     $(AMM::$pool_type(pool) => pool.calculate_price(base_token, quote_token),)+
                 }

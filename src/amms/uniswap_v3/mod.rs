@@ -12,7 +12,7 @@ use alloy::{
     sol,
     sol_types::SolEvent,
 };
-use eyre::{eyre, Result};
+use eyre::Result;
 use serde::{Deserialize, Serialize};
 use std::{cmp::Ordering, collections::HashMap, hash::Hash};
 use uniswap_v3_math::tick_math::{MAX_SQRT_RATIO, MAX_TICK, MIN_SQRT_RATIO, MIN_TICK};
@@ -196,7 +196,7 @@ impl AutomatedMarketMaker for UniswapV3Pool {
         base_token: Address,
         _quote_token: Address,
         amount_in: U256,
-    ) -> Result<U256> {
+    ) -> Result<U256, AMMError> {
         if amount_in.is_zero() {
             return Ok(U256::ZERO);
         }
@@ -299,7 +299,7 @@ impl AutomatedMarketMaker for UniswapV3Pool {
 
                     current_state.liquidity = if liquidity_net < 0 {
                         if current_state.liquidity < (-liquidity_net as u128) {
-                            return Err(eyre!("Liquidity Underflow"));
+                            return Err(AMMError::LiquidityUnderflow);
                         } else {
                             current_state.liquidity - (-liquidity_net as u128)
                         }
@@ -334,7 +334,7 @@ impl AutomatedMarketMaker for UniswapV3Pool {
         base_token: Address,
         _quote_token: Address,
         amount_in: U256,
-    ) -> Result<U256> {
+    ) -> Result<U256, AMMError> {
         if amount_in.is_zero() {
             return Ok(U256::ZERO);
         }
@@ -442,7 +442,7 @@ impl AutomatedMarketMaker for UniswapV3Pool {
 
                     current_state.liquidity = if liquidity_net < 0 {
                         if current_state.liquidity < (-liquidity_net as u128) {
-                            return Err(eyre!("Liquidity Underflow"));
+                            return Err(AMMError::LiquidityUnderflow);
                         } else {
                             current_state.liquidity - (-liquidity_net as u128)
                         }
@@ -481,7 +481,7 @@ impl AutomatedMarketMaker for UniswapV3Pool {
         vec![self.token_a, self.token_b]
     }
 
-    fn calculate_price(&self, base_token: Address, _quote_token: Address) -> Result<f64> {
+    fn calculate_price(&self, base_token: Address, _quote_token: Address) -> Result<f64, AMMError> {
         let tick = uniswap_v3_math::tick_math::get_tick_at_sqrt_ratio(self.sqrt_price)?;
         let shift = self.token_a_decimals as i8 - self.token_b_decimals as i8;
 
