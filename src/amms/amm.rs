@@ -5,6 +5,7 @@ use alloy::{
     rpc::types::Log,
     transports::Transport,
 };
+use eyre::Result;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,

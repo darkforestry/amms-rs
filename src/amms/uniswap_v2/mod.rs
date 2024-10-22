@@ -1,24 +1,25 @@
 use super::{
     amm::{AutomatedMarketMaker, AMM},
+    consts::{
+        MPFR_T_PRECISION, U128_0X10000000000000000, U256_0X100, U256_0X10000, U256_0X100000000,
+        U256_0XFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF,
+        U256_0XFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF, U256_1, U256_128, U256_16,
+        U256_191, U256_192, U256_2, U256_255, U256_32, U256_4, U256_64, U256_8,
+    },
     error::AMMError,
     factory::{AutomatedMarketMakerFactory, Factory},
 };
 
 use alloy::{
-    network::Network,
     primitives::{Address, B256, U256},
-    providers::Provider,
-    rpc::types::{Filter, Log},
+    rpc::types::Log,
     sol,
     sol_types::SolEvent,
-    transports::Transport,
 };
+use eyre::Result;
+use rug::Float;
 use serde::{Deserialize, Serialize};
-use std::{
-    collections::HashMap,
-    hash::{Hash, Hasher},
-    sync::Arc,
-};
+use std::{collections::HashMap, hash::Hash};
 
 sol!(
 // UniswapV2Factory
@@ -133,9 +134,23 @@ impl AutomatedMarketMaker for UniswapV2Pool {
         vec![self.token_a, self.token_b]
     }
 
-    fn calculate_price(&self, base_token: Address, quote_token: Address) -> Result<f64, AMMError> {
-        todo!()
+    fn calculate_price(&self, base_token: Address, _quote_token: Address) -> Result<f64, AMMError> {
+        let price = self.calculate_price_64_x_64(base_token)?;
+        Ok(q64_to_float(price)?)
     }
+}
+
+pub fn q64_to_float(num: u128) -> Result<f64, AMMError> {
+    let float_num = u128_to_float(num)?;
+    let divisor = u128_to_float(U128_0X10000000000000000)?;
+    Ok((float_num / divisor).to_f64())
+}
+
+pub fn u128_to_float(num: u128) -> Result<Float, AMMError> {
+    let value_string = num.to_string();
+    let parsed_value =
+        Float::parse_radix(value_string, 10).map_err(|_| AMMError::ParseFloatError)?;
+    Ok(Float::with_val(MPFR_T_PRECISION, parsed_value))
 }
 
 impl UniswapV2Pool {
@@ -153,6 +168,38 @@ impl UniswapV2Pool {
         let denominator = reserve_in * U256::from(1000) + amount_in_with_fee;
 
         numerator / denominator
+    }
+
+    /// Calculates the price of the base token in terms of the quote token.
+    ///
+    /// Returned as a Q64 fixed point number.
+    pub fn calculate_price_64_x_64(&self, base_token: Address) -> Result<u128, AMMError> {
+        let decimal_shift = self.token_a_decimals as i8 - self.token_b_decimals as i8;
+
+        let (r_0, r_1) = if decimal_shift < 0 {
+            (
+                U256::from(self.reserve_0)
+                    * U256::from(10u128.pow(decimal_shift.unsigned_abs() as u32)),
+                U256::from(self.reserve_1),
+            )
+        } else {
+            (
+                U256::from(self.reserve_0),
+                U256::from(self.reserve_1) * U256::from(10u128.pow(decimal_shift as u32)),
+            )
+        };
+
+        if base_token == self.token_a {
+            if r_0.is_zero() {
+                Ok(U128_0X10000000000000000)
+            } else {
+                div_uu(r_1, r_0)
+            }
+        } else if r_1.is_zero() {
+            Ok(U128_0X10000000000000000)
+        } else {
+            div_uu(r_0, r_1)
+        }
     }
 }
 
@@ -213,5 +260,86 @@ impl AutomatedMarketMakerFactory for UniswapV2Factory {
 
     fn creation_block(&self) -> u64 {
         self.creation_block
+    }
+}
+
+pub fn div_uu(x: U256, y: U256) -> Result<u128, AMMError> {
+    if !y.is_zero() {
+        let mut answer;
+
+        if x <= U256_0XFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF {
+            answer = (x << U256_64) / y;
+        } else {
+            let mut msb = U256_192;
+            let mut xc = x >> U256_192;
+
+            if xc >= U256_0X100000000 {
+                xc >>= U256_32;
+                msb += U256_32;
+            }
+
+            if xc >= U256_0X10000 {
+                xc >>= U256_16;
+                msb += U256_16;
+            }
+
+            if xc >= U256_0X100 {
+                xc >>= U256_8;
+                msb += U256_8;
+            }
+
+            if xc >= U256_16 {
+                xc >>= U256_4;
+                msb += U256_4;
+            }
+
+            if xc >= U256_4 {
+                xc >>= U256_2;
+                msb += U256_2;
+            }
+
+            if xc >= U256_2 {
+                msb += U256_1;
+            }
+
+            answer = (x << (U256_255 - msb)) / (((y - U256_1) >> (msb - U256_191)) + U256_1);
+        }
+
+        if answer > U256_0XFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF {
+            return Ok(0);
+        }
+
+        let hi = answer * (y >> U256_128);
+        let mut lo = answer * (y & U256_0XFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF);
+
+        let mut xh = x >> U256_192;
+        let mut xl = x << U256_64;
+
+        if xl < lo {
+            xh -= U256_1;
+        }
+
+        xl = xl.overflowing_sub(lo).0;
+        lo = hi << U256_128;
+
+        if xl < lo {
+            xh -= U256_1;
+        }
+
+        xl = xl.overflowing_sub(lo).0;
+
+        if xh != hi >> U256_128 {
+            return Err(AMMError::RoundingError);
+        }
+
+        answer += xl / y;
+
+        if answer > U256_0XFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF {
+            return Ok(0_u128);
+        }
+
+        Ok(answer.to::<u128>())
+    } else {
+        Err(AMMError::DivisionByZero)
     }
 }

@@ -13,6 +13,7 @@ use alloy::{
     sol_types::SolEvent,
     transports::Transport,
 };
+use eyre::Result;
 use futures::stream::{FuturesUnordered, StreamExt};
 use serde::{Deserialize, Serialize};
 
