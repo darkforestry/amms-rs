@@ -9,7 +9,6 @@ use crate::amms::amm::AutomatedMarketMaker;
 use crate::amms::amm::AMM;
 use crate::amms::factory::AutomatedMarketMakerFactory;
 use crate::amms::factory::Factory;
-use crate::amms::uniswap_v2::UniswapV2Pool;
 use alloy::rpc::types::FilterSet;
 use alloy::{
     network::Network,
@@ -116,7 +115,7 @@ where
     // TODO: pub fn with_filters(self) -> StateSpaceBuilder<T, N, P> {}
 
     pub async fn sync(mut self) -> StateSpaceManager<T, N, P> {
-        let discovery_manager = DiscoveryManager::new(self.factories.unwrap_or_default());
+        let discovery_manager = DiscoveryManager::new(self.factories.clone().unwrap_or_default());
 
         // Create an initial filter set with all discovery events for each factory
         let mut filter_set = discovery_manager.disc_events();
@@ -154,9 +153,23 @@ where
             .await
             .expect("TODO: handle error");
 
+        self.latest_block = self.factories.as_ref().map_or(0, |factories| {
+            factories
+                .iter()
+                .map(|factory| factory.creation_block())
+                .min()
+                .unwrap_or(0)
+        });
+
+        tracing::debug!(
+            "Syncing from block {} to block {}",
+            self.latest_block,
+            chain_tip
+        );
         while self.latest_block <= chain_tip {
             let from_block = self.latest_block + 1;
-            let to_block = from_block + self.sync_step;
+            let to_block = (from_block + self.sync_step).min(chain_tip);
+            tracing::info!("to_block: {}", to_block);
             block_filter = block_filter.from_block(from_block);
             block_filter = block_filter.to_block(to_block);
 
@@ -228,6 +241,6 @@ impl StateSpace {
     }
 
     pub fn get_mut(&mut self, address: &Address) -> Option<&mut AMM> {
-        self.state.get_mut(&address)
+        self.state.get_mut(address)
     }
 }
