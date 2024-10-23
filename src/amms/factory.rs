@@ -27,7 +27,6 @@ use super::uniswap_v3::UniswapV3Factory;
 
 //TODO: add consts for steps, batch size, etc.
 pub trait AutomatedMarketMakerFactory: Into<Factory> {
-    //TODO: GAT for AMM
     type PoolVariant: AutomatedMarketMaker + Default;
 
     /// Returns the address of the factory.
@@ -44,8 +43,6 @@ pub trait AutomatedMarketMakerFactory: Into<Factory> {
     fn pool_events(&self) -> Vec<B256> {
         Self::PoolVariant::default().sync_events()
     }
-
-    // TODO: new_pool (empty pool from log), need to think through the best way to get decimals
 }
 
 macro_rules! factory {
