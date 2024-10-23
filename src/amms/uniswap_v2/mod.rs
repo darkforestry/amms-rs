@@ -3,8 +3,8 @@ use super::{
     consts::{
         MPFR_T_PRECISION, U128_0X10000000000000000, U256_0X100, U256_0X10000, U256_0X100000000,
         U256_0XFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF,
-        U256_0XFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF, U256_1, U256_128, U256_16,
-        U256_191, U256_192, U256_2, U256_255, U256_32, U256_4, U256_64, U256_8,
+        U256_0XFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF, U256_1, U256_1000, U256_128,
+        U256_16, U256_191, U256_192, U256_2, U256_255, U256_32, U256_4, U256_64, U256_8,
     },
     error::AMMError,
     factory::{AutomatedMarketMakerFactory, Factory},
@@ -164,8 +164,7 @@ impl UniswapV2Pool {
         let fee = (10000 - (self.fee / 10)) / 10; //Fee of 300 => (10,000 - 30) / 10  = 997
         let amount_in_with_fee = amount_in * U256::from(fee);
         let numerator = amount_in_with_fee * reserve_out;
-        // TODO: update U256::from(1000) to const
-        let denominator = reserve_in * U256::from(1000) + amount_in_with_fee;
+        let denominator = reserve_in * U256_1000 + amount_in_with_fee;
 
         numerator / denominator
     }
