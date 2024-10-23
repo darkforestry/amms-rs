@@ -3,13 +3,14 @@ pub mod discovery;
 pub mod filters;
 pub mod tokens;
 
+use std::ops::Range;
 use std::{collections::HashMap, marker::PhantomData, sync::Arc};
 
 use crate::amms::amm::AutomatedMarketMaker;
 use crate::amms::amm::AMM;
 use crate::amms::factory::AutomatedMarketMakerFactory;
 use crate::amms::factory::Factory;
-use alloy::rpc::types::FilterSet;
+use alloy::rpc::types::{FilterSet, Log};
 use alloy::{
     network::Network,
     primitives::{Address, FixedBytes},
@@ -21,9 +22,11 @@ use cache::StateChangeCache;
 use discovery::DiscoveryManager;
 use std::collections::HashSet;
 use tokens::populate_token_decimals;
-use tokio::sync::RwLock;
+use tokio::sync::{RwLock, Semaphore};
+use tokio::task::JoinSet;
 
 pub const CACHE_SIZE: usize = 30;
+pub const TASK_PERMITS: Semaphore = Semaphore::const_new(50);
 
 pub struct StateSpaceManager<T, N, P> {
     pub provider: Arc<P>,
@@ -137,12 +140,11 @@ where
         // is disabled within the state space manager
         filter_set.extend(sync_events);
 
-        let mut block_filter = Filter::new().event_signature(FilterSet::from(
+        let block_filter = Filter::new().event_signature(FilterSet::from(
             filter_set.into_iter().collect::<Vec<FixedBytes<32>>>(),
         ));
 
         // TODO: implement a batch contract for getting all token decimals?
-
         let mut state_space = StateSpace::default();
         let state_change_cache = StateChangeCache::<30>::new();
         let mut tokens = HashSet::new();
@@ -161,24 +163,41 @@ where
                 .unwrap_or(0)
         });
 
-        tracing::debug!(
-            "Syncing from block {} to block {}",
-            self.latest_block,
-            chain_tip
-        );
-        while self.latest_block <= chain_tip {
-            let from_block = self.latest_block + 1;
+        // HashMap k=block_range, v=ordered logs
+        let mut rng_logs = HashMap::<Range<u64>, Vec<Log>>::new();
+        let mut join_set = JoinSet::new();
+        tracing::debug!("Syncing from block {} to block {}", self.latest_block, chain_tip);
+
+        while self.latest_block < chain_tip {
+            let mut block_filter = block_filter.clone();
+            let from_block = self.latest_block;
             let to_block = (from_block + self.sync_step).min(chain_tip);
-            tracing::info!("to_block: {}", to_block);
             block_filter = block_filter.from_block(from_block);
             block_filter = block_filter.to_block(to_block);
+            let provider = self.provider.clone();
+            self.latest_block = to_block;
+            join_set.spawn(async move {
+                let _ = TASK_PERMITS.acquire().await.unwrap();
+                let logs = provider.get_logs(&block_filter).await?;
+                Ok::<(Range<u64>, Vec<Log>), eyre::Report>(((from_block..to_block), logs))
+            });
+        }
 
-            let logs = self
-                .provider
-                .get_logs(&block_filter)
-                .await
-                .expect("TODO: handle error");
+        while let Some(res) = join_set.join_next().await {
+            if let Ok(Ok((block_range, logs))) = res {
+                tracing::debug!("Got logs for block range {:?}", block_range);
+                rng_logs.insert(block_range, logs);
+            } else {
+                panic!("TODO: handle error");
+            }
+        }
 
+        let mut keys = rng_logs.keys().into_iter().collect::<Vec<_>>();
+
+        keys.sort_by(|a, b| a.start.cmp(&b.start));
+
+        for key in keys {
+            let logs = rng_logs.get(key).unwrap().clone();
             for log in logs {
                 if let Some(factory) = discovery_manager.factories.get(&log.address()) {
                     let amm = factory.create_pool(log).expect("handle errors");
@@ -192,10 +211,7 @@ where
                     amm.sync(log);
                 }
             }
-
-            self.latest_block = to_block;
         }
-
         // TODO: This might exceed max gas per static on some clients depending on the chain.
         let token_decimals = populate_token_decimals(tokens, self.provider.clone())
             .await

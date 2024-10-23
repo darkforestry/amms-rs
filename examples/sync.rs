@@ -29,11 +29,11 @@ async fn main() -> eyre::Result<()> {
         //     10794229,
         // )
         // .into(),
-        UniswapV3Factory::new(
-            address!("1F98431c8aD98523631AE4a59f267346ea31F984"),
-            12369621,
-        )
-        .into(),
+        // UniswapV3Factory::new(
+        //     address!("1F98431c8aD98523631AE4a59f267346ea31F984"),
+        //     12369621,
+        // )
+        // .into(),
     ];
 
     let state_space_manager = StateSpaceBuilder::new(provider.clone())
@@ -41,7 +41,7 @@ async fn main() -> eyre::Result<()> {
         .with_discovery()
         // .with_filters()
         // .block(123456)
-        .sync_step(500000)
+        .sync_step(10000)
         .sync()
         .await;
 
