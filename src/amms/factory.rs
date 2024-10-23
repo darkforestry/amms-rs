@@ -27,7 +27,6 @@ use super::uniswap_v3::UniswapV3Factory;
 
 //TODO: add consts for steps, batch size, etc.
 pub trait AutomatedMarketMakerFactory: Into<Factory> {
-    //TODO: GAT for AMM
     type PoolVariant: AutomatedMarketMaker + Default;
 
     /// Returns the address of the factory.
@@ -44,8 +43,6 @@ pub trait AutomatedMarketMakerFactory: Into<Factory> {
     fn pool_events(&self) -> Vec<B256> {
         Self::PoolVariant::default().sync_events()
     }
-
-    // TODO: new_pool (empty pool from log), need to think through the best way to get decimals
 }
 
 macro_rules! factory {
@@ -57,28 +54,33 @@ macro_rules! factory {
 
         impl AutomatedMarketMakerFactory for Factory {
             type PoolVariant = NoopAMM;
-
-            fn address(&self) -> Address {
+             fn address(&self) -> Address {
                 match self {
                     $(Factory::$factory_type(factory) => factory.address(),)+
                 }
             }
 
-            fn discovery_event(&self) -> B256 {
+             fn discovery_event(&self) -> B256 {
                 match self {
                     $(Factory::$factory_type(factory) => factory.discovery_event(),)+
                 }
             }
 
-            fn create_pool(&self, log: Log) -> Result<AMM, AMMError> {
+             fn create_pool(&self, log: Log) -> Result<AMM, AMMError> {
                 match self {
                     $(Factory::$factory_type(factory) => factory.create_pool(log),)+
                 }
             }
 
-            fn creation_block(&self) -> u64 {
+             fn creation_block(&self) -> u64 {
                 match self {
                     $(Factory::$factory_type(factory) => factory.creation_block(),)+
+                }
+            }
+
+             fn pool_events(&self) -> Vec<B256> {
+                match self {
+                    $(Factory::$factory_type(factory) => factory.pool_events(),)+
                 }
             }
         }
@@ -102,7 +104,7 @@ macro_rules! factory {
 factory!(UniswapV2Factory, UniswapV3Factory);
 
 #[derive(Default)]
-struct NoopAMM;
+pub struct NoopAMM;
 impl AutomatedMarketMaker for NoopAMM {
     fn address(&self) -> Address {
         unreachable!()

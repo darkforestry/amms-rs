@@ -3,14 +3,11 @@ pub mod discovery;
 pub mod filters;
 pub mod tokens;
 
-use std::{collections::HashMap, marker::PhantomData, sync::Arc};
-
 use crate::amms::amm::AutomatedMarketMaker;
 use crate::amms::amm::AMM;
 use crate::amms::factory::AutomatedMarketMakerFactory;
 use crate::amms::factory::Factory;
-use crate::amms::uniswap_v2::UniswapV2Pool;
-use alloy::rpc::types::FilterSet;
+use alloy::rpc::types::{FilterSet, Log};
 use alloy::{
     network::Network,
     primitives::{Address, FixedBytes},
@@ -19,8 +16,12 @@ use alloy::{
     transports::Transport,
 };
 use cache::StateChangeCache;
+use derive_more::derive::{Deref, DerefMut};
 use discovery::DiscoveryManager;
-use std::collections::HashSet;
+use futures::stream::FuturesUnordered;
+use futures::StreamExt;
+use std::collections::{BTreeMap, HashSet};
+use std::{collections::HashMap, marker::PhantomData, sync::Arc};
 use tokens::populate_token_decimals;
 use tokio::sync::RwLock;
 
@@ -54,6 +55,7 @@ pub struct StateSpaceBuilder<T, N, P> {
     // pub filters: Vec<Filter>,
     pub discovery: bool,
     pub sync_step: u64,
+    pub throttle: u64,
     phantom: PhantomData<(T, N)>,
     // TODO: add support for caching
     // TODO: add support to load from cache
@@ -73,6 +75,7 @@ where
             amms: None,
             discovery: false,
             sync_step: 10000,
+            throttle: 0,
             phantom: PhantomData,
         }
     }
@@ -102,6 +105,10 @@ where
         StateSpaceBuilder { sync_step, ..self }
     }
 
+    pub fn with_throttle(self, throttle: u64) -> StateSpaceBuilder<T, N, P> {
+        StateSpaceBuilder { throttle, ..self }
+    }
+
     // pub fn with_filters(self, filters: Vec<Filter>) -> StateSpaceBuilder<T, N, P> {
     //     StateSpaceBuilder { filters, ..self }
     // }
@@ -116,7 +123,7 @@ where
     // TODO: pub fn with_filters(self) -> StateSpaceBuilder<T, N, P> {}
 
     pub async fn sync(mut self) -> StateSpaceManager<T, N, P> {
-        let discovery_manager = DiscoveryManager::new(self.factories.unwrap_or_default());
+        let discovery_manager = DiscoveryManager::new(self.factories.clone().unwrap_or_default());
 
         // Create an initial filter set with all discovery events for each factory
         let mut filter_set = discovery_manager.disc_events();
@@ -138,12 +145,11 @@ where
         // is disabled within the state space manager
         filter_set.extend(sync_events);
 
-        let mut block_filter = Filter::new().event_signature(FilterSet::from(
+        let block_filter = Filter::new().event_signature(FilterSet::from(
             filter_set.into_iter().collect::<Vec<FixedBytes<32>>>(),
         ));
 
         // TODO: implement a batch contract for getting all token decimals?
-
         let mut state_space = StateSpace::default();
         let state_change_cache = StateChangeCache::<30>::new();
         let mut tokens = HashSet::new();
@@ -154,33 +160,55 @@ where
             .await
             .expect("TODO: handle error");
 
-        while self.latest_block <= chain_tip {
-            let from_block = self.latest_block + 1;
-            let to_block = from_block + self.sync_step;
+        self.latest_block = self.factories.as_ref().map_or(0, |factories| {
+            factories
+                .iter()
+                .map(|factory| factory.creation_block())
+                .min()
+                .unwrap_or(0)
+        });
+
+        // TODO: crate a new provider for syncing that uses a throttled provider using self.throttle;
+        let sync_provider = self.provider.clone();
+        let mut futures = FuturesUnordered::new();
+
+        while self.latest_block < chain_tip {
+            let mut block_filter = block_filter.clone();
+            let from_block = self.latest_block;
+            let to_block = (from_block + self.sync_step).min(chain_tip);
             block_filter = block_filter.from_block(from_block);
             block_filter = block_filter.to_block(to_block);
 
-            let logs = self
-                .provider
-                .get_logs(&block_filter)
-                .await
-                .expect("TODO: handle error");
-
-            for log in logs {
-                if let Some(factory) = discovery_manager.factories.get(&log.address()) {
-                    let amm = factory.create_pool(log).expect("handle errors");
-
-                    for token in amm.tokens() {
-                        tokens.insert(token);
-                    }
-
-                    state_space.state.insert(amm.address(), amm);
-                } else if let Some(amm) = state_space.state.get_mut(&log.address()) {
-                    amm.sync(log);
-                }
-            }
+            let sync_provider = sync_provider.clone();
+            futures.push(async move { sync_provider.get_logs(&block_filter).await });
 
             self.latest_block = to_block;
+        }
+
+        let mut ordered_logs = BTreeMap::new();
+        for logs in futures.next().await.expect("TODO: handle error") {
+            ordered_logs.insert(
+                logs.first()
+                    .expect("Could not get first log")
+                    .block_number
+                    .expect("Could not get block number"),
+                logs,
+            );
+        }
+
+        let logs = ordered_logs.into_values().flatten().collect::<Vec<Log>>();
+        for log in logs {
+            if let Some(factory) = discovery_manager.factories.get(&log.address()) {
+                let amm = factory.create_pool(log).expect("handle errors");
+
+                for token in amm.tokens() {
+                    tokens.insert(token);
+                }
+
+                state_space.insert(amm.address(), amm);
+            } else if let Some(amm) = state_space.get_mut(&log.address()) {
+                amm.sync(log);
+            }
         }
 
         // TODO: This might exceed max gas per static on some clients depending on the chain.
@@ -188,7 +216,7 @@ where
             .await
             .expect("TODO: handle error");
 
-        for (_, amm) in state_space.state.iter_mut() {
+        for (_, amm) in state_space.iter_mut() {
             amm.set_decimals(&token_decimals);
         }
 
@@ -206,28 +234,5 @@ where
     }
 }
 
-#[derive(Debug, Default)]
-
-//TODO: maybe just do StateSpace(HashMap<Address,AMM>) and use all inner functions
-pub struct StateSpace {
-    // NOTE: bench dashmap instead
-    state: HashMap<Address, AMM>,
-}
-
-impl StateSpace {
-    pub fn insert(&mut self, address: Address, pool: AMM) {
-        self.state.insert(address, pool);
-    }
-
-    pub fn remove(&mut self, address: Address) {
-        self.state.remove(&address);
-    }
-
-    pub fn get(&self, address: &Address) -> Option<&AMM> {
-        self.state.get(address)
-    }
-
-    pub fn get_mut(&mut self, address: &Address) -> Option<&mut AMM> {
-        self.state.get_mut(&address)
-    }
-}
+#[derive(Debug, Default, Deref, DerefMut)]
+pub struct StateSpace(HashMap<Address, AMM>);
