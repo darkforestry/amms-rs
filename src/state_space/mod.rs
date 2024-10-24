@@ -96,6 +96,7 @@ where
         StateSpaceBuilder { throttle, ..self }
     }
 
+    // NOTE: if you only want to listen to specfic pools, you can add whitelist filter
     // pub fn with_filters(self, filters: Vec<Filter>) -> StateSpaceBuilder<T, N, P> {
     //     StateSpaceBuilder { filters, ..self }
     // }
