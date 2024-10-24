@@ -31,7 +31,7 @@ contract WethValueInPools {
     constructor(
         address _uniswapV2Factory,
         address _uniswapV3Factory,
-        address _weth
+        address _wethcd
     ) {
         UNISWAP_V2_FACTORY = _uniswapV2Factory;
         UNISWAP_V3_FACTORY = _uniswapV3Factory;
@@ -372,7 +372,8 @@ contract WethValueInPoolsBatchRequest is WethValueInPools {
         address _weth,
         WethValueInPools.PoolInfo[] memory pools
     ) WethValueInPools(_uniswapV2Factory, _uniswapV3Factory, _weth) {
-        WethValueInPools.PoolInfoReturn[] memory poolInfoReturn = getWethValueInPools(pools);
+        WethValueInPools.PoolInfoReturn[]
+            memory poolInfoReturn = getWethValueInPools(pools);
         // insure abi encoding, not needed here but increase reusability for different return types
         // note: abi.encode add a first 32 bytes word with the address of the original data
         bytes memory abiEncodedData = abi.encode(poolInfoReturn);
