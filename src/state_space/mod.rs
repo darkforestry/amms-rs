@@ -20,7 +20,10 @@ use derive_more::derive::{Deref, DerefMut};
 use discovery::DiscoveryManager;
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
+use governor::Quota;
+use governor::RateLimiter;
 use std::collections::{BTreeMap, HashSet};
+use std::num::NonZeroU32;
 use std::{collections::HashMap, marker::PhantomData, sync::Arc};
 use tokens::populate_token_decimals;
 use tokio::sync::RwLock;
@@ -55,7 +58,7 @@ pub struct StateSpaceBuilder<T, N, P> {
     // pub filters: Vec<Filter>,
     pub discovery: bool,
     pub sync_step: u64,
-    pub throttle: u64,
+    pub throttle: u32,
     phantom: PhantomData<(T, N)>,
     // TODO: add support for caching
     // TODO: add support to load from cache
@@ -105,7 +108,7 @@ where
         StateSpaceBuilder { sync_step, ..self }
     }
 
-    pub fn with_throttle(self, throttle: u64) -> StateSpaceBuilder<T, N, P> {
+    pub fn with_throttle(self, throttle: u32) -> StateSpaceBuilder<T, N, P> {
         StateSpaceBuilder { throttle, ..self }
     }
 
@@ -168,9 +171,17 @@ where
                 .unwrap_or(0)
         });
 
-        // TODO: crate a new provider for syncing that uses a throttled provider using self.throttle;
         let sync_provider = self.provider.clone();
+        let throttle = if self.throttle > 0 {
+            Some(Arc::new(RateLimiter::direct(Quota::per_second(
+                NonZeroU32::new(self.throttle).unwrap(),
+            ))))
+        } else {
+            None
+        };
         let mut futures = FuturesUnordered::new();
+
+        dbg!(&chain_tip);
 
         while self.latest_block < chain_tip {
             let mut block_filter = block_filter.clone();
@@ -180,13 +191,26 @@ where
             block_filter = block_filter.to_block(to_block);
 
             let sync_provider = sync_provider.clone();
-            futures.push(async move { sync_provider.get_logs(&block_filter).await });
+            let throttle = throttle.clone();
+            futures.push(async move {
+                if let Some(throttle) = throttle {
+                    throttle.until_ready().await;
+                }
+                println!("Syncing from block {from_block} to block {to_block}",);
+
+                sync_provider.get_logs(&block_filter).await
+            });
 
             self.latest_block = to_block;
         }
 
         let mut ordered_logs = BTreeMap::new();
-        for logs in futures.next().await.expect("TODO: handle error") {
+
+        while let Some(res) = futures.next().await {
+            let logs = res.expect("TODO: handle error");
+
+            dbg!(&logs.len());
+
             ordered_logs.insert(
                 logs.first()
                     .expect("Could not get first log")
@@ -219,6 +243,8 @@ where
         for (_, amm) in state_space.iter_mut() {
             amm.set_decimals(&token_decimals);
         }
+
+        dbg!(&state_space.len());
 
         // TODO: filter amms with specified filters
 

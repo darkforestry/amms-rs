@@ -23,12 +23,12 @@ async fn main() -> eyre::Result<()> {
         // )
         // .into(),
         // Sushiswap
-        // UniswapV2Factory::new(
-        //     address!("C0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac"),
-        //     300,
-        //     10794229,
-        // )
-        // .into(),
+        UniswapV2Factory::new(
+            address!("C0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac"),
+            300,
+            10794229,
+        )
+        .into(),
         // UniswapV3Factory::new(
         //     address!("1F98431c8aD98523631AE4a59f267346ea31F984"),
         //     12369621,
@@ -36,12 +36,19 @@ async fn main() -> eyre::Result<()> {
         // .into(),
     ];
 
-    let state_space_manager = StateSpaceBuilder::new(provider.clone())
+    let state_space_manager: pamms::state_space::StateSpaceManager<
+        alloy::transports::http::Http<alloy::transports::http::Client>,
+        alloy::network::Ethereum,
+        alloy::providers::RootProvider<
+            alloy::transports::http::Http<alloy::transports::http::Client>,
+        >,
+    > = StateSpaceBuilder::new(provider.clone())
         .with_factories(factories)
         .with_discovery()
         // .with_filters()
         // .block(123456)
         .sync_step(10000)
+        .with_throttle(10)
         .sync()
         .await;
 
