@@ -108,16 +108,15 @@ where
         }
     }
 
-    // TODO: pub fn with_filters(self) -> StateSpaceBuilder<T, N, P> {}
-
     pub async fn sync(mut self) -> StateSpaceManager<T, N, P> {
         //NOTE: check if factories is empty
 
         // NOTE: Rather than using discmanager for sync, we can use it for filtering pools once running
         let discovery_manager = DiscoveryManager::new(self.factories.clone());
 
+        // let mut futures = FuturesUnordered::new();
         // TODO: for factory in factories{
-
+        // let futures_unordered = futures.push(toko::spawn(factory.discovery_sync()));
         // }
 
         // Create an initial filter set with all discovery events for each factory

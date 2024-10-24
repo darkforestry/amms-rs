@@ -30,14 +30,10 @@ use super::uniswap_v3::UniswapV3Factory;
 // TODO: DiscoverySync define how the factory will discover and sync initial pools upon initial sync
 // pub trait AutomatedMarketMakerFactory: DiscoverySync
 // NOTE: for uv2, discovery strategy is just call get all pairs, sync strat is to call get reserves on all pairs as a batch contract
-// pub trait DiscoverySync{
-//     fn discover(&self) -> Vec<AMM>;
-//     fn sync(&self, mut amms: Vec<AMM>);
+// For some factories that need logs from a block range, you can configure a sync step upon factory initialization
+// pub trait DiscoverySync {
+//     fn discovery_sync(&self, provider) -> Vec<AMM>;
 //}
-
-// NOTE: for uv3 and balancer, must listen to events for disc and sync. Each strategy will simply spawn a task, with a given sync step or batch size.
-// Thesis is that we can rip through log ranges faster with smaller, separate filters that minimize log response. Maybe this should be configurable.
-//
 
 pub trait AutomatedMarketMakerFactory: Into<Factory> {
     type PoolVariant: AutomatedMarketMaker + Default;
