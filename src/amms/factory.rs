@@ -26,6 +26,13 @@ use super::uniswap_v2::UniswapV2Factory;
 use super::uniswap_v3::UniswapV3Factory;
 
 //TODO: add consts for steps, batch size, etc.
+
+// TODO: DiscoverySync define how the factory will discover and sync initial pools upon initial sync
+// pub trait AutomatedMarketMakerFactory: DiscoverySync
+// NOTE: for uv2, discovery strategy is just call get all pairs, sync strat is to call get reserves on all pairs as a batch contract
+// pub trait DiscoverySync: DiscoveryStrategy, SyncStrategy
+// NOTE: for uv3 and balancer, must listen to events for disc and sync. I think we can return a DiscoverySyncStrategy enum that either spawns a task or compiles a block filter
+
 pub trait AutomatedMarketMakerFactory: Into<Factory> {
     type PoolVariant: AutomatedMarketMaker + Default;
 

@@ -47,8 +47,8 @@ async fn main() -> eyre::Result<()> {
         .with_discovery()
         // .with_filters()
         // .block(123456)
-        .sync_step(10000)
-        .with_throttle(10)
+        .sync_step(2000)
+        .with_throttle(5)
         .sync()
         .await;
 
