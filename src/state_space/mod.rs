@@ -52,8 +52,7 @@ pub struct StateSpaceBuilder<T, N, P> {
     // TODO: do we want to add optional amms? for example, if someone wants to sync specific pools but does not care about discovering pools.
     pub provider: Arc<P>,
     pub latest_block: u64,
-    pub factories: Option<Vec<Factory>>,
-    pub amms: Option<Vec<AMM>>,
+    pub factories: Vec<Factory>,
     // NOTE: this is the list of filters each discovered pool will go through
     // pub filters: Vec<Filter>,
     pub discovery: bool,
@@ -70,12 +69,11 @@ where
     N: Network,
     P: Provider<T, N> + 'static,
 {
-    pub fn new(provider: Arc<P>) -> StateSpaceBuilder<T, N, P> {
+    pub fn new(provider: Arc<P>, factories: Vec<Factory>) -> StateSpaceBuilder<T, N, P> {
         Self {
             provider,
             latest_block: 0,
-            factories: None,
-            amms: None,
+            factories,
             discovery: false,
             sync_step: 10000,
             throttle: 0,
@@ -86,20 +84,6 @@ where
     pub fn block(self, latest_block: u64) -> StateSpaceBuilder<T, N, P> {
         StateSpaceBuilder {
             latest_block,
-            ..self
-        }
-    }
-
-    pub fn with_factories(self, factories: Vec<Factory>) -> StateSpaceBuilder<T, N, P> {
-        StateSpaceBuilder {
-            factories: Some(factories),
-            ..self
-        }
-    }
-
-    pub fn with_amms(self, amms: Vec<AMM>) -> StateSpaceBuilder<T, N, P> {
-        StateSpaceBuilder {
-            amms: Some(amms),
             ..self
         }
     }
@@ -126,7 +110,14 @@ where
     // TODO: pub fn with_filters(self) -> StateSpaceBuilder<T, N, P> {}
 
     pub async fn sync(mut self) -> StateSpaceManager<T, N, P> {
-        let discovery_manager = DiscoveryManager::new(self.factories.clone().unwrap_or_default());
+        //NOTE: check if factories is empty
+
+        // NOTE: Rather than using discmanager for sync, we can use it for filtering pools once running
+        let discovery_manager = DiscoveryManager::new(self.factories.clone());
+
+        // TODO: for factory in factories{
+
+        // }
 
         // Create an initial filter set with all discovery events for each factory
         let mut filter_set = discovery_manager.disc_events();
@@ -135,13 +126,6 @@ where
         // Add pool events to block filter for all factory related amms
         for (_, factory) in discovery_manager.factories.iter() {
             sync_events.extend(factory.pool_events());
-        }
-
-        // Add sync events to block filter for all specified amms
-        if let Some(amms) = self.amms {
-            for amm in amms.iter() {
-                sync_events.extend(amm.sync_events());
-            }
         }
 
         // We keep disc events and sync events separate in the case discovery
@@ -163,13 +147,12 @@ where
             .await
             .expect("TODO: handle error");
 
-        self.latest_block = self.factories.as_ref().map_or(0, |factories| {
-            factories
-                .iter()
-                .map(|factory| factory.creation_block())
-                .min()
-                .unwrap_or(0)
-        });
+        self.latest_block = self
+            .factories
+            .iter()
+            .map(|factory| factory.creation_block())
+            .min()
+            .unwrap_or(0);
 
         let sync_provider = self.provider.clone();
         let throttle = if self.throttle > 0 {

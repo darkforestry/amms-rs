@@ -42,8 +42,7 @@ async fn main() -> eyre::Result<()> {
         alloy::providers::RootProvider<
             alloy::transports::http::Http<alloy::transports::http::Client>,
         >,
-    > = StateSpaceBuilder::new(provider.clone())
-        .with_factories(factories)
+    > = StateSpaceBuilder::new(provider.clone(), factories)
         .with_discovery()
         // .with_filters()
         // .block(123456)
