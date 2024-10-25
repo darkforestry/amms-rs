@@ -312,9 +312,9 @@ impl DiscoverySync for UniswapV2Factory {
                 ._0;
 
             Ok(amms
-                .iter_mut()
+                .into_iter()
                 .zip(res.into_iter())
-                .map(|(amm, res)| {
+                .map(|(mut amm, res)| {
                     let reserves_return = DynSolType::Tuple(vec![
                         DynSolType::Uint(112),
                         DynSolType::Uint(112),
@@ -325,7 +325,7 @@ impl DiscoverySync for UniswapV2Factory {
                     let (r_0, r_1) = (tuple[0].as_uint().unwrap().0, tuple[1].as_uint().unwrap().0);
                     amm.reserve_0 = r_0.to::<u128>();
                     amm.reserve_1 = r_1.to::<u128>();
-                    AMM::UniswapV2Pool(amm.clone())
+                    AMM::UniswapV2Pool(amm)
                 })
                 .collect::<Vec<_>>())
         }
