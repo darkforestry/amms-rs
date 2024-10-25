@@ -607,6 +607,7 @@ impl Into<AMM> for UniswapV3Pool {
 pub struct UniswapV3Factory {
     pub address: Address,
     pub creation_block: u64,
+    // TODO: add configurable sync step
 }
 
 impl UniswapV3Factory {
@@ -655,12 +656,15 @@ impl AutomatedMarketMakerFactory for UniswapV3Factory {
 }
 
 impl DiscoverySync for UniswapV3Factory {
-    fn discovery_sync<T, N, P>(&self, provider: Arc<P>) -> Vec<AMM>
+    async fn discovery_sync<T, N, P>(&self, provider: Arc<P>) -> Vec<AMM>
     where
         T: Transport + Clone,
         N: Network,
         P: Provider<T, N>,
     {
+        // Get all pools
+
+        // Sync all pools
         todo!()
     }
 }

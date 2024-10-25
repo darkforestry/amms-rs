@@ -36,7 +36,7 @@ use super::uniswap_v3::UniswapV3Factory;
 //}
 
 pub trait DiscoverySync {
-    fn discovery_sync<T, N, P>(&self, provider: Arc<P>) -> Vec<AMM>
+    async fn discovery_sync<T, N, P>(&self, provider: Arc<P>) -> Vec<AMM>
     where
         T: Transport + Clone,
         N: Network,
@@ -118,16 +118,16 @@ macro_rules! factory {
 
 
         impl DiscoverySync for Factory {
-            fn discovery_sync<T, N, P>(&self, provider: Arc<P>) -> Vec<AMM>
-            where
-                T: Transport + Clone,
-                N: Network,
-                P: Provider<T, N>,
-            {
-                match self {
-                    $(Factory::$factory_type(factory) => factory.discovery_sync(provider),)+
+            async fn discovery_sync<T, N, P>(&self, provider: Arc<P>) -> Vec<AMM>
+                where
+                    T: Transport + Clone,
+                    N: Network,
+                    P: Provider<T, N>,
+                {
+                    match self {
+                        $(Factory::$factory_type(factory) => factory.discovery_sync(provider).await,)+
+                    }
                 }
-            }
         }
     };
 }

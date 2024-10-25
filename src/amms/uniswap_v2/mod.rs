@@ -266,12 +266,15 @@ impl AutomatedMarketMakerFactory for UniswapV2Factory {
 }
 
 impl DiscoverySync for UniswapV2Factory {
-    fn discovery_sync<T, N, P>(&self, provider: Arc<P>) -> Vec<AMM>
+    async fn discovery_sync<T, N, P>(&self, provider: Arc<P>) -> Vec<AMM>
     where
         T: Transport + Clone,
         N: Network,
         P: Provider<T, N>,
     {
+        // Get all pairs
+
+        // Get all reserves
         todo!()
     }
 }
