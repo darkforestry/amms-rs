@@ -7,19 +7,22 @@ use super::{
         U256_16, U256_191, U256_192, U256_2, U256_255, U256_32, U256_4, U256_64, U256_8,
     },
     error::AMMError,
-    factory::{AutomatedMarketMakerFactory, Factory},
+    factory::{AutomatedMarketMakerFactory, DiscoverySync, Factory},
 };
 
 use alloy::{
+    network::Network,
     primitives::{Address, B256, U256},
+    providers::Provider,
     rpc::types::Log,
     sol,
     sol_types::SolEvent,
+    transports::Transport,
 };
 use eyre::Result;
 use rug::Float;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, hash::Hash};
+use std::{collections::HashMap, hash::Hash, sync::Arc};
 
 sol!(
 // UniswapV2Factory
@@ -259,6 +262,17 @@ impl AutomatedMarketMakerFactory for UniswapV2Factory {
 
     fn creation_block(&self) -> u64 {
         self.creation_block
+    }
+}
+
+impl DiscoverySync for UniswapV2Factory {
+    fn discovery_sync<T, N, P>(&self, provider: Arc<P>) -> Vec<AMM>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
+        todo!()
     }
 }
 

@@ -3,18 +3,21 @@ use crate::amms::consts::U256_1;
 use super::{
     amm::{AutomatedMarketMaker, AMM},
     error::AMMError,
-    factory::{AutomatedMarketMakerFactory, Factory},
+    factory::{AutomatedMarketMakerFactory, DiscoverySync, Factory},
 };
 
 use alloy::{
+    network::Network,
     primitives::{Address, B256, I256, U256},
+    providers::Provider,
     rpc::types::Log,
     sol,
     sol_types::SolEvent,
+    transports::Transport,
 };
 use eyre::Result;
 use serde::{Deserialize, Serialize};
-use std::{cmp::Ordering, collections::HashMap, hash::Hash};
+use std::{cmp::Ordering, collections::HashMap, hash::Hash, sync::Arc};
 use uniswap_v3_math::tick_math::{MAX_SQRT_RATIO, MAX_TICK, MIN_SQRT_RATIO, MIN_TICK};
 
 sol!(
@@ -648,5 +651,16 @@ impl AutomatedMarketMakerFactory for UniswapV3Factory {
 
     fn creation_block(&self) -> u64 {
         self.creation_block
+    }
+}
+
+impl DiscoverySync for UniswapV3Factory {
+    fn discovery_sync<T, N, P>(&self, provider: Arc<P>) -> Vec<AMM>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
+        todo!()
     }
 }

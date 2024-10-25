@@ -35,7 +35,15 @@ use super::uniswap_v3::UniswapV3Factory;
 //     fn discovery_sync(&self, provider) -> Vec<AMM>;
 //}
 
-pub trait AutomatedMarketMakerFactory: Into<Factory> {
+pub trait DiscoverySync {
+    fn discovery_sync<T, N, P>(&self, provider: Arc<P>) -> Vec<AMM>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>;
+}
+
+pub trait AutomatedMarketMakerFactory: DiscoverySync + Into<Factory> {
     type PoolVariant: AutomatedMarketMaker + Default;
 
     /// Returns the address of the factory.
@@ -107,6 +115,20 @@ macro_rules! factory {
         }
 
         impl Eq for Factory {}
+
+
+        impl DiscoverySync for Factory {
+            fn discovery_sync<T, N, P>(&self, provider: Arc<P>) -> Vec<AMM>
+            where
+                T: Transport + Clone,
+                N: Network,
+                P: Provider<T, N>,
+            {
+                match self {
+                    $(Factory::$factory_type(factory) => factory.discovery_sync(provider),)+
+                }
+            }
+        }
     };
 }
 
