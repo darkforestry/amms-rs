@@ -123,7 +123,7 @@ where
         //     None
         // };
 
-        let futures = FuturesUnordered::new();
+        let mut futures = FuturesUnordered::new();
         let factories = self.factories.clone();
         for factory in factories {
             let provider = self.provider.clone();
@@ -132,6 +132,12 @@ where
             futures.push(tokio::spawn(async move {
                 factory.discovery_sync(provider).await
             }));
+        }
+
+        while let Some(res) = futures.next().await {
+            let amms = res.expect("TODO:");
+
+            dbg!(&amms.len());
         }
 
         // TODO: handle amms from each task

@@ -22,7 +22,7 @@ use alloy::{
 use eyre::Result;
 use rug::Float;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, hash::Hash, sync::Arc};
+use std::{collections::HashMap, future::Future, hash::Hash, sync::Arc};
 
 sol!(
 // UniswapV2Factory
@@ -266,7 +266,7 @@ impl AutomatedMarketMakerFactory for UniswapV2Factory {
 }
 
 impl DiscoverySync for UniswapV2Factory {
-    async fn discovery_sync<T, N, P>(&self, provider: Arc<P>) -> Vec<AMM>
+    fn discovery_sync<T, N, P>(&self, provider: Arc<P>) -> impl Future<Output = Vec<AMM>>
     where
         T: Transport + Clone,
         N: Network,
@@ -275,7 +275,7 @@ impl DiscoverySync for UniswapV2Factory {
         // Get all pairs
 
         // Get all reserves
-        todo!()
+        async move { vec![] }
     }
 }
 

@@ -33,6 +33,7 @@ async fn main() -> eyre::Result<()> {
             address!("1F98431c8aD98523631AE4a59f267346ea31F984"),
             12369621,
         )
+        .with_sync_step(5000000)
         .into(),
     ];
 

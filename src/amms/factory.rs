@@ -1,6 +1,7 @@
 use std::{
     collections::HashMap,
     default,
+    future::Future,
     hash::{Hash, Hasher},
     sync::Arc,
 };
@@ -36,7 +37,7 @@ use super::uniswap_v3::UniswapV3Factory;
 //}
 
 pub trait DiscoverySync {
-    async fn discovery_sync<T, N, P>(&self, provider: Arc<P>) -> Vec<AMM>
+    fn discovery_sync<T, N, P>(&self, provider: Arc<P>) -> impl Future<Output = Vec<AMM>>
     where
         T: Transport + Clone,
         N: Network,

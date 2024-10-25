@@ -22,9 +22,12 @@ use serde::{Deserialize, Serialize};
 use std::{
     cmp::Ordering,
     collections::{BTreeMap, HashMap, HashSet},
+    future::Future,
     hash::Hash,
     sync::Arc,
+    time::Duration,
 };
+use tokio::time::sleep;
 use uniswap_v3_math::tick_math::{MAX_SQRT_RATIO, MAX_TICK, MIN_SQRT_RATIO, MIN_TICK};
 
 sol!(
@@ -626,8 +629,8 @@ impl UniswapV3Factory {
         }
     }
 
-    pub fn with_sync_step(&mut self, sync_step: u64) {
-        self.sync_step = sync_step;
+    pub fn with_sync_step(self, sync_step: u64) -> Self {
+        UniswapV3Factory { sync_step, ..self }
     }
 }
 
@@ -668,83 +671,87 @@ impl AutomatedMarketMakerFactory for UniswapV3Factory {
 }
 
 impl DiscoverySync for UniswapV3Factory {
-    async fn discovery_sync<T, N, P>(&self, provider: Arc<P>) -> Vec<AMM>
+    fn discovery_sync<T, N, P>(&self, provider: Arc<P>) -> impl Future<Output = Vec<AMM>>
     where
         T: Transport + Clone,
         N: Network,
         P: Provider<T, N>,
     {
-        let mut sync_events = self.pool_events();
-        sync_events.push(self.discovery_event());
+        async move {
+            let mut sync_events = self.pool_events();
+            sync_events.push(self.discovery_event());
 
-        let block_filter = Filter::new().event_signature(FilterSet::from(sync_events));
+            let block_filter = Filter::new().event_signature(FilterSet::from(sync_events));
 
-        let mut state_space = StateSpace::default();
-        let mut tokens = HashSet::new();
+            let mut state_space = StateSpace::default();
+            let mut tokens = HashSet::new();
 
-        let chain_tip = provider
-            .get_block_number()
-            .await
-            .expect("TODO: handle error");
+            let chain_tip = provider
+                .get_block_number()
+                .await
+                .expect("TODO: handle error");
 
-        let sync_provider = provider.clone();
-        let mut futures = FuturesUnordered::new();
+            let sync_provider = provider.clone();
+            let mut futures = FuturesUnordered::new();
 
-        dbg!(&chain_tip);
+            dbg!(&chain_tip);
 
-        let mut latest_block = self.creation_block;
-        while latest_block < chain_tip {
-            let mut block_filter = block_filter.clone();
-            let from_block = latest_block;
-            let to_block = (from_block + self.sync_step).min(chain_tip);
-            block_filter = block_filter.from_block(from_block);
-            block_filter = block_filter.to_block(to_block);
+            let mut latest_block = self.creation_block;
+            while latest_block < chain_tip {
+                let mut block_filter = block_filter.clone();
+                let from_block = latest_block;
+                let to_block = (from_block + self.sync_step).min(chain_tip);
+                block_filter = block_filter.from_block(from_block);
+                block_filter = block_filter.to_block(to_block);
 
-            let sync_provider = sync_provider.clone();
-            futures.push(async move {
                 println!("Syncing from block {from_block} to block {to_block}",);
+                sleep(Duration::from_millis(200)).await;
 
-                sync_provider.get_logs(&block_filter).await
-            });
+                let sync_provider = sync_provider.clone();
+                futures.push(async move {
+                    println!("Syncing from block {from_block} to block {to_block}",);
+                    sync_provider.get_logs(&block_filter).await
+                });
 
-            latest_block = to_block;
-        }
-
-        let mut ordered_logs = BTreeMap::new();
-        while let Some(res) = futures.next().await {
-            let logs = res.expect("TODO: handle error");
-
-            dbg!(&logs.len());
-
-            ordered_logs.insert(
-                logs.first()
-                    .expect("Could not get first log")
-                    .block_number
-                    .expect("Could not get block number"),
-                logs,
-            );
-        }
-
-        let logs = ordered_logs.into_values().flatten().collect::<Vec<Log>>();
-        for log in logs {
-            if log.address() == self.address() {
-                let amm = self.create_pool(log).expect("handle errors");
-
-                for token in amm.tokens() {
-                    tokens.insert(token);
-                }
-
-                state_space.insert(amm.address(), amm);
-            } else if let Some(amm) = state_space.get_mut(&log.address()) {
-                amm.sync(log);
+                latest_block = to_block;
             }
-        }
 
-        // TODO: remove use of clone here
-        state_space
-            .clone()
-            .into_iter()
-            .map(|(_addr, amm)| amm)
-            .collect::<Vec<AMM>>()
+            let mut ordered_logs = BTreeMap::new();
+            while let Some(res) = futures.next().await {
+                let logs = res.expect("TODO: handle error");
+
+                dbg!(&logs.len());
+
+                ordered_logs.insert(
+                    logs.first()
+                        .expect("Could not get first log")
+                        .block_number
+                        .expect("Could not get block number"),
+                    logs,
+                );
+            }
+
+            let logs = ordered_logs.into_values().flatten().collect::<Vec<Log>>();
+            for log in logs {
+                if log.address() == self.address() {
+                    let amm = self.create_pool(log).expect("handle errors");
+
+                    for token in amm.tokens() {
+                        tokens.insert(token);
+                    }
+
+                    state_space.insert(amm.address(), amm);
+                } else if let Some(amm) = state_space.get_mut(&log.address()) {
+                    amm.sync(log);
+                }
+            }
+
+            // TODO: remove use of clone here
+            state_space
+                .clone()
+                .into_iter()
+                .map(|(_addr, amm)| amm)
+                .collect::<Vec<AMM>>()
+        }
     }
 }
