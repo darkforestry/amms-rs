@@ -1,3 +1,5 @@
+use crate::state_space::tokens::{Multicaller::MulticallerInstance, MULTICALL_ADDRESS};
+
 use super::{
     amm::{AutomatedMarketMaker, AMM},
     consts::{
@@ -11,25 +13,29 @@ use super::{
 };
 
 use alloy::{
+    dyn_abi::DynSolType,
     network::Network,
     primitives::{Address, B256, U256},
     providers::Provider,
     rpc::types::Log,
     sol,
-    sol_types::SolEvent,
+    sol_types::{SolCall, SolEvent},
     transports::Transport,
 };
 use eyre::Result;
 use rug::Float;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, future::Future, hash::Hash, sync::Arc};
+use IUniswapV2Factory::IUniswapV2FactoryInstance;
 
 sol!(
 // UniswapV2Factory
 #[allow(missing_docs)]
 #[derive(Debug)]
+#[sol(rpc)]
 contract IUniswapV2Factory {
-event PairCreated(address indexed token0, address indexed token1, address pair, uint256);
+    event PairCreated(address indexed token0, address indexed token1, address pair, uint256);
+    function allPairs() external returns (address[] memory);
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -39,6 +45,7 @@ contract IUniswapV2Pair {
     function token0() external view returns (address);
     function token1() external view returns (address);
     function swap(uint256 amount0Out, uint256 amount1Out, address to, bytes calldata data);
+    function getReserves() external view returns (uint112 reserve0, uint112 reserve1, uint32 blockTimestampLast);
 });
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -266,16 +273,62 @@ impl AutomatedMarketMakerFactory for UniswapV2Factory {
 }
 
 impl DiscoverySync for UniswapV2Factory {
-    fn discovery_sync<T, N, P>(&self, provider: Arc<P>) -> impl Future<Output = Vec<AMM>>
+    fn discovery_sync<T, N, P>(
+        &self,
+        provider: Arc<P>,
+    ) -> impl Future<Output = Result<Vec<AMM>, AMMError>>
     where
         T: Transport + Clone,
         N: Network,
         P: Provider<T, N>,
     {
-        // Get all pairs
+        async move {
+            // Get all pairs
+            let factory = IUniswapV2FactoryInstance::new(self.address, provider.clone());
+            let all_pairs = factory.allPairs().call().await.expect("TODO:")._0;
 
-        // Get all reserves
-        async move { vec![] }
+            let mut amms = all_pairs
+                .iter()
+                .map(|pair| UniswapV2Pool {
+                    address: *pair,
+                    token_a: Address::default(),
+                    token_a_decimals: 0,
+                    token_b: Address::default(),
+                    token_b_decimals: 0,
+                    reserve_0: 0,
+                    reserve_1: 0,
+                    fee: self.fee,
+                })
+                .collect::<Vec<_>>();
+
+            let data = vec![IUniswapV2Pair::getReservesCall::SELECTOR.into(); all_pairs.len()];
+            let values = vec![U256::ZERO; all_pairs.len()];
+            let multicaller = MulticallerInstance::new(MULTICALL_ADDRESS, provider.clone());
+            let res = multicaller
+                .aggregate(all_pairs, data, values, Address::ZERO)
+                .call()
+                .await
+                .expect("TODO:")
+                ._0;
+
+            Ok(amms
+                .iter_mut()
+                .zip(res.into_iter())
+                .map(|(amm, res)| {
+                    let reserves_return = DynSolType::Tuple(vec![
+                        DynSolType::Uint(112),
+                        DynSolType::Uint(112),
+                        DynSolType::Uint(32),
+                    ]);
+                    let reserves = reserves_return.abi_decode(&res).expect("TODO:");
+                    let tuple = reserves.as_tuple().expect("TODO:");
+                    let (r_0, r_1) = (tuple[0].as_uint().unwrap().0, tuple[1].as_uint().unwrap().0);
+                    amm.reserve_0 = r_0.to::<u128>();
+                    amm.reserve_1 = r_1.to::<u128>();
+                    AMM::UniswapV2Pool(amm.clone())
+                })
+                .collect::<Vec<_>>())
+        }
     }
 }
 

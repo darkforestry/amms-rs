@@ -37,7 +37,10 @@ use super::uniswap_v3::UniswapV3Factory;
 //}
 
 pub trait DiscoverySync {
-    fn discovery_sync<T, N, P>(&self, provider: Arc<P>) -> impl Future<Output = Vec<AMM>>
+    fn discovery_sync<T, N, P>(
+        &self,
+        provider: Arc<P>,
+    ) -> impl Future<Output = Result<Vec<AMM>, AMMError>>
     where
         T: Transport + Clone,
         N: Network,
@@ -70,33 +73,32 @@ macro_rules! factory {
             $($factory_type($factory_type),)+
         }
 
-        impl AutomatedMarketMakerFactory for Factory {
-            type PoolVariant = NoopAMM;
-             fn address(&self) -> Address {
+        impl Factory {
+             pub fn address(&self) -> Address {
                 match self {
                     $(Factory::$factory_type(factory) => factory.address(),)+
                 }
             }
 
-             fn discovery_event(&self) -> B256 {
+             pub fn discovery_event(&self) -> B256 {
                 match self {
                     $(Factory::$factory_type(factory) => factory.discovery_event(),)+
                 }
             }
 
-             fn create_pool(&self, log: Log) -> Result<AMM, AMMError> {
+             pub fn create_pool(&self, log: Log) -> Result<AMM, AMMError> {
                 match self {
                     $(Factory::$factory_type(factory) => factory.create_pool(log),)+
                 }
             }
 
-             fn creation_block(&self) -> u64 {
+             pub fn creation_block(&self) -> u64 {
                 match self {
                     $(Factory::$factory_type(factory) => factory.creation_block(),)+
                 }
             }
 
-             fn pool_events(&self) -> Vec<B256> {
+             pub fn pool_events(&self) -> Vec<B256> {
                 match self {
                     $(Factory::$factory_type(factory) => factory.pool_events(),)+
                 }
@@ -118,8 +120,8 @@ macro_rules! factory {
         impl Eq for Factory {}
 
 
-        impl DiscoverySync for Factory {
-            async fn discovery_sync<T, N, P>(&self, provider: Arc<P>) -> Vec<AMM>
+        impl Factory {
+            pub async fn discovery_sync<T, N, P>(&self, provider: Arc<P>) -> Result<Vec<AMM>, AMMError>
                 where
                     T: Transport + Clone,
                     N: Network,
@@ -129,7 +131,7 @@ macro_rules! factory {
                         $(Factory::$factory_type(factory) => factory.discovery_sync(provider).await,)+
                     }
                 }
-        }
+            }
     };
 }
 

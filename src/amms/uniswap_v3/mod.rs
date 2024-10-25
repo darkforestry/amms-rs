@@ -30,57 +30,58 @@ use std::{
 use tokio::time::sleep;
 use uniswap_v3_math::tick_math::{MAX_SQRT_RATIO, MAX_TICK, MIN_SQRT_RATIO, MIN_TICK};
 
-sol!(
-// UniswapV2Factory
-#[allow(missing_docs)]
-#[derive(Debug)]
-contract IUniswapV3Factory {
-    /// @notice Emitted when a pool is created
-    event PoolCreated(
-        address indexed token0,
-        address indexed token1,
-        uint24 indexed fee,
-        int24 tickSpacing,
-        address pool
-    );
+sol! {
+    // UniswapV2Factory
+    #[allow(missing_docs)]
+    #[derive(Debug)]
+    #[sol(rpc)]
+    contract IUniswapV3Factory {
+        /// @notice Emitted when a pool is created
+        event PoolCreated(
+            address indexed token0,
+            address indexed token1,
+            uint24 indexed fee,
+            int24 tickSpacing,
+            address pool
+        );
+    }
+
+    #[derive(Debug, PartialEq, Eq)]
+    #[sol(rpc)]
+    contract IUniswapV3PoolEvents {
+        /// @notice Emitted when liquidity is minted for a given position
+        event Mint(
+            address sender,
+            address indexed owner,
+            int24 indexed tickLower,
+            int24 indexed tickUpper,
+            uint128 amount,
+            uint256 amount0,
+            uint256 amount1
+        );
+
+        /// @notice Emitted when a position's liquidity is removed
+        event Burn(
+            address indexed owner,
+            int24 indexed tickLower,
+            int24 indexed tickUpper,
+            uint128 amount,
+            uint256 amount0,
+            uint256 amount1
+        );
+
+        /// @notice Emitted by the pool for any swaps between token0 and token1
+        event Swap(
+            address indexed sender,
+            address indexed recipient,
+            int256 amount0,
+            int256 amount1,
+            uint160 sqrtPriceX96,
+            uint128 liquidity,
+            int24 tick
+        );
+    }
 }
-
-#[derive(Debug, PartialEq, Eq)]
-#[sol(rpc)]
-contract IUniswapV3PoolEvents {
-    /// @notice Emitted when liquidity is minted for a given position
-    event Mint(
-        address sender,
-        address indexed owner,
-        int24 indexed tickLower,
-        int24 indexed tickUpper,
-        uint128 amount,
-        uint256 amount0,
-        uint256 amount1
-    );
-
-    /// @notice Emitted when a position's liquidity is removed
-    event Burn(
-        address indexed owner,
-        int24 indexed tickLower,
-        int24 indexed tickUpper,
-        uint128 amount,
-        uint256 amount0,
-        uint256 amount1
-    );
-
-    /// @notice Emitted by the pool for any swaps between token0 and token1
-    event Swap(
-        address indexed sender,
-        address indexed recipient,
-        int256 amount0,
-        int256 amount1,
-        uint160 sqrtPriceX96,
-        uint128 liquidity,
-        int24 tick
-    );
-
-});
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct UniswapV3Pool {
@@ -671,7 +672,10 @@ impl AutomatedMarketMakerFactory for UniswapV3Factory {
 }
 
 impl DiscoverySync for UniswapV3Factory {
-    fn discovery_sync<T, N, P>(&self, provider: Arc<P>) -> impl Future<Output = Vec<AMM>>
+    fn discovery_sync<T, N, P>(
+        &self,
+        provider: Arc<P>,
+    ) -> impl Future<Output = Result<Vec<AMM>, AMMError>>
     where
         T: Transport + Clone,
         N: Network,
@@ -747,11 +751,11 @@ impl DiscoverySync for UniswapV3Factory {
             }
 
             // TODO: remove use of clone here
-            state_space
+            Ok(state_space
                 .clone()
                 .into_iter()
                 .map(|(_addr, amm)| amm)
-                .collect::<Vec<AMM>>()
+                .collect::<Vec<AMM>>())
         }
     }
 }
