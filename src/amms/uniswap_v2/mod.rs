@@ -287,17 +287,20 @@ impl DiscoverySync for UniswapV2Factory {
         async move {
             // Get all pairs
             let factory = IUniswapV2FactoryInstance::new(self.address, provider.clone());
-            dbg!("here");
             let pairs_length = factory.allPairsLength().call().await.expect("TODO:")._0;
 
             let multicaller = MulticallInstance::new(MULTICALL_ADDRESS, provider.clone());
 
+            dbg!(&pairs_length);
+
+            // TODO: we can spawn futures unordered here and get amms in batches, we might need sync step on this factory as well
             let get_pairs_data = (0..pairs_length.to::<u128>())
                 .map(|i| {
                     let data = IUniswapV2Factory::allPairsCall { _0: U256::from(i) }.abi_encode();
                     Bytes::from(data)
                 })
                 .collect::<Vec<Bytes>>();
+            dbg!("get pairs");
 
             let all_pairs_res = multicaller
                 .aggregate(
@@ -321,6 +324,8 @@ impl DiscoverySync for UniswapV2Factory {
                         .unwrap()
                 })
                 .collect::<Vec<Address>>();
+
+            dbg!(&all_pairs.len());
 
             let amms = all_pairs
                 .iter()
