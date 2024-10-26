@@ -235,43 +235,36 @@ impl UniswapV2Factory {
             address,
             creation_block,
             fee,
+            // TODO: pick some sensibe default
+            sync_step: 10000,
         }
     }
 
-    pub async fn get_all_pairs<T, N, P>(&self, provider: Arc<P>) -> Vec<Address>
+    pub fn with_sync_step(self, sync_step: u64) -> Self {
+        Self { sync_step, ..self }
+    }
+
+    pub async fn get_all_pairs<T, N, P>(sync_step: u64, provider: Arc<P>) -> Vec<Address>
     where
         T: Transport + Clone,
         N: Network,
         P: Provider<T, N>,
     {
-        let factory = IUniswapV2FactoryInstance::new(self.address, provider.clone());
-        let multicall = MulticallInstance::new(MULTICALL_ADDRESS, provider.clone());
+        // TODO: Batch contract to get all pairs over some step
+        todo!()
+    }
 
-        // Get the total number of pairs
-        let pairs_length = factory
-            .allPairsLength()
-            .call()
-            .await
-            .expect("Failed to get pairs length")
-            ._0;
-
-        let all_pairs_data = (0..pairs_length.to::<u128>())
-            .map(|i| {
-                let data = IUniswapV2Factory::allPairsCall { _0: U256::from(i) }.abi_encode();
-                Bytes::from(data)
-            })
-            .collect::<Vec<Bytes>>();
-
-        let futures = FuturesUnordered::new();
-
-        for chunk in all_pairs_data.chunks(self.sync_step as usize) {
-            // futures_unordered.push()
-        }
-
-        // for res in futures {
-
-        // }
-
+    pub async fn get_all_pools<T, N, P>(
+        sync_step: u64,
+        pairs: Vec<Address>,
+        provider: Arc<P>,
+    ) -> Vec<AMM>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
+        // TODO: Batch contract to get all pairs over some step
         todo!()
     }
 }
@@ -323,36 +316,13 @@ impl DiscoverySync for UniswapV2Factory {
         N: Network,
         P: Provider<T, N>,
     {
+        let sync_step = self.sync_step;
+        let provider = provider.clone();
+
         async move {
-            let amms = self.get_all_pairs(provider).await;
-
-            // TODO: encapsulate this into a function to get reserves
-            let data = vec![IUniswapV2Pair::getReservesCall::SELECTOR.into(); amms.len()];
-            let values = vec![U256::ZERO; amms.len()];
-            let res = multicaller
-                .aggregate(all_pairs, data, values, Address::ZERO)
-                .call()
-                .await
-                .expect("TODO:")
-                ._0;
-
-            Ok(amms
-                .into_iter()
-                .zip(res.into_iter())
-                .map(|(mut amm, res)| {
-                    let reserves_return = DynSolType::Tuple(vec![
-                        DynSolType::Uint(112),
-                        DynSolType::Uint(112),
-                        DynSolType::Uint(32),
-                    ]);
-                    let reserves = reserves_return.abi_decode(&res).expect("TODO:");
-                    let tuple = reserves.as_tuple().expect("TODO:");
-                    let (r_0, r_1) = (tuple[0].as_uint().unwrap().0, tuple[1].as_uint().unwrap().0);
-                    amm.reserve_0 = r_0.to::<u128>();
-                    amm.reserve_1 = r_1.to::<u128>();
-                    AMM::UniswapV2Pool(amm)
-                })
-                .collect::<Vec<_>>())
+            let pairs = UniswapV2Factory::get_all_pairs(sync_step, provider.clone()).await;
+            let pools = UniswapV2Factory::get_all_pools(sync_step, pairs, provider).await;
+            Ok(pools)
         }
     }
 }
