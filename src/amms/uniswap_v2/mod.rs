@@ -23,6 +23,7 @@ use alloy::{
     transports::Transport,
 };
 use eyre::Result;
+use futures::stream::FuturesUnordered;
 use rug::Float;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, future::Future, hash::Hash, sync::Arc};
@@ -225,6 +226,7 @@ pub struct UniswapV2Factory {
     pub address: Address,
     pub fee: usize,
     pub creation_block: u64,
+    pub sync_step: u64,
 }
 
 impl UniswapV2Factory {
@@ -234,6 +236,43 @@ impl UniswapV2Factory {
             creation_block,
             fee,
         }
+    }
+
+    pub async fn get_all_pairs<T, N, P>(&self, provider: Arc<P>) -> Vec<Address>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
+        let factory = IUniswapV2FactoryInstance::new(self.address, provider.clone());
+        let multicall = MulticallInstance::new(MULTICALL_ADDRESS, provider.clone());
+
+        // Get the total number of pairs
+        let pairs_length = factory
+            .allPairsLength()
+            .call()
+            .await
+            .expect("Failed to get pairs length")
+            ._0;
+
+        let all_pairs_data = (0..pairs_length.to::<u128>())
+            .map(|i| {
+                let data = IUniswapV2Factory::allPairsCall { _0: U256::from(i) }.abi_encode();
+                Bytes::from(data)
+            })
+            .collect::<Vec<Bytes>>();
+
+        let futures = FuturesUnordered::new();
+
+        for chunk in all_pairs_data.chunks(self.sync_step as usize) {
+            // futures_unordered.push()
+        }
+
+        // for res in futures {
+
+        // }
+
+        todo!()
     }
 }
 
@@ -285,64 +324,11 @@ impl DiscoverySync for UniswapV2Factory {
         P: Provider<T, N>,
     {
         async move {
-            // Get all pairs
-            let factory = IUniswapV2FactoryInstance::new(self.address, provider.clone());
-            let pairs_length = factory.allPairsLength().call().await.expect("TODO:")._0;
+            let amms = self.get_all_pairs(provider).await;
 
-            let multicaller = MulticallInstance::new(MULTICALL_ADDRESS, provider.clone());
-
-            dbg!(&pairs_length);
-
-            // TODO: we can spawn futures unordered here and get amms in batches, we might need sync step on this factory as well
-            let get_pairs_data = (0..pairs_length.to::<u128>())
-                .map(|i| {
-                    let data = IUniswapV2Factory::allPairsCall { _0: U256::from(i) }.abi_encode();
-                    Bytes::from(data)
-                })
-                .collect::<Vec<Bytes>>();
-            dbg!("get pairs");
-
-            let all_pairs_res = multicaller
-                .aggregate(
-                    vec![self.address; pairs_length.to::<usize>()],
-                    get_pairs_data,
-                    vec![U256::ZERO; pairs_length.to::<usize>()],
-                    Address::ZERO,
-                )
-                .call()
-                .await
-                .expect("TODO:")
-                ._0;
-
-            let all_pairs = all_pairs_res
-                .iter()
-                .map(|res| {
-                    DynSolType::Address
-                        .abi_decode(&res)
-                        .expect("TODO:")
-                        .as_address()
-                        .unwrap()
-                })
-                .collect::<Vec<Address>>();
-
-            dbg!(&all_pairs.len());
-
-            let amms = all_pairs
-                .iter()
-                .map(|pair| UniswapV2Pool {
-                    address: *pair,
-                    token_a: Address::default(),
-                    token_a_decimals: 0,
-                    token_b: Address::default(),
-                    token_b_decimals: 0,
-                    reserve_0: 0,
-                    reserve_1: 0,
-                    fee: self.fee,
-                })
-                .collect::<Vec<_>>();
-
-            let data = vec![IUniswapV2Pair::getReservesCall::SELECTOR.into(); all_pairs.len()];
-            let values = vec![U256::ZERO; all_pairs.len()];
+            // TODO: encapsulate this into a function to get reserves
+            let data = vec![IUniswapV2Pair::getReservesCall::SELECTOR.into(); amms.len()];
+            let values = vec![U256::ZERO; amms.len()];
             let res = multicaller
                 .aggregate(all_pairs, data, values, Address::ZERO)
                 .call()
