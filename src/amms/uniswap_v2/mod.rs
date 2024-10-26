@@ -264,7 +264,13 @@ impl UniswapV2Factory {
         P: Provider<T, N>,
     {
         let factory = IUniswapV2FactoryInstance::new(factory_address, provider.clone());
-        let pairs_length = factory.allPairsLength().call().await.expect("TODO:")._0;
+        let pairs_length = factory
+            .allPairsLength()
+            .call()
+            .block(block_number.into())
+            .await
+            .expect("TODO:")
+            ._0;
 
         for pairs in (0..pairs_length.to::<u128>()).step_by(sync_step) {
             // let deployer =
