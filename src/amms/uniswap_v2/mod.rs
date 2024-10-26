@@ -70,11 +70,6 @@ impl AutomatedMarketMaker for UniswapV2Pool {
         vec![IUniswapV2Pair::Sync::SIGNATURE_HASH]
     }
 
-    fn set_decimals(&mut self, token_decimals: &HashMap<Address, u8>) {
-        self.token_a_decimals = *token_decimals.get(&self.token_a).expect("TODO:");
-        self.token_b_decimals = *token_decimals.get(&self.token_b).expect("TODO:");
-    }
-
     fn sync(&mut self, log: Log) {
         let sync_event =
             IUniswapV2Pair::Sync::decode_log(&log.inner, false).expect("TODO: handle this error");

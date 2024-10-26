@@ -152,10 +152,6 @@ impl AutomatedMarketMaker for NoopAMM {
         unreachable!()
     }
 
-    fn set_decimals(&mut self, _token_decimals: &HashMap<Address, u8>) {
-        unreachable!()
-    }
-
     fn simulate_swap(
         &self,
         _base_token: Address,
