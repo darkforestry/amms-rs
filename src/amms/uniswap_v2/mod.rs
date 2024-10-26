@@ -1,4 +1,4 @@
-use crate::state_space::tokens::{Multicaller::MulticallerInstance, MULTICALL_ADDRESS};
+use crate::state_space::tokens::{Multicall::MulticallInstance, MULTICALL_ADDRESS};
 
 use super::{
     amm::{AutomatedMarketMaker, AMM},
@@ -15,7 +15,7 @@ use super::{
 use alloy::{
     dyn_abi::DynSolType,
     network::Network,
-    primitives::{Address, B256, U256},
+    primitives::{Address, Bytes, B256, U256},
     providers::Provider,
     rpc::types::Log,
     sol,
@@ -26,7 +26,7 @@ use eyre::Result;
 use rug::Float;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, future::Future, hash::Hash, sync::Arc};
-use IUniswapV2Factory::IUniswapV2FactoryInstance;
+use IUniswapV2Factory::{IUniswapV2FactoryCalls, IUniswapV2FactoryInstance};
 
 sol!(
 // UniswapV2Factory
@@ -35,7 +35,9 @@ sol!(
 #[sol(rpc)]
 contract IUniswapV2Factory {
     event PairCreated(address indexed token0, address indexed token1, address pair, uint256);
-    function allPairs() external returns (address[] memory);
+    function allPairs(uint256) external view returns (address pair);
+    function allPairsLength() external view returns (uint256);
+
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -285,9 +287,42 @@ impl DiscoverySync for UniswapV2Factory {
         async move {
             // Get all pairs
             let factory = IUniswapV2FactoryInstance::new(self.address, provider.clone());
-            let all_pairs = factory.allPairs().call().await.expect("TODO:")._0;
+            dbg!("here");
+            let pairs_length = factory.allPairsLength().call().await.expect("TODO:")._0;
 
-            let mut amms = all_pairs
+            let multicaller = MulticallInstance::new(MULTICALL_ADDRESS, provider.clone());
+
+            let get_pairs_data = (0..pairs_length.to::<u128>())
+                .map(|i| {
+                    let data = IUniswapV2Factory::allPairsCall { _0: U256::from(i) }.abi_encode();
+                    Bytes::from(data)
+                })
+                .collect::<Vec<Bytes>>();
+
+            let all_pairs_res = multicaller
+                .aggregate(
+                    vec![self.address; pairs_length.to::<usize>()],
+                    get_pairs_data,
+                    vec![U256::ZERO; pairs_length.to::<usize>()],
+                    Address::ZERO,
+                )
+                .call()
+                .await
+                .expect("TODO:")
+                ._0;
+
+            let all_pairs = all_pairs_res
+                .iter()
+                .map(|res| {
+                    DynSolType::Address
+                        .abi_decode(&res)
+                        .expect("TODO:")
+                        .as_address()
+                        .unwrap()
+                })
+                .collect::<Vec<Address>>();
+
+            let amms = all_pairs
                 .iter()
                 .map(|pair| UniswapV2Pool {
                     address: *pair,
@@ -303,7 +338,6 @@ impl DiscoverySync for UniswapV2Factory {
 
             let data = vec![IUniswapV2Pair::getReservesCall::SELECTOR.into(); all_pairs.len()];
             let values = vec![U256::ZERO; all_pairs.len()];
-            let multicaller = MulticallerInstance::new(MULTICALL_ADDRESS, provider.clone());
             let res = multicaller
                 .aggregate(all_pairs, data, values, Address::ZERO)
                 .call()

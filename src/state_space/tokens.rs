@@ -12,14 +12,13 @@ use alloy::{
     transports::Transport,
 };
 use eyre::Result;
-use Multicaller::MulticallerInstance;
 
 pub const MULTICALL_ADDRESS: Address = address!("0000000000002Bdbf1Bf3279983603Ec279CC6dF");
 pub const DECIMALS_SELECTOR: Bytes = bytes!("313ce567");
 
 sol! {
     #[sol(rpc)]
-    contract Multicaller {
+    contract Multicall {
         function aggregate(
             address[] calldata targets,
             bytes[] calldata data,
@@ -40,7 +39,7 @@ where
 {
     let data = vec![DECIMALS_SELECTOR; tokens.len()];
     let values = vec![U256::ZERO; tokens.len()];
-    let multicaller = MulticallerInstance::new(MULTICALL_ADDRESS, provider.clone());
+    let multicaller = Multicall::new(MULTICALL_ADDRESS, provider.clone());
     let res = multicaller
         .aggregate(Vec::from_iter(tokens.clone()), data, values, Address::ZERO)
         .call()
