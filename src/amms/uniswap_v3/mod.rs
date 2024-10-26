@@ -159,11 +159,6 @@ impl AutomatedMarketMaker for UniswapV3Pool {
         ]
     }
 
-    fn set_decimals(&mut self, token_decimals: &HashMap<Address, u8>) {
-        self.token_a_decimals = *token_decimals.get(&self.token_a).expect("TODO:");
-        self.token_b_decimals = *token_decimals.get(&self.token_b).expect("TODO:");
-    }
-
     fn sync(&mut self, log: Log) {
         let event_signature = log.topics()[0];
         match event_signature {
