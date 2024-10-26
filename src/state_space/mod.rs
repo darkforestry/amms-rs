@@ -121,6 +121,8 @@ where
         //     None
         // };
 
+        let chain_tip = self.provider.get_block_number().await.expect("TODO:");
+
         let mut futures = FuturesUnordered::new();
         let factories = self.factories.clone();
         for factory in factories {
@@ -128,7 +130,7 @@ where
 
             // TODO: probably also need to specify latest block to sync to
             futures.push(tokio::spawn(async move {
-                factory.discovery_sync(provider).await
+                factory.discovery_sync(chain_tip, provider).await
             }));
         }
 
