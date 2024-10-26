@@ -134,24 +134,14 @@ where
             }));
         }
 
+        let mut state_space = StateSpace::default();
         while let Some(res) = futures.next().await {
             let amms = res.expect("TODO:").expect("TODO:");
 
-            dbg!(&amms.len());
+            for amm in amms {
+                state_space.insert(amm.address(), amm);
+            }
         }
-
-        // TODO: handle amms from each task
-
-        // // TODO: This might exceed max gas per static on some clients depending on the chain.
-        // let token_decimals = populate_token_decimals(tokens, self.provider.clone())
-        //     .await
-        //     .expect("TODO: handle error");
-
-        // for (_, amm) in state_space.iter_mut() {
-        //     amm.set_decimals(&token_decimals);
-        // }
-
-        // dbg!(&state_space.len());
 
         // // TODO: filter amms with specified filters
 
@@ -159,13 +149,13 @@ where
         //     provider: self.provider,
         //     latest_block: self.latest_block,
         //     state: Arc::new(RwLock::new(state_space)),
-        //     state_change_cache: Arc::new(RwLock::new(state_change_cache)),
+        //     state_change_cache: Arc::new(RwLock::new(StateChangeCache::default())),
         //     discovery_manager: Some(discovery_manager),
         //     block_filter,
         //     phantom: PhantomData,
         // }
 
-        todo!();
+        todo!()
     }
 }
 
