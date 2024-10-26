@@ -1,8 +1,11 @@
 use std::sync::Arc;
 
-use alloy::{primitives::address, providers::ProviderBuilder};
+use alloy::{
+    primitives::{address, Address},
+    providers::ProviderBuilder,
+};
 use pamms::{
-    amms::{uniswap_v2::UniswapV2Factory, uniswap_v3::UniswapV3Factory},
+    amms::{amm::AutomatedMarketMaker, uniswap_v2::UniswapV2Factory, uniswap_v3::UniswapV3Factory},
     state_space::StateSpaceBuilder,
 };
 
