@@ -1,5 +1,3 @@
-use crate::state_space::tokens::{Multicall::MulticallInstance, MULTICALL_ADDRESS};
-
 use super::{
     amm::{AutomatedMarketMaker, AMM},
     consts::{

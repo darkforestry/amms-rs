@@ -1,7 +1,6 @@
 pub mod cache;
 pub mod discovery;
 pub mod filters;
-pub mod tokens;
 
 use crate::amms::amm::AutomatedMarketMaker;
 use crate::amms::amm::AMM;
@@ -26,7 +25,6 @@ use governor::RateLimiter;
 use std::collections::{BTreeMap, HashSet};
 use std::num::NonZeroU32;
 use std::{collections::HashMap, marker::PhantomData, sync::Arc};
-use tokens::populate_token_decimals;
 use tokio::sync::RwLock;
 
 pub const CACHE_SIZE: usize = 30;
