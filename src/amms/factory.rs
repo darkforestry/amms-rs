@@ -26,16 +26,7 @@ use super::{
 use super::uniswap_v2::UniswapV2Factory;
 use super::uniswap_v3::UniswapV3Factory;
 
-//TODO: add consts for steps, batch size, etc.
-
-// TODO: DiscoverySync define how the factory will discover and sync initial pools upon initial sync
-// pub trait AutomatedMarketMakerFactory: DiscoverySync
-// NOTE: for uv2, discovery strategy is just call get all pairs, sync strat is to call get reserves on all pairs as a batch contract
-// For some factories that need logs from a block range, you can configure a sync step upon factory initialization
-// pub trait DiscoverySync {
-//     fn discovery_sync(&self, provider) -> Vec<AMM>;
-//}
-
+//NOTE: maybe make some with sync step trait so its easy to see which dexes need to sync via blocks
 pub trait DiscoverySync {
     fn discovery_sync<T, N, P>(
         &self,

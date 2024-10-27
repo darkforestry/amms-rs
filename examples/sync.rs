@@ -3,6 +3,8 @@ use std::sync::Arc;
 use alloy::{
     primitives::{address, Address},
     providers::ProviderBuilder,
+    rpc::client::ClientBuilder,
+    transports::layers::{RetryBackoffLayer, RetryBackoffService},
 };
 use pamms::{
     amms::{amm::AutomatedMarketMaker, uniswap_v2::UniswapV2Factory, uniswap_v3::UniswapV3Factory},
@@ -12,10 +14,13 @@ use pamms::{
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
     tracing_subscriber::fmt::init();
-
-    // Add rpc endpoint here:
     let rpc_endpoint = std::env::var("ETHEREUM_PROVIDER")?;
-    let provider = Arc::new(ProviderBuilder::new().on_http(rpc_endpoint.parse()?));
+
+    let client = ClientBuilder::default()
+        .layer(RetryBackoffLayer::new(10, 100, 330))
+        .http(rpc_endpoint.parse()?);
+
+    let provider = Arc::new(ProviderBuilder::new().on_client(client));
 
     let factories = vec![
         // UniswapV2
