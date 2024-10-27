@@ -3,6 +3,7 @@ pragma solidity ^0.8.0;
 
 interface IFactory {
     function allPairs(uint256 idx) external returns (address);
+    function allPairsLength() external returns (uint256);
 }
 
 /**
@@ -11,13 +12,15 @@ interface IFactory {
  */
 contract GetUniswapV2PairsBatchRequest {
     constructor(uint256 from, uint256 step, address factory) {
-        uint256 distance = step - from;
+        uint256 allPairsLength = IFactory(factory).allPairsLength();
+
+        step = step > allPairsLength ? allPairsLength : step;
 
         // There is a max number of pool as a too big returned data times out the rpc
-        address[] memory allPairs = new address[](distance);
+        address[] memory allPairs = new address[](step);
 
         // Query every pool balance
-        for (uint256 i = 0; i < distance; i++) {
+        for (uint256 i = 0; i < allPairsLength; i++) {
             allPairs[i] = IFactory(factory).allPairs(from + i);
         }
 
