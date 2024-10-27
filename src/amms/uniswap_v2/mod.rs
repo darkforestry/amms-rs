@@ -21,7 +21,10 @@ use alloy::{
     transports::Transport,
 };
 use eyre::Result;
-use futures::stream::FuturesUnordered;
+use futures::{
+    stream::{futures_unordered, FuturesUnordered},
+    StreamExt,
+};
 use itertools::Itertools;
 use rug::Float;
 use serde::{Deserialize, Serialize};
@@ -270,7 +273,7 @@ impl UniswapV2Factory {
         let mut pairs = Vec::new();
 
         let step = 766;
-        // TODO: do this concurrently
+        let mut futures_unordered = FuturesUnordered::new();
         for i in (0..pairs_length).step_by(step) {
             // Note that the batch contract handles if the step is greater than the pairs length
             // So we can pass the step in as is without checking for this condition
@@ -280,12 +283,19 @@ impl UniswapV2Factory {
                 U256::from(step),
                 factory_address,
             );
-            let res = deployer.call_raw().await.expect("TODO: handle error");
 
-            let constructor_return = DynSolType::Array(Box::new(DynSolType::Address));
-            let return_data_tokens = constructor_return.abi_decode_sequence(&res).expect("TODO:");
+            futures_unordered.push(async move {
+                let res = deployer.call_raw().await.expect("TODO: handle error");
+                let constructor_return = DynSolType::Array(Box::new(DynSolType::Address));
+                let return_data_tokens =
+                    constructor_return.abi_decode_sequence(&res).expect("TODO:");
 
-            if let Some(tokens_arr) = return_data_tokens.as_array() {
+                return_data_tokens
+            });
+        }
+
+        while let Some(return_data) = futures_unordered.next().await {
+            if let Some(tokens_arr) = return_data.as_array() {
                 for token in tokens_arr {
                     if let Some(addr) = token.as_address() {
                         if !addr.is_zero() {
@@ -296,7 +306,6 @@ impl UniswapV2Factory {
             };
         }
 
-        dbg!(pairs.len());
         pairs
     }
 
