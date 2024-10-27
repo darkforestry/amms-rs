@@ -234,7 +234,6 @@ pub struct UniswapV2Factory {
     pub address: Address,
     pub fee: usize,
     pub creation_block: u64,
-    pub sync_step: usize,
 }
 
 impl UniswapV2Factory {
@@ -243,18 +242,11 @@ impl UniswapV2Factory {
             address,
             creation_block,
             fee,
-            // TODO: pick some sensibe default
-            sync_step: 10000,
         }
-    }
-
-    pub fn with_sync_step(self, sync_step: usize) -> Self {
-        Self { sync_step, ..self }
     }
 
     async fn get_all_pairs<T, N, P>(
         factory_address: Address,
-        sync_step: usize,
         block_number: u64,
         provider: Arc<P>,
     ) -> Vec<Address>
@@ -270,35 +262,50 @@ impl UniswapV2Factory {
             .block(block_number.into())
             .await
             .expect("TODO:")
-            ._0;
+            ._0
+            .to::<usize>();
 
-        for pairs in (0..pairs_length.to::<u128>()).step_by(sync_step) {
-            // let deployer =
-            //     IGetUniswapV2PairsBatchRequest::deploy_builder(provider, from, step, factory);
-            // let res = deployer.call_raw().await.expect("TODO: handle error");
+        let mut pairs = Vec::new();
 
-            // let constructor_return = DynSolType::Array(Box::new(DynSolType::Address));
-            // let return_data_tokens = constructor_return.abi_decode_sequence(&res).expect("TODO:");
+        let step = 766;
+        // TODO: do this concurrently
+        for i in (0..pairs_length).step_by(step) {
+            let step = if i + step > pairs_length {
+                pairs_length - i
+            } else {
+                step
+            };
 
-            // let mut pairs = vec![];
-            // if let Some(tokens_arr) = return_data_tokens.as_array() {
-            //     for token in tokens_arr {
-            //         if let Some(addr) = token.as_address() {
-            //             if !addr.is_zero() {
-            //                 pairs.push(addr);
-            //             }
-            //         }
-            //     }
-            // };
+            dbg!(i, step);
+
+            let deployer = IGetUniswapV2PairsBatchRequest::deploy_builder(
+                provider.clone(),
+                U256::from(i),
+                U256::from(step),
+                factory_address,
+            );
+            let res = deployer.call_raw().await.expect("TODO: handle error");
+
+            let constructor_return = DynSolType::Array(Box::new(DynSolType::Address));
+            let return_data_tokens = constructor_return.abi_decode_sequence(&res).expect("TODO:");
+
+            if let Some(tokens_arr) = return_data_tokens.as_array() {
+                for token in tokens_arr {
+                    if let Some(addr) = token.as_address() {
+                        if !addr.is_zero() {
+                            pairs.push(addr);
+                        }
+                    }
+                }
+            };
         }
 
-        // TODO: Batch contract to get all pairs over some step
-        todo!()
+        dbg!(pairs.len());
+        pairs
     }
 
     async fn get_all_pools<T, N, P>(
         pairs: Vec<Address>,
-        sync_step: usize,
         block_number: u64,
         provider: Arc<P>,
     ) -> Vec<AMM>
@@ -360,19 +367,13 @@ impl DiscoverySync for UniswapV2Factory {
         N: Network,
         P: Provider<T, N>,
     {
-        let sync_step = self.sync_step;
         let provider = provider.clone();
         let factory_address = self.address;
 
         async move {
-            let pairs = UniswapV2Factory::get_all_pairs(
-                factory_address,
-                sync_step,
-                to_block,
-                provider.clone(),
-            )
-            .await;
-            let pools = UniswapV2Factory::get_all_pools(pairs, sync_step, to_block, provider).await;
+            let pairs =
+                UniswapV2Factory::get_all_pairs(factory_address, to_block, provider.clone()).await;
+            let pools = UniswapV2Factory::get_all_pools(pairs, to_block, provider).await;
             Ok(pools)
         }
     }
