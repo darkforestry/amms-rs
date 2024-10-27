@@ -25,9 +25,7 @@ use std::{
     future::Future,
     hash::Hash,
     sync::Arc,
-    time::Duration,
 };
-use tokio::time::sleep;
 use uniswap_v3_math::tick_math::{MAX_SQRT_RATIO, MAX_TICK, MIN_SQRT_RATIO, MIN_TICK};
 
 sol! {
@@ -686,26 +684,18 @@ impl DiscoverySync for UniswapV3Factory {
             let mut state_space = StateSpace::default();
             let mut tokens = HashSet::new();
 
-            let chain_tip = provider
-                .get_block_number()
-                .await
-                .expect("TODO: handle error");
-
             let sync_provider = provider.clone();
             let mut futures = FuturesUnordered::new();
 
-            dbg!(&chain_tip);
-
             let mut latest_block = self.creation_block;
-            while latest_block < chain_tip {
+            while latest_block < to_block {
                 let mut block_filter = block_filter.clone();
                 let from_block = latest_block;
-                let to_block = (from_block + self.sync_step as u64).min(chain_tip);
+                let to_block = (from_block + self.sync_step as u64).min(to_block);
                 block_filter = block_filter.from_block(from_block);
                 block_filter = block_filter.to_block(to_block);
 
                 println!("Syncing from block {from_block} to block {to_block}",);
-                sleep(Duration::from_millis(200)).await;
 
                 let sync_provider = sync_provider.clone();
                 futures.push(async move {
