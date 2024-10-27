@@ -40,6 +40,8 @@ async fn main() -> eyre::Result<()> {
         // .into(),
     ];
 
+    let now = std::time::Instant::now();
+
     let state_space_manager = StateSpaceBuilder::new(provider.clone(), factories)
         .with_discovery()
         // .with_filters()
@@ -47,6 +49,8 @@ async fn main() -> eyre::Result<()> {
         .with_throttle(5)
         .sync()
         .await;
+
+    dbg!(now.elapsed());
 
     Ok(())
 }
