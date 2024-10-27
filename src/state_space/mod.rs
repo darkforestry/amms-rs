@@ -55,7 +55,6 @@ pub struct StateSpaceBuilder<T, N, P> {
     // NOTE: this is the list of filters each discovered pool will go through
     // pub filters: Vec<Filter>,
     pub discovery: bool,
-    pub sync_step: u64,
     pub throttle: u32,
     phantom: PhantomData<(T, N)>,
     // TODO: add support for caching
@@ -74,7 +73,6 @@ where
             latest_block: 0,
             factories,
             discovery: false,
-            sync_step: 10000,
             throttle: 0,
             phantom: PhantomData,
         }
@@ -85,10 +83,6 @@ where
             latest_block,
             ..self
         }
-    }
-
-    pub fn sync_step(self, sync_step: u64) -> StateSpaceBuilder<T, N, P> {
-        StateSpaceBuilder { sync_step, ..self }
     }
 
     pub fn with_throttle(self, throttle: u32) -> StateSpaceBuilder<T, N, P> {
@@ -120,6 +114,8 @@ where
         // } else {
         //     None
         // };
+
+        let now = std::time::Instant::now();
 
         let chain_tip = self.provider.get_block_number().await.expect("TODO:");
 
@@ -155,6 +151,7 @@ where
         //     phantom: PhantomData,
         // }
 
+        dbg!(now.elapsed());
         todo!()
     }
 }

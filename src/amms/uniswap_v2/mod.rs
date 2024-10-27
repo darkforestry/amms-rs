@@ -269,8 +269,6 @@ impl UniswapV2Factory {
             ._0
             .to::<usize>();
 
-        dbg!(pairs_length);
-
         let step = 766;
         let mut futures_unordered = FuturesUnordered::new();
         for i in (0..pairs_length).step_by(step) {
@@ -363,7 +361,6 @@ impl UniswapV2Factory {
 
         let mut amms = Vec::new();
         while let Some((group, return_data)) = futures_unordered.next().await {
-            dbg!("here");
             if let Some(tokens_arr) = return_data.as_array() {
                 for (token, pool_address) in tokens_arr.iter().zip(group.iter()) {
                     if let Some(pool_data) = token.as_tuple() {
@@ -465,7 +462,6 @@ impl DiscoverySync for UniswapV2Factory {
                 UniswapV2Factory::get_all_pairs(factory_address, to_block, provider.clone()).await;
             let pools = UniswapV2Factory::get_all_pools(pairs, self.fee, to_block, provider).await;
 
-            dbg!(&pools[0].address());
             Ok(pools)
         }
     }
