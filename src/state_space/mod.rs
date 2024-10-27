@@ -55,7 +55,6 @@ pub struct StateSpaceBuilder<T, N, P> {
     // NOTE: this is the list of filters each discovered pool will go through
     // pub filters: Vec<Filter>,
     pub discovery: bool,
-    pub throttle: u32,
     phantom: PhantomData<(T, N)>,
     // TODO: add support for caching
     // TODO: add support to load from cache
@@ -73,7 +72,6 @@ where
             latest_block: 0,
             factories,
             discovery: false,
-            throttle: 0,
             phantom: PhantomData,
         }
     }
@@ -83,10 +81,6 @@ where
             latest_block,
             ..self
         }
-    }
-
-    pub fn with_throttle(self, throttle: u32) -> StateSpaceBuilder<T, N, P> {
-        StateSpaceBuilder { throttle, ..self }
     }
 
     // NOTE: if you only want to listen to specfic pools, you can add whitelist filter
@@ -101,7 +95,7 @@ where
         }
     }
 
-    pub async fn sync(mut self) -> StateSpaceManager<T, N, P> {
+    pub async fn sync(self) -> StateSpaceManager<T, N, P> {
         // let throttle = if self.throttle > 0 {
         //     Some(Arc::new(RateLimiter::direct(Quota::per_second(
         //         NonZeroU32::new(self.throttle).unwrap(),

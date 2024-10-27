@@ -24,6 +24,7 @@ use std::{
     collections::{BTreeMap, HashMap, HashSet},
     future::Future,
     hash::Hash,
+    num::NonZeroU32,
     sync::Arc,
 };
 use uniswap_v3_math::tick_math::{MAX_SQRT_RATIO, MAX_TICK, MIN_SQRT_RATIO, MIN_TICK};
@@ -626,6 +627,126 @@ impl UniswapV3Factory {
     pub fn with_sync_step(self, sync_step: usize) -> Self {
         UniswapV3Factory { sync_step, ..self }
     }
+
+    async fn get_all_pools<T, N, P>(&self, block_number: u64, provider: Arc<P>) -> Vec<AMM>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
+        let disc_filter = Filter::new()
+            .event_signature(FilterSet::from(vec![self.discovery_event()]))
+            .address(vec![self.address()]);
+
+        let sync_provider = provider.clone();
+        let mut futures = FuturesUnordered::new();
+
+        //TODO: update this sync step
+        let mut latest_block = self.creation_block;
+        while latest_block < block_number {
+            let mut block_filter = disc_filter.clone();
+            let from_block = latest_block;
+            // let to_block = (from_block + self.sync_step as u64).min(block_number);
+            let to_block = (from_block + 100000).min(block_number);
+
+            block_filter = block_filter.from_block(from_block);
+            block_filter = block_filter.to_block(to_block);
+
+            let sync_provider = sync_provider.clone();
+
+            futures.push(async move { sync_provider.get_logs(&block_filter).await });
+
+            latest_block = to_block + 1;
+        }
+
+        let mut pools = vec![];
+        while let Some(res) = futures.next().await {
+            let logs = res.expect("TODO: handle error");
+
+            for log in logs {
+                pools.push(self.create_pool(log).expect("TODO: handle errors"));
+            }
+        }
+
+        dbg!("discovered pools", &pools.len());
+
+        pools
+    }
+
+    async fn sync_all_pools<T, N, P>(
+        &self,
+        pools: Vec<AMM>,
+        block_number: u64,
+        provider: Arc<P>,
+    ) -> Vec<AMM>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
+        // TODO: remove this
+        let throttle = Arc::new(RateLimiter::direct(Quota::per_second(
+            NonZeroU32::new(100).expect("Could not initialize NonZeroU32"),
+        )));
+
+        let sync_filter = Filter::new()
+            .event_signature(FilterSet::from(self.pool_events()))
+            .address(pools.iter().map(|pool| pool.address()).collect::<Vec<_>>());
+
+        let sync_provider = provider.clone();
+        let mut futures = FuturesUnordered::new();
+
+        let mut latest_block = self.creation_block;
+        while latest_block < block_number {
+            let mut block_filter = sync_filter.clone();
+            let from_block = latest_block;
+            let to_block = (from_block + self.sync_step as u64).min(block_number);
+            block_filter = block_filter.from_block(from_block);
+            block_filter = block_filter.to_block(to_block);
+
+            let sync_provider = sync_provider.clone();
+
+            println!("Syncing Pools from block {from_block} to block {to_block}",);
+
+            // TODO: remove this
+            throttle.until_ready().await;
+            futures.push(async move { sync_provider.get_logs(&block_filter).await });
+
+            latest_block = to_block + 1;
+        }
+
+        let mut ordered_logs = BTreeMap::new();
+        while let Some(res) = futures.next().await {
+            let logs = res.expect("TODO: handle error");
+
+            dbg!("pool logs", &logs.len());
+            if logs.is_empty() {
+                continue;
+            }
+
+            ordered_logs.insert(
+                logs.first()
+                    .expect("Could not get first log")
+                    .block_number
+                    .expect("Could not get block number"),
+                logs,
+            );
+        }
+
+        let mut pools = pools
+            .into_iter()
+            .map(|pool| (pool.address(), pool))
+            .collect::<HashMap<Address, AMM>>();
+
+        let logs = ordered_logs.into_values().flatten().collect::<Vec<Log>>();
+        for log in logs {
+            if let Some(pool) = pools.get_mut(&log.address()) {
+                pool.sync(log);
+            }
+        }
+
+        pools.into_iter().map(|(_, pool)| pool).collect()
+    }
 }
 
 impl Into<Factory> for UniswapV3Factory {
@@ -646,7 +767,7 @@ impl AutomatedMarketMakerFactory for UniswapV3Factory {
     }
 
     fn create_pool(&self, log: Log) -> Result<AMM, AMMError> {
-        let pool_created_event =
+        let pool_created_event: alloy::primitives::Log<IUniswapV3Factory::PoolCreated> =
             IUniswapV3Factory::PoolCreated::decode_log(&log.inner, false).expect("TODO:");
 
         Ok(AMM::UniswapV3Pool(UniswapV3Pool {
@@ -676,72 +797,13 @@ impl DiscoverySync for UniswapV3Factory {
         P: Provider<T, N>,
     {
         async move {
-            let mut sync_events = self.pool_events();
-            sync_events.push(self.discovery_event());
+            let pools = self.get_all_pools(to_block, provider.clone()).await;
+            let synced_pools = self.sync_all_pools(pools, to_block, provider).await;
 
-            let block_filter = Filter::new().event_signature(FilterSet::from(sync_events));
+            dbg!(synced_pools.len());
+            // TODO: get all token decimals
 
-            let mut state_space = StateSpace::default();
-            let mut tokens = HashSet::new();
-
-            let sync_provider = provider.clone();
-            let mut futures = FuturesUnordered::new();
-
-            let mut latest_block = self.creation_block;
-            while latest_block < to_block {
-                let mut block_filter = block_filter.clone();
-                let from_block = latest_block;
-                let to_block = (from_block + self.sync_step as u64).min(to_block);
-                block_filter = block_filter.from_block(from_block);
-                block_filter = block_filter.to_block(to_block);
-
-                println!("Syncing from block {from_block} to block {to_block}",);
-
-                let sync_provider = sync_provider.clone();
-                futures.push(async move {
-                    println!("Syncing from block {from_block} to block {to_block}",);
-                    sync_provider.get_logs(&block_filter).await
-                });
-
-                latest_block = to_block;
-            }
-
-            let mut ordered_logs = BTreeMap::new();
-            while let Some(res) = futures.next().await {
-                let logs = res.expect("TODO: handle error");
-
-                dbg!(&logs.len());
-
-                ordered_logs.insert(
-                    logs.first()
-                        .expect("Could not get first log")
-                        .block_number
-                        .expect("Could not get block number"),
-                    logs,
-                );
-            }
-
-            let logs = ordered_logs.into_values().flatten().collect::<Vec<Log>>();
-            for log in logs {
-                if log.address() == self.address() {
-                    let amm = self.create_pool(log).expect("handle errors");
-
-                    for token in amm.tokens() {
-                        tokens.insert(token);
-                    }
-
-                    state_space.insert(amm.address(), amm);
-                } else if let Some(amm) = state_space.get_mut(&log.address()) {
-                    amm.sync(log);
-                }
-            }
-
-            // TODO: remove use of clone here
-            Ok(state_space
-                .clone()
-                .into_iter()
-                .map(|(_addr, amm)| amm)
-                .collect::<Vec<AMM>>())
+            Ok(synced_pools)
         }
     }
 }
