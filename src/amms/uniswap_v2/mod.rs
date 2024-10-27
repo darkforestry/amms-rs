@@ -227,6 +227,87 @@ impl UniswapV2Pool {
     }
 }
 
+pub fn div_uu(x: U256, y: U256) -> Result<u128, AMMError> {
+    if !y.is_zero() {
+        let mut answer;
+
+        if x <= U256_0XFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF {
+            answer = (x << U256_64) / y;
+        } else {
+            let mut msb = U256_192;
+            let mut xc = x >> U256_192;
+
+            if xc >= U256_0X100000000 {
+                xc >>= U256_32;
+                msb += U256_32;
+            }
+
+            if xc >= U256_0X10000 {
+                xc >>= U256_16;
+                msb += U256_16;
+            }
+
+            if xc >= U256_0X100 {
+                xc >>= U256_8;
+                msb += U256_8;
+            }
+
+            if xc >= U256_16 {
+                xc >>= U256_4;
+                msb += U256_4;
+            }
+
+            if xc >= U256_4 {
+                xc >>= U256_2;
+                msb += U256_2;
+            }
+
+            if xc >= U256_2 {
+                msb += U256_1;
+            }
+
+            answer = (x << (U256_255 - msb)) / (((y - U256_1) >> (msb - U256_191)) + U256_1);
+        }
+
+        if answer > U256_0XFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF {
+            return Ok(0);
+        }
+
+        let hi = answer * (y >> U256_128);
+        let mut lo = answer * (y & U256_0XFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF);
+
+        let mut xh = x >> U256_192;
+        let mut xl = x << U256_64;
+
+        if xl < lo {
+            xh -= U256_1;
+        }
+
+        xl = xl.overflowing_sub(lo).0;
+        lo = hi << U256_128;
+
+        if xl < lo {
+            xh -= U256_1;
+        }
+
+        xl = xl.overflowing_sub(lo).0;
+
+        if xh != hi >> U256_128 {
+            return Err(AMMError::RoundingError);
+        }
+
+        answer += xl / y;
+
+        if answer > U256_0XFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF {
+            return Ok(0_u128);
+        }
+
+        Ok(answer.to::<u128>())
+    } else {
+        Err(AMMError::DivisionByZero)
+    }
+}
+
 impl Into<AMM> for UniswapV2Pool {
     fn into(self) -> AMM {
         AMM::UniswapV2Pool(self)
@@ -464,87 +545,6 @@ impl DiscoverySync for UniswapV2Factory {
 
             Ok(pools)
         }
-    }
-}
-
-pub fn div_uu(x: U256, y: U256) -> Result<u128, AMMError> {
-    if !y.is_zero() {
-        let mut answer;
-
-        if x <= U256_0XFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF {
-            answer = (x << U256_64) / y;
-        } else {
-            let mut msb = U256_192;
-            let mut xc = x >> U256_192;
-
-            if xc >= U256_0X100000000 {
-                xc >>= U256_32;
-                msb += U256_32;
-            }
-
-            if xc >= U256_0X10000 {
-                xc >>= U256_16;
-                msb += U256_16;
-            }
-
-            if xc >= U256_0X100 {
-                xc >>= U256_8;
-                msb += U256_8;
-            }
-
-            if xc >= U256_16 {
-                xc >>= U256_4;
-                msb += U256_4;
-            }
-
-            if xc >= U256_4 {
-                xc >>= U256_2;
-                msb += U256_2;
-            }
-
-            if xc >= U256_2 {
-                msb += U256_1;
-            }
-
-            answer = (x << (U256_255 - msb)) / (((y - U256_1) >> (msb - U256_191)) + U256_1);
-        }
-
-        if answer > U256_0XFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF {
-            return Ok(0);
-        }
-
-        let hi = answer * (y >> U256_128);
-        let mut lo = answer * (y & U256_0XFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF);
-
-        let mut xh = x >> U256_192;
-        let mut xl = x << U256_64;
-
-        if xl < lo {
-            xh -= U256_1;
-        }
-
-        xl = xl.overflowing_sub(lo).0;
-        lo = hi << U256_128;
-
-        if xl < lo {
-            xh -= U256_1;
-        }
-
-        xl = xl.overflowing_sub(lo).0;
-
-        if xh != hi >> U256_128 {
-            return Err(AMMError::RoundingError);
-        }
-
-        answer += xl / y;
-
-        if answer > U256_0XFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF {
-            return Ok(0_u128);
-        }
-
-        Ok(answer.to::<u128>())
-    } else {
-        Err(AMMError::DivisionByZero)
     }
 }
 
