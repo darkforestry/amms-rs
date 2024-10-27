@@ -14,13 +14,12 @@ contract GetUniswapV2PairsBatchRequest {
     constructor(uint256 from, uint256 step, address factory) {
         uint256 allPairsLength = IFactory(factory).allPairsLength();
 
-        step = step > allPairsLength ? allPairsLength : step;
+        step = from + step > allPairsLength ? allPairsLength - from : step;
 
         // There is a max number of pool as a too big returned data times out the rpc
         address[] memory allPairs = new address[](step);
 
-        // Query every pool balance
-        for (uint256 i = 0; i < allPairsLength; i++) {
+        for (uint256 i = 0; i < step; ++i) {
             allPairs[i] = IFactory(factory).allPairs(from + i);
         }
 
