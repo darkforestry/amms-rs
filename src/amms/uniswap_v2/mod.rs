@@ -265,19 +265,15 @@ impl UniswapV2Factory {
             ._0
             .to::<usize>();
 
+        dbg!(pairs_length);
+
         let mut pairs = Vec::new();
 
         let step = 766;
         // TODO: do this concurrently
         for i in (0..pairs_length).step_by(step) {
-            let step = if i + step > pairs_length {
-                pairs_length - i
-            } else {
-                step
-            };
-
-            dbg!(i, step);
-
+            // Note that the batch contract handles if the step is greater than the pairs length
+            // So we can pass the step in as is without checking for this condition
             let deployer = IGetUniswapV2PairsBatchRequest::deploy_builder(
                 provider.clone(),
                 U256::from(i),

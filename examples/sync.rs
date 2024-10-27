@@ -31,7 +31,6 @@ async fn main() -> eyre::Result<()> {
             300,
             10794229,
         )
-        .with_sync_step(766)
         .into(),
         // UniswapV3Factory::new(
         //     address!("1F98431c8aD98523631AE4a59f267346ea31F984"),
