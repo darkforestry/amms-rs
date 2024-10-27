@@ -1,8 +1,11 @@
 use std::sync::Arc;
 
-use alloy::{primitives::address, providers::ProviderBuilder};
+use alloy::{
+    primitives::{address, Address},
+    providers::ProviderBuilder,
+};
 use pamms::{
-    amms::{uniswap_v2::UniswapV2Factory, uniswap_v3::UniswapV3Factory},
+    amms::{amm::AutomatedMarketMaker, uniswap_v2::UniswapV2Factory, uniswap_v3::UniswapV3Factory},
     state_space::StateSpaceBuilder,
 };
 
@@ -37,14 +40,17 @@ async fn main() -> eyre::Result<()> {
         // .into(),
     ];
 
+    let now = std::time::Instant::now();
+
     let state_space_manager = StateSpaceBuilder::new(provider.clone(), factories)
         .with_discovery()
         // .with_filters()
         // .block(123456)
-        .sync_step(2000)
         .with_throttle(5)
         .sync()
         .await;
+
+    dbg!(now.elapsed());
 
     Ok(())
 }

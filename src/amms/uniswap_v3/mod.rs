@@ -613,7 +613,7 @@ impl Into<AMM> for UniswapV3Pool {
 pub struct UniswapV3Factory {
     pub address: Address,
     pub creation_block: u64,
-    pub sync_step: u64,
+    pub sync_step: usize,
 }
 
 impl UniswapV3Factory {
@@ -625,7 +625,7 @@ impl UniswapV3Factory {
         }
     }
 
-    pub fn with_sync_step(self, sync_step: u64) -> Self {
+    pub fn with_sync_step(self, sync_step: usize) -> Self {
         UniswapV3Factory { sync_step, ..self }
     }
 }
@@ -669,6 +669,7 @@ impl AutomatedMarketMakerFactory for UniswapV3Factory {
 impl DiscoverySync for UniswapV3Factory {
     fn discovery_sync<T, N, P>(
         &self,
+        to_block: u64,
         provider: Arc<P>,
     ) -> impl Future<Output = Result<Vec<AMM>, AMMError>>
     where
@@ -699,7 +700,7 @@ impl DiscoverySync for UniswapV3Factory {
             while latest_block < chain_tip {
                 let mut block_filter = block_filter.clone();
                 let from_block = latest_block;
-                let to_block = (from_block + self.sync_step).min(chain_tip);
+                let to_block = (from_block + self.sync_step as u64).min(chain_tip);
                 block_filter = block_filter.from_block(from_block);
                 block_filter = block_filter.to_block(to_block);
 

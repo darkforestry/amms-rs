@@ -39,6 +39,7 @@ use super::uniswap_v3::UniswapV3Factory;
 pub trait DiscoverySync {
     fn discovery_sync<T, N, P>(
         &self,
+        to_block: u64,
         provider: Arc<P>,
     ) -> impl Future<Output = Result<Vec<AMM>, AMMError>>
     where
@@ -121,14 +122,14 @@ macro_rules! factory {
 
 
         impl Factory {
-            pub async fn discovery_sync<T, N, P>(&self, provider: Arc<P>) -> Result<Vec<AMM>, AMMError>
+            pub async fn discovery_sync<T, N, P>(&self, to_block: u64, provider: Arc<P>) -> Result<Vec<AMM>, AMMError>
                 where
                     T: Transport + Clone,
                     N: Network,
                     P: Provider<T, N>,
                 {
                     match self {
-                        $(Factory::$factory_type(factory) => factory.discovery_sync(provider).await,)+
+                        $(Factory::$factory_type(factory) => factory.discovery_sync(to_block, provider).await,)+
                     }
                 }
             }

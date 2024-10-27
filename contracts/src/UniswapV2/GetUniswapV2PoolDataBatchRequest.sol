@@ -6,7 +6,10 @@ interface IUniswapV2Pair {
 
     function token1() external view returns (address);
 
-    function getReserves() external view returns (uint112 reserve0, uint112 reserve1, uint32 blockTimestampLast);
+    function getReserves()
+        external
+        view
+        returns (uint112 reserve0, uint112 reserve1, uint32 blockTimestampLast);
 }
 
 interface IERC20 {
@@ -20,11 +23,11 @@ interface IERC20 {
 contract GetUniswapV2PoolDataBatchRequest {
     struct PoolData {
         address tokenA;
-        uint8 tokenADecimals;
         address tokenB;
-        uint8 tokenBDecimals;
         uint112 reserve0;
         uint112 reserve1;
+        uint8 tokenADecimals;
+        uint8 tokenBDecimals;
     }
 
     constructor(address[] memory pools) {
@@ -46,14 +49,21 @@ contract GetUniswapV2PoolDataBatchRequest {
             if (codeSizeIsZero(poolData.tokenB)) continue;
 
             // Get tokenA decimals
-            (bool tokenADecimalsSuccess, bytes memory tokenADecimalsData) =
-                poolData.tokenA.call{gas: 20000}(abi.encodeWithSignature("decimals()"));
+            (
+                bool tokenADecimalsSuccess,
+                bytes memory tokenADecimalsData
+            ) = poolData.tokenA.call{gas: 20000}(
+                    abi.encodeWithSignature("decimals()")
+                );
 
             if (tokenADecimalsSuccess) {
                 uint256 tokenADecimals;
 
                 if (tokenADecimalsData.length == 32) {
-                    (tokenADecimals) = abi.decode(tokenADecimalsData, (uint256));
+                    (tokenADecimals) = abi.decode(
+                        tokenADecimalsData,
+                        (uint256)
+                    );
 
                     if (tokenADecimals == 0 || tokenADecimals > 255) {
                         continue;
@@ -68,14 +78,21 @@ contract GetUniswapV2PoolDataBatchRequest {
             }
 
             // Get tokenB decimals
-            (bool tokenBDecimalsSuccess, bytes memory tokenBDecimalsData) =
-                poolData.tokenB.call{gas: 20000}(abi.encodeWithSignature("decimals()"));
+            (
+                bool tokenBDecimalsSuccess,
+                bytes memory tokenBDecimalsData
+            ) = poolData.tokenB.call{gas: 20000}(
+                    abi.encodeWithSignature("decimals()")
+                );
 
             if (tokenBDecimalsSuccess) {
                 uint256 tokenBDecimals;
 
                 if (tokenBDecimalsData.length == 32) {
-                    (tokenBDecimals) = abi.decode(tokenBDecimalsData, (uint256));
+                    (tokenBDecimals) = abi.decode(
+                        tokenBDecimalsData,
+                        (uint256)
+                    );
 
                     if (tokenBDecimals == 0 || tokenBDecimals > 255) {
                         continue;
@@ -90,7 +107,9 @@ contract GetUniswapV2PoolDataBatchRequest {
             }
 
             // Get reserves
-            (poolData.reserve0, poolData.reserve1,) = IUniswapV2Pair(poolAddress).getReserves();
+            (poolData.reserve0, poolData.reserve1, ) = IUniswapV2Pair(
+                poolAddress
+            ).getReserves();
 
             allPoolData[i] = poolData;
         }

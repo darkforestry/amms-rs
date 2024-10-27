@@ -55,7 +55,6 @@ pub struct StateSpaceBuilder<T, N, P> {
     // NOTE: this is the list of filters each discovered pool will go through
     // pub filters: Vec<Filter>,
     pub discovery: bool,
-    pub sync_step: u64,
     pub throttle: u32,
     phantom: PhantomData<(T, N)>,
     // TODO: add support for caching
@@ -74,7 +73,6 @@ where
             latest_block: 0,
             factories,
             discovery: false,
-            sync_step: 10000,
             throttle: 0,
             phantom: PhantomData,
         }
@@ -85,10 +83,6 @@ where
             latest_block,
             ..self
         }
-    }
-
-    pub fn sync_step(self, sync_step: u64) -> StateSpaceBuilder<T, N, P> {
-        StateSpaceBuilder { sync_step, ..self }
     }
 
     pub fn with_throttle(self, throttle: u32) -> StateSpaceBuilder<T, N, P> {
@@ -108,11 +102,6 @@ where
     }
 
     pub async fn sync(mut self) -> StateSpaceManager<T, N, P> {
-        //NOTE: check if factories is empty
-
-        // NOTE: Rather than using discmanager for sync, we can use it for filtering pools once running
-        let discovery_manager = DiscoveryManager::new(self.factories.clone());
-
         // let throttle = if self.throttle > 0 {
         //     Some(Arc::new(RateLimiter::direct(Quota::per_second(
         //         NonZeroU32::new(self.throttle).unwrap(),
@@ -121,6 +110,8 @@ where
         //     None
         // };
 
+        let chain_tip = self.provider.get_block_number().await.expect("TODO:");
+
         let mut futures = FuturesUnordered::new();
         let factories = self.factories.clone();
         for factory in factories {
@@ -128,7 +119,7 @@ where
 
             // TODO: probably also need to specify latest block to sync to
             futures.push(tokio::spawn(async move {
-                factory.discovery_sync(provider).await
+                factory.discovery_sync(chain_tip, provider).await
             }));
         }
 
@@ -141,19 +132,38 @@ where
             }
         }
 
-        // // TODO: filter amms with specified filters
+        // TODO: filter amms with specified filters
 
-        // StateSpaceManager {
-        //     provider: self.provider,
-        //     latest_block: self.latest_block,
-        //     state: Arc::new(RwLock::new(state_space)),
-        //     state_change_cache: Arc::new(RwLock::new(StateChangeCache::default())),
-        //     discovery_manager: Some(discovery_manager),
-        //     block_filter,
-        //     phantom: PhantomData,
-        // }
+        let mut filter_set = HashSet::new();
+        for factory in &self.factories {
+            for event in factory.pool_events() {
+                filter_set.insert(event);
+            }
 
-        todo!()
+            if self.discovery {
+                filter_set.insert(factory.discovery_event());
+            }
+        }
+
+        let discovery_manager = if self.discovery {
+            Some(DiscoveryManager::new(self.factories))
+        } else {
+            None
+        };
+
+        let block_filter = Filter::new().event_signature(FilterSet::from(
+            filter_set.into_iter().collect::<Vec<FixedBytes<32>>>(),
+        ));
+
+        StateSpaceManager {
+            provider: self.provider,
+            latest_block: chain_tip,
+            state: Arc::new(RwLock::new(state_space)),
+            state_change_cache: Arc::new(RwLock::new(StateChangeCache::default())),
+            discovery_manager,
+            block_filter,
+            phantom: PhantomData,
+        }
     }
 }
 
