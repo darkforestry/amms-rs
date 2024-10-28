@@ -93,6 +93,11 @@ contract GetUniswapV3PoolDataBatchRequest {
             IUniswapV3PoolState pool = IUniswapV3PoolState(info.pool);
             poolData.liquidity = pool.liquidity();
             (poolData.sqrtPrice, poolData.tick, , , , , ) = pool.slot0();
+            IUniswapV3PoolState.TickInfo[]
+                memory tickInfo = new IUniswapV3PoolState.TickInfo[](
+                    256 * uint16((info.maxWord - info.minWord))
+                );
+            int24[] memory tickIdxs = new int24[](256 * uint16((info.maxWord - info.minWord)));
 
             // Loop from min to max word inclusive and get all tick bitmaps
             for (int16 j = info.minWord; j <= info.maxWord; ++j) {
@@ -107,25 +112,24 @@ contract GetUniswapV3PoolDataBatchRequest {
                         bool initialized = (tickBitmap & bit) != 0;
                         if (initialized) {
                             tickIndices[k] =
-                                int24(j * 256 + k) *
+                                int24(uint16(j) * 256 + uint24(k)) *
                                 info.tickSpacing;
+                            
+                            tickIdxs[k * 256] = tickIndices[k];
                         }
                     }
 
-                    IUniswapV3PoolState.TickInfo[]
-                        memory tickInfo = new IUniswapV3PoolState.TickInfo[](
-                            256
-                        );
-
                     for (uint256 k = 0; k < 256; ++k) {
-                        tickInfo[k] = pool.ticks(tickIndices[k]);
+                        tickInfo[k * 256] = pool.ticks(tickIndices[k]);
                     }
 
                     poolData.tickBitmap[i] = tickBitmap;
-                    poolData.tickIndices = tickIndices;
-                    poolData.ticks = tickInfo;
                 }
             }
+
+            poolData.ticks = tickInfo;
+            poolData.tickIndices = tickIdxs;
+            allPoolData[i] = poolData;
         }
 
         // ensure abi encoding, not needed here but increase reusability for different return types
