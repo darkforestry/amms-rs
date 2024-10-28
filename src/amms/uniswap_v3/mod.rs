@@ -7,6 +7,7 @@ use super::{
 };
 
 use alloy::{
+    dyn_abi::DynSolType,
     network::Network,
     primitives::{address, Address, B256, I256, U256},
     providers::Provider,
@@ -26,12 +27,14 @@ use std::{
     future::Future,
     hash::Hash,
     num::NonZeroU32,
+    str::FromStr,
     sync::Arc,
 };
 use uniswap_v3_math::{
     tick, tick_bitmap,
     tick_math::{MAX_SQRT_RATIO, MAX_TICK, MIN_SQRT_RATIO, MIN_TICK},
 };
+use GetUniswapV3PoolDataBatchRequest::PoolInfo;
 
 sol! {
     // UniswapV2Factory
@@ -84,6 +87,12 @@ sol! {
             int24 tick
         );
     }
+}
+
+sol! {
+#[sol(rpc)]
+GetUniswapV3PoolDataBatchRequest,
+"contracts/out/GetUniswapV3PoolDataBatchRequest.sol/GetUniswapV3PoolDataBatchRequest.json",
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -688,7 +697,7 @@ impl UniswapV3Factory {
         P: Provider<T, N>,
     {
         // Fetch all words for all pools
-        let word_bounds = pools
+        let pool_infos = pools
             .iter()
             .map(|pool| {
                 let AMM::UniswapV3Pool(uniswap_v3_pool) = pool else {
@@ -697,11 +706,74 @@ impl UniswapV3Factory {
 
                 let min_word = tick_to_word(MIN_TICK, uniswap_v3_pool.tick_spacing);
                 let max_word = tick_to_word(MAX_TICK, uniswap_v3_pool.tick_spacing);
-
-                (pool.address(), min_word, max_word)
+                let pool_info = PoolInfo {
+                    pool: pool.address(),
+                    tokenA: uniswap_v3_pool.token_a,
+                    tokenB: uniswap_v3_pool.token_b,
+                    tickSpacing: alloy::primitives::Signed::<24, 1>::from_str(
+                        uniswap_v3_pool.tick_spacing.to_string().as_str(),
+                    )
+                    .unwrap(),
+                    minWord: min_word as i16,
+                    maxWord: max_word as i16,
+                };
+                (pool, pool_info)
             })
             .collect::<Vec<_>>();
 
+        let mut futures = FuturesUnordered::new();
+
+        pool_infos.chunks(self.sync_step).for_each(|chunk| {
+            let pools = chunk
+                .into_iter()
+                .cloned()
+                .map(|(pool, _)| pool.clone())
+                .collect::<Vec<_>>();
+            let pool_info = chunk
+                .into_iter()
+                .cloned()
+                .map(|(_, pool_info)| pool_info)
+                .collect::<Vec<_>>();
+            let provider = provider.clone();
+            futures.push(async move {
+                (
+                    pools,
+                    GetUniswapV3PoolDataBatchRequest::deploy_builder(provider, pool_info)
+                        .call_raw()
+                        .await
+                        .expect("TODO: handle error"),
+                )
+            });
+        });
+
+        let aggregated_amms = vec![];
+       
+        let return_type = DynSolType::Array(Box::new(DynSolType::Tuple(vec![
+            DynSolType::Uint(8),
+            DynSolType::Uint(8),
+            DynSolType::Uint(256),
+            DynSolType::Uint(256),
+            DynSolType::Int(24),
+            DynSolType::Array(Box::new(DynSolType::Uint(256))),
+            DynSolType::Array(Box::new(DynSolType::Int(24))),
+            DynSolType::Array(Box::new(DynSolType::Tuple(vec![
+                DynSolType::Uint(128),
+                DynSolType::Int(128),
+                DynSolType::Uint(256),
+                DynSolType::Uint(256),
+                DynSolType::Int(56),
+                DynSolType::Uint(160),
+                DynSolType::Uint(32),
+                DynSolType::Bool,
+            ]))),
+        ])));
+
+        while let Some(res) = futures.next().await {
+            let (pools, pools_data) = res;
+            let pools_data = return_type.abi_decode_sequence(&pools_data).expect("TODO: handle error");
+            // TODO: Iterate over each `PoolData` in the vec ziped with the pools and update the pools
+            // TODO: Populate `tickBitmap` and `ticks` for each pool
+        }
         // TODO: fetch all bitmaps based  ontheir positions,
 
         // TODO: calc the position of all ticks
