@@ -8,7 +8,7 @@ use super::{
 
 use alloy::{
     network::Network,
-    primitives::{Address, B256, I256, U256},
+    primitives::{address, Address, B256, I256, U256},
     providers::Provider,
     rpc::types::{Filter, FilterSet, Log},
     sol,
@@ -18,6 +18,7 @@ use alloy::{
 use eyre::Result;
 use futures::{stream::FuturesUnordered, StreamExt};
 use governor::{Quota, RateLimiter};
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::{
     cmp::Ordering,
@@ -27,7 +28,10 @@ use std::{
     num::NonZeroU32,
     sync::Arc,
 };
-use uniswap_v3_math::tick_math::{MAX_SQRT_RATIO, MAX_TICK, MIN_SQRT_RATIO, MIN_TICK};
+use uniswap_v3_math::{
+    tick, tick_bitmap,
+    tick_math::{MAX_SQRT_RATIO, MAX_TICK, MIN_SQRT_RATIO, MIN_TICK},
+};
 
 sol! {
     // UniswapV2Factory
@@ -86,13 +90,13 @@ sol! {
 pub struct UniswapV3Pool {
     pub address: Address,
     pub token_a: Address,
-    pub token_a_decimals: u8,
+    pub token_a_decimals: u8, // NOTE:
     pub token_b: Address,
-    pub token_b_decimals: u8,
-    pub liquidity: u128,
-    pub sqrt_price: U256,
+    pub token_b_decimals: u8, // NOTE:
+    pub liquidity: u128,      // NOTE:
+    pub sqrt_price: U256,     // NOTE:
     pub fee: u32,
-    pub tick: i32,
+    pub tick: i32, // NOTE:
     pub tick_spacing: i32,
     pub tick_bitmap: HashMap<i16, U256>,
     pub ticks: HashMap<i32, Info>,
@@ -641,13 +645,12 @@ impl UniswapV3Factory {
         let sync_provider = provider.clone();
         let mut futures = FuturesUnordered::new();
 
-        //TODO: update this sync step
+        let sync_step = 100_000;
         let mut latest_block = self.creation_block;
         while latest_block < block_number {
             let mut block_filter = disc_filter.clone();
             let from_block = latest_block;
-            // let to_block = (from_block + self.sync_step as u64).min(block_number);
-            let to_block = (from_block + 100000).min(block_number);
+            let to_block = (from_block + sync_step).min(block_number);
 
             block_filter = block_filter.from_block(from_block);
             block_filter = block_filter.to_block(to_block);
@@ -684,69 +687,38 @@ impl UniswapV3Factory {
         N: Network,
         P: Provider<T, N>,
     {
-        // TODO: remove this
-        let throttle = Arc::new(RateLimiter::direct(Quota::per_second(
-            NonZeroU32::new(100).expect("Could not initialize NonZeroU32"),
-        )));
+        // Fetch all words for all pools
+        let word_bounds = pools
+            .iter()
+            .map(|pool| {
+                let AMM::UniswapV3Pool(uniswap_v3_pool) = pool else {
+                    unreachable!()
+                };
 
-        let sync_filter = Filter::new()
-            .event_signature(FilterSet::from(self.pool_events()))
-            .address(pools.iter().map(|pool| pool.address()).collect::<Vec<_>>());
+                let min_word = tick_to_word(MIN_TICK, uniswap_v3_pool.tick_spacing);
+                let max_word = tick_to_word(MAX_TICK, uniswap_v3_pool.tick_spacing);
 
-        let sync_provider = provider.clone();
-        let mut futures = FuturesUnordered::new();
+                (pool.address(), min_word, max_word)
+            })
+            .collect::<Vec<_>>();
 
-        let mut latest_block = self.creation_block;
-        while latest_block < block_number {
-            let mut block_filter = sync_filter.clone();
-            let from_block = latest_block;
-            let to_block = (from_block + self.sync_step as u64).min(block_number);
-            block_filter = block_filter.from_block(from_block);
-            block_filter = block_filter.to_block(to_block);
+        // TODO: fetch all bitmaps based  ontheir positions,
 
-            let sync_provider = sync_provider.clone();
+        // TODO: calc the position of all ticks
 
-            println!("Syncing Pools from block {from_block} to block {to_block}",);
+        // TODO: fetch all ticks
 
-            // TODO: remove this
-            throttle.until_ready().await;
-            futures.push(async move { sync_provider.get_logs(&block_filter).await });
-
-            latest_block = to_block + 1;
-        }
-
-        let mut ordered_logs = BTreeMap::new();
-        while let Some(res) = futures.next().await {
-            let logs = res.expect("TODO: handle error");
-
-            dbg!("pool logs", &logs.len());
-            if logs.is_empty() {
-                continue;
-            }
-
-            ordered_logs.insert(
-                logs.first()
-                    .expect("Could not get first log")
-                    .block_number
-                    .expect("Could not get block number"),
-                logs,
-            );
-        }
-
-        let mut pools = pools
-            .into_iter()
-            .map(|pool| (pool.address(), pool))
-            .collect::<HashMap<Address, AMM>>();
-
-        let logs = ordered_logs.into_values().flatten().collect::<Vec<Log>>();
-        for log in logs {
-            if let Some(pool) = pools.get_mut(&log.address()) {
-                pool.sync(log);
-            }
-        }
-
-        pools.into_iter().map(|(_, pool)| pool).collect()
+        todo!()
     }
+}
+
+// TODO: add to uv3 math
+fn tick_to_word(tick: i32, tick_spacing: i32) -> i32 {
+    let mut compressed = tick / tick_spacing;
+    if tick < 0 && tick % tick_spacing != 0 {
+        compressed -= 1;
+    }
+    compressed >> 8
 }
 
 impl Into<Factory> for UniswapV3Factory {

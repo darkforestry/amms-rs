@@ -1,156 +1,114 @@
 //SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-interface IUniswapV3Pool {
-    function token0() external view returns (address);
-
-    function token1() external view returns (address);
-
-    function fee() external view returns (uint24);
-
-    function tickSpacing() external view returns (int24);
-
-    function liquidity() external view returns (uint128);
-
-    function slot0()
-        external
-        view
-        returns (
-            uint160 sqrtPriceX96,
-            int24 tick,
-            uint16 observationIndex,
-            uint16 observationCardinality,
-            uint16 observationCardinalityNext,
-            uint8 feeProtocol,
-            bool unlocked
-        );
-
-    function ticks(int24 tick)
-        external
-        view
-        returns (
-            uint128 liquidityGross,
-            int128 liquidityNet,
-            uint256 feeGrowthOutside0X128,
-            uint256 feeGrowthOutside1X128,
-            int56 tickCumulativeOutside,
-            uint160 secondsPerLiquidityOutsideX128,
-            uint32 secondsOutside,
-            bool initialized
-        );
-}
-
-interface IERC20 {
-    function decimals() external view returns (uint8);
-}
-
 /**
  * @dev This contract is not meant to be deployed. Instead, use a static call with the
  *       deployment bytecode as payload.
  */
 contract GetUniswapV3PoolDataBatchRequest {
-    struct PoolData {
-        address tokenA;
-        uint8 tokenADecimals;
-        address tokenB;
-        uint8 tokenBDecimals;
-        uint128 liquidity;
-        uint160 sqrtPrice;
-        int24 tick;
+    struct TickBounds {
+        address pool;
         int24 tickSpacing;
-        uint24 fee;
-        int128 liquidityNet;
+        int16 minWord;
+        int16 maxWord;
     }
 
-    constructor(address[] memory pools) {
-        PoolData[] memory allPoolData = new PoolData[](pools.length);
+    // struct PoolData {}
 
-        for (uint256 i = 0; i < pools.length; ++i) {
-            address poolAddress = pools[i];
+    constructor(TickBounds[] memory tickBounds) {
+        IUniswapV3PoolState.TickInfo[][]
+            memory allTickInfo = new IUniswapV3PoolState.TickInfo[][](
+                tickBounds.length
+            );
 
-            if (codeSizeIsZero(poolAddress)) continue;
+        for (uint256 i = 0; i < tickBounds.length; ++i) {
+            TickBounds memory tickBound = tickBounds[i];
 
-            PoolData memory poolData;
+            // Loop from min to max word inclusive and get all tick bitmaps
+            IUniswapV3PoolState pool = IUniswapV3PoolState(tickBound.pool);
+            for (int16 j = tickBound.minWord; j <= tickBound.maxWord; ++j) {
+                uint256 tickBitmap = pool.tickBitmap(j);
 
-            poolData.tokenA = IUniswapV3Pool(poolAddress).token0();
-            poolData.tokenB = IUniswapV3Pool(poolAddress).token1();
+                if (tickBitmap != 0) {
+                    // Get all tick indices
+                    int24[] memory tickIndices = new int24[](256);
 
-            //Check that tokenA and tokenB do not have codesize of 0
-            if (codeSizeIsZero(poolData.tokenA)) continue;
-            if (codeSizeIsZero(poolData.tokenB)) continue;
-
-            //Get tokenA decimals
-            (bool tokenADecimalsSuccess, bytes memory tokenADecimalsData) =
-                poolData.tokenA.call{gas: 20000}(abi.encodeWithSignature("decimals()"));
-
-            if (tokenADecimalsSuccess) {
-                uint256 tokenADecimals;
-
-                if (tokenADecimalsData.length == 32) {
-                    (tokenADecimals) = abi.decode(tokenADecimalsData, (uint256));
-
-                    if (tokenADecimals == 0 || tokenADecimals > 255) {
-                        continue;
-                    } else {
-                        poolData.tokenADecimals = uint8(tokenADecimals);
+                    for (uint256 k = 0; k < 256; ++k) {
+                        uint256 bit = 1 << k;
+                        bool initialized = (tickBitmap & bit) != 0;
+                        if (initialized) {
+                            tickIndices[k] =
+                                int24(j * 256 + k) *
+                                tickBound.tickSpacing;
+                        }
                     }
-                } else {
-                    continue;
+
+                    IUniswapV3PoolState.TickInfo[]
+                        memory tickInfo = new IUniswapV3PoolState.TickInfo[](
+                            256
+                        );
+
+                    for (uint256 k = 0; k < 256; ++k) {
+                        tickInfo[k] = pool.ticks(tickIndices[k]);
+                    }
                 }
-            } else {
-                continue;
             }
 
-            (bool tokenBDecimalsSuccess, bytes memory tokenBDecimalsData) =
-                poolData.tokenB.call{gas: 20000}(abi.encodeWithSignature("decimals()"));
+            // ensure abi encoding, not needed here but increase reusability for different return types
+            // note: abi.encode add a first 32 bytes word with the address of the original data
+            bytes memory abiEncodedData = abi.encode(tickBitmap);
 
-            if (tokenBDecimalsSuccess) {
-                uint256 tokenBDecimals;
-                if (tokenBDecimalsData.length == 32) {
-                    (tokenBDecimals) = abi.decode(tokenBDecimalsData, (uint256));
-
-                    if (tokenBDecimals == 0 || tokenBDecimals > 255) {
-                        continue;
-                    } else {
-                        poolData.tokenBDecimals = uint8(tokenBDecimals);
-                    }
-                } else {
-                    continue;
-                }
-            } else {
-                continue;
+            assembly {
+                // Return from the start of the data (discarding the original data address)
+                // up to the end of the memory used
+                let dataStart := add(abiEncodedData, 0x20)
+                return(dataStart, sub(msize(), dataStart))
             }
-
-            (uint160 sqrtPriceX96, int24 tick,,,,,) = IUniswapV3Pool(poolAddress).slot0();
-
-            (, int128 liquidityNet,,,,,,) = IUniswapV3Pool(poolAddress).ticks(tick);
-
-            poolData.liquidity = IUniswapV3Pool(poolAddress).liquidity();
-            poolData.tickSpacing = IUniswapV3Pool(poolAddress).tickSpacing();
-            poolData.fee = IUniswapV3Pool(poolAddress).fee();
-
-            poolData.sqrtPrice = sqrtPriceX96;
-            poolData.tick = tick;
-
-            poolData.liquidityNet = liquidityNet;
-
-            allPoolData[i] = poolData;
         }
 
-        bytes memory _abiEncodedData = abi.encode(allPoolData);
+        //
+
+        // ensure abi encoding, not needed here but increase reusability for different return types
+        // note: abi.encode add a first 32 bytes word with the address of the original data
+        bytes memory abiEncodedData = abi.encode();
+
         assembly {
             // Return from the start of the data (discarding the original data address)
             // up to the end of the memory used
-            let dataStart := add(_abiEncodedData, 0x20)
+            let dataStart := add(abiEncodedData, 0x20)
             return(dataStart, sub(msize(), dataStart))
         }
     }
+}
 
-    function codeSizeIsZero(address target) internal view returns (bool) {
-        if (target.code.length == 0) {
-            return true;
-        } else {
-            return false;
-        }
+/// @title Pool state that can change
+/// @notice These methods compose the pool's state, and can change with any frequency including multiple times
+/// per transaction
+interface IUniswapV3PoolState {
+    struct TickInfo {
+        // the total position liquidity that references this tick
+        uint128 liquidityGross;
+        // amount of net liquidity added (subtracted) when tick is crossed from left to right (right to left),
+        int128 liquidityNet;
+        // fee growth per unit of liquidity on the _other_ side of this tick (relative to the current tick)
+        // only has relative meaning, not absolute — the value depends on when the tick is initialized
+        uint256 feeGrowthOutside0X128;
+        uint256 feeGrowthOutside1X128;
+        // the cumulative tick value on the other side of the tick
+        int56 tickCumulativeOutside;
+        // the seconds per unit of liquidity on the _other_ side of this tick (relative to the current tick)
+        // only has relative meaning, not absolute — the value depends on when the tick is initialized
+        uint160 secondsPerLiquidityOutsideX128;
+        // the seconds spent on the other side of the tick (relative to the current tick)
+        // only has relative meaning, not absolute — the value depends on when the tick is initialized
+        uint32 secondsOutside;
+        // true iff the tick is initialized, i.e. the value is exactly equivalent to the expression liquidityGross != 0
+        // these 8 bits are set to prevent fresh sstores when crossing newly initialized ticks
+        bool initialized;
     }
+
+    function ticks(int24 tick) external view returns (TickInfo memory);
+
+    /// @notice Returns 256 packed tick initialized boolean values. See TickBitmap for more information
+    function tickBitmap(int16 wordPosition) external view returns (uint256);
 }
