@@ -23,7 +23,7 @@ contract GetUniswapV3PoolDataBatchRequest {
         int24 tick;
         // NOTE: the len is from minWord to maxWord which are the keys for thehashmap
         uint256[] tickBitmap;
-        // TODO: tickbitmap, uint256[] tickBitmap;
+        int24[] tickIndices;
         IUniswapV3PoolState.TickInfo[] ticks;
     }
 
@@ -122,6 +122,7 @@ contract GetUniswapV3PoolDataBatchRequest {
                     }
 
                     poolData.tickBitmap[i] = tickBitmap;
+                    poolData.tickIndices = tickIndices;
                     poolData.ticks = tickInfo;
                 }
             }
