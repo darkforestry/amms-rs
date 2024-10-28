@@ -32,11 +32,12 @@ contract GetUniswapV3PoolDataBatchRequest {
 
         for (uint256 i = 0; i < poolInfo.length; ++i) {
             PoolInfo memory info = poolInfo[i];
-            PoolData memory poolData = allPoolData[i];
 
             // Check that tokenA and tokenB do not have codesize of 0
             if (codeSizeIsZero(info.tokenA)) continue;
             if (codeSizeIsZero(info.tokenB)) continue;
+
+            PoolData memory poolData = allPoolData[i];
 
             // Get tokenA decimals
             (bool tokenADecimalsSuccess, bytes memory tokenADecimalsData) = info
