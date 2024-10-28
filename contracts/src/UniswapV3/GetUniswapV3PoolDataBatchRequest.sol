@@ -28,8 +28,6 @@ contract GetUniswapV3PoolDataBatchRequest {
     }
 
     constructor(PoolInfo[] memory poolInfo) {
-        // TODO: return type
-
         PoolData[] memory allPoolData = new PoolData[](poolInfo.length);
 
         for (uint256 i = 0; i < poolInfo.length; ++i) {
@@ -122,20 +120,22 @@ contract GetUniswapV3PoolDataBatchRequest {
                     for (uint256 k = 0; k < 256; ++k) {
                         tickInfo[k] = pool.ticks(tickIndices[k]);
                     }
+
+                    poolData.tickBitmap[i] = tickBitmap;
+                    poolData.ticks = tickInfo;
                 }
             }
+        }
 
-            // ensure abi encoding, not needed here but increase reusability for different return types
-            // note: abi.encode add a first 32 bytes word with the address of the original data
+        // ensure abi encoding, not needed here but increase reusability for different return types
+        // note: abi.encode add a first 32 bytes word with the address of the original data
+        bytes memory abiEncodedData = abi.encode(allPoolData);
 
-            bytes memory abiEncodedData = abi.encode("");
-
-            assembly {
-                // Return from the start of the data (discarding the original data address)
-                // up to the end of the memory used
-                let dataStart := add(abiEncodedData, 0x20)
-                return(dataStart, sub(msize(), dataStart))
-            }
+        assembly {
+            // Return from the start of the data (discarding the original data address)
+            // up to the end of the memory used
+            let dataStart := add(abiEncodedData, 0x20)
+            return(dataStart, sub(msize(), dataStart))
         }
     }
 
