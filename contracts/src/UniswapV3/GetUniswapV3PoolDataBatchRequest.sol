@@ -117,12 +117,12 @@ contract GetUniswapV3PoolDataBatchRequest {
                                 int24(uint16(j) * 256 + uint24(k)) *
                                 info.tickSpacing;
 
-                            tickIdxs[k * 256] = tickIndices[k];
+                            tickIdxs[uint16(j) * 256 + k] = tickIndices[k];
                         }
                     }
 
                     for (uint256 k = 0; k < 256; ++k) {
-                        tickInfo[k * 256] = pool.ticks(tickIndices[k]);
+                        tickInfo[uint16(j) * 256 + k] = pool.ticks(tickIndices[k]);
                     }
 
                     poolData.tickBitmap[i] = tickBitmap;
