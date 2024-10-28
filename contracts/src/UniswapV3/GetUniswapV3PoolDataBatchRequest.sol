@@ -95,9 +95,11 @@ contract GetUniswapV3PoolDataBatchRequest {
             (poolData.sqrtPrice, poolData.tick, , , , , ) = pool.slot0();
             IUniswapV3PoolState.TickInfo[]
                 memory tickInfo = new IUniswapV3PoolState.TickInfo[](
-                    256 * uint16((info.maxWord - info.minWord))
+                    256 * uint16((info.maxWord - info.minWord + 1))
                 );
-            int24[] memory tickIdxs = new int24[](256 * uint16((info.maxWord - info.minWord)));
+            int24[] memory tickIdxs = new int24[](
+                256 * uint16((info.maxWord - info.minWord + 1))
+            );
 
             // Loop from min to max word inclusive and get all tick bitmaps
             for (int16 j = info.minWord; j <= info.maxWord; ++j) {
@@ -114,7 +116,7 @@ contract GetUniswapV3PoolDataBatchRequest {
                             tickIndices[k] =
                                 int24(uint16(j) * 256 + uint24(k)) *
                                 info.tickSpacing;
-                            
+
                             tickIdxs[k * 256] = tickIndices[k];
                         }
                     }
