@@ -625,7 +625,6 @@ impl Into<AMM> for UniswapV3Pool {
 pub struct UniswapV3Factory {
     pub address: Address,
     pub creation_block: u64,
-    pub sync_step: usize,
 }
 
 impl UniswapV3Factory {
@@ -633,12 +632,7 @@ impl UniswapV3Factory {
         UniswapV3Factory {
             address,
             creation_block,
-            sync_step: 100_000,
         }
-    }
-
-    pub fn with_sync_step(self, sync_step: usize) -> Self {
-        UniswapV3Factory { sync_step, ..self }
     }
 
     async fn get_all_pools<T, N, P>(&self, block_number: u64, provider: Arc<P>) -> Vec<AMM>
@@ -723,7 +717,7 @@ impl UniswapV3Factory {
 
         let mut futures = FuturesUnordered::new();
 
-        let step = 100;
+        let step = 10;
         pool_infos.chunks(step).for_each(|chunk| {
             let pools = chunk
                 .into_iter()
@@ -736,6 +730,8 @@ impl UniswapV3Factory {
                 .map(|(_, pool_info)| pool_info)
                 .collect::<Vec<_>>();
             let provider = provider.clone();
+
+            dbg!("fetching pool data", &pools.len());
             futures.push(async move {
                 (
                     pools,
@@ -771,6 +767,7 @@ impl UniswapV3Factory {
 
         while let Some(res) = futures.next().await {
             let (pools, return_data) = res;
+            dbg!("getting ret data");
             let return_data = return_type
                 .abi_decode_sequence(&return_data)
                 .expect("TODO: handle error");
