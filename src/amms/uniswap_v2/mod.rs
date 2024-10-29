@@ -447,36 +447,30 @@ impl UniswapV2Factory {
                     if let Some(pool_data) = token.as_tuple() {
                         // If the pool token A is not zero, signaling that the pool data was polulated
                         if let Some(token_a) = pool_data[0].as_address() {
-                            if !token_a.is_zero() {
-                                let pool = UniswapV2Pool {
-                                    address: *pool_address,
-                                    token_a,
-                                    token_b: pool_data[1].as_address().expect("TODO:"),
-                                    reserve_0: pool_data[2]
-                                        .as_uint()
-                                        .expect("TODO:")
-                                        .0
-                                        .to::<u128>(),
-                                    reserve_1: pool_data[3]
-                                        .as_uint()
-                                        .expect("TODO:")
-                                        .0
-                                        .to::<u128>(),
-                                    token_a_decimals: pool_data[4]
-                                        .as_uint()
-                                        .expect("TODO:")
-                                        .0
-                                        .to::<u8>(),
-                                    token_b_decimals: pool_data[5]
-                                        .as_uint()
-                                        .expect("TODO:")
-                                        .0
-                                        .to::<u8>(),
-                                    fee,
-                                };
-
-                                amms.push(pool.into())
+                            if token_a.is_zero() {
+                                continue;
                             }
+
+                            let pool = UniswapV2Pool {
+                                address: *pool_address,
+                                token_a,
+                                token_b: pool_data[1].as_address().expect("TODO:"),
+                                reserve_0: pool_data[2].as_uint().expect("TODO:").0.to::<u128>(),
+                                reserve_1: pool_data[3].as_uint().expect("TODO:").0.to::<u128>(),
+                                token_a_decimals: pool_data[4]
+                                    .as_uint()
+                                    .expect("TODO:")
+                                    .0
+                                    .to::<u8>(),
+                                token_b_decimals: pool_data[5]
+                                    .as_uint()
+                                    .expect("TODO:")
+                                    .0
+                                    .to::<u8>(),
+                                fee,
+                            };
+
+                            amms.push(pool.into())
                         }
                     }
                 }

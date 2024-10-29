@@ -778,35 +778,63 @@ impl UniswapV3Factory {
             if let Some(tokens_arr) = return_data.as_array() {
                 for (token, pool) in tokens_arr.iter().zip(pools.iter()) {
                     if let Some(pool_data) = token.as_tuple() {
-                        let AMM::UniswapV3Pool(mut pool) = pool else {
+                        let AMM::UniswapV3Pool(mut uniswap_v3_pool) = pool else {
                             unreachable!()
                         };
 
-                        pool.token_a_decimals =
+                        let token_a_decimals =
                             pool_data[0].as_uint().expect("TODO:").0.to::<u32>() as u8;
-                        pool.token_b_decimals =
+
+                        if token_a_decimals == 0 {
+                            continue;
+                        }
+
+                        uniswap_v3_pool.token_a_decimals = token_a_decimals;
+                        uniswap_v3_pool.token_b_decimals =
                             pool_data[1].as_uint().expect("TODO:").0.to::<u32>() as u8;
-                        pool.tick = pool_data[2].as_int().expect("TODO:").0.as_i32();
-                        pool.liquidity = pool_data[3].as_uint().expect("TODO:").0;
+
+                        uniswap_v3_pool.tick = pool_data[2].as_int().expect("TODO:").0.as_i32();
+                        uniswap_v3_pool.liquidity =
+                            pool_data[3].as_uint().expect("TODO:").0.to::<u128>();
+                        uniswap_v3_pool.sqrt_price = pool_data[4].as_uint().expect("TODO:").0;
+
+                        let tick_bitmap = pool_data[5].as_array().expect("TODO:");
+                        let tick_indices = pool_data[6].as_array().expect("TODO:");
+                        let ticks = pool_data[7].as_array().expect("TODO:");
+
+                        let min_word = tick_to_word(MIN_TICK, uniswap_v3_pool.tick_spacing);
+                        let max_word = tick_to_word(MAX_TICK, uniswap_v3_pool.tick_spacing);
+
+                        // Populate tick bitmap
+                        for i in min_word..=max_word {
+                            let word = tick_bitmap[i as usize].as_uint().expect("TODO:").0;
+                            uniswap_v3_pool.tick_bitmap.insert(i as i16, word);
+                        }
+
+                        // Populate ticks
+                        // TODO: will this overwrite i at 0 until we adjust array len in batch contract?
+                        for (i, tick) in tick_indices.iter().zip(ticks.iter()) {
+                            if let (Some(i), Some(tick)) = (i.as_uint(), tick.as_tuple()) {
+                                let tick = Info::new(
+                                    tick[0].as_uint().expect("TODO:").0.to::<u128>(),
+                                    tick[1]
+                                        .as_int()
+                                        .expect("TODO:")
+                                        .0
+                                        .try_into()
+                                        .expect("TODO:"),
+                                    tick[7].as_bool().expect("TODO:"),
+                                );
+                                uniswap_v3_pool.ticks.insert(i.0.to::<i32>(), tick);
+                            }
+                        }
+
+                        aggregated_amms.push(pool);
                     }
                 }
-                // for (token, pool_address) in tokens_arr.iter().zip(group.iter()) {
-                //     if let Some(pool_data) = token.as_tuple() {
-                //         // If the pool token A is not zero, signaling that the pool data was polulated
-                //         if let Some(token_a) = pool_data[0].as_address() {
-                //             if !token_a.is_zero() {
             }
-
-            // TODO: Iterate over each `PoolData` in the vec ziped with the pools and update the pools
-            // TODO: Populate `tickBitmap` and `ticks` for each pool
         }
-        // TODO: fetch all bitmaps based  ontheir positions,
-
-        // TODO: calc the position of all ticks
-
-        // TODO: fetch all ticks
-
-        todo!()
+        aggregated_amms
     }
 }
 
