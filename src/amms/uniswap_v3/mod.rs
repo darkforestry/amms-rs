@@ -37,7 +37,7 @@ use uniswap_v3_math::{
 use GetUniswapV3PoolDataBatchRequest::PoolInfo;
 
 sol! {
-    // UniswapV2Factory
+    // UniswapV3Factory
     #[allow(missing_docs)]
     #[derive(Debug)]
     #[sol(rpc)]
@@ -723,7 +723,8 @@ impl UniswapV3Factory {
 
         let mut futures = FuturesUnordered::new();
 
-        pool_infos.chunks(self.sync_step).for_each(|chunk| {
+        let step = 100;
+        pool_infos.chunks(step).for_each(|chunk| {
             let pools = chunk
                 .into_iter()
                 .cloned()
@@ -746,14 +747,12 @@ impl UniswapV3Factory {
             });
         });
 
-        let aggregated_amms = vec![];
-       
         let return_type = DynSolType::Array(Box::new(DynSolType::Tuple(vec![
             DynSolType::Uint(8),
             DynSolType::Uint(8),
-            DynSolType::Uint(256),
-            DynSolType::Uint(256),
             DynSolType::Int(24),
+            DynSolType::Uint(256),
+            DynSolType::Uint(256),
             DynSolType::Array(Box::new(DynSolType::Uint(256))),
             DynSolType::Array(Box::new(DynSolType::Int(24))),
             DynSolType::Array(Box::new(DynSolType::Tuple(vec![
@@ -768,9 +767,30 @@ impl UniswapV3Factory {
             ]))),
         ])));
 
+        let mut aggregated_amms = vec![];
+
         while let Some(res) = futures.next().await {
-            let (pools, pools_data) = res;
-            let pools_data = return_type.abi_decode_sequence(&pools_data).expect("TODO: handle error");
+            let (pools, return_data) = res;
+            let return_data = return_type
+                .abi_decode_sequence(&return_data)
+                .expect("TODO: handle error");
+
+            if let Some(tokens_arr) = return_data.as_array() {
+                for (token, pool) in tokens_arr.iter().zip(pools.iter()) {
+                    if let Some(pool_data) = token.as_tuple() {
+                        let token_a_decimals =
+                            pool_data[0].as_uint().expect("TODO:").0.to::<u32>() as u8;
+                        let token_a_decimals =
+                            pool_data[0].as_uint().expect("TODO:").0.to::<u32>() as u8;
+                    }
+                }
+                // for (token, pool_address) in tokens_arr.iter().zip(group.iter()) {
+                //     if let Some(pool_data) = token.as_tuple() {
+                //         // If the pool token A is not zero, signaling that the pool data was polulated
+                //         if let Some(token_a) = pool_data[0].as_address() {
+                //             if !token_a.is_zero() {
+            }
+
             // TODO: Iterate over each `PoolData` in the vec ziped with the pools and update the pools
             // TODO: Populate `tickBitmap` and `ticks` for each pool
         }

@@ -18,9 +18,9 @@ contract GetUniswapV3PoolDataBatchRequest {
     struct PoolData {
         uint8 tokenADecimals;
         uint8 tokenBDecimals;
+        int24 tick;
         uint256 liquidity;
         uint256 sqrtPrice;
-        int24 tick;
         // NOTE: the len is from minWord to maxWord which are the keys for thehashmap
         uint256[] tickBitmap;
         int24[] tickIndices;
@@ -123,7 +123,9 @@ contract GetUniswapV3PoolDataBatchRequest {
                     }
 
                     for (uint256 k = 0; k < 256; ++k) {
-                        tickInfo[uint16(j) * 256 + k] = pool.ticks(tickIndices[k]);
+                        tickInfo[uint16(j) * 256 + k] = pool.ticks(
+                            tickIndices[k]
+                        );
                     }
 
                     poolData.tickBitmap[i] = tickBitmap;
