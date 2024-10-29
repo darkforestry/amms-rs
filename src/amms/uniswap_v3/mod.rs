@@ -17,7 +17,10 @@ use alloy::{
     transports::Transport,
 };
 use eyre::Result;
-use futures::{stream::FuturesUnordered, StreamExt};
+use futures::{
+    stream::{FuturesOrdered, FuturesUnordered},
+    StreamExt,
+};
 use governor::{Quota, RateLimiter};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -700,6 +703,9 @@ impl UniswapV3Factory {
 
                 let min_word = tick_to_word(MIN_TICK, uniswap_v3_pool.tick_spacing);
                 let max_word = tick_to_word(MAX_TICK, uniswap_v3_pool.tick_spacing);
+
+                dbg!(min_word, max_word);
+
                 let pool_info = PoolInfo {
                     pool: pool.address(),
                     tokenA: uniswap_v3_pool.token_a,
@@ -717,7 +723,7 @@ impl UniswapV3Factory {
 
         let mut futures = FuturesUnordered::new();
 
-        let step = 10;
+        let step = 1;
         pool_infos.chunks(step).for_each(|chunk| {
             let pools = chunk
                 .into_iter()
@@ -803,10 +809,14 @@ impl UniswapV3Factory {
                         let min_word = tick_to_word(MIN_TICK, uniswap_v3_pool.tick_spacing);
                         let max_word = tick_to_word(MAX_TICK, uniswap_v3_pool.tick_spacing);
 
+                        if tick_bitmap.len() != (max_word - min_word + 1) as usize {
+                            continue;
+                        }
+
                         // Populate tick bitmap
-                        for i in min_word..=max_word {
-                            let word = tick_bitmap[i as usize].as_uint().expect("TODO:").0;
-                            uniswap_v3_pool.tick_bitmap.insert(i as i16, word);
+                        for (i, word_pos) in (min_word..=max_word).enumerate() {
+                            let word = tick_bitmap[i].as_uint().expect("TODO:").0;
+                            uniswap_v3_pool.tick_bitmap.insert(word_pos as i16, word);
                         }
 
                         // Populate ticks

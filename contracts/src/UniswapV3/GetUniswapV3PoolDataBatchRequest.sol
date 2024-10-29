@@ -39,72 +39,89 @@ contract GetUniswapV3PoolDataBatchRequest {
 
             PoolData memory poolData = allPoolData[i];
 
-            // Get tokenA decimals
-            (bool tokenADecimalsSuccess, bytes memory tokenADecimalsData) = info
-                .tokenA
-                .call{gas: 20000}(abi.encodeWithSignature("decimals()"));
-
-            if (tokenADecimalsSuccess) {
-                uint256 tokenADecimals;
-
-                if (tokenADecimalsData.length == 32) {
-                    (tokenADecimals) = abi.decode(
-                        tokenADecimalsData,
-                        (uint256)
+            {
+                // Get tokenA decimals
+                (
+                    bool tokenADecimalsSuccess,
+                    bytes memory tokenADecimalsData
+                ) = info.tokenA.call{gas: 20000}(
+                        abi.encodeWithSignature("decimals()")
                     );
 
-                    if (tokenADecimals == 0 || tokenADecimals > 255) {
-                        continue;
+                if (tokenADecimalsSuccess) {
+                    uint256 tokenADecimals;
+
+                    if (tokenADecimalsData.length == 32) {
+                        (tokenADecimals) = abi.decode(
+                            tokenADecimalsData,
+                            (uint256)
+                        );
+
+                        if (tokenADecimals == 0 || tokenADecimals > 255) {
+                            continue;
+                        } else {
+                            poolData.tokenADecimals = uint8(tokenADecimals);
+                        }
                     } else {
-                        poolData.tokenADecimals = uint8(tokenADecimals);
+                        continue;
                     }
                 } else {
                     continue;
                 }
-            } else {
-                continue;
-            }
 
-            // Get tokenB decimals
-            (bool tokenBDecimalsSuccess, bytes memory tokenBDecimalsData) = info
-                .tokenB
-                .call{gas: 20000}(abi.encodeWithSignature("decimals()"));
-
-            if (tokenBDecimalsSuccess) {
-                uint256 tokenBDecimals;
-
-                if (tokenBDecimalsData.length == 32) {
-                    (tokenBDecimals) = abi.decode(
-                        tokenBDecimalsData,
-                        (uint256)
+                // Get tokenB decimals
+                (
+                    bool tokenBDecimalsSuccess,
+                    bytes memory tokenBDecimalsData
+                ) = info.tokenB.call{gas: 20000}(
+                        abi.encodeWithSignature("decimals()")
                     );
 
-                    if (tokenBDecimals == 0 || tokenBDecimals > 255) {
-                        continue;
+                if (tokenBDecimalsSuccess) {
+                    uint256 tokenBDecimals;
+
+                    if (tokenBDecimalsData.length == 32) {
+                        (tokenBDecimals) = abi.decode(
+                            tokenBDecimalsData,
+                            (uint256)
+                        );
+
+                        if (tokenBDecimals == 0 || tokenBDecimals > 255) {
+                            continue;
+                        } else {
+                            poolData.tokenBDecimals = uint8(tokenBDecimals);
+                        }
                     } else {
-                        poolData.tokenBDecimals = uint8(tokenBDecimals);
+                        continue;
                     }
                 } else {
                     continue;
                 }
-            } else {
-                continue;
             }
 
             IUniswapV3PoolState pool = IUniswapV3PoolState(info.pool);
             poolData.liquidity = pool.liquidity();
+
             (poolData.sqrtPrice, poolData.tick, , , , , ) = pool.slot0();
+
+            uint256 wordRange = uint256(int256(info.maxWord - info.minWord)) +
+                1;
+
+            poolData.tickBitmap = new uint256[](wordRange);
+
             IUniswapV3PoolState.TickInfo[]
                 memory tickInfo = new IUniswapV3PoolState.TickInfo[](
-                    256 * uint16((info.maxWord - info.minWord + 1))
+                    256 * wordRange
                 );
-            int24[] memory tickIdxs = new int24[](
-                256 * uint16((info.maxWord - info.minWord + 1))
-            );
+            int24[] memory tickIdxs = new int24[](256 * wordRange);
 
             uint256 tickArrayIndex = 0;
 
             // Loop from min to max word inclusive and get all tick bitmaps
+
+            // NOTE: since we are iterating over this range and
+            // getting the the tick index accordingly this will overflow
+            uint256 wordRangeIdx = 0;
             for (int16 j = info.minWord; j <= info.maxWord; ++j) {
                 uint256 tickBitmap = pool.tickBitmap(j);
 
@@ -114,11 +131,17 @@ contract GetUniswapV3PoolDataBatchRequest {
 
                 for (uint256 k = 0; k < 256; ++k) {
                     uint256 bit = 1 << k;
+
                     bool initialized = (tickBitmap & bit) != 0;
                     if (initialized) {
-                        // TODO: overflow issues for int24?
-                        int24 tickIndex = int24(uint16(j) * 256 + uint24(k)) *
-                            info.tickSpacing;
+                        int24 tickIndex = int24(
+                            int256(
+                                wordRangeIdx *
+                                    256 +
+                                    k *
+                                    uint256(int256(info.tickSpacing))
+                            )
+                        );
 
                         tickIdxs[tickArrayIndex] = tickIndex;
                         tickInfo[tickArrayIndex] = pool.ticks(tickIndex);
@@ -127,7 +150,8 @@ contract GetUniswapV3PoolDataBatchRequest {
                     }
                 }
 
-                poolData.tickBitmap[i] = tickBitmap;
+                poolData.tickBitmap[wordRangeIdx] = tickBitmap;
+                ++wordRangeIdx;
             }
 
             assembly {
