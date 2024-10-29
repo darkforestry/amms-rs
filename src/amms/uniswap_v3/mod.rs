@@ -737,6 +737,7 @@ impl UniswapV3Factory {
                     pools,
                     GetUniswapV3PoolDataBatchRequest::deploy_builder(provider, pool_info)
                         .call_raw()
+                        .block(block_number.into())
                         .await
                         .expect("TODO: handle error"),
                 )
