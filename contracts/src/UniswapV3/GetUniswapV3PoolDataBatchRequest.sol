@@ -102,34 +102,37 @@ contract GetUniswapV3PoolDataBatchRequest {
                 256 * uint16((info.maxWord - info.minWord + 1))
             );
 
+            uint256 tickArrayIndex = 0;
+
             // Loop from min to max word inclusive and get all tick bitmaps
             for (int16 j = info.minWord; j <= info.maxWord; ++j) {
                 uint256 tickBitmap = pool.tickBitmap(j);
 
-                if (tickBitmap != 0) {
-                    // Get all tick indices
-                    int24[] memory tickIndices = new int24[](256);
-
-                    for (uint256 k = 0; k < 256; ++k) {
-                        uint256 bit = 1 << k;
-                        bool initialized = (tickBitmap & bit) != 0;
-                        if (initialized) {
-                            tickIndices[k] =
-                                int24(uint16(j) * 256 + uint24(k)) *
-                                info.tickSpacing;
-
-                            tickIdxs[uint16(j) * 256 + k] = tickIndices[k];
-                        }
-                    }
-
-                    for (uint256 k = 0; k < 256; ++k) {
-                        tickInfo[uint16(j) * 256 + k] = pool.ticks(
-                            tickIndices[k]
-                        );
-                    }
-
-                    poolData.tickBitmap[i] = tickBitmap;
+                if (tickBitmap == 0) {
+                    continue;
                 }
+
+                for (uint256 k = 0; k < 256; ++k) {
+                    uint256 bit = 1 << k;
+                    bool initialized = (tickBitmap & bit) != 0;
+                    if (initialized) {
+                        // TODO: overflow issues for int24?
+                        int24 tickIndex = int24(uint16(j) * 256 + uint24(k)) *
+                            info.tickSpacing;
+
+                        tickIdxs[tickArrayIndex] = tickIndex;
+                        tickInfo[tickArrayIndex] = pool.ticks(tickIndex);
+
+                        ++tickArrayIndex;
+                    }
+                }
+
+                poolData.tickBitmap[i] = tickBitmap;
+            }
+
+            assembly {
+                mstore(tickInfo, tickArrayIndex)
+                mstore(tickIdxs, tickArrayIndex)
             }
 
             poolData.ticks = tickInfo;

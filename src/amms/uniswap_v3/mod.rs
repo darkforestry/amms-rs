@@ -776,7 +776,7 @@ impl UniswapV3Factory {
                 .expect("TODO: handle error");
 
             if let Some(tokens_arr) = return_data.as_array() {
-                for (token, pool) in tokens_arr.iter().zip(pools.iter()) {
+                for (token, pool) in tokens_arr.iter().zip(pools.into_iter()) {
                     if let Some(pool_data) = token.as_tuple() {
                         let AMM::UniswapV3Pool(mut uniswap_v3_pool) = pool else {
                             unreachable!()
@@ -829,7 +829,7 @@ impl UniswapV3Factory {
                             }
                         }
 
-                        aggregated_amms.push(pool);
+                        aggregated_amms.push(uniswap_v3_pool.into());
                     }
                 }
             }
