@@ -751,7 +751,7 @@ impl UniswapV3Factory {
             DynSolType::Uint(8),
             DynSolType::Uint(8),
             DynSolType::Int(24),
-            DynSolType::Uint(256),
+            DynSolType::Uint(128),
             DynSolType::Uint(256),
             DynSolType::Array(Box::new(DynSolType::Uint(256))),
             DynSolType::Array(Box::new(DynSolType::Int(24))),
@@ -778,10 +778,16 @@ impl UniswapV3Factory {
             if let Some(tokens_arr) = return_data.as_array() {
                 for (token, pool) in tokens_arr.iter().zip(pools.iter()) {
                     if let Some(pool_data) = token.as_tuple() {
-                        let token_a_decimals =
+                        let AMM::UniswapV3Pool(mut pool) = pool else {
+                            unreachable!()
+                        };
+
+                        pool.token_a_decimals =
                             pool_data[0].as_uint().expect("TODO:").0.to::<u32>() as u8;
-                        let token_a_decimals =
-                            pool_data[0].as_uint().expect("TODO:").0.to::<u32>() as u8;
+                        pool.token_b_decimals =
+                            pool_data[1].as_uint().expect("TODO:").0.to::<u32>() as u8;
+                        pool.tick = pool_data[2].as_int().expect("TODO:").0.as_i32();
+                        pool.liquidity = pool_data[3].as_uint().expect("TODO:").0;
                     }
                 }
                 // for (token, pool_address) in tokens_arr.iter().zip(group.iter()) {

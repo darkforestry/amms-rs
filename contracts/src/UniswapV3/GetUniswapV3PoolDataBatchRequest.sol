@@ -19,7 +19,7 @@ contract GetUniswapV3PoolDataBatchRequest {
         uint8 tokenADecimals;
         uint8 tokenBDecimals;
         int24 tick;
-        uint256 liquidity;
+        uint128 liquidity;
         uint256 sqrtPrice;
         // NOTE: the len is from minWord to maxWord which are the keys for thehashmap
         uint256[] tickBitmap;
