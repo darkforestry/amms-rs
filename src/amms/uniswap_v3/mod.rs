@@ -711,181 +711,181 @@ impl UniswapV3Factory {
 
         let token_decimals = get_token_decimals(tokens, provider).await;
 
-        todo!();
-        // NOTE: populate slot0 data
+        vec![]
+        // // NOTE: populate slot0 data
 
-        // NOTE:
+        // // NOTE:
+
+        // // // Fetch all words for all pools
+        // // let pool_infos = pools
+        // //     .iter()
+        // //     .map(|pool| {
+        // //         let AMM::UniswapV3Pool(uniswap_v3_pool) = pool else {
+        // //             unreachable!()
+        // //         };
+
+        // //         let min_word = tick_to_word(MIN_TICK, uniswap_v3_pool.tick_spacing);
+        // //         let max_word = tick_to_word(MAX_TICK, uniswap_v3_pool.tick_spacing);
+
+        // //         dbg!(min_word, max_word, max_word - min_word);
+
+        // //         let pool_info = PoolInfo {
+        // //             pool: pool.address(),
+        // //             tokenA: uniswap_v3_pool.token_a,
+        // //             tokenB: uniswap_v3_pool.token_b,
+        // //             tickSpacing: alloy::primitives::Signed::<24, 1>::from_str(
+        // //                 uniswap_v3_pool.tick_spacing.to_string().as_str(),
+        // //             )
+        // //             .unwrap(),
+        // //             minWord: min_word as i16,
+        // //             maxWord: max_word as i16,
+        // //         };
+        // //         (pool, pool_info)
+        // //     })
+        // //     .collect::<Vec<_>>();
 
         // // Fetch all words for all pools
-        // let pool_infos = pools
-        //     .iter()
-        //     .map(|pool| {
-        //         let AMM::UniswapV3Pool(uniswap_v3_pool) = pool else {
-        //             unreachable!()
-        //         };
 
-        //         let min_word = tick_to_word(MIN_TICK, uniswap_v3_pool.tick_spacing);
-        //         let max_word = tick_to_word(MAX_TICK, uniswap_v3_pool.tick_spacing);
+        // let mut pool_infos = vec![];
+        // for pool in pools.iter() {
+        //     let AMM::UniswapV3Pool(uniswap_v3_pool) = pool else {
+        //         unreachable!()
+        //     };
 
-        //         dbg!(min_word, max_word, max_word - min_word);
+        //     let min_word = tick_to_word(MIN_TICK, uniswap_v3_pool.tick_spacing);
+        //     let max_word = tick_to_word(MAX_TICK, uniswap_v3_pool.tick_spacing);
 
-        //         let pool_info = PoolInfo {
-        //             pool: pool.address(),
-        //             tokenA: uniswap_v3_pool.token_a,
-        //             tokenB: uniswap_v3_pool.token_b,
-        //             tickSpacing: alloy::primitives::Signed::<24, 1>::from_str(
-        //                 uniswap_v3_pool.tick_spacing.to_string().as_str(),
-        //             )
-        //             .unwrap(),
-        //             minWord: min_word as i16,
-        //             maxWord: max_word as i16,
-        //         };
-        //         (pool, pool_info)
-        //     })
-        //     .collect::<Vec<_>>();
+        //     dbg!(min_word, max_word, max_word - min_word);
 
-        // Fetch all words for all pools
+        //     if max_word - min_word > 100 {
+        //         continue;
+        //     }
 
-        let mut pool_infos = vec![];
-        for pool in pools.iter() {
-            let AMM::UniswapV3Pool(uniswap_v3_pool) = pool else {
-                unreachable!()
-            };
+        //     let pool_info = PoolInfo {
+        //         pool: uniswap_v3_pool.address,
+        //         tokenA: uniswap_v3_pool.token_a,
+        //         tokenB: uniswap_v3_pool.token_b,
+        //         tickSpacing: alloy::primitives::Signed::<24, 1>::from_str(
+        //             uniswap_v3_pool.tick_spacing.to_string().as_str(),
+        //         )
+        //         .unwrap(),
+        //         minWord: min_word as i16,
+        //         maxWord: max_word as i16,
+        //     };
+        //     pool_infos.push((pool, pool_info));
+        // }
 
-            let min_word = tick_to_word(MIN_TICK, uniswap_v3_pool.tick_spacing);
-            let max_word = tick_to_word(MAX_TICK, uniswap_v3_pool.tick_spacing);
+        // let mut futures = FuturesUnordered::new();
 
-            dbg!(min_word, max_word, max_word - min_word);
+        // let step = 1;
+        // pool_infos.chunks(step).for_each(|chunk| {
+        //     let pools = chunk
+        //         .into_iter()
+        //         .cloned()
+        //         .map(|(pool, _)| pool.clone())
+        //         .collect::<Vec<_>>();
+        //     let pool_info = chunk
+        //         .into_iter()
+        //         .cloned()
+        //         .map(|(_, pool_info)| pool_info)
+        //         .collect::<Vec<_>>();
+        //     let provider = provider.clone();
 
-            if max_word - min_word > 100 {
-                continue;
-            }
+        //     futures.push(async move {
+        //         (
+        //             pools,
+        //             GetUniswapV3PoolDataBatchRequest::deploy_builder(provider, pool_info)
+        //                 .call_raw()
+        //                 .block(block_number.into())
+        //                 .await
+        //                 .expect("TODO: handle error"),
+        //         )
+        //     });
+        // });
 
-            let pool_info = PoolInfo {
-                pool: uniswap_v3_pool.address,
-                tokenA: uniswap_v3_pool.token_a,
-                tokenB: uniswap_v3_pool.token_b,
-                tickSpacing: alloy::primitives::Signed::<24, 1>::from_str(
-                    uniswap_v3_pool.tick_spacing.to_string().as_str(),
-                )
-                .unwrap(),
-                minWord: min_word as i16,
-                maxWord: max_word as i16,
-            };
-            pool_infos.push((pool, pool_info));
-        }
+        // let return_type = DynSolType::Array(Box::new(DynSolType::Tuple(vec![
+        //     DynSolType::Array(Box::new(DynSolType::Uint(256))),
+        //     DynSolType::Array(Box::new(DynSolType::Int(24))),
+        //     DynSolType::Array(Box::new(DynSolType::Tuple(vec![
+        //         DynSolType::Uint(128),
+        //         DynSolType::Int(128),
+        //         DynSolType::Bool,
+        //     ]))),
+        // ])));
 
-        let mut futures = FuturesUnordered::new();
+        // let mut aggregated_amms = vec![];
 
-        let step = 1;
-        pool_infos.chunks(step).for_each(|chunk| {
-            let pools = chunk
-                .into_iter()
-                .cloned()
-                .map(|(pool, _)| pool.clone())
-                .collect::<Vec<_>>();
-            let pool_info = chunk
-                .into_iter()
-                .cloned()
-                .map(|(_, pool_info)| pool_info)
-                .collect::<Vec<_>>();
-            let provider = provider.clone();
+        // while let Some(res) = futures.next().await {
+        //     let (pools, return_data) = res;
+        //     dbg!("getting ret data");
+        //     let return_data = return_type
+        //         .abi_decode_sequence(&return_data)
+        //         .expect("TODO: handle error");
 
-            futures.push(async move {
-                (
-                    pools,
-                    GetUniswapV3PoolDataBatchRequest::deploy_builder(provider, pool_info)
-                        .call_raw()
-                        .block(block_number.into())
-                        .await
-                        .expect("TODO: handle error"),
-                )
-            });
-        });
+        //     if let Some(tokens_arr) = return_data.as_array() {
+        //         for (token, pool) in tokens_arr.iter().zip(pools.into_iter()) {
+        //             if let Some(pool_data) = token.as_tuple() {
+        //                 let AMM::UniswapV3Pool(mut uniswap_v3_pool) = pool else {
+        //                     unreachable!()
+        //                 };
 
-        let return_type = DynSolType::Array(Box::new(DynSolType::Tuple(vec![
-            DynSolType::Array(Box::new(DynSolType::Uint(256))),
-            DynSolType::Array(Box::new(DynSolType::Int(24))),
-            DynSolType::Array(Box::new(DynSolType::Tuple(vec![
-                DynSolType::Uint(128),
-                DynSolType::Int(128),
-                DynSolType::Bool,
-            ]))),
-        ])));
+        //                 // let token_a_decimals =
+        //                 //     pool_data[0].as_uint().expect("TODO:").0.to::<u32>() as u8;
 
-        let mut aggregated_amms = vec![];
+        //                 // if token_a_decimals == 0 {
+        //                 //     continue;
+        //                 // }
 
-        while let Some(res) = futures.next().await {
-            let (pools, return_data) = res;
-            dbg!("getting ret data");
-            let return_data = return_type
-                .abi_decode_sequence(&return_data)
-                .expect("TODO: handle error");
+        //                 // uniswap_v3_pool.token_a_decimals = token_a_decimals;
+        //                 // uniswap_v3_pool.token_b_decimals =
+        //                 //     pool_data[1].as_uint().expect("TODO:").0.to::<u32>() as u8;
 
-            if let Some(tokens_arr) = return_data.as_array() {
-                for (token, pool) in tokens_arr.iter().zip(pools.into_iter()) {
-                    if let Some(pool_data) = token.as_tuple() {
-                        let AMM::UniswapV3Pool(mut uniswap_v3_pool) = pool else {
-                            unreachable!()
-                        };
+        //                 // uniswap_v3_pool.tick = pool_data[2].as_int().expect("TODO:").0.as_i32();
+        //                 // uniswap_v3_pool.liquidity =
+        //                 //     pool_data[3].as_uint().expect("TODO:").0.to::<u128>();
+        //                 // uniswap_v3_pool.sqrt_price = pool_data[4].as_uint().expect("TODO:").0;
 
-                        // let token_a_decimals =
-                        //     pool_data[0].as_uint().expect("TODO:").0.to::<u32>() as u8;
+        //                 let tick_bitmap = pool_data[0].as_array().expect("TODO:");
+        //                 let tick_indices = pool_data[2].as_array().expect("TODO:");
+        //                 let ticks = pool_data[2].as_array().expect("TODO:");
 
-                        // if token_a_decimals == 0 {
-                        //     continue;
-                        // }
+        //                 let min_word = tick_to_word(MIN_TICK, uniswap_v3_pool.tick_spacing);
+        //                 let max_word = tick_to_word(MAX_TICK, uniswap_v3_pool.tick_spacing);
 
-                        // uniswap_v3_pool.token_a_decimals = token_a_decimals;
-                        // uniswap_v3_pool.token_b_decimals =
-                        //     pool_data[1].as_uint().expect("TODO:").0.to::<u32>() as u8;
+        //                 if tick_bitmap.len() != (max_word - min_word + 1) as usize {
+        //                     continue;
+        //                 }
 
-                        // uniswap_v3_pool.tick = pool_data[2].as_int().expect("TODO:").0.as_i32();
-                        // uniswap_v3_pool.liquidity =
-                        //     pool_data[3].as_uint().expect("TODO:").0.to::<u128>();
-                        // uniswap_v3_pool.sqrt_price = pool_data[4].as_uint().expect("TODO:").0;
+        //                 // // Populate tick bitmap
+        //                 // for (i, word_pos) in (min_word..=max_word).enumerate() {
+        //                 //     let word = tick_bitmap[i].as_uint().expect("TODO:").0;
+        //                 //     uniswap_v3_pool.tick_bitmap.insert(word_pos as i16, word);
+        //                 // }
 
-                        let tick_bitmap = pool_data[0].as_array().expect("TODO:");
-                        let tick_indices = pool_data[2].as_array().expect("TODO:");
-                        let ticks = pool_data[2].as_array().expect("TODO:");
+        //                 // // Populate ticks
+        //                 // // TODO: will this overwrite i at 0 until we adjust array len in batch contract?
+        //                 // for (i, tick) in tick_indices.iter().zip(ticks.iter()) {
+        //                 //     if let (Some(i), Some(tick)) = (i.as_uint(), tick.as_tuple()) {
+        //                 //         let tick = Info::new(
+        //                 //             tick[0].as_uint().expect("TODO:").0.to::<u128>(),
+        //                 //             tick[1]
+        //                 //                 .as_int()
+        //                 //                 .expect("TODO:")
+        //                 //                 .0
+        //                 //                 .try_into()
+        //                 //                 .expect("TODO:"),
+        //                 //             tick[7].as_bool().expect("TODO:"),
+        //                 //         );
+        //                 //         uniswap_v3_pool.ticks.insert(i.0.to::<i32>(), tick);
+        //                 //     }
+        //                 // }
 
-                        let min_word = tick_to_word(MIN_TICK, uniswap_v3_pool.tick_spacing);
-                        let max_word = tick_to_word(MAX_TICK, uniswap_v3_pool.tick_spacing);
-
-                        if tick_bitmap.len() != (max_word - min_word + 1) as usize {
-                            continue;
-                        }
-
-                        // // Populate tick bitmap
-                        // for (i, word_pos) in (min_word..=max_word).enumerate() {
-                        //     let word = tick_bitmap[i].as_uint().expect("TODO:").0;
-                        //     uniswap_v3_pool.tick_bitmap.insert(word_pos as i16, word);
-                        // }
-
-                        // // Populate ticks
-                        // // TODO: will this overwrite i at 0 until we adjust array len in batch contract?
-                        // for (i, tick) in tick_indices.iter().zip(ticks.iter()) {
-                        //     if let (Some(i), Some(tick)) = (i.as_uint(), tick.as_tuple()) {
-                        //         let tick = Info::new(
-                        //             tick[0].as_uint().expect("TODO:").0.to::<u128>(),
-                        //             tick[1]
-                        //                 .as_int()
-                        //                 .expect("TODO:")
-                        //                 .0
-                        //                 .try_into()
-                        //                 .expect("TODO:"),
-                        //             tick[7].as_bool().expect("TODO:"),
-                        //         );
-                        //         uniswap_v3_pool.ticks.insert(i.0.to::<i32>(), tick);
-                        //     }
-                        // }
-
-                        aggregated_amms.push(uniswap_v3_pool.into());
-                    }
-                }
-            }
-        }
-        aggregated_amms
+        //                 aggregated_amms.push(uniswap_v3_pool.into());
+        //             }
+        //         }
+        //     }
+        // }
+        // aggregated_amms
     }
 }
 

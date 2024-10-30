@@ -28,7 +28,7 @@ where
     N: Network,
     P: Provider<T, N>,
 {
-    let step = 100;
+    let step = 765;
 
     let mut futures = FuturesUnordered::new();
     tokens.chunks(step).for_each(|group: &[Address]| {
@@ -64,6 +64,5 @@ where
             }
         }
     }
-
     token_decimals
 }
