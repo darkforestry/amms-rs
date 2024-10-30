@@ -693,6 +693,14 @@ impl UniswapV3Factory {
         N: Network,
         P: Provider<T, N>,
     {
+        // NOTE: get all token decimals
+        // function addresses in hashmap< address, u8> out
+
+        // NOTE: populate slot0 data
+
+        // NOTE:
+
+        let pools = pools[..10].to_vec();
         // Fetch all words for all pools
         let pool_infos = pools
             .iter()

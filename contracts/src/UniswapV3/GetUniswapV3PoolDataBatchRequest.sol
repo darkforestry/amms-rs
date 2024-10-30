@@ -175,13 +175,13 @@ contract GetUniswapV3PoolDataBatchRequest {
             return(dataStart, sub(msize(), dataStart))
         }
     }
+}
 
-    function codeSizeIsZero(address target) internal view returns (bool) {
-        if (target.code.length == 0) {
-            return true;
-        } else {
-            return false;
-        }
+function codeSizeIsZero(address target) view returns (bool) {
+    if (target.code.length == 0) {
+        return true;
+    } else {
+        return false;
     }
 }
 
