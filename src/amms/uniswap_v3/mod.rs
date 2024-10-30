@@ -700,7 +700,6 @@ impl UniswapV3Factory {
 
         // NOTE:
 
-        let pools = pools[..10].to_vec();
         // Fetch all words for all pools
         let pool_infos = pools
             .iter()
