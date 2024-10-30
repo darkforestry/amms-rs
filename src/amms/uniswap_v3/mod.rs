@@ -1,4 +1,7 @@
-use crate::{amms::consts::U256_1, state_space::StateSpace};
+use crate::{
+    amms::{consts::U256_1, uniswap_v2::q64_to_float},
+    state_space::StateSpace,
+};
 
 use super::{
     amm::{AutomatedMarketMaker, AMM},
@@ -7,6 +10,7 @@ use super::{
     get_token_decimals,
 };
 
+use crate::amms::uniswap_v3::GetUniswapV3PoolTickBitmapBatchRequest::TickBitmapInfo;
 use alloy::{
     dyn_abi::DynSolType,
     network::Network,
@@ -39,7 +43,6 @@ use uniswap_v3_math::{
     tick, tick_bitmap,
     tick_math::{MAX_SQRT_RATIO, MAX_TICK, MIN_SQRT_RATIO, MIN_TICK},
 };
-use GetUniswapV3PoolDataBatchRequest::PoolInfo;
 
 sol! {
     // UniswapV3Factory
@@ -96,14 +99,14 @@ sol! {
 
 sol! {
 #[sol(rpc)]
-GetUniswapV3PoolDataBatchRequest,
-"contracts/out/GetUniswapV3PoolDataBatchRequest.sol/GetUniswapV3PoolDataBatchRequest.json",
+GetUniswapV3PoolSlot0BatchRequest,
+"contracts/out/GetUniswapV3PoolSlot0BatchRequest.sol/GetUniswapV3PoolSlot0BatchRequest.json",
 }
 
 sol! {
 #[sol(rpc)]
-GetUniswapV3PoolSlot0BatchRequest,
-"contracts/out/GetUniswapV3PoolSlot0BatchRequest.sol/GetUniswapV3PoolSlot0BatchRequest.json",
+GetUniswapV3PoolTickBitmapBatchRequest,
+"contracts/out/GetUniswapV3PoolTickBitmapBatchRequest.sol/GetUniswapV3PoolTickBitmapBatchRequest.json",
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -697,6 +700,9 @@ impl UniswapV3Factory {
         P: Provider<T, N>,
     {
         UniswapV3Factory::sync_slot_0(pools, block_number, provider.clone()).await;
+        UniswapV3Factory::sync_tick_bitmaps(pools, block_number, provider.clone()).await;
+
+        todo!("stopping, checkpoint");
         UniswapV3Factory::sync_tick_data(pools, block_number, provider.clone()).await;
         UniswapV3Factory::sync_token_decimals(pools, provider).await;
     }
@@ -740,7 +746,6 @@ impl UniswapV3Factory {
     {
         let step = 255;
 
-        let now = time::Instant::now();
         let mut futures = FuturesUnordered::new();
         pools.chunks_mut(step).for_each(|group| {
             let provider = provider.clone();
@@ -789,8 +794,88 @@ impl UniswapV3Factory {
                 }
             }
         }
+    }
+
+    async fn sync_tick_bitmaps<T, N, P>(pools: &mut [AMM], block_number: u64, provider: Arc<P>)
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
+        let step = 100;
+
+        let now = time::Instant::now();
+        // TODO: update how we are provisioning the group. We should set a max word pos to fetch and
+        // only include as many pools as we can fit in the max word range in a single group
+
+        let mut futures = FuturesUnordered::new();
+        pools.chunks_mut(step).for_each(|group| {
+            let provider = provider.clone();
+            let tick_bitmap_info = group
+                .iter_mut()
+                .map(|pool| {
+                    let AMM::UniswapV3Pool(uniswap_v3_pool) = pool else {
+                        unreachable!()
+                    };
+                    let min_word = tick_to_word(MIN_TICK, uniswap_v3_pool.tick_spacing);
+                    let max_word = tick_to_word(MAX_TICK, uniswap_v3_pool.tick_spacing);
+
+                    TickBitmapInfo {
+                        pool: uniswap_v3_pool.address,
+                        minWord: min_word as i16,
+                        maxWord: max_word as i16,
+                    }
+                })
+                .collect::<Vec<_>>();
+
+            futures.push(async move {
+                (
+                    group,
+                    GetUniswapV3PoolTickBitmapBatchRequest::deploy_builder(
+                        provider,
+                        tick_bitmap_info,
+                    )
+                    .call_raw()
+                    .block(block_number.into())
+                    .await
+                    .expect("TODO: handle error"),
+                )
+            });
+        });
+
+        let return_type =
+            DynSolType::Array(Box::new(DynSolType::Array(Box::new(DynSolType::Uint(256)))));
+
+        while let Some(res) = futures.next().await {
+            let (pools, return_data) = res;
+
+            let return_data = return_type
+                .abi_decode_sequence(&return_data)
+                .expect("TODO: handle error");
+
+            if let Some(tokens_arr) = return_data.as_array() {
+                for (tick_bitmaps, pool) in tokens_arr.iter().zip(pools.iter_mut()) {
+                    let AMM::UniswapV3Pool(ref mut uv3_pool) = pool else {
+                        unreachable!()
+                    };
+
+                    // Just duplicating for simplicity
+                    let min_word = tick_to_word(MIN_TICK, uv3_pool.tick_spacing);
+                    let max_word = tick_to_word(MAX_TICK, uv3_pool.tick_spacing);
+
+                    for (word_pos, bitmap) in
+                        (min_word..=max_word).zip(tick_bitmaps.as_array().unwrap())
+                    {
+                        uv3_pool
+                            .tick_bitmap
+                            .insert(word_pos as i16, bitmap.as_uint().unwrap().0);
+                    }
+                }
+            }
+        }
 
         dbg!(now.elapsed());
+        todo!()
     }
 
     async fn sync_tick_data<T, N, P>(pools: &mut [AMM], block_number: u64, provider: Arc<P>)
@@ -799,6 +884,7 @@ impl UniswapV3Factory {
         N: Network,
         P: Provider<T, N>,
     {
+        todo!()
 
         // // // Fetch all words for all pools
         // // let pool_infos = pools
