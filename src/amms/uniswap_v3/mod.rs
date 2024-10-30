@@ -33,6 +33,7 @@ use std::{
     num::NonZeroU32,
     str::FromStr,
     sync::Arc,
+    time,
 };
 use uniswap_v3_math::{
     tick, tick_bitmap,
@@ -689,25 +690,18 @@ impl UniswapV3Factory {
         pools
     }
 
-    async fn sync_all_pools<T, N, P>(
-        &self,
-        mut pools: Vec<AMM>,
-        block_number: u64,
-        provider: Arc<P>,
-    ) -> Vec<AMM>
+    async fn sync_all_pools<T, N, P>(&self, pools: &mut [AMM], block_number: u64, provider: Arc<P>)
     where
         T: Transport + Clone,
         N: Network,
         P: Provider<T, N>,
     {
-        UniswapV3Factory::sync_slot_0(&mut pools, block_number, provider.clone()).await;
-        UniswapV3Factory::sync_tick_data(&mut pools, block_number, provider.clone()).await;
-        UniswapV3Factory::sync_token_decimals(&mut pools, provider).await;
-
-        pools
+        UniswapV3Factory::sync_slot_0(pools, block_number, provider.clone()).await;
+        UniswapV3Factory::sync_tick_data(pools, block_number, provider.clone()).await;
+        UniswapV3Factory::sync_token_decimals(pools, provider).await;
     }
 
-    async fn sync_token_decimals<T, N, P>(pools: &mut Vec<AMM>, provider: Arc<P>)
+    async fn sync_token_decimals<T, N, P>(pools: &mut [AMM], provider: Arc<P>)
     where
         T: Transport + Clone,
         N: Network,
@@ -738,14 +732,15 @@ impl UniswapV3Factory {
         }
     }
 
-    async fn sync_slot_0<T, N, P>(pools: &mut Vec<AMM>, block_number: u64, provider: Arc<P>)
+    async fn sync_slot_0<T, N, P>(pools: &mut [AMM], block_number: u64, provider: Arc<P>)
     where
         T: Transport + Clone,
         N: Network,
         P: Provider<T, N>,
     {
-        let step = 100;
+        let step = 255;
 
+        let now = time::Instant::now();
         let mut futures = FuturesUnordered::new();
         pools.chunks_mut(step).for_each(|group| {
             let provider = provider.clone();
@@ -786,7 +781,7 @@ impl UniswapV3Factory {
                     };
 
                     if let Some(slot_0_data) = slot_0_data.as_tuple() {
-                        uv3_pool.tick = slot_0_data[2].as_int().expect("TODO:").0.as_i32();
+                        uv3_pool.tick = slot_0_data[0].as_int().expect("TODO:").0.as_i32();
                         uv3_pool.liquidity =
                             slot_0_data[1].as_uint().expect("TODO:").0.to::<u128>();
                         uv3_pool.sqrt_price = slot_0_data[2].as_uint().expect("TODO:").0;
@@ -794,9 +789,11 @@ impl UniswapV3Factory {
                 }
             }
         }
+
+        dbg!(now.elapsed());
     }
 
-    async fn sync_tick_data<T, N, P>(pools: &mut Vec<AMM>, block_number: u64, provider: Arc<P>)
+    async fn sync_tick_data<T, N, P>(pools: &mut [AMM], block_number: u64, provider: Arc<P>)
     where
         T: Transport + Clone,
         N: Network,
@@ -1033,13 +1030,10 @@ impl DiscoverySync for UniswapV3Factory {
         P: Provider<T, N>,
     {
         async move {
-            let pools = self.get_all_pools(to_block, provider.clone()).await;
-            let synced_pools = self.sync_all_pools(pools, to_block, provider).await;
+            let mut pools = self.get_all_pools(to_block, provider.clone()).await;
+            self.sync_all_pools(&mut pools, to_block, provider).await;
 
-            dbg!(synced_pools.len());
-            // TODO: get all token decimals
-
-            Ok(synced_pools)
+            Ok(pools)
         }
     }
 }
