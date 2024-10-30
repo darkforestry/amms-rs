@@ -99,6 +99,12 @@ GetUniswapV3PoolDataBatchRequest,
 "contracts/out/GetUniswapV3PoolDataBatchRequest.sol/GetUniswapV3PoolDataBatchRequest.json",
 }
 
+sol! {
+#[sol(rpc)]
+GetUniswapV3PoolSlot0BatchRequest,
+"contracts/out/GetUniswapV3PoolSlot0BatchRequest.sol/GetUniswapV3PoolSlot0BatchRequest.json",
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct UniswapV3Pool {
     pub address: Address,
@@ -694,14 +700,11 @@ impl UniswapV3Factory {
         N: Network,
         P: Provider<T, N>,
     {
-        UniswapV3Factory::sync_token_decimals(&mut pools, provider.clone()).await;
         UniswapV3Factory::sync_slot_0(&mut pools, block_number, provider.clone()).await;
-        UniswapV3Factory::sync_tick_data(&mut pools, block_number, provider).await;
+        UniswapV3Factory::sync_tick_data(&mut pools, block_number, provider.clone()).await;
+        UniswapV3Factory::sync_token_decimals(&mut pools, provider).await;
 
         pools
-        // // NOTE: populate slot0 data
-
-        // // NOTE:
     }
 
     async fn sync_token_decimals<T, N, P>(pools: &mut Vec<AMM>, provider: Arc<P>)
@@ -741,6 +744,56 @@ impl UniswapV3Factory {
         N: Network,
         P: Provider<T, N>,
     {
+        let step = 100;
+
+        let mut futures = FuturesUnordered::new();
+        pools.chunks_mut(step).for_each(|group| {
+            let provider = provider.clone();
+            let pool_addresses = group
+                .iter_mut()
+                .map(|pool| pool.address())
+                .collect::<Vec<_>>();
+
+            futures.push(async move {
+                (
+                    group,
+                    GetUniswapV3PoolSlot0BatchRequest::deploy_builder(provider, pool_addresses)
+                        .call_raw()
+                        .block(block_number.into())
+                        .await
+                        .expect("TODO: handle error"),
+                )
+            });
+        });
+
+        let return_type = DynSolType::Array(Box::new(DynSolType::Tuple(vec![
+            DynSolType::Int(24),
+            DynSolType::Uint(128),
+            DynSolType::Uint(256),
+        ])));
+
+        while let Some(res) = futures.next().await {
+            let (pools, return_data) = res;
+
+            let return_data = return_type
+                .abi_decode_sequence(&return_data)
+                .expect("TODO: handle error");
+
+            if let Some(tokens_arr) = return_data.as_array() {
+                for (slot_0_data, pool) in tokens_arr.iter().zip(pools.iter_mut()) {
+                    let AMM::UniswapV3Pool(ref mut uv3_pool) = pool else {
+                        unreachable!()
+                    };
+
+                    if let Some(slot_0_data) = slot_0_data.as_tuple() {
+                        uv3_pool.tick = slot_0_data[2].as_int().expect("TODO:").0.as_i32();
+                        uv3_pool.liquidity =
+                            slot_0_data[1].as_uint().expect("TODO:").0.to::<u128>();
+                        uv3_pool.sqrt_price = slot_0_data[2].as_uint().expect("TODO:").0;
+                    }
+                }
+            }
+        }
     }
 
     async fn sync_tick_data<T, N, P>(pools: &mut Vec<AMM>, block_number: u64, provider: Arc<P>)

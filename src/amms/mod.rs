@@ -31,7 +31,7 @@ where
     let step = 765;
 
     let mut futures = FuturesUnordered::new();
-    tokens.chunks(step).for_each(|group: &[Address]| {
+    tokens.chunks(step).for_each(|group| {
         let provider = provider.clone();
 
         futures.push(async move {
