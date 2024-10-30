@@ -46,88 +46,88 @@ async fn main() {
     let (tx, mut rx) = mpsc::channel::<Message>(32);
     let tx_clone = tx.clone();
 
-    // Background task.
-    tokio::spawn(async move {
-        let mut counter = 0;
-        let mut cached_pools = None;
+    let mut counter = 0;
+    let mut cached_pools = None;
 
-        let rpc_endpoint = std::env::var("RPC_HTTP").unwrap();
-        let http_provider = Arc::new(ProviderBuilder::new().on_http(rpc_endpoint.parse().unwrap()));
-        let ws_endpoint = std::env::var("RPC_WS").unwrap();
-        let ws = WsConnect::new(ws_endpoint);
-        let ws_provider = Arc::new(ProviderBuilder::new().on_ws(ws).await.unwrap());
+    let rpc_endpoint = std::env::var("RPC_HTTP").unwrap();
+    let http_provider = Arc::new(ProviderBuilder::new().on_http(rpc_endpoint.parse().unwrap()));
+    let ws_endpoint = std::env::var("RPC_WS").unwrap();
+    let ws = WsConnect::new(ws_endpoint);
+    let ws_provider = Arc::new(ProviderBuilder::new().on_ws(ws).await.unwrap());
 
-        let current_block = http_provider
-            .get_block_number()
-            .await
-            .expect("Failed to get current block");
-        println!("Current block number: {}", current_block);
+    let current_block = http_provider
+        .get_block_number()
+        .await
+        .expect("Failed to get current block");
+    println!("Current block number: {}", current_block);
 
-        if cached_pools.is_none() {
-            let mut futures = Vec::with_capacity(WETH_USDC_POOLS.len());
-            for p in WETH_USDC_POOLS.iter().skip(1).cloned() {
-                let handle = UniswapV3Pool::new_from_address(
-                    p,
-                    None,
-                    current_block as u64 - 1000,
-                    Arc::clone(&http_provider),
-                );
-                futures.push(handle);
-            }
-
-            let pools = join_all(futures)
-                .await
-                .into_iter()
-                .filter_map(|result| {
-                    if let Err(ref e) = result {
-                        println!("Pool initialization error: {:?}", e);
-                        None
-                    } else {
-                        result.ok()
-                    }
-                })
-                .collect::<Vec<_>>();
-
-            println!("Initialized {} pools", pools.len());
-
-            tx_clone
-                .send(Message::Pools(
-                    pools.clone().into_iter().map(|p| p.0).collect(),
-                ))
-                .await
-                .expect("failed to send pools");
-            cached_pools = Some(pools);
+    if cached_pools.is_none() {
+        let mut futures = Vec::with_capacity(WETH_USDC_POOLS.len());
+        for p in WETH_USDC_POOLS.iter().skip(1).cloned() {
+            let handle = UniswapV3Pool::new_from_address(
+                p,
+                None,
+                current_block as u64 - 1000,
+                Arc::clone(&http_provider),
+            );
+            futures.push(handle);
         }
 
-        let last_synced_block = cached_pools
-            .as_ref()
-            .unwrap()
-            .iter()
-            .min_by(|x, y| x.1.cmp(&y.1))
-            .unwrap()
-            .1;
-        println!("Starting from block: {}", last_synced_block);
-
-        let amms = cached_pools
-            .as_ref()
-            .unwrap()
-            .into_iter()
-            .map(|(p, _)| AMM::UniswapV3Pool(p.clone()))
-            .collect();
-        let state_space_manager = StateSpaceManager::new(amms, ws_provider);
-
-        let (mut rx, _join_handles) = state_space_manager
-            .subscribe_state_changes(
-                current_block as u64 - 100, // Start from 100 blocks ago
-                10,                         // Reduce batch size for more frequent updates
-            )
+        let pools = join_all(futures)
             .await
-            .unwrap();
+            .into_iter()
+            .filter_map(|result| {
+                if let Err(ref e) = result {
+                    println!("Pool initialization error: {:?}", e);
+                    None
+                } else {
+                    result.ok()
+                }
+            })
+            .collect::<Vec<_>>();
 
-        println!("Subscribed to state changes");
+        println!("Initialized {} pools", pools.len());
 
+        tx_clone
+            .send(Message::Pools(
+                pools.clone().into_iter().map(|p| p.0).collect(),
+            ))
+            .await
+            .expect("failed to send pools");
+        cached_pools = Some(pools);
+    }
+
+    let last_synced_block = cached_pools
+        .as_ref()
+        .unwrap()
+        .iter()
+        .min_by(|x, y| x.1.cmp(&y.1))
+        .unwrap()
+        .1;
+    println!("Starting from block: {}", last_synced_block);
+
+    let amms = cached_pools
+        .as_ref()
+        .unwrap()
+        .into_iter()
+        .map(|(p, _)| AMM::UniswapV3Pool(p.clone()))
+        .collect();
+    let state_space_manager = StateSpaceManager::new(amms, ws_provider);
+
+    let (mut rx_state, _join_handles) = state_space_manager
+        .subscribe_state_changes(
+            current_block as u64 - 100, // Start from 100 blocks ago
+            10,                         // Reduce batch size for more frequent updates
+        )
+        .await
+        .unwrap();
+
+    println!("Subscribed to state changes");
+
+    // Background task.
+    tokio::spawn(async move {
         loop {
-            if let Some(state_changes) = rx.recv().await {
+            if let Some(state_changes) = rx_state.recv().await {
                 println!("Received state change: {:?}", &state_changes);
                 tx_clone
                     .send(Message::StateChange(state_changes))
