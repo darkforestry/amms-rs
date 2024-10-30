@@ -69,7 +69,7 @@ impl From<Vec<AMM>> for StateSpace {
 
 #[derive(Debug)]
 pub struct StateSpaceManager<T, N, P, const CAP: usize> {
-    state: Arc<RwLock<StateSpace>>,
+    pub state: Arc<RwLock<StateSpace>>,
     state_change_cache: Arc<RwLock<StateChangeCache<CAP>>>,
     provider: Arc<P>,
     phantom: PhantomData<(T, N)>,
