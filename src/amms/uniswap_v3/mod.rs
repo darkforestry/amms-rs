@@ -693,7 +693,7 @@ impl UniswapV3Factory {
         pools
     }
 
-    async fn sync_all_pools<T, N, P>(&self, pools: &mut [AMM], block_number: u64, provider: Arc<P>)
+    async fn sync_all_pools<T, N, P>(pools: &mut [AMM], block_number: u64, provider: Arc<P>)
     where
         T: Transport + Clone,
         N: Network,
@@ -1116,7 +1116,7 @@ impl DiscoverySync for UniswapV3Factory {
     {
         async move {
             let mut pools = self.get_all_pools(to_block, provider.clone()).await;
-            self.sync_all_pools(&mut pools, to_block, provider).await;
+            UniswapV3Factory::sync_all_pools(&mut pools, to_block, provider).await;
 
             Ok(pools)
         }
