@@ -875,7 +875,6 @@ impl UniswapV3Factory {
         }
 
         dbg!(now.elapsed());
-        todo!()
     }
 
     async fn sync_tick_data<T, N, P>(pools: &mut [AMM], block_number: u64, provider: Arc<P>)
