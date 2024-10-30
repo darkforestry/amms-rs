@@ -4,6 +4,18 @@ use tokio::{
     time::{sleep, Duration},
 };
 
+use std::sync::Arc;
+
+use alloy::{primitives::address, providers::ProviderBuilder};
+
+use amms::{
+    amm::{
+        factory::Factory, uniswap_v2::factory::UniswapV2Factory,
+        uniswap_v3::factory::UniswapV3Factory,
+    },
+    sync,
+};
+
 #[derive(Debug)]
 enum Message {
     Status(String),
@@ -20,18 +32,20 @@ async fn main() {
         let mut counter = 0;
         loop {
             // Add rpc endpoint here:
-            let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
-            let provider = Arc::new(ProviderBuilder::new().on_http(rpc_endpoint.parse()?));
+            // let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT").unwrap();
+            // let provider = Arc::new(ProviderBuilder::new().on_http(rpc_endpoint.parse().unwrap()));
+            //
+            // let factories = vec![
+            //     // Add UniswapV3
+            //     Factory::UniswapV3Factory(UniswapV3Factory::new(
+            //         address!("1F98431c8aD98523631AE4a59f267346ea31F984"),
+            //         12369621,
+            //     )),
+            // ];
 
-            let factories = vec![
-                // Add UniswapV3
-                Factory::UniswapV3Factory(UniswapV3Factory::new(
-                    address!("1F98431c8aD98523631AE4a59f267346ea31F984"),
-                    12369621,
-                )),
-            ];
-
-            sync::sync_amms(factories, provider, None, 500).await?;
+            // sync::sync_amms(factories, provider, None, 500)
+            //     .await
+            //     .unwrap();
 
             counter += 1;
             tx_clone

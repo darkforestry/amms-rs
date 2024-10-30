@@ -150,7 +150,7 @@ impl AutomatedMarketMaker for UniswapV3Pool {
             Ok(1.0 / price)
         }
     }
-    // NOTE: This function will not populate the tick_bitmap and ticks, if you want to populate those, you must call populate_tick_data on an initialized pool
+
     async fn populate_data<T, N, P>(
         &mut self,
         block_number: Option<u64>,
