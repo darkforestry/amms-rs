@@ -1,9 +1,9 @@
 use alloy::{
-    dyn_abi::{DynSolType, DynSolValue},
     network::Network,
     primitives::{Address, U256},
     providers::Provider,
     sol,
+    sol_types::SolValue,
     transports::Transport,
 };
 use std::sync::Arc;
@@ -29,21 +29,6 @@ sol! {
     "src/amm/uniswap_v2/batch_request/GetUniswapV2PoolDataBatchRequestABI.json"
 }
 
-#[inline]
-fn populate_pool_data_from_tokens(
-    mut pool: UniswapV2Pool,
-    tokens: &[DynSolValue],
-) -> Option<UniswapV2Pool> {
-    pool.token_a = tokens[0].as_address()?;
-    pool.token_a_decimals = tokens[1].as_uint()?.0.to::<u8>();
-    pool.token_b = tokens[2].as_address()?;
-    pool.token_b_decimals = tokens[3].as_uint()?.0.to::<u8>();
-    pool.reserve_0 = tokens[4].as_uint()?.0.to::<u128>();
-    pool.reserve_1 = tokens[5].as_uint()?.0.to::<u128>();
-
-    Some(pool)
-}
-
 pub async fn get_pairs_batch_request<T, N, P>(
     factory: Address,
     from: U256,
@@ -57,22 +42,7 @@ where
 {
     let deployer = IGetUniswapV2PairsBatchRequest::deploy_builder(provider, from, step, factory);
     let res = deployer.call_raw().await?;
-
-    let constructor_return = DynSolType::Array(Box::new(DynSolType::Address));
-    let return_data_tokens = constructor_return.abi_decode_sequence(&res)?;
-
-    let mut pairs = vec![];
-    if let Some(tokens_arr) = return_data_tokens.as_array() {
-        for token in tokens_arr {
-            if let Some(addr) = token.as_address() {
-                if !addr.is_zero() {
-                    pairs.push(addr);
-                }
-            }
-        }
-    };
-
-    Ok(pairs)
+    Ok(<Vec<Address> as SolValue>::abi_decode(&res, false)?)
 }
 
 pub async fn get_amm_data_batch_request<T, N, P>(
@@ -92,40 +62,26 @@ where
     let deployer = IGetUniswapV2PoolDataBatchRequest::deploy_builder(provider, target_addresses);
     let res = deployer.call().await?;
 
-    let constructor_return = DynSolType::Array(Box::new(DynSolType::Tuple(vec![
-        DynSolType::Address,
-        DynSolType::Uint(8),
-        DynSolType::Address,
-        DynSolType::Uint(8),
-        DynSolType::Uint(112),
-        DynSolType::Uint(112),
-    ])));
-    let return_data_tokens = constructor_return.abi_decode_sequence(&res)?;
+    let pools =
+        <Vec<(Address, u16, Address, u16, u128, u128)> as SolValue>::abi_decode(&res, false)?;
 
-    let mut pool_idx = 0;
-    if let Some(tokens_arr) = return_data_tokens.as_array() {
-        for token in tokens_arr {
-            if let Some(pool_data) = token.as_tuple() {
-                // If the pool token A is not zero, signaling that the pool data was polulated
-                if let Some(address) = pool_data[0].as_address() {
-                    if !address.is_zero() {
-                        // Update the pool data
-                        if let AMM::UniswapV2Pool(uniswap_v2_pool) = amms
-                            .get_mut(pool_idx)
-                            .expect("Pool idx should be in bounds")
-                        {
-                            if let Some(pool) = populate_pool_data_from_tokens(
-                                uniswap_v2_pool.to_owned(),
-                                pool_data,
-                            ) {
-                                tracing::trace!(?pool);
-                                *uniswap_v2_pool = pool;
-                            }
-                        }
-                    }
-                }
+    for (pool_idx, (token_a, token_a_dec, token_b, token_b_dec, reserve_0, reserve_1)) in
+        pools.into_iter().enumerate()
+    {
+        // If the pool token A is not zero, signaling that the pool data was polulated
+        if !token_a.is_zero() {
+            if let AMM::UniswapV2Pool(pool) = amms
+                .get_mut(pool_idx)
+                .expect("Pool idx should be in bounds")
+            {
+                pool.token_a = token_a;
+                pool.token_a_decimals = token_a_dec as u8;
+                pool.token_b = token_b;
+                pool.token_b_decimals = token_b_dec as u8;
+                pool.reserve_0 = reserve_0;
+                pool.reserve_1 = reserve_1;
 
-                pool_idx += 1;
+                tracing::trace!(?pool);
             }
         }
     }
@@ -145,26 +101,22 @@ where
     let deployer = IGetUniswapV2PoolDataBatchRequest::deploy_builder(provider, vec![pool.address]);
     let res = deployer.call_raw().await?;
 
-    let constructor_return = DynSolType::Array(Box::new(DynSolType::Tuple(vec![
-        DynSolType::Address,
-        DynSolType::Uint(8),
-        DynSolType::Address,
-        DynSolType::Uint(8),
-        DynSolType::Uint(112),
-        DynSolType::Uint(112),
-    ])));
-    let return_data_tokens = constructor_return.abi_decode_sequence(&res)?;
+    let data =
+        <Vec<(Address, u16, Address, u16, u128, u128)> as SolValue>::abi_decode(&res, false)?;
+    let (token_a, token_a_dec, token_b, token_b_dec, reserve_0, reserve_1) = if !data.is_empty() {
+        data[0]
+    } else {
+        return Err(AMMError::BatchRequestError(pool.address));
+    };
 
-    if let Some(tokens_arr) = return_data_tokens.as_array() {
-        for token in tokens_arr {
-            let pool_data = token
-                .as_tuple()
-                .ok_or(AMMError::BatchRequestError(pool.address))?;
+    pool.token_a = token_a;
+    pool.token_a_decimals = token_a_dec as u8;
+    pool.token_b = token_b;
+    pool.token_b_decimals = token_b_dec as u8;
+    pool.reserve_0 = reserve_0;
+    pool.reserve_1 = reserve_1;
 
-            *pool = populate_pool_data_from_tokens(pool.to_owned(), pool_data)
-                .ok_or(AMMError::BatchRequestError(pool.address))?;
-        }
-    }
+    tracing::trace!(?pool);
 
     Ok(())
 }
