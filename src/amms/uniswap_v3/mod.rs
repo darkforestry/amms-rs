@@ -694,6 +694,22 @@ impl UniswapV3Factory {
         N: Network,
         P: Provider<T, N>,
     {
+        UniswapV3Factory::sync_token_decimals(&mut pools, provider.clone()).await;
+        UniswapV3Factory::sync_slot_0(&mut pools, block_number, provider.clone()).await;
+        UniswapV3Factory::sync_tick_data(&mut pools, block_number, provider).await;
+
+        pools
+        // // NOTE: populate slot0 data
+
+        // // NOTE:
+    }
+
+    async fn sync_token_decimals<T, N, P>(pools: &mut Vec<AMM>, provider: Arc<P>)
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
         // Get all token decimals
         let mut tokens = HashSet::new();
         for pool in pools.iter() {
@@ -717,11 +733,22 @@ impl UniswapV3Factory {
                 uniswap_v3_pool.token_b_decimals = *decimals;
             }
         }
+    }
 
-        vec![]
-        // // NOTE: populate slot0 data
+    async fn sync_slot_0<T, N, P>(pools: &mut Vec<AMM>, block_number: u64, provider: Arc<P>)
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
+    }
 
-        // // NOTE:
+    async fn sync_tick_data<T, N, P>(pools: &mut Vec<AMM>, block_number: u64, provider: Arc<P>)
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
 
         // // // Fetch all words for all pools
         // // let pool_infos = pools
