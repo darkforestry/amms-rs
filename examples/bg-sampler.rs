@@ -1,18 +1,28 @@
+use axum::{
+    extract::{Query, State},
+    http::StatusCode,
+    response::{IntoResponse, Response},
+    routing::get,
+    Json, Router,
+};
+
 use futures::future::join_all;
+use serde::{Deserialize, Serialize};
 use tokio::{
     net::TcpListener,
-    sync::mpsc,
+    sync::{mpsc, RwLock},
     time::{sleep, Duration},
 };
 
 use std::sync::Arc;
 
 use alloy::{
-    primitives::{address, Address},
+    primitives::{address, Address, U256},
     providers::{Provider, ProviderBuilder},
     rpc::client::WsConnect,
 };
 
+use amms::amm::AutomatedMarketMaker;
 use amms::{
     amm::{
         factory::Factory,
@@ -20,7 +30,7 @@ use amms::{
         uniswap_v3::{factory::UniswapV3Factory, UniswapV3Pool},
         AMM,
     },
-    state_space::StateSpaceManager,
+    state_space::{StateSpace, StateSpaceManager},
     sync,
 };
 
@@ -129,10 +139,10 @@ async fn main() {
         loop {
             if let Some(state_changes) = rx_state.recv().await {
                 println!("Received state change: {:?}", &state_changes);
-                tx_clone
-                    .send(Message::StateChange(state_changes))
-                    .await
-                    .expect("failed to send state changes");
+                // tx_clone
+                //     .send(Message::StateChange(state_changes))
+                //     .await
+                //     .expect("failed to send state changes");
             } else {
                 println!("No state changes received");
                 sleep(Duration::from_secs(1)).await;
@@ -140,37 +150,142 @@ async fn main() {
         }
     });
 
+    let app = Router::new()
+        .route("/local_sample", get(local_sample))
+        .with_state(state_space_manager.state);
+
     let listener = TcpListener::bind("127.0.0.1:8080")
         .await
         .expect("Failed to bind to address");
     println!("Server listening on 127.0.0.1:8080");
 
-    // Main task.
-    loop {
-        tokio::select! {
-            Ok((socket, addr)) = listener.accept() => {
-                println!("New connection from: {}", addr);
-                tx.send(Message::Status(format!("New connection from: {}", addr)))
-                    .await
-                    .expect("Failed to send connection status");
+    axum::serve(listener, app.into_make_service())
+        .await
+        .unwrap();
 
-                tokio::spawn(async move {
-                    println!("Handling connection from: {}", addr);
-                });
-            }
+    // // Main task.
+    // loop {
+    //     tokio::select! {
+    //         Ok((socket, addr)) = listener.accept() => {
+    //             println!("New connection from: {}", addr);
+    //             tx.send(Message::Status(format!("New connection from: {}", addr)))
+    //                 .await
+    //                 .expect("Failed to send connection status");
 
-            Some(message) = rx.recv() => {
-                match message {
-                    Message::Status(status) => println!("Status update: {}",status),
-                    Message::Tick(count) => println!("Background task tick: {}",count),
-                    Message::Pools(ref pools) => {
-                        println!("pools are here! {:?}", pools.len());
-                    },
-                    Message::StateChange(ref addresses) => {
-                        println!("these changed: {addresses:?}");
-                    }
-                }
-            }
+    //             tokio::spawn(async move {
+    //                 println!("Handling connection from: {}", addr);
+    //             });
+    //         }
+
+    //         Some(message) = rx.recv() => {
+    //             match message {
+    //                 Message::Status(status) => println!("Status update: {}",status),
+    //                 Message::Tick(count) => println!("Background task tick: {}",count),
+    //                 Message::Pools(ref pools) => {
+    //                     println!("pools are here! {:?}", pools.len());
+    //                 },
+    //                 Message::StateChange(ref addresses) => {
+    //                     println!("these changed: {addresses:?}");
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalSamplingQueryParams {
+    pub sell_token: Address,
+    pub buy_token: Address,
+    pub sell_amount: U256,
+    pub pool_address: Address,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalSamplingResponse {
+    pub sell_token: Address,
+    pub buy_token: Address,
+    pub pool_address: Address,
+    pub sell_amounts: Vec<U256>,
+    pub buy_amounts: Vec<U256>,
+}
+
+pub struct LocalSamplingError {
+    pub status_code: StatusCode,
+    pub reason: String,
+    pub message: String,
+}
+
+impl IntoResponse for LocalSamplingError {
+    fn into_response(self) -> Response {
+        #[derive(Serialize)]
+        struct ErrorResponseBody {
+            reason: String,
+            message: String,
+        }
+
+        let body = ErrorResponseBody {
+            reason: self.reason,
+            message: self.message,
+        };
+
+        (self.status_code, Json(body)).into_response()
+    }
+}
+
+pub async fn local_sample(
+    State(state_space): State<Arc<RwLock<StateSpace>>>,
+    query_params: Query<LocalSamplingQueryParams>,
+) -> Result<Json<LocalSamplingResponse>, LocalSamplingError> {
+    let sell_amounts = get_sample_amounts(query_params.sell_amount, 40, 1.0);
+
+    if let Some(amm) = state_space.read().await.0.get(&query_params.pool_address) {
+        let buy_amounts = sell_amounts
+            .iter()
+            .map(|amount| {
+                amm.simulate_swap(query_params.sell_token, query_params.buy_token, *amount)
+                    .unwrap()
+            })
+            .collect::<Vec<_>>();
+
+        Ok(Json(LocalSamplingResponse {
+            sell_token: query_params.sell_token,
+            buy_token: query_params.buy_token,
+            pool_address: query_params.pool_address,
+            sell_amounts,
+            buy_amounts,
+        }))
+    } else {
+        Err(LocalSamplingError {
+            status_code: StatusCode::BAD_REQUEST,
+            reason: "Pool not found".to_string(),
+            message: "The pool address provided does not exist in the state space".to_string(),
+        })
+    }
+}
+
+/// Generates increasing amounts up till `max_fill_amount`
+pub fn get_sample_amounts(max_fill_amount: U256, num_samples: usize, exp_base: f64) -> Vec<U256> {
+    let distribution: Vec<f64> = (0..num_samples).map(|i| exp_base.powi(i as i32)).collect();
+    let mut distribution_sum = 0.0;
+    for e in &distribution {
+        distribution_sum += e;
+    }
+    let step_sizes: Vec<f64> = distribution
+        .iter()
+        .map(|d| d * (f64::from(max_fill_amount) / distribution_sum))
+        .collect();
+    let mut amounts: Vec<U256> = Vec::new();
+    let mut sum = U256::from(0);
+    for (i, step) in step_sizes.iter().enumerate() {
+        if i == num_samples - 1 {
+            amounts.push(max_fill_amount);
+        } else {
+            sum = sum.checked_add(U256::from(*step)).unwrap();
+            amounts.push(sum);
         }
     }
+    amounts
 }
