@@ -685,7 +685,7 @@ impl UniswapV3Factory {
 
     async fn sync_all_pools<T, N, P>(
         &self,
-        pools: Vec<AMM>,
+        mut pools: Vec<AMM>,
         block_number: u64,
         provider: Arc<P>,
     ) -> Vec<AMM>
@@ -694,22 +694,29 @@ impl UniswapV3Factory {
         N: Network,
         P: Provider<T, N>,
     {
-        // NOTE: get all token decimals
-        // function addresses in hashmap< address, u8> out
+        // Get all token decimals
+        let mut tokens = HashSet::new();
+        for pool in pools.iter() {
+            for token in pool.tokens() {
+                tokens.insert(token);
+            }
+        }
+        let token_decimals = get_token_decimals(tokens.into_iter().collect(), provider).await;
 
-        let tokens = pools
-            .iter()
-            .fold(HashSet::new(), |mut acc, pool| {
-                let tokens = pool.tokens();
-                for token in tokens {
-                    acc.insert(token);
-                }
-                acc
-            })
-            .into_iter()
-            .collect::<Vec<_>>();
+        // Set token decimals
+        for pool in pools.iter_mut() {
+            let AMM::UniswapV3Pool(uniswap_v3_pool) = pool else {
+                unreachable!()
+            };
 
-        let token_decimals = get_token_decimals(tokens, provider).await;
+            if let Some(decimals) = token_decimals.get(&uniswap_v3_pool.token_a) {
+                uniswap_v3_pool.token_a_decimals = *decimals;
+            }
+
+            if let Some(decimals) = token_decimals.get(&uniswap_v3_pool.token_b) {
+                uniswap_v3_pool.token_b_decimals = *decimals;
+            }
+        }
 
         vec![]
         // // NOTE: populate slot0 data
