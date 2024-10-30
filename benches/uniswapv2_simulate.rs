@@ -24,7 +24,7 @@ fn criterion_benchmark(c: &mut Criterion) {
         reserve_1: 0_u128,
         fee: 300,
     };
-    c.bench_function("uniswapv2_simuluate", |b| {
+    c.bench_function("uniswapv2_simulate", |b| {
         b.iter(|| {
             pool.reserve_0 = random_ether(1.0, 1000.0);
             pool.reserve_1 = random_ether(1.0, 1000.0);

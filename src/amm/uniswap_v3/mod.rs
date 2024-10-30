@@ -549,8 +549,13 @@ impl UniswapV3Pool {
                 let pool_created_event =
                     IUniswapV3Factory::PoolCreated::decode_log(&log.inner, true)?;
 
-                UniswapV3Pool::new_from_address(pool_created_event.pool, Some(log.address()), block_number, provider)
-                    .await
+                UniswapV3Pool::new_from_address(
+                    pool_created_event.pool,
+                    Some(log.address()),
+                    block_number,
+                    provider,
+                )
+                .await
             } else {
                 Err(EventLogError::LogBlockNumberNotFound)?
             }

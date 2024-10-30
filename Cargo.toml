@@ -59,9 +59,21 @@ harness = false
 name = "uniswapv2_simulate"
 harness = false
 
+[[bench]]
+name = "uniswapv3_simulate"
+harness = false
+
+[[bench]]
+name = "curve_stableswap"
+harness = false
+
+[[bench]]
+name = "curve_factory_plain"
+harness = false
+
 [profile.release]
 opt-level = 3
-lto = true
+lto = "fat"
 codegen-units = 1
 panic = "abort"
 
@@ -70,3 +82,7 @@ opt-level = 3
 lto = true
 codegen-units = 1
 debug = "full"
+
+[profile.profiling]
+inherits = "release"
+debug = true

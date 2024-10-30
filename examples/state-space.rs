@@ -3,7 +3,9 @@ use std::sync::Arc;
 use alloy::{primitives::address, providers::ProviderBuilder, rpc::client::WsConnect};
 
 use amms::{
-    amm::{factory::Factory, uniswap_v2::factory::UniswapV2Factory, AMM},
+    amm::{
+        factory::Factory, uniswap_v2::factory::UniswapV2Factory, uniswap_v3::UniswapV3Pool, AMM,
+    },
     discovery,
     state_space::StateSpaceManager,
     sync,
@@ -38,17 +40,27 @@ async fn main() -> eyre::Result<()> {
     let step: u64 = 1000;
 
     // Sync amms
-    let (mut amms, last_synced_block) =
-        sync::sync_amms(factories, provider.clone(), None, step).await?;
+    // let (mut amms, last_synced_block) =
+    //     sync::sync_amms(factories, provider.clone(), None, step).await?;
 
+    let amms = vec![AMM::UniswapV3Pool(
+        UniswapV3Pool::new_from_address(
+            address!("88e6a0c2ddd26feeb64f039a2c41296fcb3f5640"),
+            None,
+            12376729,
+            provider.clone(),
+        )
+        .await?,
+    )];
+    let last_synced_block = 21078701;
     // Discover vaults and add them to amms
-    let vaults = discovery::erc_4626::discover_erc_4626_vaults(provider.clone(), step)
-        .await?
-        .into_iter()
-        .map(AMM::ERC4626Vault)
-        .collect::<Vec<AMM>>();
+    // let vaults = discovery::erc_4626::discover_erc_4626_vaults(provider.clone(), step)
+    //     .await?
+    //     .into_iter()
+    //     .map(AMM::ERC4626Vault)
+    //     .collect::<Vec<AMM>>();
 
-    amms.extend(vaults);
+    // amms.extend(vaults);
 
     // Initialize state space manager
     let state_space_manager = StateSpaceManager::new(amms, provider);
