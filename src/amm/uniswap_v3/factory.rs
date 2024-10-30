@@ -65,8 +65,14 @@ impl AutomatedMarketMakerFactory for UniswapV3Factory {
         if let Some(block_number) = log.block_number {
             let pool_created_filter = IUniswapV3Factory::PoolCreated::decode_log(&log.inner, true)?;
             Ok(AMM::UniswapV3Pool(
-                UniswapV3Pool::new_from_address(pool_created_filter.pool, Some(log.address()), block_number, provider)
-                    .await?,
+                UniswapV3Pool::new_from_address(
+                    pool_created_filter.pool,
+                    Some(log.address()),
+                    block_number,
+                    provider,
+                )
+                .await?
+                .0,
             ))
         } else {
             return Err(AMMError::BlockNumberNotFound);

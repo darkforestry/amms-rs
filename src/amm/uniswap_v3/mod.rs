@@ -494,7 +494,7 @@ impl UniswapV3Pool {
         factory_address: Option<Address>,
         creation_block: u64,
         provider: Arc<P>,
-    ) -> Result<Self, AMMError>
+    ) -> Result<(Self, u64), AMMError>
     where
         T: Transport + Clone,
         N: Network,
@@ -530,7 +530,7 @@ impl UniswapV3Pool {
             return Err(AMMError::PoolDataError);
         }
 
-        Ok(pool)
+        Ok((pool, synced_block))
     }
 
     /// Creates a new instance of the pool from a log.
@@ -549,13 +549,14 @@ impl UniswapV3Pool {
                 let pool_created_event =
                     IUniswapV3Factory::PoolCreated::decode_log(&log.inner, true)?;
 
-                UniswapV3Pool::new_from_address(
+                Ok(UniswapV3Pool::new_from_address(
                     pool_created_event.pool,
                     Some(log.address()),
                     block_number,
                     provider,
                 )
-                .await
+                .await?
+                .0)
             } else {
                 Err(EventLogError::LogBlockNumberNotFound)?
             }
@@ -927,7 +928,7 @@ impl UniswapV3Pool {
         let liquidity_gross_before = info.liquidity_gross;
 
         let liquidity_gross_after = if liquidity_delta < 0 {
-            liquidity_gross_before - ((-liquidity_delta) as u128)
+            liquidity_gross_before.saturating_sub((-liquidity_delta) as u128)
         } else {
             liquidity_gross_before + (liquidity_delta as u128)
         };
