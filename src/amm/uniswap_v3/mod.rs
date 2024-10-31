@@ -840,7 +840,10 @@ impl UniswapV3Pool {
     }
 
     /// Updates the pool state from a burn event log.
-    pub fn sync_from_burn_log(&mut self, log: Log) -> Result<(), EventLogError> {
+    pub fn sync_from_burn_log(
+        &mut self,
+        log: Log,
+    ) -> Result<alloy::primitives::Log<IUniswapV3Pool::Burn>, EventLogError> {
         let burn_event = IUniswapV3Pool::Burn::decode_log(log.as_ref(), true)?;
 
         self.modify_position(
@@ -851,11 +854,14 @@ impl UniswapV3Pool {
 
         tracing::debug!(?burn_event, address = ?self.address, sqrt_price = ?self.sqrt_price, liquidity = ?self.liquidity, tick = ?self.tick, "UniswapV3 burn event");
 
-        Ok(())
+        Ok(burn_event)
     }
 
     /// Updates the pool state from a mint event log.
-    pub fn sync_from_mint_log(&mut self, log: Log) -> Result<(), EventLogError> {
+    pub fn sync_from_mint_log(
+        &mut self,
+        log: Log,
+    ) -> Result<alloy::primitives::Log<IUniswapV3Pool::Mint>, EventLogError> {
         let mint_event = IUniswapV3Pool::Mint::decode_log(log.as_ref(), true)?;
 
         self.modify_position(
@@ -866,7 +872,7 @@ impl UniswapV3Pool {
 
         tracing::debug!(?mint_event, address = ?self.address, sqrt_price = ?self.sqrt_price, liquidity = ?self.liquidity, tick = ?self.tick, "UniswapV3 mint event");
 
-        Ok(())
+        Ok(mint_event)
     }
 
     /// Modifies a positions liquidity in the pool.
@@ -963,7 +969,10 @@ impl UniswapV3Pool {
     }
 
     /// Updates the pool state from a swap event log.
-    pub fn sync_from_swap_log(&mut self, log: Log) -> Result<(), EventLogError> {
+    pub fn sync_from_swap_log(
+        &mut self,
+        log: Log,
+    ) -> Result<alloy::primitives::Log<IUniswapV3Pool::Swap>, EventLogError> {
         let swap_event = IUniswapV3Pool::Swap::decode_log(log.as_ref(), true)?;
 
         self.sqrt_price = swap_event.sqrtPriceX96.to();
@@ -972,7 +981,7 @@ impl UniswapV3Pool {
 
         tracing::debug!(?swap_event, address = ?self.address, sqrt_price = ?self.sqrt_price, liquidity = ?self.liquidity, tick = ?self.tick, "UniswapV3 swap event");
 
-        Ok(())
+        Ok(swap_event)
     }
 
     pub async fn get_token_decimals<T, N, P>(

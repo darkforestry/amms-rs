@@ -97,22 +97,12 @@ impl AutomatedMarketMaker for UniswapV2Pool {
         let event_signature = log.topics()[0];
 
         if event_signature == IUniswapV2Pair::Sync::SIGNATURE_HASH {
-            let sync_event = IUniswapV2Pair::Sync::decode_log(log.as_ref(), true)?;
-
-            let (reserve_0, reserve_1) = (
-                sync_event.reserve0.to::<u128>(),
-                sync_event.reserve1.to::<u128>(),
-            );
-
-            tracing::debug!(?reserve_0, ?reserve_1, address = ?self.address, "UniswapV2 sync event");
-
-            self.reserve_0 = reserve_0;
-            self.reserve_1 = reserve_1;
-
-            Ok(())
+            self.sync_from_sync_log(log)?;
         } else {
-            Err(AMMError::from(EventLogError::InvalidEventSignature))
+            return Err(AMMError::from(EventLogError::InvalidEventSignature));
         }
+
+        Ok(())
     }
 
     // Calculates base/quote, meaning the price of base token per quote (ie. exchange rate is X base per 1 quote)
@@ -342,6 +332,25 @@ impl UniswapV2Pool {
         tracing::trace!(reserve_0, reserve_1);
 
         Ok((reserve_0, reserve_1))
+    }
+
+    pub fn sync_from_sync_log(
+        &mut self,
+        log: Log,
+    ) -> Result<alloy::primitives::Log<IUniswapV2Pair::Sync>, EventLogError> {
+        let sync_event = IUniswapV2Pair::Sync::decode_log(log.as_ref(), true)?;
+
+        let (reserve_0, reserve_1) = (
+            sync_event.reserve0.to::<u128>(),
+            sync_event.reserve1.to::<u128>(),
+        );
+
+        self.reserve_0 = reserve_0;
+        self.reserve_1 = reserve_1;
+
+        tracing::debug!(?reserve_0, ?reserve_1, address = ?self.address, "UniswapV2 sync event");
+
+        Ok(sync_event)
     }
 
     pub async fn get_token_decimals<T, N, P>(

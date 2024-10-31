@@ -94,15 +94,9 @@ impl AutomatedMarketMaker for ERC4626Vault {
     fn sync_from_log(&mut self, log: Log) -> Result<(), AMMError> {
         let event_signature = log.data().topics()[0];
         if event_signature == IERC4626Vault::Deposit::SIGNATURE_HASH {
-            let deposit_event = IERC4626Vault::Deposit::decode_log(log.as_ref(), true)?;
-            self.asset_reserve += deposit_event.assets;
-            self.vault_reserve += deposit_event.shares;
-            tracing::debug!(asset_reserve = ?self.asset_reserve, vault_reserve = ?self.vault_reserve, address = ?self.vault_token, "ER4626 deposit event");
+            self.sync_from_deposit_log(log)?;
         } else if event_signature == IERC4626Vault::Withdraw::SIGNATURE_HASH {
-            let withdraw_filter = IERC4626Vault::Withdraw::decode_log(log.as_ref(), true)?;
-            self.asset_reserve -= withdraw_filter.assets;
-            self.vault_reserve -= withdraw_filter.shares;
-            tracing::debug!(asset_reserve = ?self.asset_reserve, vault_reserve = ?self.vault_reserve, address = ?self.vault_token, "ER4626 withdraw event");
+            self.sync_from_withdraw_log(log)?;
         } else {
             return Err(AMMError::from(EventLogError::InvalidEventSignature));
         }
@@ -297,6 +291,34 @@ impl ERC4626Vault {
         };
 
         amount_in * reserve_out / reserve_in * U256::from(10000 - fee) / U256::from(10000)
+    }
+
+    pub fn sync_from_deposit_log(
+        &mut self,
+        log: Log,
+    ) -> Result<alloy::primitives::Log<IERC4626Vault::Deposit>, EventLogError> {
+        let deposit_event = IERC4626Vault::Deposit::decode_log(log.as_ref(), true)?;
+
+        self.asset_reserve += deposit_event.assets;
+        self.vault_reserve += deposit_event.shares;
+
+        tracing::debug!(asset_reserve = ?self.asset_reserve, vault_reserve = ?self.vault_reserve, address = ?self.vault_token, "ER4626 deposit event");
+
+        Ok(deposit_event)
+    }
+
+    pub fn sync_from_withdraw_log(
+        &mut self,
+        log: Log,
+    ) -> Result<alloy::primitives::Log<IERC4626Vault::Withdraw>, EventLogError> {
+        let withdraw_event = IERC4626Vault::Withdraw::decode_log(log.as_ref(), true)?;
+
+        self.asset_reserve -= withdraw_event.assets;
+        self.vault_reserve -= withdraw_event.shares;
+
+        tracing::debug!(asset_reserve = ?self.asset_reserve, vault_reserve = ?self.vault_reserve, address = ?self.vault_token, "ER4626 withdraw event");
+
+        Ok(withdraw_event)
     }
 }
 

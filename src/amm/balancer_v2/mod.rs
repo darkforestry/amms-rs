@@ -20,7 +20,7 @@ use rug::{float::Round, Float};
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
 
-use crate::errors::{AMMError, ArithmeticError, SwapSimulationError};
+use crate::errors::{AMMError, ArithmeticError, EventLogError, SwapSimulationError};
 
 use super::{
     consts::{BONE, MPFR_T_PRECISION},
@@ -29,6 +29,7 @@ use super::{
 
 sol! {
     // TODO: Add Liquidity Provision event's to sync stream.
+    #[derive(Debug, PartialEq, Eq)]
     #[sol(rpc)]
     contract IBPool {
         event LOG_SWAP(
@@ -150,19 +151,14 @@ impl AutomatedMarketMaker for BalancerV2Pool {
     }
 
     /// Updates the AMM data from a log.
+    #[instrument(skip(self), level = "debug")]
     fn sync_from_log(&mut self, log: Log) -> Result<(), AMMError> {
         let signature = log.topics()[0];
+
         if IBPool::LOG_SWAP::SIGNATURE_HASH == signature {
-            let swap_event = IBPool::LOG_SWAP::decode_log(log.as_ref(), true)?;
-            let token_in = swap_event.tokenIn;
-            let token_out = swap_event.tokenOut;
-
-            let token_in_index = self.tokens.iter().position(|&r| r == token_in).unwrap();
-            let token_out_index = self.tokens.iter().position(|&r| r == token_out).unwrap();
-
-            // Update the pool liquidity
-            self.liquidity[token_in_index] += swap_event.tokenAmountIn;
-            self.liquidity[token_out_index] -= swap_event.tokenAmountOut;
+            self.sync_from_swap_log(log)?;
+        } else {
+            return Err(AMMError::from(EventLogError::InvalidEventSignature));
         }
 
         Ok(())
@@ -284,6 +280,53 @@ impl AutomatedMarketMaker for BalancerV2Pool {
         self.liquidity[base_token_index] = bmath::badd(base_token_balance, amount_in)?;
         self.liquidity[quote_token_index] = bmath::bsub(quote_token_balance, out)?;
         Ok(out)
+    }
+}
+
+impl BalancerV2Pool {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        address: Address,
+        tokens: Vec<Address>,
+        decimals: Vec<u8>,
+        liquidity: Vec<U256>,
+        weights: Vec<U256>,
+        fee: u32,
+    ) -> BalancerV2Pool {
+        BalancerV2Pool {
+            address,
+            tokens,
+            decimals,
+            liquidity,
+            weights,
+            fee,
+        }
+    }
+
+    pub fn sync_from_swap_log(
+        &mut self,
+        log: Log,
+    ) -> Result<alloy::primitives::Log<IBPool::LOG_SWAP>, EventLogError> {
+        let swap_event = IBPool::LOG_SWAP::decode_log(log.as_ref(), true)?;
+
+        let token_in_index = self
+            .tokens
+            .iter()
+            .position(|r| r == &swap_event.tokenIn)
+            .unwrap();
+        let token_out_index = self
+            .tokens
+            .iter()
+            .position(|r| r == &swap_event.tokenOut)
+            .unwrap();
+
+        // Update the pool liquidity
+        self.liquidity[token_in_index] += swap_event.tokenAmountIn;
+        self.liquidity[token_out_index] -= swap_event.tokenAmountOut;
+
+        tracing::debug!(?swap_event, address = ?self.address, liquidity = ?self.liquidity);
+
+        Ok(swap_event)
     }
 }
 
