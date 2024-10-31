@@ -6,7 +6,7 @@ pragma solidity ^0.8.0;
  *       deployment bytecode as payload.
  */
 
-contract GetUniswapV3PoolTickBitmapBatchRequest {
+contract GetUniswapV3PoolTickDataBatchRequest {
     struct TickDataInfo {
         address pool;
         int24 tickSpacing;
