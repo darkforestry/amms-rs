@@ -22,7 +22,10 @@ use alloy::{
     rpc::client::WsConnect,
 };
 
-use amms::amm::AutomatedMarketMaker;
+use amms::{
+    amm::AutomatedMarketMaker,
+    sync::checkpoint::{self, construct_checkpoint},
+};
 use amms::{
     amm::{
         factory::Factory,
@@ -74,12 +77,8 @@ async fn main() {
     if cached_pools.is_none() {
         let mut futures = Vec::with_capacity(WETH_USDC_POOLS.len());
         for p in WETH_USDC_POOLS.iter().skip(1).cloned() {
-            let handle = UniswapV3Pool::new_from_address(
-                p,
-                None,
-                current_block as u64 - 1000,
-                Arc::clone(&http_provider),
-            );
+            let handle =
+                UniswapV3Pool::new_from_address(p, None, 12376729, Arc::clone(&http_provider));
             futures.push(handle);
         }
 
@@ -95,7 +94,6 @@ async fn main() {
                 }
             })
             .collect::<Vec<_>>();
-
         println!("Initialized {} pools", pools.len());
 
         tx_clone
@@ -105,6 +103,23 @@ async fn main() {
             .await
             .expect("failed to send pools");
         cached_pools = Some(pools);
+
+        // This is wrong, block numbers might be different across pools
+        // and this function assumes that it's a shared number
+        let latest_block = cached_pools
+            .as_ref()
+            .unwrap()
+            .iter()
+            .min_by(|x, y| x.1.cmp(&y.1))
+            .unwrap()
+            .1;
+        let pools: Vec<AMM> = cached_pools
+            .clone()
+            .unwrap()
+            .into_iter()
+            .map(|x| AMM::UniswapV3Pool(x.0))
+            .collect();
+        let _ = construct_checkpoint(vec![], &pools, latest_block, "checkpoint.json");
     }
 
     let last_synced_block = cached_pools
@@ -239,7 +254,7 @@ pub async fn local_sample(
     State(state_space): State<Arc<RwLock<StateSpace>>>,
     query_params: Query<LocalSamplingQueryParams>,
 ) -> Result<Json<LocalSamplingResponse>, LocalSamplingError> {
-    let sell_amounts = get_sample_amounts(query_params.sell_amount, 40, 1.0);
+    let sell_amounts = get_sample_amounts(query_params.sell_amount, 1000, 1.0);
 
     if let Some(amm) = state_space.read().await.0.get(&query_params.pool_address) {
         let buy_amounts = sell_amounts
