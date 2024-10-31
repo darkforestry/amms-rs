@@ -15,8 +15,6 @@ pub enum AMMError {
     #[error(transparent)]
     ContractError(#[from] alloy::contract::Error),
     #[error(transparent)]
-    ABICodecError(#[from] alloy::dyn_abi::Error),
-    #[error(transparent)]
     EthABIError(#[from] alloy::sol_types::Error),
     #[error(transparent)]
     JoinError(#[from] JoinError),
@@ -92,8 +90,6 @@ pub enum EventLogError {
     LogBlockNumberNotFound,
     #[error(transparent)]
     EthABIError(#[from] alloy::sol_types::Error),
-    #[error(transparent)]
-    ABIError(#[from] alloy::dyn_abi::Error),
 }
 
 #[derive(Error, Debug)]
