@@ -58,6 +58,8 @@ pub enum AMMError {
     CheckpointError(#[from] CheckpointError),
     #[error(transparent)]
     EyreError(#[from] eyre::Error),
+    #[error(transparent)]
+    BMathError(#[from] BMathError),
 }
 
 #[derive(Error, Debug)]
@@ -78,6 +80,8 @@ pub enum ArithmeticError {
     BaseTokenDoesNotExist,
     #[error("quote token does not exist in pool")]
     QuoteTokenDoesNotExist,
+    #[error(transparent)]
+    BMathError(#[from] BMathError),
 }
 
 #[derive(Error, Debug)]

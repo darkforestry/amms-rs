@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use crate::{
     amm::{consts::*, AutomatedMarketMaker, IErc20},
-    errors::{AMMError, ArithmeticError, EventLogError, SwapSimulationError},
+    errors::{AMMError, ArithmeticError, EventLogError},
 };
 use alloy::{
     network::Network,
@@ -93,7 +93,7 @@ impl AutomatedMarketMaker for UniswapV2Pool {
     }
 
     #[instrument(skip(self), level = "debug")]
-    fn sync_from_log(&mut self, log: Log) -> Result<(), EventLogError> {
+    fn sync_from_log(&mut self, log: Log) -> Result<(), AMMError> {
         let event_signature = log.topics()[0];
 
         if event_signature == IUniswapV2Pair::Sync::SIGNATURE_HASH {
@@ -111,16 +111,12 @@ impl AutomatedMarketMaker for UniswapV2Pool {
 
             Ok(())
         } else {
-            Err(EventLogError::InvalidEventSignature)
+            Err(AMMError::from(EventLogError::InvalidEventSignature))
         }
     }
 
     // Calculates base/quote, meaning the price of base token per quote (ie. exchange rate is X base per 1 quote)
-    fn calculate_price(
-        &self,
-        base_token: Address,
-        _quote_token: Address,
-    ) -> Result<f64, ArithmeticError> {
+    fn calculate_price(&self, base_token: Address, _quote_token: Address) -> Result<f64, AMMError> {
         Ok(q64_to_f64(self.calculate_price_64_x_64(base_token)?))
     }
 
@@ -133,7 +129,7 @@ impl AutomatedMarketMaker for UniswapV2Pool {
         base_token: Address,
         _quote_token: Address,
         amount_in: U256,
-    ) -> Result<U256, SwapSimulationError> {
+    ) -> Result<U256, AMMError> {
         if self.token_a == base_token {
             Ok(self.get_amount_out(
                 amount_in,
@@ -154,7 +150,7 @@ impl AutomatedMarketMaker for UniswapV2Pool {
         base_token: Address,
         _quote_token: Address,
         amount_in: U256,
-    ) -> Result<U256, SwapSimulationError> {
+    ) -> Result<U256, AMMError> {
         if self.token_a == base_token {
             let amount_out = self.get_amount_out(
                 amount_in,
@@ -268,9 +264,15 @@ impl UniswapV2Pool {
         if event_signature == IUniswapV2Factory::PairCreated::SIGNATURE_HASH {
             let pair_created_event =
                 factory::IUniswapV2Factory::PairCreated::decode_log(log.as_ref(), true)?;
-            UniswapV2Pool::new_from_address(pair_created_event.pair, Some(log.address()), fee, provider).await
+            UniswapV2Pool::new_from_address(
+                pair_created_event.pair,
+                Some(log.address()),
+                fee,
+                provider,
+            )
+            .await
         } else {
-            Err(EventLogError::InvalidEventSignature)?
+            Err(AMMError::from(EventLogError::InvalidEventSignature))
         }
     }
 
@@ -296,7 +298,7 @@ impl UniswapV2Pool {
                 fee: 0,
             })
         } else {
-            Err(EventLogError::InvalidEventSignature)?
+            Err(EventLogError::InvalidEventSignature)
         }
     }
 
@@ -474,7 +476,7 @@ impl UniswapV2Pool {
         amount_1_out: U256,
         to: Address,
         calldata: Vec<u8>,
-    ) -> Result<Bytes, alloy::dyn_abi::Error> {
+    ) -> Result<Bytes, AMMError> {
         Ok(IUniswapV2Pair::swapCall {
             amount0Out: amount_0_out,
             amount1Out: amount_1_out,

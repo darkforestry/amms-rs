@@ -17,7 +17,7 @@ use tracing::instrument;
 
 use crate::{
     amm::{consts::U128_0X10000000000000000, AutomatedMarketMaker},
-    errors::{AMMError, ArithmeticError, EventLogError, SwapSimulationError},
+    errors::{AMMError, ArithmeticError, EventLogError},
 };
 
 use super::uniswap_v2::{div_uu, q64_to_f64};
@@ -63,11 +63,7 @@ impl AutomatedMarketMaker for ERC4626Vault {
         vec![self.vault_token, self.asset_token]
     }
 
-    fn calculate_price(
-        &self,
-        base_token: Address,
-        _quote_token: Address,
-    ) -> Result<f64, ArithmeticError> {
+    fn calculate_price(&self, base_token: Address, _quote_token: Address) -> Result<f64, AMMError> {
         Ok(q64_to_f64(self.calculate_price_64_x_64(base_token)?))
     }
 
@@ -95,7 +91,7 @@ impl AutomatedMarketMaker for ERC4626Vault {
     }
 
     #[instrument(skip(self), level = "debug")]
-    fn sync_from_log(&mut self, log: Log) -> Result<(), EventLogError> {
+    fn sync_from_log(&mut self, log: Log) -> Result<(), AMMError> {
         let event_signature = log.data().topics()[0];
         if event_signature == IERC4626Vault::Deposit::SIGNATURE_HASH {
             let deposit_event = IERC4626Vault::Deposit::decode_log(log.as_ref(), true)?;
@@ -108,7 +104,7 @@ impl AutomatedMarketMaker for ERC4626Vault {
             self.vault_reserve -= withdraw_filter.shares;
             tracing::debug!(asset_reserve = ?self.asset_reserve, vault_reserve = ?self.vault_reserve, address = ?self.vault_token, "ER4626 withdraw event");
         } else {
-            return Err(EventLogError::InvalidEventSignature);
+            return Err(AMMError::from(EventLogError::InvalidEventSignature));
         }
 
         Ok(())
@@ -135,7 +131,7 @@ impl AutomatedMarketMaker for ERC4626Vault {
         base_token: Address,
         _quote_token: Address,
         amount_in: U256,
-    ) -> Result<U256, SwapSimulationError> {
+    ) -> Result<U256, AMMError> {
         if self.vault_token == base_token {
             Ok(self.get_amount_out(amount_in, self.vault_reserve, self.asset_reserve))
         } else {
@@ -148,7 +144,7 @@ impl AutomatedMarketMaker for ERC4626Vault {
         base_token: Address,
         _quote_token: Address,
         amount_in: U256,
-    ) -> Result<U256, SwapSimulationError> {
+    ) -> Result<U256, AMMError> {
         if self.vault_token == base_token {
             let amount_out = self.get_amount_out(amount_in, self.vault_reserve, self.asset_reserve);
 

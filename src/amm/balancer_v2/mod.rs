@@ -20,7 +20,7 @@ use rug::{float::Round, Float};
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
 
-use crate::errors::{AMMError, ArithmeticError, EventLogError, SwapSimulationError};
+use crate::errors::{AMMError, ArithmeticError, SwapSimulationError};
 
 use super::{
     consts::{BONE, MPFR_T_PRECISION},
@@ -107,11 +107,7 @@ impl AutomatedMarketMaker for BalancerV2Pool {
     /// wO = tokenWeightOut                                                                       //
     /// sF = swapFee                                                                              //
     ///**********************************************************************************************/
-    fn calculate_price(
-        &self,
-        base_token: Address,
-        quote_token: Address,
-    ) -> Result<f64, ArithmeticError> {
+    fn calculate_price(&self, base_token: Address, quote_token: Address) -> Result<f64, AMMError> {
         // Grab the indices of the tokens
         let base_token_index = self
             .tokens
@@ -154,7 +150,7 @@ impl AutomatedMarketMaker for BalancerV2Pool {
     }
 
     /// Updates the AMM data from a log.
-    fn sync_from_log(&mut self, log: Log) -> Result<(), EventLogError> {
+    fn sync_from_log(&mut self, log: Log) -> Result<(), AMMError> {
         let signature = log.topics()[0];
         if IBPool::LOG_SWAP::SIGNATURE_HASH == signature {
             let swap_event = IBPool::LOG_SWAP::decode_log(log.as_ref(), true)?;
@@ -197,7 +193,7 @@ impl AutomatedMarketMaker for BalancerV2Pool {
         base_token: Address,
         quote_token: Address,
         amount_in: U256,
-    ) -> Result<U256, SwapSimulationError> {
+    ) -> Result<U256, AMMError> {
         let base_token_index = self
             .tokens
             .iter()
@@ -246,7 +242,7 @@ impl AutomatedMarketMaker for BalancerV2Pool {
         base_token: Address,
         quote_token: Address,
         amount_in: U256,
-    ) -> Result<U256, SwapSimulationError> {
+    ) -> Result<U256, AMMError> {
         let base_token_index = self
             .tokens
             .iter()
