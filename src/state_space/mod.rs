@@ -122,6 +122,7 @@ where
             let amms = res.expect("TODO:").expect("TODO:");
 
             for amm in amms {
+                println!("Adding AMM: {:?}", amm.address());
                 state_space.insert(amm.address(), amm);
             }
         }

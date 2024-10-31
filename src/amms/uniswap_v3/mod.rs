@@ -883,8 +883,6 @@ impl UniswapV3Factory {
         N: Network,
         P: Provider<T, N>,
     {
-        todo!()
-
         // // // Fetch all words for all pools
         // // let pool_infos = pools
         // //     .iter()
