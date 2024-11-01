@@ -812,12 +812,7 @@ impl UniswapV3Factory {
         N: Network,
         P: Provider<T, N>,
     {
-        let step = 10;
-
-        let now = time::Instant::now();
-        // TODO: update how we are provisioning the group. We should set a max word pos to fetch and
-        // only include as many pools as we can fit in the max word range in a single group
-
+        let step = 73;
         let mut futures = FuturesUnordered::new();
         pools.chunks_mut(step).for_each(|group| {
             let provider = provider.clone();
@@ -883,8 +878,6 @@ impl UniswapV3Factory {
                 }
             }
         }
-
-        dbg!(now.elapsed());
     }
 
     async fn sync_tick_data<T, N, P>(pools: &mut [AMM], block_number: u64, provider: Arc<P>)
