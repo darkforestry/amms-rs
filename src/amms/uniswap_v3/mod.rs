@@ -17,6 +17,7 @@ use alloy::{
     primitives::{address, Address, Signed, B256, I256, U256},
     providers::Provider,
     rpc::types::{Filter, FilterSet, Log},
+    signers::k256::elliptic_curve::rand_core::le,
     sol,
     sol_types::{SolEvent, SolValue},
     transports::Transport,
@@ -35,6 +36,7 @@ use std::{
     future::Future,
     hash::Hash,
     num::NonZeroU32,
+    result,
     str::FromStr,
     sync::Arc,
     time,
@@ -43,7 +45,9 @@ use uniswap_v3_math::{
     tick, tick_bitmap,
     tick_math::{MAX_SQRT_RATIO, MAX_TICK, MIN_SQRT_RATIO, MIN_TICK},
 };
-use GetUniswapV3PoolTickDataBatchRequest::GetUniswapV3PoolTickDataBatchRequestInstance;
+use GetUniswapV3PoolTickDataBatchRequest::{
+    GetUniswapV3PoolTickDataBatchRequestInstance, TickDataInfo,
+};
 
 sol! {
     // UniswapV3Factory
@@ -808,7 +812,7 @@ impl UniswapV3Factory {
         N: Network,
         P: Provider<T, N>,
     {
-        let step = 100;
+        let step = 10;
 
         let now = time::Instant::now();
         // TODO: update how we are provisioning the group. We should set a max word pos to fetch and
@@ -882,47 +886,85 @@ impl UniswapV3Factory {
 
         dbg!(now.elapsed());
     }
+    // for (uint256 j = 0; j < info.tickBitmaps.length; ++j) {
+    //     uint256 tickBitmap = info.tickBitmaps[j];
+    //     if (tickBitmap == 0) {
+    //         continue;
+    //     }
+    //     int24[] memory tick = new int24[](256);
+    //     IUniswapV3PoolState.Info[]
+    //         memory tickInfos = new IUniswapV3PoolState.Info[](256);
+    //     for (uint256 k = 0; k < 256; ++k) {
+    //         uint256 bit = 1 << k;
 
-    async fn sync_tick_data<T, N, P>(pools: &[AMM], block_number: u64, provider: Arc<P>)
+    //         bool initialized = (tickBitmap & bit) != 0;
+    //         if (initialized) {
+    //             int24 tickIndex = int24(
+    //                 int256(
+    //                     j * 256 + k * uint256(int256(info.tickSpacing))
+    //                 )
+    //             );
+
+    //             tickInfos[k] = IUniswapV3PoolState(pool).ticks(
+    //                 tickIndex
+    //             );
+    //             tick[k] = tickIndex;
+    //         }
+    //     }
+    async fn sync_tick_data<T, N, P>(pools: &mut [AMM], block_number: u64, provider: Arc<P>)
     where
         T: Transport + Clone,
         N: Network,
         P: Provider<T, N>,
     {
         let mut futures = FuturesUnordered::new();
+        let start = time::Instant::now();
+        let step = 50;
+        pools.chunks_mut(step).for_each(|chunk| {
+            let calldata = chunk
+                .iter()
+                .map(|pool| {
+                    let AMM::UniswapV3Pool(uniswap_v3_pool) = pool else {
+                        unreachable!()
+                    };
+                    let min_word = tick_to_word(MIN_TICK, uniswap_v3_pool.tick_spacing);
+                    let max_word = tick_to_word(MAX_TICK, uniswap_v3_pool.tick_spacing);
 
-        let step = 1;
-        pools.chunks(step).for_each(|chunk| {
-            let calldata = chunk.iter().map(|pool| {
-                let AMM::UniswapV3Pool(uniswap_v3_pool) = pool else {
-                    unreachable!()
-                };
+                    let tick_bitmaps = (min_word..=max_word)
+                        .map(|word_pos| {
+                            let bitmap = uniswap_v3_pool.tick_bitmap.get(&(word_pos as i16));
+                            bitmap.unwrap_or(&U256::ZERO).clone()
+                        })
+                        .collect::<Vec<_>>();
 
-                let min_word = tick_to_word(MIN_TICK, uniswap_v3_pool.tick_spacing);
-                let max_word = tick_to_word(MAX_TICK, uniswap_v3_pool.tick_spacing);
+                    let mut ticks = vec![];
+                    for (i, bitmap) in tick_bitmaps.iter().enumerate() {
+                        for k in (0..256)
+                            .filter(|k| (U256_1 << U256::from(*k as u64)) & *bitmap != U256::ZERO)
+                        {
+                            let tick_index = i * 256 + k * uniswap_v3_pool.tick_spacing as usize;
+                            let tick = tick_index as i32;
+                            let tick = tick.clamp(MIN_TICK, MAX_TICK);
+                            ticks.push(
+                                Signed::<24, 1>::from_str(tick.to_string().as_str()).unwrap(),
+                            );
+                        }
+                    }
+                    GetUniswapV3PoolTickDataBatchRequest::TickDataInfo {
+                        pool: uniswap_v3_pool.address(),
+                        ticks,
+                    }
+                })
+                .collect::<Vec<_>>();
 
-                let tick_bitmaps = (min_word..=max_word)
-                    .map(|word_pos| {
-                        let bitmap = uniswap_v3_pool.tick_bitmap.get(&(word_pos as i16));
-                        bitmap.unwrap_or(&U256::ZERO).clone()
-                    })
-                    .collect::<Vec<_>>();
-                GetUniswapV3PoolTickDataBatchRequest::TickDataInfo {
-                    pool: uniswap_v3_pool.address(),
-                    tickSpacing: Signed::<24, 1>::from_str(
-                        uniswap_v3_pool.tick_spacing.to_string().as_str(),
-                    )
-                    .unwrap(),
-                    tickBitmaps: tick_bitmaps,
-                }
-            });
             let provider = provider.clone();
             futures.push(async move {
                 (
-                    pools,
+                    chunk,
+                    calldata.clone(),
                     GetUniswapV3PoolTickDataBatchRequest::deploy_builder(
                         provider.clone(),
-                        calldata.collect(),
+                        calldata,
                     )
                     .call_raw()
                     .block(block_number.into())
@@ -932,32 +974,42 @@ impl UniswapV3Factory {
             });
         });
 
-        let mut amms = vec![];
-        while let Some((pool, return_data)) = futures.next().await {
-            let result = <Vec<(
-                Vec<i32>,
-                Vec<(U256, i128, U256, U256, i128, U256, u32, bool)>,
-            )> as SolValue>::abi_decode(&return_data, true)
-            .expect("TODO: handle error");
-
-            for (amm, (ticks, tick_info)) in pool.into_iter().zip(result.into_iter()) {
-                let amm = amm.clone();
-                let AMM::UniswapV3Pool(mut uniswap_v3_pool) = amm else {
+        while let Some((pools, ticks, tick_infos)) = futures.next().await {
+            let decoded =
+                <Vec<Vec<(U256, i128, U256, U256, i128, U256, u32, bool)>> as SolValue>::abi_decode(
+                    &tick_infos,
+                    true,
+                )
+                .expect("TODO: handle error");
+            let ticks: &[TickDataInfo] = ticks.as_ref();
+            let tick_infos = decoded
+                .iter()
+                .map(|info| {
+                    info.iter()
+                        .map(
+                            |(liquidity_gross, liquidity_net, _, _, _, _, _, initialized)| Info {
+                                liquidity_gross: liquidity_gross.to::<u128>(),
+                                liquidity_net: *liquidity_net,
+                                initialized: *initialized,
+                            },
+                        )
+                        .collect::<Vec<_>>()
+                })
+                .collect::<Vec<_>>();
+            for (i, pool) in pools.into_iter().enumerate() {
+                let AMM::UniswapV3Pool(ref mut uniswap_v3_pool) = pool else {
                     unreachable!()
                 };
-                for (tick, info) in ticks.iter().zip(tick_info.iter()) {
-                    let tick = *tick;
-                    let info = Info {
-                        liquidity_gross: info.0.to::<u128>(),
-                        liquidity_net: info.1,
-                        initialized: info.7,
-                    };
-                    uniswap_v3_pool.ticks.insert(tick, info);
+                let ticks = &ticks[i];
+                let tick_info = tick_infos[i].clone();
+                for (tick, info) in ticks.ticks.iter().zip(tick_info.iter()) {
+                    let tick = tick.as_i32();
+                    uniswap_v3_pool.ticks.insert(tick, info.clone());
                 }
-
-                amms.push(AMM::UniswapV3Pool(uniswap_v3_pool));
             }
         }
+
+        dbg!(start.elapsed());
     }
 }
 

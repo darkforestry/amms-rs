@@ -9,59 +9,29 @@ pragma solidity ^0.8.0;
 contract GetUniswapV3PoolTickDataBatchRequest {
     struct TickDataInfo {
         address pool;
-        int24 tickSpacing;
-        uint256[] tickBitmaps;
-    }
-
-    struct TickData {
-        int24[] tick;
-        IUniswapV3PoolState.Info[] info;
+        int24[] ticks;
     }
 
     struct TickDataReturn {
-        TickData[] ticks;
+        IUniswapV3PoolState.Info[] info;
     }
 
     constructor(TickDataInfo[] memory allPoolInfo) {
         TickDataReturn[] memory tickInfoReturn = new TickDataReturn[](
             allPoolInfo.length
         );
+        
         for (uint256 i = 0; i < allPoolInfo.length; ++i) {
-            TickDataInfo memory info = allPoolInfo[i];
-            IUniswapV3PoolState pool = IUniswapV3PoolState(info.pool);
-            TickData[] memory tickData = new TickData[](
-                info.tickBitmaps.length
-            );
-            for (uint256 j = 0; j < info.tickBitmaps.length; ++j) {
-                uint256 tickBitmap = info.tickBitmaps[j];
-                if (tickBitmap == 0) {
-                    continue;
-                }
-                int24[] memory tick = new int24[](256);
-                IUniswapV3PoolState.Info[]
-                    memory tickInfos = new IUniswapV3PoolState.Info[](256);
-                for (uint256 k = 0; k < 256; ++k) {
-                    uint256 bit = 1 << k;
-
-                    bool initialized = (tickBitmap & bit) != 0;
-                    if (initialized) {
-                        int24 tickIndex = int24(
-                            int256(
-                                j * 256 + k * uint256(int256(info.tickSpacing))
-                            )
-                        );
-
-                        tickInfos[k] = IUniswapV3PoolState(pool).ticks(
-                            tickIndex
-                        );
-                        tick[k] = tickIndex;
-                    }
-                }
-
-                tickData[j] = TickData(tick, tickInfos);
+            IUniswapV3PoolState.Info[]
+                memory tickInfo = new IUniswapV3PoolState.Info[](
+                    allPoolInfo[i].ticks.length
+                );
+            for (uint256 j = 0; j < allPoolInfo[i].ticks.length; ++j) {
+                tickInfo[j] = IUniswapV3PoolState(allPoolInfo[i].pool).ticks(
+                    allPoolInfo[i].ticks[j]
+                );
             }
-
-            tickInfoReturn[i] = TickDataReturn(tickData);
+            tickInfoReturn[i] = TickDataReturn(tickInfo);
         }
 
         // ensure abi encoding, not needed here but increase reusability for different return types
