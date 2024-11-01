@@ -218,7 +218,7 @@ impl Factory {
             let logs = result.map_err(AMMError::TransportError)?;
 
             for log in logs {
-                aggregated_amms.push(self.new_empty_amm_from_log(log).unwrap());
+                aggregated_amms.push(self.new_empty_amm_from_log(log)?);
             }
         }
 

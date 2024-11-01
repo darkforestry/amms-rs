@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
 use alloy::{
-    dyn_abi::DynSolType,
     network::Network,
     primitives::{Address, U256},
     providers::Provider,
     sol,
+    sol_types::SolValue,
     transports::Transport,
 };
 
@@ -197,17 +197,7 @@ where
     );
     let res = deployer.call_raw().await?;
 
-    let constructor_return = DynSolType::Array(Box::new(DynSolType::Uint(256)));
-    let return_data_tokens = constructor_return.abi_decode_sequence(&res)?;
-
-    let mut weth_value_in_pools = vec![];
-    if let Some(tokens_arr) = return_data_tokens.as_array() {
-        for token in tokens_arr {
-            if let Some(weth_value_in_pool) = token.as_uint() {
-                weth_value_in_pools.push(weth_value_in_pool.0);
-            }
-        }
-    }
+    let weth_value_in_pools = <Vec<U256> as SolValue>::abi_decode(&res, false)?;
 
     Ok(weth_value_in_pools)
 }
@@ -259,7 +249,7 @@ mod test {
         // sync all markets
         let markets = if checkpoint_exists {
             tracing::info!("Syncing pools from checkpoint");
-            let (_, markets) = sync_amms_from_checkpoint(CHECKPOINT_PATH, 500, provider.clone())
+            let (_, markets, _) = sync_amms_from_checkpoint(CHECKPOINT_PATH, 500, provider.clone())
                 .await
                 .unwrap();
 

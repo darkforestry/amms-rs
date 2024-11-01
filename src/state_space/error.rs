@@ -45,8 +45,6 @@ pub enum StateSpaceError<N: Network> {
     #[error(transparent)]
     ContractError(#[from] alloy::contract::Error),
     #[error(transparent)]
-    ABICodecError(#[from] alloy::dyn_abi::Error),
-    #[error(transparent)]
     EthABIError(#[from] alloy::sol_types::Error),
     #[error(transparent)]
     AMMError(#[from] AMMError),

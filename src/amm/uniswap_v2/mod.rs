@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use crate::{
     amm::{consts::*, AutomatedMarketMaker, IErc20},
-    errors::{AMMError, ArithmeticError, EventLogError, SwapSimulationError},
+    errors::{AMMError, ArithmeticError, EventLogError},
 };
 use alloy::{
     network::Network,
@@ -64,7 +64,7 @@ impl AutomatedMarketMaker for UniswapV2Pool {
         P: Provider<T, N>,
     {
         let (reserve_0, reserve_1) = self.get_reserves(provider.clone()).await?;
-        tracing::info!(?reserve_0, ?reserve_1, address = ?self.address, "UniswapV2 sync");
+        tracing::debug!(?reserve_0, ?reserve_1, address = ?self.address, "UniswapV2 sync event");
 
         self.reserve_0 = reserve_0;
         self.reserve_1 = reserve_1;
@@ -93,34 +93,20 @@ impl AutomatedMarketMaker for UniswapV2Pool {
     }
 
     #[instrument(skip(self), level = "debug")]
-    fn sync_from_log(&mut self, log: Log) -> Result<(), EventLogError> {
+    fn sync_from_log(&mut self, log: Log) -> Result<(), AMMError> {
         let event_signature = log.topics()[0];
 
         if event_signature == IUniswapV2Pair::Sync::SIGNATURE_HASH {
-            let sync_event = IUniswapV2Pair::Sync::decode_log(log.as_ref(), true)?;
-
-            let (reserve_0, reserve_1) = (
-                sync_event.reserve0.to::<u128>(),
-                sync_event.reserve1.to::<u128>(),
-            );
-
-            tracing::info!(reserve_0, reserve_1, address = ?self.address, "UniswapV2 sync event");
-
-            self.reserve_0 = reserve_0;
-            self.reserve_1 = reserve_1;
-
-            Ok(())
+            self.sync_from_sync_log(log)?;
         } else {
-            Err(EventLogError::InvalidEventSignature)
+            return Err(AMMError::from(EventLogError::InvalidEventSignature));
         }
+
+        Ok(())
     }
 
     // Calculates base/quote, meaning the price of base token per quote (ie. exchange rate is X base per 1 quote)
-    fn calculate_price(
-        &self,
-        base_token: Address,
-        _quote_token: Address,
-    ) -> Result<f64, ArithmeticError> {
+    fn calculate_price(&self, base_token: Address, _quote_token: Address) -> Result<f64, AMMError> {
         Ok(q64_to_f64(self.calculate_price_64_x_64(base_token)?))
     }
 
@@ -133,7 +119,7 @@ impl AutomatedMarketMaker for UniswapV2Pool {
         base_token: Address,
         _quote_token: Address,
         amount_in: U256,
-    ) -> Result<U256, SwapSimulationError> {
+    ) -> Result<U256, AMMError> {
         if self.token_a == base_token {
             Ok(self.get_amount_out(
                 amount_in,
@@ -154,7 +140,7 @@ impl AutomatedMarketMaker for UniswapV2Pool {
         base_token: Address,
         _quote_token: Address,
         amount_in: U256,
-    ) -> Result<U256, SwapSimulationError> {
+    ) -> Result<U256, AMMError> {
         if self.token_a == base_token {
             let amount_out = self.get_amount_out(
                 amount_in,
@@ -268,9 +254,15 @@ impl UniswapV2Pool {
         if event_signature == IUniswapV2Factory::PairCreated::SIGNATURE_HASH {
             let pair_created_event =
                 factory::IUniswapV2Factory::PairCreated::decode_log(log.as_ref(), true)?;
-            UniswapV2Pool::new_from_address(pair_created_event.pair, Some(log.address()), fee, provider).await
+            UniswapV2Pool::new_from_address(
+                pair_created_event.pair,
+                Some(log.address()),
+                fee,
+                provider,
+            )
+            .await
         } else {
-            Err(EventLogError::InvalidEventSignature)?
+            Err(AMMError::from(EventLogError::InvalidEventSignature))
         }
     }
 
@@ -296,7 +288,7 @@ impl UniswapV2Pool {
                 fee: 0,
             })
         } else {
-            Err(EventLogError::InvalidEventSignature)?
+            Err(EventLogError::InvalidEventSignature)
         }
     }
 
@@ -340,6 +332,25 @@ impl UniswapV2Pool {
         tracing::trace!(reserve_0, reserve_1);
 
         Ok((reserve_0, reserve_1))
+    }
+
+    pub fn sync_from_sync_log(
+        &mut self,
+        log: Log,
+    ) -> Result<alloy::primitives::Log<IUniswapV2Pair::Sync>, EventLogError> {
+        let sync_event = IUniswapV2Pair::Sync::decode_log(log.as_ref(), true)?;
+
+        let (reserve_0, reserve_1) = (
+            sync_event.reserve0.to::<u128>(),
+            sync_event.reserve1.to::<u128>(),
+        );
+
+        self.reserve_0 = reserve_0;
+        self.reserve_1 = reserve_1;
+
+        tracing::debug!(?reserve_0, ?reserve_1, address = ?self.address, "UniswapV2 sync event");
+
+        Ok(sync_event)
     }
 
     pub async fn get_token_decimals<T, N, P>(
@@ -474,7 +485,7 @@ impl UniswapV2Pool {
         amount_1_out: U256,
         to: Address,
         calldata: Vec<u8>,
-    ) -> Result<Bytes, alloy::dyn_abi::Error> {
+    ) -> Result<Bytes, AMMError> {
         Ok(IUniswapV2Pair::swapCall {
             amount0Out: amount_0_out,
             amount1Out: amount_1_out,

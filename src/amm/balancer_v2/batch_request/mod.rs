@@ -1,10 +1,11 @@
 use std::sync::Arc;
 
 use alloy::{
-    dyn_abi::{DynSolType, DynSolValue},
     network::Network,
+    primitives::{Address, U256},
     providers::Provider,
     sol,
+    sol_types::SolValue,
     transports::Transport,
 };
 
@@ -20,36 +21,6 @@ sol! {
     #[sol(rpc)]
     IGetBalancerV2PoolDataBatchRequest,
     "src/amm/balancer_v2/batch_request/GetBalancerV2PoolDataBatchRequest.json"
-}
-
-#[inline]
-fn populate_pool_data_from_tokens(pool: &mut BalancerV2Pool, tokens: &[DynSolValue]) {
-    // TODO: Add error handling
-    pool.tokens = tokens[0]
-        .as_array()
-        .expect("Expected array")
-        .iter()
-        .map(|t| t.as_address().expect("Expected address"))
-        .collect();
-    pool.decimals = tokens[1]
-        .as_array()
-        .expect("Expected array")
-        .iter()
-        .map(|t| t.as_uint().expect("Expected uint").0.to::<u8>())
-        .collect();
-    pool.liquidity = tokens[2]
-        .as_array()
-        .expect("Expected array")
-        .iter()
-        .map(|t| t.as_uint().expect("Expected uint").0)
-        .collect();
-    pool.weights = tokens[3]
-        .as_array()
-        .expect("Expected array")
-        .iter()
-        .map(|t| t.as_uint().expect("Expected uint").0)
-        .collect();
-    pool.fee = tokens[4].as_uint().expect("Expected uint").0.to::<u32>();
 }
 
 pub async fn get_balancer_v2_pool_data_batch_request<T, N, P>(
@@ -69,25 +40,23 @@ where
         deployer.call_raw().await?
     };
 
-    let constructor_return = DynSolType::Array(Box::new(DynSolType::Tuple(vec![
-        DynSolType::Array(Box::new(DynSolType::Address)),
-        DynSolType::Array(Box::new(DynSolType::Uint(8))),
-        DynSolType::Array(Box::new(DynSolType::Uint(256))),
-        DynSolType::Array(Box::new(DynSolType::Uint(256))),
-        DynSolType::Uint(32),
-    ])));
+    let mut data =
+        <Vec<(Vec<Address>, Vec<u16>, Vec<U256>, Vec<U256>, u32)> as SolValue>::abi_decode(
+            &res, false,
+        )?;
+    let (tokens, decimals, liquidity, weights, fee) = if !data.is_empty() {
+        data.remove(0)
+    } else {
+        return Err(AMMError::BatchRequestError(pool.address));
+    };
 
-    let return_data_tokens = constructor_return.abi_decode_sequence(&res)?;
+    pool.tokens = tokens;
+    pool.decimals = decimals.into_iter().map(|d| d as u8).collect();
+    pool.liquidity = liquidity;
+    pool.weights = weights;
+    pool.fee = fee;
 
-    if let Some(tokens_arr) = return_data_tokens.as_array() {
-        for token in tokens_arr {
-            let pool_data = token
-                .as_tuple()
-                .ok_or(AMMError::BatchRequestError(pool.address))?;
-
-            populate_pool_data_from_tokens(pool, pool_data);
-        }
-    }
+    tracing::trace!(?pool);
 
     Ok(())
 }
@@ -107,25 +76,24 @@ where
     );
     let res = deployer.call_raw().await?;
 
-    let constructor_return = DynSolType::Array(Box::new(DynSolType::Tuple(vec![
-        DynSolType::Array(Box::new(DynSolType::Address)),
-        DynSolType::Array(Box::new(DynSolType::Uint(8))),
-        DynSolType::Array(Box::new(DynSolType::Uint(256))),
-        DynSolType::Array(Box::new(DynSolType::Uint(256))),
-        DynSolType::Uint(32),
-    ])));
+    let pools = <Vec<(Vec<Address>, Vec<u16>, Vec<U256>, Vec<U256>, u32)> as SolValue>::abi_decode(
+        &res, false,
+    )?;
 
-    let return_data_tokens = constructor_return.abi_decode_sequence(&res)?;
+    for (pool_idx, (tokens, decimals, liquidity, weights, fee)) in pools.into_iter().enumerate() {
+        if let AMM::BalancerV2Pool(pool) = amms
+            .get_mut(pool_idx)
+            .expect("Pool idx should be in bounds")
+        {
+            pool.tokens = tokens;
+            pool.decimals = decimals.into_iter().map(|d| d as u8).collect();
+            pool.liquidity = liquidity;
+            pool.weights = weights;
+            pool.fee = fee;
 
-    if let Some(tokens_arr) = return_data_tokens.as_array() {
-        for (i, token) in tokens_arr.iter().enumerate() {
-            let pool_data = token
-                .as_tuple()
-                .ok_or(AMMError::BatchRequestError(amms[i].address()))?;
-            if let AMM::BalancerV2Pool(pool) = &mut amms[i] {
-                populate_pool_data_from_tokens(pool, pool_data);
-            }
+            tracing::trace!(?pool);
         }
     }
+
     Ok(())
 }

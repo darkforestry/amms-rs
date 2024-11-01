@@ -54,7 +54,7 @@ pub async fn sync_amms_from_checkpoint<T, N, P, A>(
     path_to_checkpoint: A,
     step: u64,
     provider: Arc<P>,
-) -> Result<(Vec<Factory>, Vec<AMM>), AMMError>
+) -> Result<(Vec<Factory>, Vec<AMM>, u64), AMMError>
 where
     T: Transport + Clone,
     N: Network,
@@ -139,7 +139,7 @@ where
         }
     }
 
-    //update the sync checkpoint
+    // Update the sync checkpoint
     construct_checkpoint(
         checkpoint.factories.clone(),
         &aggregated_amms,
@@ -147,7 +147,11 @@ where
         path_to_checkpoint,
     )?;
 
-    Ok((checkpoint.factories, aggregated_amms))
+    Ok((
+        checkpoint.factories,
+        aggregated_amms,
+        checkpoint.block_number,
+    ))
 }
 
 pub async fn get_new_amms_from_range<T, N, P>(

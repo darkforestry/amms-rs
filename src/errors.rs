@@ -15,8 +15,6 @@ pub enum AMMError {
     #[error(transparent)]
     ContractError(#[from] alloy::contract::Error),
     #[error(transparent)]
-    ABICodecError(#[from] alloy::dyn_abi::Error),
-    #[error(transparent)]
     EthABIError(#[from] alloy::sol_types::Error),
     #[error(transparent)]
     JoinError(#[from] JoinError),
@@ -58,6 +56,8 @@ pub enum AMMError {
     CheckpointError(#[from] CheckpointError),
     #[error(transparent)]
     EyreError(#[from] eyre::Error),
+    #[error(transparent)]
+    BMathError(#[from] BMathError),
 }
 
 #[derive(Error, Debug)]
@@ -78,6 +78,8 @@ pub enum ArithmeticError {
     BaseTokenDoesNotExist,
     #[error("quote token does not exist in pool")]
     QuoteTokenDoesNotExist,
+    #[error(transparent)]
+    BMathError(#[from] BMathError),
 }
 
 #[derive(Error, Debug)]
@@ -88,8 +90,6 @@ pub enum EventLogError {
     LogBlockNumberNotFound,
     #[error(transparent)]
     EthABIError(#[from] alloy::sol_types::Error),
-    #[error(transparent)]
-    ABIError(#[from] alloy::dyn_abi::Error),
 }
 
 #[derive(Error, Debug)]

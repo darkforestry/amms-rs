@@ -110,7 +110,7 @@ impl AutomatedMarketMaker for UniswapV3Pool {
     }
 
     #[instrument(skip(self), level = "debug")]
-    fn sync_from_log(&mut self, log: Log) -> Result<(), EventLogError> {
+    fn sync_from_log(&mut self, log: Log) -> Result<(), AMMError> {
         let event_signature = log.topics()[0];
 
         if event_signature == IUniswapV3Pool::Burn::SIGNATURE_HASH {
@@ -120,7 +120,7 @@ impl AutomatedMarketMaker for UniswapV3Pool {
         } else if event_signature == IUniswapV3Pool::Swap::SIGNATURE_HASH {
             self.sync_from_swap_log(log)?;
         } else {
-            Err(EventLogError::InvalidEventSignature)?
+            return Err(AMMError::from(EventLogError::InvalidEventSignature));
         }
 
         Ok(())
@@ -130,11 +130,7 @@ impl AutomatedMarketMaker for UniswapV3Pool {
         vec![self.token_a, self.token_b]
     }
 
-    fn calculate_price(
-        &self,
-        base_token: Address,
-        _quote_token: Address,
-    ) -> Result<f64, ArithmeticError> {
+    fn calculate_price(&self, base_token: Address, _quote_token: Address) -> Result<f64, AMMError> {
         let tick = uniswap_v3_math::tick_math::get_tick_at_sqrt_ratio(self.sqrt_price)?;
         let shift = self.token_a_decimals as i8 - self.token_b_decimals as i8;
 
@@ -170,7 +166,7 @@ impl AutomatedMarketMaker for UniswapV3Pool {
         base_token: Address,
         _quote_token: Address,
         amount_in: U256,
-    ) -> Result<U256, SwapSimulationError> {
+    ) -> Result<U256, AMMError> {
         if amount_in.is_zero() {
             return Ok(U256::ZERO);
         }
@@ -273,7 +269,9 @@ impl AutomatedMarketMaker for UniswapV3Pool {
 
                     current_state.liquidity = if liquidity_net < 0 {
                         if current_state.liquidity < (-liquidity_net as u128) {
-                            return Err(SwapSimulationError::LiquidityUnderflow);
+                            return Err(AMMError::SwapSimulationError(
+                                SwapSimulationError::LiquidityUnderflow,
+                            ));
                         } else {
                             current_state.liquidity - (-liquidity_net as u128)
                         }
@@ -308,7 +306,7 @@ impl AutomatedMarketMaker for UniswapV3Pool {
         base_token: Address,
         _quote_token: Address,
         amount_in: U256,
-    ) -> Result<U256, SwapSimulationError> {
+    ) -> Result<U256, AMMError> {
         if amount_in.is_zero() {
             return Ok(U256::ZERO);
         }
@@ -416,7 +414,9 @@ impl AutomatedMarketMaker for UniswapV3Pool {
 
                     current_state.liquidity = if liquidity_net < 0 {
                         if current_state.liquidity < (-liquidity_net as u128) {
-                            return Err(SwapSimulationError::LiquidityUnderflow);
+                            return Err(AMMError::SwapSimulationError(
+                                SwapSimulationError::LiquidityUnderflow,
+                            ));
                         } else {
                             current_state.liquidity - (-liquidity_net as u128)
                         }
@@ -549,13 +549,18 @@ impl UniswapV3Pool {
                 let pool_created_event =
                     IUniswapV3Factory::PoolCreated::decode_log(&log.inner, true)?;
 
-                UniswapV3Pool::new_from_address(pool_created_event.pool, Some(log.address()), block_number, provider)
-                    .await
+                UniswapV3Pool::new_from_address(
+                    pool_created_event.pool,
+                    Some(log.address()),
+                    block_number,
+                    provider,
+                )
+                .await
             } else {
-                Err(EventLogError::LogBlockNumberNotFound)?
+                Err(AMMError::from(EventLogError::LogBlockNumberNotFound))
             }
         } else {
-            Err(EventLogError::InvalidEventSignature)?
+            Err(AMMError::from(EventLogError::InvalidEventSignature))
         }
     }
     /// Creates a new instance of the pool from a log.
@@ -650,7 +655,7 @@ impl UniswapV3Pool {
                         ordered_logs.insert(log_block_number, vec![log]);
                     }
                 } else {
-                    return Err(EventLogError::LogBlockNumberNotFound)?;
+                    return Err(AMMError::from(EventLogError::LogBlockNumberNotFound));
                 }
             }
         }
@@ -835,7 +840,10 @@ impl UniswapV3Pool {
     }
 
     /// Updates the pool state from a burn event log.
-    pub fn sync_from_burn_log(&mut self, log: Log) -> Result<(), alloy::dyn_abi::Error> {
+    pub fn sync_from_burn_log(
+        &mut self,
+        log: Log,
+    ) -> Result<alloy::primitives::Log<IUniswapV3Pool::Burn>, EventLogError> {
         let burn_event = IUniswapV3Pool::Burn::decode_log(log.as_ref(), true)?;
 
         self.modify_position(
@@ -846,11 +854,14 @@ impl UniswapV3Pool {
 
         tracing::debug!(?burn_event, address = ?self.address, sqrt_price = ?self.sqrt_price, liquidity = ?self.liquidity, tick = ?self.tick, "UniswapV3 burn event");
 
-        Ok(())
+        Ok(burn_event)
     }
 
     /// Updates the pool state from a mint event log.
-    pub fn sync_from_mint_log(&mut self, log: Log) -> Result<(), alloy::dyn_abi::Error> {
+    pub fn sync_from_mint_log(
+        &mut self,
+        log: Log,
+    ) -> Result<alloy::primitives::Log<IUniswapV3Pool::Mint>, EventLogError> {
         let mint_event = IUniswapV3Pool::Mint::decode_log(log.as_ref(), true)?;
 
         self.modify_position(
@@ -861,7 +872,7 @@ impl UniswapV3Pool {
 
         tracing::debug!(?mint_event, address = ?self.address, sqrt_price = ?self.sqrt_price, liquidity = ?self.liquidity, tick = ?self.tick, "UniswapV3 mint event");
 
-        Ok(())
+        Ok(mint_event)
     }
 
     /// Modifies a positions liquidity in the pool.
@@ -958,7 +969,10 @@ impl UniswapV3Pool {
     }
 
     /// Updates the pool state from a swap event log.
-    pub fn sync_from_swap_log(&mut self, log: Log) -> Result<(), alloy::sol_types::Error> {
+    pub fn sync_from_swap_log(
+        &mut self,
+        log: Log,
+    ) -> Result<alloy::primitives::Log<IUniswapV3Pool::Swap>, EventLogError> {
         let swap_event = IUniswapV3Pool::Swap::decode_log(log.as_ref(), true)?;
 
         self.sqrt_price = swap_event.sqrtPriceX96.to();
@@ -967,7 +981,7 @@ impl UniswapV3Pool {
 
         tracing::debug!(?swap_event, address = ?self.address, sqrt_price = ?self.sqrt_price, liquidity = ?self.liquidity, tick = ?self.tick, "UniswapV3 swap event");
 
-        Ok(())
+        Ok(swap_event)
     }
 
     pub async fn get_token_decimals<T, N, P>(
@@ -1105,7 +1119,7 @@ impl UniswapV3Pool {
         amount_specified: I256,
         sqrt_price_limit_x_96: U256,
         calldata: Vec<u8>,
-    ) -> Result<Bytes, alloy::dyn_abi::Error> {
+    ) -> Result<Bytes, AMMError> {
         Ok(IUniswapV3Pool::swapCall {
             recipient,
             zeroForOne: zero_for_one,
