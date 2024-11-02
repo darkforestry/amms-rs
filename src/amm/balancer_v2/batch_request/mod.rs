@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use alloy::{
     network::Network,
     primitives::{Address, U256},
@@ -26,12 +24,12 @@ sol! {
 pub async fn get_balancer_v2_pool_data_batch_request<T, N, P>(
     pool: &mut BalancerV2Pool,
     block_number: Option<u64>,
-    provider: Arc<P>,
+    provider: P,
 ) -> Result<(), AMMError>
 where
     T: Transport + Clone,
     N: Network,
-    P: Provider<T, N>,
+    P: Provider<T, N> + Clone,
 {
     let deployer = IGetBalancerV2PoolDataBatchRequest::deploy_builder(provider, vec![pool.address]);
     let res = if let Some(block_number) = block_number {
@@ -63,12 +61,12 @@ where
 
 pub async fn get_amm_data_batch_request<T, N, P>(
     amms: &mut [AMM],
-    provider: Arc<P>,
+    provider: P,
 ) -> Result<(), AMMError>
 where
     T: Transport + Clone,
     N: Network,
-    P: Provider<T, N>,
+    P: Provider<T, N> + Clone,
 {
     let deployer = IGetBalancerV2PoolDataBatchRequest::deploy_builder(
         provider,

@@ -2,7 +2,6 @@ use std::{
     fs::read_to_string,
     panic::resume_unwind,
     path::Path,
-    sync::Arc,
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -53,12 +52,12 @@ impl Checkpoint {
 pub async fn sync_amms_from_checkpoint<T, N, P, A>(
     path_to_checkpoint: A,
     step: u64,
-    provider: Arc<P>,
+    provider: P,
 ) -> Result<(Vec<Factory>, Vec<AMM>, u64), AMMError>
 where
     T: Transport + Clone,
     N: Network,
-    P: Provider<T, N> + 'static,
+    P: Provider<T, N> + Clone + 'static,
     A: AsRef<Path>,
 {
     let current_block = provider.get_block_number().await?;
@@ -159,12 +158,12 @@ pub async fn get_new_amms_from_range<T, N, P>(
     from_block: u64,
     to_block: u64,
     step: u64,
-    provider: Arc<P>,
+    provider: P,
 ) -> Vec<JoinHandle<Result<Vec<AMM>, AMMError>>>
 where
     T: Transport + Clone,
     N: Network,
-    P: Provider<T, N> + 'static,
+    P: Provider<T, N> + Clone + 'static,
 {
     // Create the filter with all the pair created events
     // Aggregate the populated pools from each thread
@@ -196,12 +195,12 @@ where
 pub async fn batch_sync_amms_from_checkpoint<T, N, P>(
     mut amms: Vec<AMM>,
     block_number: Option<u64>,
-    provider: Arc<P>,
+    provider: P,
 ) -> JoinHandle<Result<Vec<AMM>, AMMError>>
 where
     T: Transport + Clone,
     N: Network,
-    P: Provider<T, N> + 'static,
+    P: Provider<T, N> + Clone + 'static,
 {
     let factory = match amms[0] {
         AMM::UniswapV2Pool(_) => Some(Factory::UniswapV2Factory(UniswapV2Factory::new(
@@ -268,12 +267,12 @@ pub async fn get_new_pools_from_range<T, N, P>(
     from_block: u64,
     to_block: u64,
     step: u64,
-    provider: Arc<P>,
+    provider: P,
 ) -> Vec<JoinHandle<Result<Vec<AMM>, AMMError>>>
 where
     T: Transport + Clone,
     N: Network,
-    P: Provider<T, N> + 'static,
+    P: Provider<T, N> + Clone + 'static,
 {
     // Create the filter with all the pair created events
     // Aggregate the populated pools from each thread

@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use alloy::{
     network::Network,
     primitives::{Address, B256},
@@ -50,13 +48,13 @@ impl AutomatedMarketMakerFactory for BalancerV2Factory {
     async fn get_all_amms<T, N, P>(
         &self,
         to_block: Option<u64>,
-        provider: Arc<P>,
+        provider: P,
         step: u64,
     ) -> Result<Vec<AMM>, AMMError>
     where
         T: Transport + Clone,
         N: Network,
-        P: Provider<T, N>,
+        P: Provider<T, N> + Clone,
     {
         let to = to_block.unwrap_or(provider.get_block_number().await?);
         Ok(self.get_all_pools_from_logs(to, step, provider).await?)
@@ -67,12 +65,12 @@ impl AutomatedMarketMakerFactory for BalancerV2Factory {
         &self,
         amms: &mut [AMM],
         _block_number: Option<u64>,
-        provider: Arc<P>,
+        provider: P,
     ) -> Result<(), AMMError>
     where
         T: Transport + Clone,
         N: Network,
-        P: Provider<T, N>,
+        P: Provider<T, N> + Clone,
     {
         // Max batch size for call
         let step = 127;
@@ -95,11 +93,11 @@ impl AutomatedMarketMakerFactory for BalancerV2Factory {
     /// Creates a new AMM from a log factory creation event.
     ///
     /// Returns a AMM with data populated.
-    async fn new_amm_from_log<T, N, P>(&self, log: Log, provider: Arc<P>) -> Result<AMM, AMMError>
+    async fn new_amm_from_log<T, N, P>(&self, log: Log, provider: P) -> Result<AMM, AMMError>
     where
         T: Transport + Clone,
         N: Network,
-        P: Provider<T, N>,
+        P: Provider<T, N> + Clone,
     {
         let mut pool = self.new_empty_amm_from_log(log)?;
         pool.populate_data(None, provider).await?;
@@ -123,12 +121,12 @@ impl BalancerV2Factory {
         self,
         to_block: u64,
         step: u64,
-        provider: Arc<P>,
+        provider: P,
     ) -> Result<Vec<AMM>, AMMError>
     where
         T: Transport + Clone,
         N: Network,
-        P: Provider<T, N>,
+        P: Provider<T, N> + Clone,
     {
         // Unwrap can be used here because the creation block was verified within `Dex::new()`
         let mut from_block = self.creation_block;

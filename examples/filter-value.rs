@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use alloy::{
     primitives::{address, U256},
     providers::ProviderBuilder,
@@ -19,7 +17,7 @@ async fn main() -> eyre::Result<()> {
     tracing_subscriber::fmt::init();
 
     let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
-    let provider = Arc::new(ProviderBuilder::new().on_http(rpc_endpoint.parse()?));
+    let provider = ProviderBuilder::new().on_http(rpc_endpoint.parse()?);
 
     // Initialize factories
     let factories = vec![

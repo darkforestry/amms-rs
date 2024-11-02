@@ -3,8 +3,6 @@ pub mod bmath;
 pub mod error;
 pub mod factory;
 
-use std::sync::Arc;
-
 use alloy::{
     network::Network,
     primitives::{Address, B256, U256},
@@ -78,11 +76,11 @@ impl AutomatedMarketMaker for BalancerV2Pool {
 
     /// Syncs the AMM data on chain via batched static calls.
     #[instrument(skip(self, provider), level = "debug")]
-    async fn sync<T, N, P>(&mut self, provider: Arc<P>) -> Result<(), AMMError>
+    async fn sync<T, N, P>(&mut self, provider: P) -> Result<(), AMMError>
     where
         T: Transport + Clone,
         N: Network,
-        P: Provider<T, N>,
+        P: Provider<T, N> + Clone,
     {
         // Tokens can change, so we are saving a request here.
         self.populate_data(None, provider).await
@@ -168,15 +166,15 @@ impl AutomatedMarketMaker for BalancerV2Pool {
     async fn populate_data<T, N, P>(
         &mut self,
         block_number: Option<u64>,
-        middleware: Arc<P>,
+        provider: P,
     ) -> Result<(), AMMError>
     where
         T: Transport + Clone,
         N: Network,
-        P: Provider<T, N>,
+        P: Provider<T, N> + Clone,
     {
         Ok(
-            batch_request::get_balancer_v2_pool_data_batch_request(self, block_number, middleware)
+            batch_request::get_balancer_v2_pool_data_batch_request(self, block_number, provider)
                 .await?,
         )
     }

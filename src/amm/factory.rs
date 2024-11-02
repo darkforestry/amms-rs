@@ -1,7 +1,4 @@
-use std::{
-    hash::{Hash, Hasher},
-    sync::Arc,
-};
+use std::hash::{Hash, Hasher};
 
 use alloy::{
     network::Network,
@@ -35,25 +32,25 @@ pub trait AutomatedMarketMakerFactory {
     async fn get_all_amms<T, N, P>(
         &self,
         to_block: Option<u64>,
-        provider: Arc<P>,
+        provider: P,
         step: u64,
     ) -> Result<Vec<AMM>, AMMError>
     where
         T: Transport + Clone,
         N: Network,
-        P: Provider<T, N>;
+        P: Provider<T, N> + Clone;
 
     /// Populates all AMMs data via batched static calls.
     async fn populate_amm_data<T, N, P>(
         &self,
         amms: &mut [AMM],
         block_number: Option<u64>,
-        provider: Arc<P>,
+        provider: P,
     ) -> Result<(), AMMError>
     where
         T: Transport + Clone,
         N: Network,
-        P: Provider<T, N>;
+        P: Provider<T, N> + Clone;
 
     /// Returns the creation event signature for the factory.
     fn amm_created_event_signature(&self) -> B256;
@@ -64,11 +61,11 @@ pub trait AutomatedMarketMakerFactory {
     /// Creates a new AMM from a log factory creation event.
     ///
     /// Returns a AMM with data populated.
-    async fn new_amm_from_log<T, N, P>(&self, log: Log, provider: Arc<P>) -> Result<AMM, AMMError>
+    async fn new_amm_from_log<T, N, P>(&self, log: Log, provider: P) -> Result<AMM, AMMError>
     where
         T: Transport + Clone,
         N: Network,
-        P: Provider<T, N>;
+        P: Provider<T, N> + Clone;
 
     /// Creates a new empty AMM from a log factory creation event.
     fn new_empty_amm_from_log(&self, log: Log) -> Result<AMM, alloy::sol_types::Error>;
@@ -92,13 +89,13 @@ macro_rules! factory {
             async fn get_all_amms<T, N, P>(
                 &self,
                 to_block: Option<u64>,
-                provider: Arc<P>,
+                provider: P,
                 step: u64,
             ) -> Result<Vec<AMM>, AMMError>
             where
                 T: Transport + Clone,
                 N: Network,
-                P: Provider<T, N>,
+                P: Provider<T, N> + Clone,
             {
                 match self {
                     $(Factory::$factory_type(factory) => {
@@ -111,12 +108,12 @@ macro_rules! factory {
                 &self,
                 amms: &mut [AMM],
                 block_number: Option<u64>,
-                provider: Arc<P>,
+                provider: P,
             ) -> Result<(), AMMError>
             where
                 T: Transport + Clone,
                 N: Network,
-                P: Provider<T, N>,
+                P: Provider<T, N> + Clone,
             {
                 match self {
                     $(Factory::$factory_type(factory) => {
@@ -140,12 +137,12 @@ macro_rules! factory {
             async fn new_amm_from_log<T, N, P>(
                 &self,
                 log: Log,
-                provider: Arc<P>,
+                provider: P,
             ) -> Result<AMM, AMMError>
             where
                 T: Transport + Clone,
                 N: Network,
-                P: Provider<T, N>,
+                P: Provider<T, N> + Clone,
             {
                 match self {
                     $(Factory::$factory_type(factory) => factory.new_amm_from_log(log, provider).await,)+
@@ -183,12 +180,12 @@ impl Factory {
         mut from_block: u64,
         to_block: u64,
         step: u64,
-        provider: Arc<P>,
+        provider: P,
     ) -> Result<Vec<AMM>, AMMError>
     where
         T: Transport + Clone,
         N: Network,
-        P: Provider<T, N>,
+        P: Provider<T, N> + Clone,
     {
         let factory_address = self.address();
         let amm_created_event_signature = self.amm_created_event_signature();

@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use alloy::{
     primitives::{address, Address, U256},
     providers::ProviderBuilder,
@@ -12,7 +10,7 @@ async fn main() -> eyre::Result<()> {
     tracing_subscriber::fmt::init();
 
     let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
-    let provider = Arc::new(ProviderBuilder::new().on_http(rpc_endpoint.parse()?));
+    let provider = ProviderBuilder::new().on_http(rpc_endpoint.parse()?);
 
     // Initialize the pool
     let pool_address = address!("B4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc"); // WETH/USDC

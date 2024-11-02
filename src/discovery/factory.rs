@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 
 use alloy::{
     network::Network,
@@ -37,13 +37,13 @@ impl DiscoverableFactory {
 pub async fn discover_factories<T, N, P>(
     factories: Vec<DiscoverableFactory>,
     number_of_amms_threshold: u64,
-    provider: Arc<P>,
+    provider: P,
     step: u64,
 ) -> Result<Vec<Factory>, AMMError>
 where
     T: Transport + Clone,
     N: Network,
-    P: Provider<T, N>,
+    P: Provider<T, N> + Clone,
 {
     let mut event_signatures = vec![];
 

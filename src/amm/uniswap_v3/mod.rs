@@ -21,7 +21,6 @@ use serde::{Deserialize, Serialize};
 use std::{
     cmp::Ordering,
     collections::{BTreeMap, HashMap},
-    sync::Arc,
 };
 use tracing::instrument;
 use uniswap_v3_math::tick_math::{MAX_SQRT_RATIO, MAX_TICK, MIN_SQRT_RATIO, MIN_TICK};
@@ -90,11 +89,11 @@ impl AutomatedMarketMaker for UniswapV3Pool {
     }
 
     #[instrument(skip(self, provider), level = "debug")]
-    async fn sync<T, N, P>(&mut self, provider: Arc<P>) -> Result<(), AMMError>
+    async fn sync<T, N, P>(&mut self, provider: P) -> Result<(), AMMError>
     where
         T: Transport + Clone,
         N: Network,
-        P: Provider<T, N>,
+        P: Provider<T, N> + Clone,
     {
         batch_request::sync_v3_pool_batch_request(self, provider.clone()).await?;
         Ok(())
@@ -150,12 +149,12 @@ impl AutomatedMarketMaker for UniswapV3Pool {
     async fn populate_data<T, N, P>(
         &mut self,
         block_number: Option<u64>,
-        provider: Arc<P>,
+        provider: P,
     ) -> Result<(), AMMError>
     where
         T: Transport + Clone,
         N: Network,
-        P: Provider<T, N>,
+        P: Provider<T, N> + Clone,
     {
         batch_request::get_v3_pool_data_batch_request(self, block_number, provider.clone()).await?;
         Ok(())
@@ -493,12 +492,12 @@ impl UniswapV3Pool {
         pair_address: Address,
         factory_address: Option<Address>,
         creation_block: u64,
-        provider: Arc<P>,
+        provider: P,
     ) -> Result<Self, AMMError>
     where
         T: Transport + Clone,
         N: Network,
-        P: Provider<T, N>,
+        P: Provider<T, N> + Clone,
     {
         let mut pool = UniswapV3Pool {
             address: pair_address,
@@ -536,11 +535,11 @@ impl UniswapV3Pool {
     /// Creates a new instance of the pool from a log.
     ///
     /// This function will populate all pool data.
-    pub async fn new_from_log<T, N, P>(log: Log, provider: Arc<P>) -> Result<Self, AMMError>
+    pub async fn new_from_log<T, N, P>(log: Log, provider: P) -> Result<Self, AMMError>
     where
         T: Transport + Clone,
         N: Network,
-        P: Provider<T, N>,
+        P: Provider<T, N> + Clone,
     {
         let event_signature = log.topics()[0];
 
@@ -599,12 +598,12 @@ impl UniswapV3Pool {
     pub async fn populate_tick_data<T, N, P>(
         &mut self,
         mut from_block: u64,
-        provider: Arc<P>,
+        provider: P,
     ) -> Result<u64, AMMError>
     where
         T: Transport + Clone,
         N: Network,
-        P: Provider<T, N>,
+        P: Provider<T, N> + Clone,
     {
         let current_block = provider
             .get_block_number()
@@ -618,7 +617,7 @@ impl UniswapV3Pool {
         let pool_address: Address = self.address;
 
         while from_block <= current_block {
-            let middleware = provider.clone();
+            let provider = provider.clone();
 
             let mut target_block = from_block + POPULATE_TICK_DATA_STEP - 1;
             if target_block > current_block {
@@ -626,7 +625,7 @@ impl UniswapV3Pool {
             }
 
             futures.push_back(async move {
-                middleware
+                provider
                     .get_logs(
                         &Filter::new()
                             .event_signature(vec![
@@ -680,15 +679,11 @@ impl UniswapV3Pool {
     }
 
     /// Returns the word position of a tick in the `tick_bitmap`.
-    pub async fn get_tick_word<T, N, P>(
-        &self,
-        tick: i32,
-        provider: Arc<P>,
-    ) -> Result<U256, AMMError>
+    pub async fn get_tick_word<T, N, P>(&self, tick: i32, provider: P) -> Result<U256, AMMError>
     where
         T: Transport + Clone,
         N: Network,
-        P: Provider<T, N>,
+        P: Provider<T, N> + Clone,
     {
         let v3_pool = IUniswapV3Pool::new(self.address, provider);
         let (word_position, _) = uniswap_v3_math::tick_bitmap::position(tick);
@@ -701,12 +696,12 @@ impl UniswapV3Pool {
     pub async fn get_next_word<T, N, P>(
         &self,
         word_position: i16,
-        provider: Arc<P>,
+        provider: P,
     ) -> Result<U256, AMMError>
     where
         T: Transport + Clone,
         N: Network,
-        P: Provider<T, N>,
+        P: Provider<T, N> + Clone,
     {
         let v3_pool = IUniswapV3Pool::new(self.address, provider);
         let IUniswapV3Pool::tickBitmapReturn { _0: bm } =
@@ -715,11 +710,11 @@ impl UniswapV3Pool {
     }
 
     /// Returns the tick spacing of the pool.
-    pub async fn get_tick_spacing<T, N, P>(&self, provider: Arc<P>) -> Result<i32, AMMError>
+    pub async fn get_tick_spacing<T, N, P>(&self, provider: P) -> Result<i32, AMMError>
     where
         T: Transport + Clone,
         N: Network,
-        P: Provider<T, N>,
+        P: Provider<T, N> + Clone,
     {
         let v3_pool = IUniswapV3Pool::new(self.address, provider);
         let IUniswapV3Pool::tickSpacingReturn { _0: ts } = v3_pool.tickSpacing().call().await?;
@@ -727,11 +722,11 @@ impl UniswapV3Pool {
     }
 
     /// Fetches the current tick of the pool via static call.
-    pub async fn get_tick<T, N, P>(&self, provider: Arc<P>) -> Result<i32, AMMError>
+    pub async fn get_tick<T, N, P>(&self, provider: P) -> Result<i32, AMMError>
     where
         T: Transport + Clone,
         N: Network,
-        P: Provider<T, N>,
+        P: Provider<T, N> + Clone,
     {
         Ok(self.get_slot_0(provider).await?.1)
     }
@@ -740,12 +735,12 @@ impl UniswapV3Pool {
     pub async fn get_tick_info<T, N, P>(
         &self,
         tick: i32,
-        provider: Arc<P>,
+        provider: P,
     ) -> Result<(u128, i128, U256, U256, i64, U256, u32, bool), AMMError>
     where
         T: Transport + Clone,
         N: Network,
-        P: Provider<T, N>,
+        P: Provider<T, N> + Clone,
     {
         let v3_pool = IUniswapV3Pool::new(self.address, provider.clone());
 
@@ -764,30 +759,22 @@ impl UniswapV3Pool {
     }
 
     /// Fetches `liquidity_net` at a given tick via static call.
-    pub async fn get_liquidity_net<T, N, P>(
-        &self,
-        tick: i32,
-        provider: Arc<P>,
-    ) -> Result<i128, AMMError>
+    pub async fn get_liquidity_net<T, N, P>(&self, tick: i32, provider: P) -> Result<i128, AMMError>
     where
         T: Transport + Clone,
         N: Network,
-        P: Provider<T, N>,
+        P: Provider<T, N> + Clone,
     {
         let tick_info = self.get_tick_info(tick, provider).await?;
         Ok(tick_info.1)
     }
 
     /// Fetches whether a specified tick is initialized via static call.
-    pub async fn get_initialized<T, N, P>(
-        &self,
-        tick: i32,
-        provider: Arc<P>,
-    ) -> Result<bool, AMMError>
+    pub async fn get_initialized<T, N, P>(&self, tick: i32, provider: P) -> Result<bool, AMMError>
     where
         T: Transport + Clone,
         N: Network,
-        P: Provider<T, N>,
+        P: Provider<T, N> + Clone,
     {
         let tick_info = self.get_tick_info(tick, provider).await?;
         Ok(tick_info.7)
@@ -796,12 +783,12 @@ impl UniswapV3Pool {
     /// Fetches the current slot 0 of the pool via static call.
     pub async fn get_slot_0<T, N, P>(
         &self,
-        provider: Arc<P>,
+        provider: P,
     ) -> Result<(U256, i32, u16, u16, u16, u8, bool), AMMError>
     where
         T: Transport + Clone,
         N: Network,
-        P: Provider<T, N>,
+        P: Provider<T, N> + Clone,
     {
         let v3_pool = IUniswapV3Pool::new(self.address, provider);
         let IUniswapV3Pool::slot0Return {
@@ -818,11 +805,11 @@ impl UniswapV3Pool {
     }
 
     /// Fetches the current liquidity of the pool via static call.
-    pub async fn get_liquidity<T, N, P>(&self, provider: Arc<P>) -> Result<u128, AMMError>
+    pub async fn get_liquidity<T, N, P>(&self, provider: P) -> Result<u128, AMMError>
     where
         T: Transport + Clone,
         N: Network,
-        P: Provider<T, N>,
+        P: Provider<T, N> + Clone,
     {
         let v3_pool = IUniswapV3Pool::new(self.address, provider);
         let IUniswapV3Pool::liquidityReturn { _0: liquidity } = v3_pool.liquidity().call().await?;
@@ -830,11 +817,11 @@ impl UniswapV3Pool {
     }
 
     /// Fetches the current sqrt price of the pool via static call.
-    pub async fn get_sqrt_price<T, N, P>(&self, provider: Arc<P>) -> Result<U256, AMMError>
+    pub async fn get_sqrt_price<T, N, P>(&self, provider: P) -> Result<U256, AMMError>
     where
         T: Transport + Clone,
         N: Network,
-        P: Provider<T, N>,
+        P: Provider<T, N> + Clone,
     {
         Ok(self.get_slot_0(provider).await?.0)
     }
@@ -984,14 +971,11 @@ impl UniswapV3Pool {
         Ok(swap_event)
     }
 
-    pub async fn get_token_decimals<T, N, P>(
-        &mut self,
-        provider: Arc<P>,
-    ) -> Result<(u8, u8), AMMError>
+    pub async fn get_token_decimals<T, N, P>(&mut self, provider: P) -> Result<(u8, u8), AMMError>
     where
         T: Transport + Clone,
         N: Network,
-        P: Provider<T, N>,
+        P: Provider<T, N> + Clone,
     {
         let IErc20::decimalsReturn {
             _0: token_a_decimals,
@@ -1010,11 +994,11 @@ impl UniswapV3Pool {
         Ok((token_a_decimals, token_b_decimals))
     }
 
-    pub async fn get_fee<T, N, P>(&mut self, provider: Arc<P>) -> Result<u32, AMMError>
+    pub async fn get_fee<T, N, P>(&mut self, provider: P) -> Result<u32, AMMError>
     where
         T: Transport + Clone,
         N: Network,
-        P: Provider<T, N>,
+        P: Provider<T, N> + Clone,
     {
         let IUniswapV3Pool::feeReturn { _0: fee } = IUniswapV3Pool::new(self.address, provider)
             .fee()
@@ -1024,11 +1008,11 @@ impl UniswapV3Pool {
         Ok(fee.to())
     }
 
-    pub async fn get_token_0<T, N, P>(&self, provider: Arc<P>) -> Result<Address, AMMError>
+    pub async fn get_token_0<T, N, P>(&self, provider: P) -> Result<Address, AMMError>
     where
         T: Transport + Clone,
         N: Network,
-        P: Provider<T, N>,
+        P: Provider<T, N> + Clone,
     {
         let v3_pool = IUniswapV3Pool::new(self.address, provider);
 
@@ -1040,11 +1024,11 @@ impl UniswapV3Pool {
         Ok(token_0)
     }
 
-    pub async fn get_token_1<T, N, P>(&self, provider: Arc<P>) -> Result<Address, AMMError>
+    pub async fn get_token_1<T, N, P>(&self, provider: P) -> Result<Address, AMMError>
     where
         T: Transport + Clone,
         N: Network,
-        P: Provider<T, N>,
+        P: Provider<T, N> + Clone,
     {
         let v3_pool = IUniswapV3Pool::new(self.address, provider);
 
@@ -1181,13 +1165,11 @@ mod test {
         }
     }
 
-    async fn initialize_usdc_weth_pool<T, N, P>(
-        provider: Arc<P>,
-    ) -> eyre::Result<(UniswapV3Pool, u64)>
+    async fn initialize_usdc_weth_pool<T, N, P>(provider: P) -> eyre::Result<(UniswapV3Pool, u64)>
     where
         T: Transport + Clone,
         N: Network,
-        P: Provider<T, N>,
+        P: Provider<T, N> + Clone,
     {
         let mut pool = UniswapV3Pool {
             address: address!("88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640"),
@@ -1204,13 +1186,11 @@ mod test {
         Ok((pool, synced_block))
     }
 
-    async fn initialize_weth_link_pool<T, N, P>(
-        provider: Arc<P>,
-    ) -> eyre::Result<(UniswapV3Pool, u64)>
+    async fn initialize_weth_link_pool<T, N, P>(provider: P) -> eyre::Result<(UniswapV3Pool, u64)>
     where
         T: Transport + Clone,
         N: Network,
-        P: Provider<T, N>,
+        P: Provider<T, N> + Clone,
     {
         let mut pool = UniswapV3Pool {
             address: address!("a6Cc3C2531FdaA6Ae1A3CA84c2855806728693e8"),
@@ -1231,7 +1211,7 @@ mod test {
     #[ignore] // Ignoring to not throttle the Provider on workflows
     async fn test_simulate_swap_usdc_weth() {
         let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT").unwrap();
-        let provider = Arc::new(ProviderBuilder::new().on_http(rpc_endpoint.parse().unwrap()));
+        let provider = ProviderBuilder::new().on_http(rpc_endpoint.parse().unwrap());
 
         let (pool, synced_block) = initialize_usdc_weth_pool(provider.clone()).await.unwrap();
         let quoter = IQuoter::new(
@@ -1320,7 +1300,7 @@ mod test {
     #[ignore] // Ignoring to not throttle the Provider on workflows
     async fn test_simulate_swap_weth_usdc() {
         let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT").unwrap();
-        let provider = Arc::new(ProviderBuilder::new().on_http(rpc_endpoint.parse().unwrap()));
+        let provider = ProviderBuilder::new().on_http(rpc_endpoint.parse().unwrap());
 
         let (pool, synced_block) = initialize_usdc_weth_pool(provider.clone()).await.unwrap();
         let quoter = IQuoter::new(
@@ -1409,7 +1389,7 @@ mod test {
     #[ignore] // Ignoring to not throttle the Provider on workflows
     async fn test_simulate_swap_link_weth() {
         let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT").unwrap();
-        let provider = Arc::new(ProviderBuilder::new().on_http(rpc_endpoint.parse().unwrap()));
+        let provider = ProviderBuilder::new().on_http(rpc_endpoint.parse().unwrap());
 
         let (pool, synced_block) = initialize_weth_link_pool(provider.clone()).await.unwrap();
         let quoter = IQuoter::new(
@@ -1498,7 +1478,7 @@ mod test {
     #[ignore] // Ignoring to not throttle the Provider on workflows
     async fn test_simulate_swap_weth_link() {
         let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT").unwrap();
-        let provider = Arc::new(ProviderBuilder::new().on_http(rpc_endpoint.parse().unwrap()));
+        let provider = ProviderBuilder::new().on_http(rpc_endpoint.parse().unwrap());
 
         let (pool, synced_block) = initialize_weth_link_pool(provider.clone()).await.unwrap();
         let quoter = IQuoter::new(
@@ -1587,7 +1567,7 @@ mod test {
     #[ignore] // Ignoring to not throttle the Provider on workflows
     async fn test_simulate_swap_mut_usdc_weth() {
         let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT").unwrap();
-        let provider = Arc::new(ProviderBuilder::new().on_http(rpc_endpoint.parse().unwrap()));
+        let provider = ProviderBuilder::new().on_http(rpc_endpoint.parse().unwrap());
 
         let (pool, synced_block) = initialize_usdc_weth_pool(provider.clone()).await.unwrap();
         let quoter = IQuoter::new(
@@ -1676,7 +1656,7 @@ mod test {
     #[ignore] // Ignoring to not throttle the Provider on workflows
     async fn test_simulate_swap_mut_weth_usdc() {
         let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT").unwrap();
-        let provider = Arc::new(ProviderBuilder::new().on_http(rpc_endpoint.parse().unwrap()));
+        let provider = ProviderBuilder::new().on_http(rpc_endpoint.parse().unwrap());
 
         let (pool, synced_block) = initialize_usdc_weth_pool(provider.clone()).await.unwrap();
         let quoter = IQuoter::new(
@@ -1765,7 +1745,7 @@ mod test {
     #[ignore] // Ignoring to not throttle the Provider on workflows
     async fn test_simulate_swap_mut_link_weth() {
         let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT").unwrap();
-        let provider = Arc::new(ProviderBuilder::new().on_http(rpc_endpoint.parse().unwrap()));
+        let provider = ProviderBuilder::new().on_http(rpc_endpoint.parse().unwrap());
 
         let (pool, synced_block) = initialize_weth_link_pool(provider.clone()).await.unwrap();
         let quoter = IQuoter::new(
@@ -1854,7 +1834,7 @@ mod test {
     #[ignore] // Ignoring to not throttle the Provider on workflows
     async fn test_simulate_swap_mut_weth_link() {
         let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT").unwrap();
-        let provider = Arc::new(ProviderBuilder::new().on_http(rpc_endpoint.parse().unwrap()));
+        let provider = ProviderBuilder::new().on_http(rpc_endpoint.parse().unwrap());
 
         let (pool, synced_block) = initialize_weth_link_pool(provider.clone()).await.unwrap();
         let quoter = IQuoter::new(
@@ -1943,7 +1923,7 @@ mod test {
     #[ignore] // Ignoring to not throttle the Provider on workflows
     async fn test_get_new_from_address() {
         let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT").unwrap();
-        let provider = Arc::new(ProviderBuilder::new().on_http(rpc_endpoint.parse().unwrap()));
+        let provider = ProviderBuilder::new().on_http(rpc_endpoint.parse().unwrap());
 
         let pool = UniswapV3Pool::new_from_address(
             address!("88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640"),
@@ -1977,7 +1957,7 @@ mod test {
     #[ignore] // Ignoring to not throttle the Provider on workflows
     async fn test_get_pool_data() {
         let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT").unwrap();
-        let provider = Arc::new(ProviderBuilder::new().on_http(rpc_endpoint.parse().unwrap()));
+        let provider = ProviderBuilder::new().on_http(rpc_endpoint.parse().unwrap());
 
         let (pool, _synced_block) = initialize_usdc_weth_pool(provider.clone()).await.unwrap();
         assert_eq!(
@@ -2002,7 +1982,7 @@ mod test {
     #[tokio::test]
     async fn test_sync_pool() {
         let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT").unwrap();
-        let provider = Arc::new(ProviderBuilder::new().on_http(rpc_endpoint.parse().unwrap()));
+        let provider = ProviderBuilder::new().on_http(rpc_endpoint.parse().unwrap());
 
         let mut pool = UniswapV3Pool {
             address: address!("88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640"),
@@ -2017,7 +1997,7 @@ mod test {
     #[tokio::test]
     async fn test_calculate_virtual_reserves() {
         let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT").unwrap();
-        let provider = Arc::new(ProviderBuilder::new().on_http(rpc_endpoint.parse().unwrap()));
+        let provider = ProviderBuilder::new().on_http(rpc_endpoint.parse().unwrap());
 
         let mut pool = UniswapV3Pool {
             address: address!("88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640"),
@@ -2057,7 +2037,7 @@ mod test {
     #[tokio::test]
     async fn test_calculate_price() {
         let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT").unwrap();
-        let provider = Arc::new(ProviderBuilder::new().on_http(rpc_endpoint.parse().unwrap()));
+        let provider = ProviderBuilder::new().on_http(rpc_endpoint.parse().unwrap());
 
         let mut pool = UniswapV3Pool {
             address: address!("88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640"),

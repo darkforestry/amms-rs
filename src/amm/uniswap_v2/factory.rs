@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use alloy::{
     network::Network,
     primitives::{Address, B256, U256},
@@ -50,12 +48,12 @@ impl UniswapV2Factory {
 
     pub async fn get_all_pairs_via_batched_calls<T, N, P>(
         &self,
-        provider: Arc<P>,
+        provider: P,
     ) -> Result<Vec<AMM>, AMMError>
     where
         T: Transport + Clone,
         N: Network,
-        P: Provider<T, N>,
+        P: Provider<T, N> + Clone,
     {
         let factory = IUniswapV2Factory::new(self.address, provider.clone());
 
@@ -119,11 +117,11 @@ impl AutomatedMarketMakerFactory for UniswapV2Factory {
         IUniswapV2Factory::PairCreated::SIGNATURE_HASH
     }
 
-    async fn new_amm_from_log<T, N, P>(&self, log: Log, provider: Arc<P>) -> Result<AMM, AMMError>
+    async fn new_amm_from_log<T, N, P>(&self, log: Log, provider: P) -> Result<AMM, AMMError>
     where
         T: Transport + Clone,
         N: Network,
-        P: Provider<T, N>,
+        P: Provider<T, N> + Clone,
     {
         let pair_created_event = IUniswapV2Factory::PairCreated::decode_log(log.as_ref(), true)?;
         Ok(AMM::UniswapV2Pool(
@@ -153,36 +151,36 @@ impl AutomatedMarketMakerFactory for UniswapV2Factory {
         }))
     }
 
-    #[instrument(skip(self, middleware) level = "debug")]
+    #[instrument(skip(self, provider) level = "debug")]
     async fn get_all_amms<T, N, P>(
         &self,
         _to_block: Option<u64>,
-        middleware: Arc<P>,
+        provider: P,
         _step: u64,
     ) -> Result<Vec<AMM>, AMMError>
     where
         T: Transport + Clone,
         N: Network,
-        P: Provider<T, N>,
+        P: Provider<T, N> + Clone,
     {
-        self.get_all_pairs_via_batched_calls(middleware).await
+        self.get_all_pairs_via_batched_calls(provider).await
     }
 
     async fn populate_amm_data<T, N, P>(
         &self,
         amms: &mut [AMM],
         _block_number: Option<u64>,
-        middleware: Arc<P>,
+        provider: P,
     ) -> Result<(), AMMError>
     where
         T: Transport + Clone,
         N: Network,
-        P: Provider<T, N>,
+        P: Provider<T, N> + Clone,
     {
         // Max batch size for call
         let step = 127;
         for amm_chunk in amms.chunks_mut(step) {
-            batch_request::get_amm_data_batch_request(amm_chunk, middleware.clone()).await?;
+            batch_request::get_amm_data_batch_request(amm_chunk, provider.clone()).await?;
         }
         Ok(())
     }

@@ -71,7 +71,7 @@ impl From<Vec<AMM>> for StateSpace {
 pub struct StateSpaceManager<T, N, P, const CAP: usize> {
     state: Arc<RwLock<StateSpace>>,
     state_change_cache: Arc<RwLock<StateChangeCache<CAP>>>,
-    provider: Arc<P>,
+    provider: P,
     phantom: PhantomData<(T, N)>,
 }
 
@@ -79,9 +79,9 @@ impl<T, N, P> StateSpaceManager<T, N, P, 30>
 where
     T: Transport + Clone,
     N: Network,
-    P: Provider<T, N> + 'static,
+    P: Provider<T, N> + Clone + 'static,
 {
-    pub fn new(amms: Vec<AMM>, provider: Arc<P>) -> Self {
+    pub fn new(amms: Vec<AMM>, provider: P) -> Self {
         Self {
             state: Arc::new(RwLock::new(amms.into())),
             state_change_cache: Arc::new(RwLock::new(StateChangeCache::new())),
@@ -226,9 +226,9 @@ impl<T, N, P, const CAP: usize> StateSpaceManager<T, N, P, CAP>
 where
     T: Transport + Clone,
     N: Network,
-    P: Provider<T, N> + 'static,
+    P: Provider<T, N> + Clone + 'static,
 {
-    pub fn new_with_capacity(amms: Vec<AMM>, provider: Arc<P>) -> Self {
+    pub fn new_with_capacity(amms: Vec<AMM>, provider: P) -> Self {
         Self {
             state: Arc::new(RwLock::new(amms.into())),
             state_change_cache: Arc::new(RwLock::new(StateChangeCache::new())),

@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use alloy::{
     network::Network,
     primitives::{Address, U256},
@@ -41,12 +39,12 @@ pub async fn filter_amms_below_usd_threshold<T, N, P>(
     usdc: Address,
     weth_value_in_token_to_weth_pool_threshold: U256, //This is the threshold where we will ignore any token price < threshold during batch calls
     step: usize,
-    provider: Arc<P>,
+    provider: P,
 ) -> Result<Vec<AMM>, AMMError>
 where
     T: Transport + Clone,
     N: Network,
-    P: Provider<T, N>,
+    P: Provider<T, N> + Clone,
 {
     let weth_usd_price = usd_weth_pool.calculate_price(weth, usdc)?;
 
@@ -86,12 +84,12 @@ pub async fn filter_amms_below_weth_threshold<T, N, P>(
     weth_value_in_pool_threshold: U256, // This is the threshold where we will filter out any pool with less value than this
     weth_value_in_token_to_weth_pool_threshold: U256, //This is the threshold where we will ignore any token price < threshold during batch calls
     step: usize,
-    provider: Arc<P>,
+    provider: P,
 ) -> Result<Vec<AMM>, AMMError>
 where
     T: Transport + Clone,
     N: Network,
-    P: Provider<T, N>,
+    P: Provider<T, N> + Clone,
 {
     let mut filtered_amms = vec![];
 
@@ -121,12 +119,12 @@ pub async fn get_weth_values_in_amms<T, N, P>(
     weth: Address,
     weth_value_in_token_to_weth_pool_threshold: U256,
     step: usize,
-    provider: Arc<P>,
+    provider: P,
 ) -> Result<Vec<U256>, AMMError>
 where
     T: Transport + Clone,
     N: Network,
-    P: Provider<T, N>,
+    P: Provider<T, N> + Clone,
 {
     // init a new vec to hold the filtered pools
     let mut aggregate_weth_values_in_amms = vec![];
@@ -164,12 +162,12 @@ async fn get_weth_value_in_amm_batch_request<T, N, P>(
     factories: &[Factory],
     weth: Address,
     weth_value_in_token_to_weth_pool_threshold: U256,
-    provider: Arc<P>,
+    provider: P,
 ) -> Result<Vec<U256>, AMMError>
 where
     T: Transport + Clone,
     N: Network,
-    P: Provider<T, N>,
+    P: Provider<T, N> + Clone,
 {
     let amms = amms.iter().map(|a| a.address()).collect::<Vec<Address>>();
 
