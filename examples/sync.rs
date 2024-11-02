@@ -18,7 +18,7 @@ async fn main() -> eyre::Result<()> {
     let rpc_endpoint = std::env::var("ETHEREUM_PROVIDER")?;
 
     let client = ClientBuilder::default()
-        .layer(ThrottleLayer::new(50, None)?)
+        // .layer(ThrottleLayer::new(100, None)?)
         .layer(RetryBackoffLayer::new(10, 500, 330))
         .http(rpc_endpoint.parse()?);
 
