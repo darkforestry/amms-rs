@@ -888,7 +888,7 @@ impl UniswapV3Factory {
     {
         let mut futures = FuturesUnordered::new();
         let start = time::Instant::now();
-        let step = 50;
+        let step = 10;
         pools.chunks_mut(step).for_each(|chunk| {
             let calldata = chunk
                 .iter()
@@ -945,6 +945,8 @@ impl UniswapV3Factory {
 
         while let Some((pools, ticks, tick_infos)) = futures.next().await {
             let decoded =
+
+            
                 <Vec<Vec<(U256, i128, U256, U256, i128, U256, u32, bool)>> as SolValue>::abi_decode(
                     &tick_infos,
                     true,
