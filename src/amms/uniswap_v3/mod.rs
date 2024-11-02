@@ -812,7 +812,12 @@ impl UniswapV3Factory {
         N: Network,
         P: Provider<T, N>,
     {
-        let step = 73;
+        let step = 10;
+
+        let now = time::Instant::now();
+        // TODO: update how we are provisioning the group. We should set a max word pos to fetch and
+        // only include as many pools as we can fit in the max word range in a single group
+
         let mut futures = FuturesUnordered::new();
         pools.chunks_mut(step).for_each(|group| {
             let provider = provider.clone();
@@ -878,6 +883,8 @@ impl UniswapV3Factory {
                 }
             }
         }
+
+        dbg!(now.elapsed());
     }
 
     async fn sync_tick_data<T, N, P>(pools: &mut [AMM], block_number: u64, provider: Arc<P>)
@@ -943,27 +950,36 @@ impl UniswapV3Factory {
             });
         });
 
+        let return_type = DynSolType::Array(Box::new(DynSolType::Tuple(vec![
+            DynSolType::Uint(256),
+            DynSolType::Int(128),
+            DynSolType::Uint(256),
+            DynSolType::Uint(256),
+            DynSolType::Int(56),
+            DynSolType::Uint(160),
+            DynSolType::Uint(32),
+            DynSolType::Bool,
+        ])));
         while let Some((pools, ticks, tick_infos)) = futures.next().await {
-            let decoded =
-
-            
-                <Vec<Vec<(U256, i128, U256, U256, i128, U256, u32, bool)>> as SolValue>::abi_decode(
-                    &tick_infos,
-                    true,
-                )
+            let decoded = return_type
+                .abi_decode_sequence(&tick_infos)
                 .expect("TODO: handle error");
             let ticks: &[TickDataInfo] = ticks.as_ref();
             let tick_infos = decoded
+                .as_array()
                 .iter()
                 .map(|info| {
                     info.iter()
-                        .map(
-                            |(liquidity_gross, liquidity_net, _, _, _, _, _, initialized)| Info {
-                                liquidity_gross: liquidity_gross.to::<u128>(),
-                                liquidity_net: *liquidity_net,
-                                initialized: *initialized,
-                            },
-                        )
+                        .map(|value| {
+                            let tuple = value.as_tuple().expect("TODO: handle error");
+                            Info {
+                                liquidity_gross: tuple[0].as_uint().unwrap().0.to::<u128>(),
+                                liquidity_net: i128::from_be_bytes(
+                                    tuple[1].as_int().unwrap().0.to_be_bytes(),
+                                ),
+                                initialized: tuple[7].as_bool().unwrap(),
+                            }
+                        })
                         .collect::<Vec<_>>()
                 })
                 .collect::<Vec<_>>();

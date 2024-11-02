@@ -20,7 +20,7 @@ contract GetUniswapV3PoolTickDataBatchRequest {
         TickDataReturn[] memory tickInfoReturn = new TickDataReturn[](
             allPoolInfo.length
         );
-        
+
         for (uint256 i = 0; i < allPoolInfo.length; ++i) {
             IUniswapV3PoolState.Info[]
                 memory tickInfo = new IUniswapV3PoolState.Info[](
@@ -72,6 +72,7 @@ interface IUniswapV3PoolState {
         // these 8 bits are set to prevent fresh sstores when crossing newly initialized ticks
         bool initialized;
     }
+
     /// @notice Returns 256 packed tick initialized boolean values. See TickBitmap for more information
     function tickBitmap(int16 wordPosition) external view returns (uint256);
     function ticks(int24 tick) external view returns (Info memory);
