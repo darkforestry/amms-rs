@@ -926,6 +926,7 @@ impl UniswapV3Factory {
                             );
                         }
                     }
+                    dbg!(ticks.len());
                     GetUniswapV3PoolTickDataBatchRequest::TickDataInfo {
                         pool: uniswap_v3_pool.address(),
                         ticks,
@@ -950,44 +951,59 @@ impl UniswapV3Factory {
             });
         });
 
-        let return_type = DynSolType::Array(Box::new(DynSolType::Tuple(vec![
-            DynSolType::Uint(256),
-            DynSolType::Int(128),
-            DynSolType::Uint(256),
-            DynSolType::Uint(256),
-            DynSolType::Int(56),
-            DynSolType::Uint(160),
-            DynSolType::Uint(32),
-            DynSolType::Bool,
-        ])));
+        let return_type = DynSolType::Array(Box::new(DynSolType::Array(Box::new(
+            DynSolType::Tuple(vec![
+                DynSolType::Uint(128),
+                DynSolType::Int(128),
+                DynSolType::Uint(256),
+                DynSolType::Uint(256),
+                DynSolType::Int(56),
+                DynSolType::Uint(160),
+                DynSolType::Uint(32),
+                DynSolType::Bool,
+            ]),
+        ))));
         while let Some((pools, ticks, tick_infos)) = futures.next().await {
             let decoded = return_type
                 .abi_decode_sequence(&tick_infos)
                 .expect("TODO: handle error");
             let ticks: &[TickDataInfo] = ticks.as_ref();
+            let arr = decoded.as_array().unwrap();
+            dbg!(arr.len());
             let tick_infos = decoded
                 .as_array()
                 .iter()
                 .map(|info| {
                     info.iter()
                         .map(|value| {
-                            let tuple = value.as_tuple().expect("TODO: handle error");
-                            Info {
-                                liquidity_gross: tuple[0].as_uint().unwrap().0.to::<u128>(),
-                                liquidity_net: i128::from_be_bytes(
-                                    tuple[1].as_int().unwrap().0.to_be_bytes(),
-                                ),
-                                initialized: tuple[7].as_bool().unwrap(),
+                            let value = &value.as_array().unwrap();
+                            if value.len() == 0 {
+                                return Info::default();
+                            } else {
+                                dbg!(value.len());
+                                let tuple = value[0].as_tuple().unwrap();
+                                dbg!(tuple.len());
+                                let liquidity_net: i128 =
+                                    tuple[1].as_int().unwrap().0.try_into().unwrap();
+                                Info {
+                                    liquidity_gross: tuple[0].as_uint().unwrap().0.to::<u128>(),
+                                    liquidity_net,
+                                    initialized: tuple[7].as_bool().unwrap(),
+                                }
                             }
                         })
                         .collect::<Vec<_>>()
                 })
                 .collect::<Vec<_>>();
+            dbg!(pools.len());
+            dbg!(ticks.len());
+            dbg!(tick_infos.len());
             for (i, pool) in pools.into_iter().enumerate() {
                 let AMM::UniswapV3Pool(ref mut uniswap_v3_pool) = pool else {
                     unreachable!()
                 };
-                let ticks = &ticks[i];
+
+                let ticks = ticks[i].clone();
                 let tick_info = tick_infos[i].clone();
                 for (tick, info) in ticks.ticks.iter().zip(tick_info.iter()) {
                     let tick = tick.as_i32();

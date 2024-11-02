@@ -12,14 +12,11 @@ contract GetUniswapV3PoolTickDataBatchRequest {
         int24[] ticks;
     }
 
-    struct TickDataReturn {
-        IUniswapV3PoolState.Info[] info;
-    }
-
     constructor(TickDataInfo[] memory allPoolInfo) {
-        TickDataReturn[] memory tickInfoReturn = new TickDataReturn[](
-            allPoolInfo.length
-        );
+        IUniswapV3PoolState.Info[][]
+            memory tickInfoReturn = new IUniswapV3PoolState.Info[][](
+                allPoolInfo.length
+            );
 
         for (uint256 i = 0; i < allPoolInfo.length; ++i) {
             IUniswapV3PoolState.Info[]
@@ -31,7 +28,7 @@ contract GetUniswapV3PoolTickDataBatchRequest {
                     allPoolInfo[i].ticks[j]
                 );
             }
-            tickInfoReturn[i] = TickDataReturn(tickInfo);
+            tickInfoReturn[i] = tickInfo;
         }
 
         // ensure abi encoding, not needed here but increase reusability for different return types
