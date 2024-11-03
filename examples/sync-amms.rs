@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use alloy::{primitives::address, providers::ProviderBuilder};
 
 use amms::{
@@ -16,7 +14,7 @@ async fn main() -> eyre::Result<()> {
 
     // Add rpc endpoint here:
     let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
-    let provider = Arc::new(ProviderBuilder::new().on_http(rpc_endpoint.parse()?));
+    let provider = ProviderBuilder::new().on_http(rpc_endpoint.parse()?);
 
     let factories = vec![
         // Add UniswapV2

@@ -6,7 +6,6 @@ use alloy::{
     sol_types::SolValue,
     transports::Transport,
 };
-use std::sync::Arc;
 
 use crate::{
     amm::{AutomatedMarketMaker, AMM},
@@ -33,12 +32,12 @@ pub async fn get_pairs_batch_request<T, N, P>(
     factory: Address,
     from: U256,
     step: U256,
-    provider: Arc<P>,
+    provider: P,
 ) -> Result<Vec<Address>, AMMError>
 where
     T: Transport + Clone,
     N: Network,
-    P: Provider<T, N>,
+    P: Provider<T, N> + Clone,
 {
     let deployer = IGetUniswapV2PairsBatchRequest::deploy_builder(provider, from, step, factory);
     let res = deployer.call_raw().await?;
@@ -47,12 +46,12 @@ where
 
 pub async fn get_amm_data_batch_request<T, N, P>(
     amms: &mut [AMM],
-    provider: Arc<P>,
+    provider: P,
 ) -> Result<(), AMMError>
 where
     T: Transport + Clone,
     N: Network,
-    P: Provider<T, N>,
+    P: Provider<T, N> + Clone,
 {
     let mut target_addresses = vec![];
     for amm in amms.iter() {
@@ -91,12 +90,12 @@ where
 
 pub async fn get_v2_pool_data_batch_request<T, N, P>(
     pool: &mut UniswapV2Pool,
-    provider: Arc<P>,
+    provider: P,
 ) -> Result<(), AMMError>
 where
     T: Transport + Clone,
     N: Network,
-    P: Provider<T, N>,
+    P: Provider<T, N> + Clone,
 {
     let deployer = IGetUniswapV2PoolDataBatchRequest::deploy_builder(provider, vec![pool.address]);
     let res = deployer.call_raw().await?;

@@ -1,4 +1,4 @@
-use std::{collections::HashSet, str::FromStr, sync::Arc};
+use std::{collections::HashSet, str::FromStr};
 
 use alloy::{
     network::Network, primitives::U256, providers::Provider, rpc::types::eth::Filter,
@@ -17,13 +17,13 @@ lazy_static::lazy_static! {
 
 // Returns a vec of empty factories that match one of the Factory interfaces specified by each DiscoverableFactory
 pub async fn discover_erc_4626_vaults<T, N, P>(
-    provider: Arc<P>,
+    provider: P,
     step: u64,
 ) -> Result<Vec<ERC4626Vault>, AMMError>
 where
     T: Transport + Clone,
     N: Network,
-    P: Provider<T, N>,
+    P: Provider<T, N> + Clone,
 {
     let event_signatures = vec![
         IERC4626Vault::Deposit::SIGNATURE_HASH,

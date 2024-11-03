@@ -1,5 +1,3 @@
-use std::{sync::Arc, vec};
-
 use alloy::{
     network::Network,
     primitives::{aliases::I24, Address, U256},
@@ -41,12 +39,12 @@ sol! {
 pub async fn get_v3_pool_data_batch_request<T, N, P>(
     pool: &mut UniswapV3Pool,
     block_number: Option<u64>,
-    provider: Arc<P>,
+    provider: P,
 ) -> Result<(), AMMError>
 where
     T: Transport + Clone,
     N: Network,
-    P: Provider<T, N>,
+    P: Provider<T, N> + Clone,
 {
     let deployer = IGetUniswapV3PoolDataBatchRequest::deploy_builder(provider, vec![pool.address]);
     let res = if let Some(block_number) = block_number {
@@ -98,12 +96,12 @@ pub async fn get_uniswap_v3_tick_data_batch_request<T, N, P>(
     zero_for_one: bool,
     num_ticks: u16,
     block_number: Option<u64>,
-    provider: Arc<P>,
+    provider: P,
 ) -> Result<(Vec<UniswapV3TickData>, u64), AMMError>
 where
     T: Transport + Clone,
     N: Network,
-    P: Provider<T, N>,
+    P: Provider<T, N> + Clone,
 {
     let deployer = IGetUniswapV3TickDataBatchRequest::deploy_builder(
         provider,
@@ -136,12 +134,12 @@ where
 
 pub async fn sync_v3_pool_batch_request<T, N, P>(
     pool: &mut UniswapV3Pool,
-    provider: Arc<P>,
+    provider: P,
 ) -> Result<(), AMMError>
 where
     T: Transport + Clone,
     N: Network,
-    P: Provider<T, N>,
+    P: Provider<T, N> + Clone,
 {
     let deployer = ISyncUniswapV3PoolBatchRequest::deploy_builder(provider, vec![pool.address]);
     let res = deployer.call_raw().await?;
@@ -171,12 +169,12 @@ where
 pub async fn get_amm_data_batch_request<T, N, P>(
     amms: &mut [AMM],
     block_number: u64,
-    provider: Arc<P>,
+    provider: P,
 ) -> Result<(), AMMError>
 where
     T: Transport + Clone,
     N: Network,
-    P: Provider<T, N>,
+    P: Provider<T, N> + Clone,
 {
     let mut target_addresses = vec![];
 

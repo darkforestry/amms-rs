@@ -9,9 +9,9 @@ use crate::{
     filters,
 };
 
-use alloy::{network::Network, providers::Provider, transports::Transport};
+use std::panic::resume_unwind;
 
-use std::{panic::resume_unwind, sync::Arc};
+use alloy::{network::Network, providers::Provider, transports::Transport};
 
 /// Syncs all AMMs from the supplied factories.
 ///
@@ -22,14 +22,14 @@ use std::{panic::resume_unwind, sync::Arc};
 /// Returns a tuple of the synced AMMs and the last synced block number.
 pub async fn sync_amms<T, N, P>(
     factories: Vec<Factory>,
-    provider: Arc<P>,
+    provider: P,
     checkpoint_path: Option<&str>,
     step: u64,
 ) -> Result<(Vec<AMM>, u64), AMMError>
 where
     T: Transport + Clone,
     N: Network,
-    P: Provider<T, N> + 'static,
+    P: Provider<T, N> + Clone + 'static,
 {
     tracing::info!(?step, ?factories, "Syncing AMMs");
 
@@ -113,12 +113,12 @@ pub fn amms_are_congruent(amms: &[AMM]) -> bool {
 pub async fn populate_amms<T, N, P>(
     amms: &mut [AMM],
     block_number: u64,
-    provider: Arc<P>,
+    provider: P,
 ) -> Result<(), AMMError>
 where
     T: Transport + Clone,
     N: Network,
-    P: Provider<T, N>,
+    P: Provider<T, N> + Clone,
 {
     if amms_are_congruent(amms) {
         match amms[0] {

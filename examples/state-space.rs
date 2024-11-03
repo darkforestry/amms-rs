@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use alloy::{primitives::address, providers::ProviderBuilder, rpc::client::WsConnect};
 
 use amms::{
@@ -17,7 +15,7 @@ async fn main() -> eyre::Result<()> {
 
     // Initialize WS provider
     let ws = WsConnect::new(ws_endpoint);
-    let provider = Arc::new(ProviderBuilder::new().on_ws(ws).await?);
+    let provider = ProviderBuilder::new().on_ws(ws).await?;
 
     // Initialize factories
     let factories = vec![
