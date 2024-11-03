@@ -50,6 +50,7 @@ derive_more = "1.0.0"
 governor = "0.7.0"
 itertools = "0.13.0"
 tower = "0.5.1"
+rayon = "1.10.0"
 
 [features]
 default = ["state-space"]

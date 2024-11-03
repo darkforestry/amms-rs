@@ -29,6 +29,7 @@ use futures::{
 };
 use governor::{Quota, RateLimiter};
 use itertools::Itertools;
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
 use std::{
     cmp::Ordering,
@@ -820,6 +821,8 @@ impl UniswapV3Factory {
         let max_range = 15900;
         let mut group_range = 0;
         let mut group = vec![];
+
+        // TODO: collect groups in parallel and then spawn tasks separately
         for pool in pools.iter() {
             let AMM::UniswapV3Pool(uniswap_v3_pool) = pool else {
                 unreachable!()
@@ -914,47 +917,62 @@ impl UniswapV3Factory {
     {
         let start = time::Instant::now();
 
-        let mut futures = FuturesUnordered::new();
+        let pool_ticks = pools
+            .par_iter()
+            .filter_map(|pool| {
+                if let AMM::UniswapV3Pool(uniswap_v3_pool) = pool {
+                    let min_word = tick_to_word(MIN_TICK, uniswap_v3_pool.tick_spacing);
+                    let max_word = tick_to_word(MAX_TICK, uniswap_v3_pool.tick_spacing);
 
-        let max_ticks = 1000;
+                    let tick_bitmaps = (min_word..=max_word)
+                        .map(|word_pos| {
+                            let bitmap = uniswap_v3_pool.tick_bitmap.get(&(word_pos as i16));
+                            bitmap.unwrap_or(&U256::ZERO).clone()
+                        })
+                        .collect::<Vec<_>>();
+
+                    let mut initialized_ticks = vec![];
+
+                    for (i, bitmap) in tick_bitmaps.iter().enumerate() {
+                        for k in (0..256)
+                            .filter(|k| (U256_1 << U256::from(*k as u64)) & *bitmap != U256::ZERO)
+                        {
+                            let tick_index = i * 256 + k * uniswap_v3_pool.tick_spacing as usize;
+                            let tick = tick_index as i32;
+                            let tick = tick.clamp(MIN_TICK, MAX_TICK);
+
+                            initialized_ticks
+                                .push(Signed::<24, 1>::from_str(&tick.to_string()).unwrap());
+                        }
+                    }
+
+                    // Only return pools with non-empty initialized ticks
+                    if !initialized_ticks.is_empty() {
+                        Some((uniswap_v3_pool.address, initialized_ticks))
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<(Address, Vec<Signed<24, 1>>)>>();
+
+        dbg!(start.elapsed());
+
+        let mut futures = FuturesUnordered::new();
+        let max_ticks = 100;
         let mut group_ticks = 0;
         let mut group = vec![];
 
-        for pool in pools.iter() {
-            let AMM::UniswapV3Pool(uniswap_v3_pool) = pool else {
-                unreachable!()
-            };
-            let min_word = tick_to_word(MIN_TICK, uniswap_v3_pool.tick_spacing);
-            let max_word = tick_to_word(MAX_TICK, uniswap_v3_pool.tick_spacing);
-
-            let tick_bitmaps = (min_word..=max_word)
-                .map(|word_pos| {
-                    let bitmap = uniswap_v3_pool.tick_bitmap.get(&(word_pos as i16));
-                    bitmap.unwrap_or(&U256::ZERO).clone()
-                })
-                .collect::<Vec<_>>();
-
-            let mut initialized_ticks = vec![];
-            for (i, bitmap) in tick_bitmaps.iter().enumerate() {
-                for k in
-                    (0..256).filter(|k| (U256_1 << U256::from(*k as u64)) & *bitmap != U256::ZERO)
-                {
-                    let tick_index = i * 256 + k * uniswap_v3_pool.tick_spacing as usize;
-                    let tick = tick_index as i32;
-                    let tick = tick.clamp(MIN_TICK, MAX_TICK);
-                    initialized_ticks
-                        .push(Signed::<24, 1>::from_str(tick.to_string().as_str()).unwrap());
-                }
-            }
-
-            while !initialized_ticks.is_empty() {
+        for (pool_address, mut ticks) in pool_ticks {
+            while !ticks.is_empty() {
                 let remaining_ticks = max_ticks - group_ticks;
-                let ticks =
-                    initialized_ticks.drain(0..remaining_ticks.min(initialized_ticks.len()));
+                let ticks = ticks.drain(0..remaining_ticks.min(ticks.len()));
                 group_ticks += ticks.len();
 
                 group.push(GetUniswapV3PoolTickDataBatchRequest::TickDataInfo {
-                    pool: uniswap_v3_pool.address,
+                    pool: pool_address,
                     ticks: ticks.collect(),
                 });
 
@@ -1001,6 +1019,8 @@ impl UniswapV3Factory {
 
             if let Some(tokens_arr) = return_data.as_array() {
                 for (tick_bitmaps, tick_info) in tokens_arr.iter().zip(tick_info.iter()) {
+                    dbg!(start.elapsed());
+
                     let pool = pool_set
                         .get_mut(&tick_info.pool)
                         .expect("TODO: handle error");
