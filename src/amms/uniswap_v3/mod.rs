@@ -958,10 +958,8 @@ impl UniswapV3Factory {
             })
             .collect::<Vec<(Address, Vec<Signed<24, 1>>)>>();
 
-        dbg!(start.elapsed());
-
         let mut futures = FuturesUnordered::new();
-        let max_ticks = 100;
+        let max_ticks = 200;
         let mut group_ticks = 0;
         let mut group = vec![];
 
