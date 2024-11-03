@@ -17,7 +17,7 @@ use alloy::{
     primitives::{address, Address, Signed, B256, I256, U256},
     providers::Provider,
     rpc::types::{Filter, FilterSet, Log},
-    signers::k256::elliptic_curve::rand_core::le,
+    signers::k256::elliptic_curve::{group, rand_core::le},
     sol,
     sol_types::{SolEvent, SolValue},
     transports::Transport,
@@ -812,46 +812,69 @@ impl UniswapV3Factory {
         N: Network,
         P: Provider<T, N>,
     {
-        let step = 10;
-
         let now = time::Instant::now();
         // TODO: update how we are provisioning the group. We should set a max word pos to fetch and
         // only include as many pools as we can fit in the max word range in a single group
 
         let mut futures = FuturesUnordered::new();
-        pools.chunks_mut(step).for_each(|group| {
-            let provider = provider.clone();
-            let tick_bitmap_info = group
-                .iter_mut()
-                .map(|pool| {
-                    let AMM::UniswapV3Pool(uniswap_v3_pool) = pool else {
-                        unreachable!()
-                    };
-                    let min_word = tick_to_word(MIN_TICK, uniswap_v3_pool.tick_spacing);
-                    let max_word = tick_to_word(MAX_TICK, uniswap_v3_pool.tick_spacing);
 
-                    TickBitmapInfo {
-                        pool: uniswap_v3_pool.address,
-                        minWord: min_word as i16,
-                        maxWord: max_word as i16,
-                    }
-                })
-                .collect::<Vec<_>>();
+        let max_range = 15900;
+        let mut group_range = 0;
+        let mut group = vec![];
+        for pool in pools.iter() {
+            let AMM::UniswapV3Pool(uniswap_v3_pool) = pool else {
+                unreachable!()
+            };
+            let mut min_word = tick_to_word(MIN_TICK, uniswap_v3_pool.tick_spacing);
+            let max_word = tick_to_word(MAX_TICK, uniswap_v3_pool.tick_spacing);
+            let mut word_range = max_word - min_word + 1;
 
-            futures.push(async move {
-                (
-                    group,
-                    GetUniswapV3PoolTickBitmapBatchRequest::deploy_builder(
-                        provider,
-                        tick_bitmap_info,
-                    )
-                    .call_raw()
-                    .block(block_number.into())
-                    .await
-                    .expect("TODO: handle error"),
-                )
-            });
-        });
+            while word_range > 0 {
+                let remaining_range = max_range - group_range;
+                let range = word_range.min(remaining_range);
+
+                group.push(TickBitmapInfo {
+                    pool: uniswap_v3_pool.address,
+                    minWord: min_word as i16,
+                    maxWord: (min_word + range) as i16,
+                });
+
+                word_range -= range;
+                min_word += range;
+                group_range += range;
+
+                // If group is full, fire it off and reset
+                if group_range >= max_range {
+                    let provider = provider.clone();
+                    let pool_addresses = group
+                        .iter()
+                        .map(|info| (info.pool, info.minWord, info.maxWord))
+                        .collect::<Vec<_>>();
+
+                    let batch_request_data = group.drain(..).collect();
+                    group_range = 0;
+
+                    futures.push(async move {
+                        (
+                            pool_addresses,
+                            GetUniswapV3PoolTickBitmapBatchRequest::deploy_builder(
+                                provider,
+                                batch_request_data,
+                            )
+                            .call_raw()
+                            .block(block_number.into())
+                            .await
+                            .expect("TODO: handle error"),
+                        )
+                    });
+                }
+            }
+        }
+
+        let mut pool_set = pools
+            .iter_mut()
+            .map(|pool| (pool.address(), pool))
+            .collect::<HashMap<Address, &mut AMM>>();
 
         let return_type =
             DynSolType::Array(Box::new(DynSolType::Array(Box::new(DynSolType::Uint(256)))));
@@ -864,17 +887,16 @@ impl UniswapV3Factory {
                 .expect("TODO: handle error");
 
             if let Some(tokens_arr) = return_data.as_array() {
-                for (tick_bitmaps, pool) in tokens_arr.iter().zip(pools.iter_mut()) {
+                for (tick_bitmaps, (pool_address, min_word, max_word)) in
+                    tokens_arr.iter().zip(pools.iter())
+                {
+                    let pool = pool_set.get_mut(pool_address).expect("TODO: handle error");
                     let AMM::UniswapV3Pool(ref mut uv3_pool) = pool else {
                         unreachable!()
                     };
 
-                    // Just duplicating for simplicity
-                    let min_word = tick_to_word(MIN_TICK, uv3_pool.tick_spacing);
-                    let max_word = tick_to_word(MAX_TICK, uv3_pool.tick_spacing);
-
                     for (word_pos, bitmap) in
-                        (min_word..=max_word).zip(tick_bitmaps.as_array().unwrap())
+                        (*min_word..=*max_word).zip(tick_bitmaps.as_array().unwrap())
                     {
                         uv3_pool
                             .tick_bitmap
