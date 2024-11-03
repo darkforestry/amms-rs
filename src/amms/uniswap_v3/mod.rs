@@ -700,8 +700,6 @@ impl UniswapV3Factory {
             }
         }
 
-        dbg!("discovered pools", &pools.len());
-
         pools
     }
 
@@ -904,8 +902,6 @@ impl UniswapV3Factory {
                 }
             }
         }
-
-        dbg!(now.elapsed());
     }
 
     // TODO: Clean this function up
@@ -915,8 +911,6 @@ impl UniswapV3Factory {
         N: Network,
         P: Provider<T, N>,
     {
-        let start = time::Instant::now();
-
         let pool_ticks = pools
             .par_iter()
             .filter_map(|pool| {
@@ -1017,8 +1011,6 @@ impl UniswapV3Factory {
 
             if let Some(tokens_arr) = return_data.as_array() {
                 for (tick_bitmaps, tick_info) in tokens_arr.iter().zip(tick_info.iter()) {
-                    dbg!(start.elapsed());
-
                     let pool = pool_set
                         .get_mut(&tick_info.pool)
                         .expect("TODO: handle error");
@@ -1043,8 +1035,6 @@ impl UniswapV3Factory {
                 }
             }
         }
-
-        dbg!(start.elapsed());
     }
 }
 
