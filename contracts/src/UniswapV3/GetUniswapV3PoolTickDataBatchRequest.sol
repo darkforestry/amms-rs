@@ -12,21 +12,29 @@ contract GetUniswapV3PoolTickDataBatchRequest {
         int24[] ticks;
     }
 
+    // NOTE: we can update the return type to be more specific and reduce size
+    // TODO: pick a bettter name for this
+    struct Info {
+        uint128 liquidityGross;
+        int128 liquidityNet;
+        bool initialized;
+    }
+
     constructor(TickDataInfo[] memory allPoolInfo) {
-        IUniswapV3PoolState.Info[][]
-            memory tickInfoReturn = new IUniswapV3PoolState.Info[][](
-                allPoolInfo.length
-            );
+        Info[][] memory tickInfoReturn = new Info[][](allPoolInfo.length);
 
         for (uint256 i = 0; i < allPoolInfo.length; ++i) {
-            IUniswapV3PoolState.Info[]
-                memory tickInfo = new IUniswapV3PoolState.Info[](
-                    allPoolInfo[i].ticks.length
-                );
+            Info[] memory tickInfo = new Info[](allPoolInfo[i].ticks.length);
             for (uint256 j = 0; j < allPoolInfo[i].ticks.length; ++j) {
-                tickInfo[j] = IUniswapV3PoolState(allPoolInfo[i].pool).ticks(
-                    allPoolInfo[i].ticks[j]
-                );
+                IUniswapV3PoolState.Info memory tick = IUniswapV3PoolState(
+                    allPoolInfo[i].pool
+                ).ticks(allPoolInfo[i].ticks[j]);
+
+                tickInfo[j] = Info({
+                    liquidityGross: tick.liquidityGross,
+                    liquidityNet: tick.liquidityNet,
+                    initialized: tick.initialized
+                });
             }
             tickInfoReturn[i] = tickInfo;
         }

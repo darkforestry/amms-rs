@@ -712,7 +712,6 @@ impl UniswapV3Factory {
     {
         UniswapV3Factory::sync_slot_0(pools, block_number, provider.clone()).await;
         UniswapV3Factory::sync_tick_bitmaps(pools, block_number, provider.clone()).await;
-
         UniswapV3Factory::sync_tick_data(pools, block_number, provider.clone()).await;
         UniswapV3Factory::sync_token_decimals(pools, provider).await;
     }
@@ -851,15 +850,14 @@ impl UniswapV3Factory {
                         .map(|info| (info.pool, info.minWord, info.maxWord))
                         .collect::<Vec<_>>();
 
-                    let batch_request_data = group.drain(..).collect();
+                    let calldata = group.drain(..).collect();
                     group_range = 0;
 
                     futures.push(async move {
                         (
                             pool_addresses,
                             GetUniswapV3PoolTickBitmapBatchRequest::deploy_builder(
-                                provider,
-                                batch_request_data,
+                                provider, calldata,
                             )
                             .call_raw()
                             .block(block_number.into())
@@ -879,9 +877,7 @@ impl UniswapV3Factory {
         let return_type =
             DynSolType::Array(Box::new(DynSolType::Array(Box::new(DynSolType::Uint(256)))));
 
-        while let Some(res) = futures.next().await {
-            let (pools, return_data) = res;
-
+        while let Some((pools, return_data)) = futures.next().await {
             let return_data = return_type
                 .abi_decode_sequence(&return_data)
                 .expect("TODO: handle error");
@@ -909,127 +905,123 @@ impl UniswapV3Factory {
         dbg!(now.elapsed());
     }
 
+    // TODO: Clean this function up
     async fn sync_tick_data<T, N, P>(pools: &mut [AMM], block_number: u64, provider: Arc<P>)
     where
         T: Transport + Clone,
         N: Network,
         P: Provider<T, N>,
     {
-        let mut futures = FuturesUnordered::new();
         let start = time::Instant::now();
-        let step = 10;
-        pools.chunks_mut(step).for_each(|chunk| {
-            let calldata = chunk
-                .iter()
-                .map(|pool| {
-                    let AMM::UniswapV3Pool(uniswap_v3_pool) = pool else {
-                        unreachable!()
-                    };
-                    let min_word = tick_to_word(MIN_TICK, uniswap_v3_pool.tick_spacing);
-                    let max_word = tick_to_word(MAX_TICK, uniswap_v3_pool.tick_spacing);
 
-                    let tick_bitmaps = (min_word..=max_word)
-                        .map(|word_pos| {
-                            let bitmap = uniswap_v3_pool.tick_bitmap.get(&(word_pos as i16));
-                            bitmap.unwrap_or(&U256::ZERO).clone()
-                        })
-                        .collect::<Vec<_>>();
+        let mut futures = FuturesUnordered::new();
 
-                    let mut ticks = vec![];
-                    for (i, bitmap) in tick_bitmaps.iter().enumerate() {
-                        for k in (0..256)
-                            .filter(|k| (U256_1 << U256::from(*k as u64)) & *bitmap != U256::ZERO)
-                        {
-                            let tick_index = i * 256 + k * uniswap_v3_pool.tick_spacing as usize;
-                            let tick = tick_index as i32;
-                            let tick = tick.clamp(MIN_TICK, MAX_TICK);
-                            ticks.push(
-                                Signed::<24, 1>::from_str(tick.to_string().as_str()).unwrap(),
-                            );
-                        }
-                    }
-                    dbg!(ticks.len());
-                    GetUniswapV3PoolTickDataBatchRequest::TickDataInfo {
-                        pool: uniswap_v3_pool.address(),
-                        ticks,
-                    }
+        let max_ticks = 1000;
+        let mut group_ticks = 0;
+        let mut group = vec![];
+
+        for pool in pools.iter() {
+            let AMM::UniswapV3Pool(uniswap_v3_pool) = pool else {
+                unreachable!()
+            };
+            let min_word = tick_to_word(MIN_TICK, uniswap_v3_pool.tick_spacing);
+            let max_word = tick_to_word(MAX_TICK, uniswap_v3_pool.tick_spacing);
+
+            let tick_bitmaps = (min_word..=max_word)
+                .map(|word_pos| {
+                    let bitmap = uniswap_v3_pool.tick_bitmap.get(&(word_pos as i16));
+                    bitmap.unwrap_or(&U256::ZERO).clone()
                 })
                 .collect::<Vec<_>>();
 
-            let provider = provider.clone();
-            futures.push(async move {
-                (
-                    chunk,
-                    calldata.clone(),
-                    GetUniswapV3PoolTickDataBatchRequest::deploy_builder(
-                        provider.clone(),
-                        calldata,
-                    )
-                    .call_raw()
-                    .block(block_number.into())
-                    .await
-                    .expect("TODO: handle error"),
-                )
-            });
-        });
+            let mut initialized_ticks = vec![];
+            for (i, bitmap) in tick_bitmaps.iter().enumerate() {
+                for k in
+                    (0..256).filter(|k| (U256_1 << U256::from(*k as u64)) & *bitmap != U256::ZERO)
+                {
+                    let tick_index = i * 256 + k * uniswap_v3_pool.tick_spacing as usize;
+                    let tick = tick_index as i32;
+                    let tick = tick.clamp(MIN_TICK, MAX_TICK);
+                    initialized_ticks
+                        .push(Signed::<24, 1>::from_str(tick.to_string().as_str()).unwrap());
+                }
+            }
+
+            while !initialized_ticks.is_empty() {
+                let remaining_ticks = max_ticks - group_ticks;
+                let ticks =
+                    initialized_ticks.drain(0..remaining_ticks.min(initialized_ticks.len()));
+                group_ticks += ticks.len();
+
+                group.push(GetUniswapV3PoolTickDataBatchRequest::TickDataInfo {
+                    pool: uniswap_v3_pool.address,
+                    ticks: ticks.collect(),
+                });
+
+                if group_ticks >= max_ticks {
+                    let provider = provider.clone();
+                    let calldata = group.drain(..).collect::<Vec<TickDataInfo>>();
+
+                    group_ticks = 0;
+                    group.clear();
+
+                    futures.push(async move {
+                        (
+                            calldata.clone(),
+                            GetUniswapV3PoolTickDataBatchRequest::deploy_builder(
+                                provider, calldata,
+                            )
+                            .call_raw()
+                            .block(block_number.into())
+                            .await
+                            .expect("TODO: handle error"),
+                        )
+                    });
+                }
+            }
+        }
+
+        let mut pool_set = pools
+            .iter_mut()
+            .map(|pool| (pool.address(), pool))
+            .collect::<HashMap<Address, &mut AMM>>();
 
         let return_type = DynSolType::Array(Box::new(DynSolType::Array(Box::new(
             DynSolType::Tuple(vec![
                 DynSolType::Uint(128),
                 DynSolType::Int(128),
-                DynSolType::Uint(256),
-                DynSolType::Uint(256),
-                DynSolType::Int(56),
-                DynSolType::Uint(160),
-                DynSolType::Uint(32),
                 DynSolType::Bool,
             ]),
         ))));
-        while let Some((pools, ticks, tick_infos)) = futures.next().await {
-            let decoded = return_type
-                .abi_decode_sequence(&tick_infos)
-                .expect("TODO: handle error");
-            let ticks: &[TickDataInfo] = ticks.as_ref();
-            let arr = decoded.as_array().unwrap();
-            dbg!(arr.len());
-            let tick_infos = decoded
-                .as_array()
-                .iter()
-                .map(|info| {
-                    info.iter()
-                        .map(|value| {
-                            let value = &value.as_array().unwrap();
-                            if value.len() == 0 {
-                                return Info::default();
-                            } else {
-                                dbg!(value.len());
-                                let tuple = value[0].as_tuple().unwrap();
-                                dbg!(tuple.len());
-                                let liquidity_net: i128 =
-                                    tuple[1].as_int().unwrap().0.try_into().unwrap();
-                                Info {
-                                    liquidity_gross: tuple[0].as_uint().unwrap().0.to::<u128>(),
-                                    liquidity_net,
-                                    initialized: tuple[7].as_bool().unwrap(),
-                                }
-                            }
-                        })
-                        .collect::<Vec<_>>()
-                })
-                .collect::<Vec<_>>();
-            dbg!(pools.len());
-            dbg!(ticks.len());
-            dbg!(tick_infos.len());
-            for (i, pool) in pools.into_iter().enumerate() {
-                let AMM::UniswapV3Pool(ref mut uniswap_v3_pool) = pool else {
-                    unreachable!()
-                };
 
-                let ticks = ticks[i].clone();
-                let tick_info = tick_infos[i].clone();
-                for (tick, info) in ticks.ticks.iter().zip(tick_info.iter()) {
-                    let tick = tick.as_i32();
-                    uniswap_v3_pool.ticks.insert(tick, info.clone());
+        while let Some((tick_info, return_data)) = futures.next().await {
+            let return_data = return_type
+                .abi_decode_sequence(&return_data)
+                .expect("TODO: handle error");
+
+            if let Some(tokens_arr) = return_data.as_array() {
+                for (tick_bitmaps, tick_info) in tokens_arr.iter().zip(tick_info.iter()) {
+                    let pool = pool_set
+                        .get_mut(&tick_info.pool)
+                        .expect("TODO: handle error");
+
+                    let AMM::UniswapV3Pool(ref mut uv3_pool) = pool else {
+                        unreachable!()
+                    };
+
+                    if let Some(tick_bitmaps) = tick_bitmaps.as_array() {
+                        for (tick, tick_idx) in tick_bitmaps.iter().zip(tick_info.ticks.iter()) {
+                            let tick = tick.as_tuple().unwrap();
+
+                            let info = Info {
+                                liquidity_gross: tick[0].as_uint().unwrap().0.to::<u128>(),
+                                liquidity_net: tick[1].as_int().unwrap().0.try_into().unwrap(),
+                                initialized: tick[2].as_bool().unwrap(),
+                            };
+
+                            uv3_pool.ticks.insert(tick_idx.as_i32(), info);
+                        }
+                    }
                 }
             }
         }
