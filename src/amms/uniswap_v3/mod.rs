@@ -829,11 +829,16 @@ impl UniswapV3Factory {
             };
             let mut min_word = tick_to_word(MIN_TICK, uniswap_v3_pool.tick_spacing);
             let max_word = tick_to_word(MAX_TICK, uniswap_v3_pool.tick_spacing);
+
+            dbg!(min_word, max_word);
+
             let mut word_range = max_word - min_word + 1;
 
             while word_range > 0 {
                 let remaining_range = max_range - group_range;
                 let range = word_range.min(remaining_range);
+
+                dbg!(min_word, min_word + range - 1);
 
                 group.push(TickBitmapInfo {
                     pool: uniswap_v3_pool.address,
@@ -846,7 +851,7 @@ impl UniswapV3Factory {
                 group_range += range;
 
                 // If group is full, fire it off and reset
-                if group_range >= max_range {
+                if group_range >= max_range || word_range <= 0 {
                     let provider = provider.clone();
                     let pool_info = group
                         .iter()
@@ -880,12 +885,17 @@ impl UniswapV3Factory {
         let return_type =
             DynSolType::Array(Box::new(DynSolType::Array(Box::new(DynSolType::Uint(256)))));
 
+        dbg!("getting here 0");
         while let Some((pools, return_data)) = futures.next().await {
+            dbg!("getting here 1");
+
             let return_data = return_type
                 .abi_decode_sequence(&return_data)
                 .expect("TODO: handle error");
 
             if let Some(tokens_arr) = return_data.as_array() {
+                dbg!("getting here 2");
+
                 for (tick_bitmaps, (pool_address, min_word, max_word)) in
                     tokens_arr.iter().zip(pools.iter())
                 {
@@ -970,7 +980,7 @@ impl UniswapV3Factory {
                     ticks: selected_ticks.collect(),
                 });
 
-                if group_ticks >= max_ticks {
+                if group_ticks >= max_ticks || ticks.is_empty() {
                     let provider = provider.clone();
                     let calldata = group.drain(..).collect::<Vec<TickDataInfo>>();
 
@@ -1151,6 +1161,22 @@ mod test {
         UniswapV3Factory::sync_all_pools(&mut pools, block_number, provider).await;
 
         if let Some(AMM::UniswapV3Pool(pool)) = pools.pop() {
+            let tick_count = pool.ticks.len();
+            let tick_bitmap_count = pool.tick_bitmap.len();
+            dbg!(
+                tick_count,
+                tick_bitmap_count,
+                pool.token_a,
+                pool.token_b,
+                pool.fee,
+                pool.token_a_decimals,
+                pool.token_b_decimals,
+                pool.tick_spacing,
+                pool.liquidity,
+                pool.sqrt_price,
+                pool.tick,
+                pool.tick_spacing,
+            );
             Ok(pool)
         } else {
             unreachable!()
