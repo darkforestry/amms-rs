@@ -1,5 +1,8 @@
 use std::collections::HashMap;
 
+use tokio::task;
+use tokio_stream::{self as stream, StreamExt};
+
 use alloy::{
     network::Network,
     primitives::{Address, B256},
@@ -63,49 +66,50 @@ where
     // Set up filter and events to filter each block you are searching by
     let mut identified_factories: HashMap<Address, (Factory, u64)> = HashMap::new();
 
-    // TODO: make this async
-    while from_block < current_block {
+    // set up a vector with the block range for each batch
+    let mut block_num_vec: Vec<(u64, u64)> = Vec::new();
+
+    // populate the vector
+    while from_block < block_number {
         // Get pair created event logs within the block range
-        let mut target_block = from_block + step - 1;
-        if target_block > current_block {
-            target_block = current_block;
+        let mut target_block = from_block + block_step - 1;
+        if target_block > block_number {
+            target_block = block_number;
         }
 
+        block_num_vec.push((from_block, target_block));
+
+        from_block += block_step;
+    }
+
+    // Create stream to process block async
+    let stream = stream::iter(&block_num_vec).map(|&(from_block, target_block)| {
         let block_filter = block_filter.clone();
-        let logs = provider
-            .get_logs(&block_filter.from_block(from_block).to_block(target_block))
-            .await?;
+        let client = client.clone();
+        task::spawn(async move {
+            process_block_logs_batch(&from_block, &target_block, client, &block_filter).await
+        })
+    });
 
-        for log in logs {
-            tracing::trace!("found matching event at factory {}", log.address());
-            if let Some((_, amms_length)) = identified_factories.get_mut(&log.address()) {
-                *amms_length += 1;
-            } else {
-                let mut factory = Factory::try_from(log.topics()[0])?;
+    // collect the results of the stream in a vector
+    let results = stream.collect::<Vec<_>>().await;
 
-                match &mut factory {
-                    Factory::UniswapV2Factory(uniswap_v2_factory) => {
-                        uniswap_v2_factory.address = log.address();
-                        uniswap_v2_factory.creation_block =
-                            log.block_number.ok_or(AMMError::BlockNumberNotFound)?;
-                    }
-                    Factory::UniswapV3Factory(uniswap_v3_factory) => {
-                        uniswap_v3_factory.address = log.address();
-                        uniswap_v3_factory.creation_block =
-                            log.block_number.ok_or(AMMError::BlockNumberNotFound)?;
-                    }
-                    Factory::BalancerV2Factory(balancer_v2_factory) => {
-                        balancer_v2_factory.address = log.address();
-                        balancer_v2_factory.creation_block =
-                            log.block_number.ok_or(AMMError::BlockNumberNotFound)?;
-                    }
+    for result in results {
+        match result.await {
+            Ok(Ok(local_identified_factories)) => {
+                for (addrs, count) in local_identified_factories {
+                    *identified_factories.entry(addrs).or_insert(0) += count;
                 }
-
-                identified_factories.insert(log.address(), (factory, 0));
+            }
+            Ok(Err(err)) => {
+                // The task ran successfully, but there was an error in the Result.
+                eprintln!("Error occurred: {:?}", err);
+            }
+            Err(join_err) => {
+                // The task itself failed (possibly panicked).
+                eprintln!("Task join error: {:?}", join_err);
             }
         }
-
-        from_block += step;
     }
 
     let mut filtered_factories = vec![];
@@ -120,4 +124,48 @@ where
     }
 
     Ok(filtered_factories)
+}
+
+async fn process_block_logs_batch(
+    from_block: &u64,
+    target_block: &u64,
+    client: RootProvider<Http<Client>>,
+    block_filter: &Filter,
+) -> anyhow::Result<HashMap<Address, u64>> {
+    let block_filter = block_filter.clone();
+    let mut local_identified_factories: HashMap<Address, u64> = HashMap::new();
+
+    let logs = client
+        .get_logs(&block_filter.from_block(*from_block).to_block(*target_block))
+        .await?;
+
+    for log in logs {
+        if let Some((_, amms_length)) = local_identified_factories.get_mut(&log.address()) {
+            *amms_length += 1;
+        } else {
+            let mut factory = Factory::try_from(log.topics()[0])?;
+
+            match &mut factory {
+                Factory::UniswapV2Factory(uniswap_v2_factory) => {
+                    uniswap_v2_factory.address = log.address();
+                    uniswap_v2_factory.creation_block =
+                        log.block_number.ok_or(AMMError::BlockNumberNotFound)?;
+                }
+                Factory::UniswapV3Factory(uniswap_v3_factory) => {
+                    uniswap_v3_factory.address = log.address();
+                    uniswap_v3_factory.creation_block =
+                        log.block_number.ok_or(AMMError::BlockNumberNotFound)?;
+                }
+                Factory::BalancerV2Factory(balancer_v2_factory) => {
+                    balancer_v2_factory.address = log.address();
+                    balancer_v2_factory.creation_block =
+                        log.block_number.ok_or(AMMError::BlockNumberNotFound)?;
+                }
+            }
+
+            local_identified_factories.insert(log.address(), (factory, 0));
+        }
+    }
+
+    Ok(local_identified_factories)
 }
