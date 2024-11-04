@@ -330,6 +330,8 @@ impl AutomatedMarketMaker for UniswapV3Pool {
 
             current_state.amount_calculated -= I256::from_raw(step.amount_out);
 
+            // TODO: adjust for fee protocol
+
             // If the price moved all the way to the next price, recompute the liquidity change for the next iteration
             if current_state.sqrt_price_x_96 == step.sqrt_price_next_x96 {
                 if step.initialized {
@@ -836,11 +838,11 @@ impl UniswapV3Factory {
                 group.push(TickBitmapInfo {
                     pool: uniswap_v3_pool.address,
                     minWord: min_word as i16,
-                    maxWord: (min_word + range) as i16,
+                    maxWord: (min_word + range - 1) as i16,
                 });
 
                 word_range -= range;
-                min_word += range;
+                min_word += range - 1;
                 group_range += range;
 
                 // If group is full, fire it off and reset
@@ -1116,7 +1118,6 @@ mod test {
         rpc::client::ClientBuilder,
         transports::layers::RetryBackoffLayer,
     };
-    use tick_bitmap::IUniswapV3Pool;
 
     sol! {
         /// Interface of the Quoter
