@@ -962,12 +962,12 @@ impl UniswapV3Factory {
         for (pool_address, mut ticks) in pool_ticks {
             while !ticks.is_empty() {
                 let remaining_ticks = max_ticks - group_ticks;
-                let ticks = ticks.drain(0..remaining_ticks.min(ticks.len()));
-                group_ticks += ticks.len();
+                let selected_ticks = ticks.drain(0..remaining_ticks.min(ticks.len()));
+                group_ticks += selected_ticks.len();
 
                 group.push(GetUniswapV3PoolTickDataBatchRequest::TickDataInfo {
                     pool: pool_address,
-                    ticks: ticks.collect(),
+                    ticks: selected_ticks.collect(),
                 });
 
                 if group_ticks >= max_ticks {
