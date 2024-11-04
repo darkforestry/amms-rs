@@ -384,7 +384,6 @@ impl UniswapV2Factory {
                     if let Some(addr) = token.as_address() {
                         if !addr.is_zero() {
                             i += 1;
-                            dbg!(i);
                             pairs.push(addr);
                         }
                     }
@@ -456,7 +455,6 @@ impl UniswapV2Factory {
                             }
 
                             i += 1;
-                            dbg!(i);
 
                             let pool = UniswapV2Pool {
                                 address: *pool_address,
@@ -542,10 +540,7 @@ impl DiscoverySync for UniswapV2Factory {
         async move {
             let pairs =
                 UniswapV2Factory::get_all_pairs(factory_address, to_block, provider.clone()).await;
-
-            dbg!("uv2 pairs", pairs.len());
             let pools = UniswapV2Factory::get_all_pools(pairs, self.fee, to_block, provider).await;
-            dbg!("uv2 pools", pools.len());
 
             Ok(pools)
         }

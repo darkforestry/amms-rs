@@ -816,7 +816,7 @@ impl UniswapV3Factory {
 
         let mut futures = FuturesUnordered::new();
 
-        let max_range = 15000;
+        let max_range = 15900;
         let mut group_range = 0;
         let mut group = vec![];
 
@@ -846,7 +846,7 @@ impl UniswapV3Factory {
                 // If group is full, fire it off and reset
                 if group_range >= max_range {
                     let provider = provider.clone();
-                    let pool_addresses = group
+                    let pool_info = group
                         .iter()
                         .map(|info| (info.pool, info.minWord, info.maxWord))
                         .collect::<Vec<_>>();
@@ -856,7 +856,7 @@ impl UniswapV3Factory {
 
                     futures.push(async move {
                         (
-                            pool_addresses,
+                            pool_info,
                             GetUniswapV3PoolTickBitmapBatchRequest::deploy_builder(
                                 provider, calldata,
                             )
