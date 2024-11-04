@@ -885,17 +885,12 @@ impl UniswapV3Factory {
         let return_type =
             DynSolType::Array(Box::new(DynSolType::Array(Box::new(DynSolType::Uint(256)))));
 
-        dbg!("getting here 0");
         while let Some((pools, return_data)) = futures.next().await {
-            dbg!("getting here 1");
-
             let return_data = return_type
                 .abi_decode_sequence(&return_data)
                 .expect("TODO: handle error");
 
             if let Some(tokens_arr) = return_data.as_array() {
-                dbg!("getting here 2");
-
                 for (tick_bitmaps, (pool_address, min_word, max_word)) in
                     tokens_arr.iter().zip(pools.iter())
                 {
@@ -1032,6 +1027,8 @@ impl UniswapV3Factory {
                     };
 
                     if let Some(tick_bitmaps) = tick_bitmaps.as_array() {
+                        dbg!("getting here");
+                        // TODO: do we need to insert unitilized ticks as well?
                         for (tick, tick_idx) in tick_bitmaps.iter().zip(tick_info.ticks.iter()) {
                             let tick = tick.as_tuple().unwrap();
 
@@ -1161,6 +1158,17 @@ mod test {
         UniswapV3Factory::sync_all_pools(&mut pools, block_number, provider).await;
 
         if let Some(AMM::UniswapV3Pool(pool)) = pools.pop() {
+            // for (tick, info) in &pool.ticks {
+            //     if info.liquidity_net == 0 {
+            //         dbg!("liquidity net is 0");
+            //     }
+            //     if !info.initialized {
+            //         dbg!("not initialized");
+            //     }
+            //     if info.liquidity_gross == 0 {
+            //         dbg!("liquidity gross is 0");
+            //     }
+            // }
             let tick_count = pool.ticks.len();
             let tick_bitmap_count = pool.tick_bitmap.len();
             dbg!(
