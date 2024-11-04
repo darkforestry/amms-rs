@@ -17,14 +17,10 @@ use std::{
 use super::{error::AMMError, uniswap_v2::UniswapV2Pool, uniswap_v3::UniswapV3Pool};
 
 pub trait AutomatedMarketMaker {
-    // TODO: maybe add a sync step and batch size GAT that will be implemented for each amm
-
     /// Returns the address of the AMM.
     fn address(&self) -> Address;
 
     fn sync_events(&self) -> Vec<B256>;
-
-    fn set_decimals(&mut self, token_decimals: &HashMap<Address, u8>);
 
     fn sync(&mut self, log: Log);
 
@@ -71,12 +67,6 @@ macro_rules! amm {
             fn sync_events(&self) -> Vec<B256> {
                 match self {
                     $(AMM::$pool_type(pool) => pool.sync_events(),)+
-                }
-            }
-
-            fn set_decimals(&mut self, token_decimals: &HashMap<Address, u8>) {
-                match self {
-                    $(AMM::$pool_type(pool) => pool.set_decimals(token_decimals),)+
                 }
             }
 

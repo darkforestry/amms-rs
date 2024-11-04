@@ -22,6 +22,7 @@ alloy = { version = "0.5", features = [
     "rpc-types-eth",
     "signer-local",
 ] }
+alloy-json-rpc = { version = "0.5" }
 
 # tracing
 eyre = "0.6"
@@ -47,6 +48,9 @@ thiserror = "1.0"
 rug = "1.24.1"
 derive_more = "1.0.0"
 governor = "0.7.0"
+itertools = "0.13.0"
+tower = "0.5.1"
+rayon = "1.10.0"
 
 [features]
 default = ["state-space"]

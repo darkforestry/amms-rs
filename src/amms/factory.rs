@@ -1,6 +1,7 @@
 use std::{
     collections::HashMap,
     default,
+    future::Future,
     hash::{Hash, Hasher},
     sync::Arc,
 };
@@ -25,8 +26,20 @@ use super::{
 use super::uniswap_v2::UniswapV2Factory;
 use super::uniswap_v3::UniswapV3Factory;
 
-//TODO: add consts for steps, batch size, etc.
-pub trait AutomatedMarketMakerFactory: Into<Factory> {
+//NOTE: maybe make some with sync step trait so its easy to see which dexes need to sync via blocks
+pub trait DiscoverySync {
+    fn discovery_sync<T, N, P>(
+        &self,
+        to_block: u64,
+        provider: Arc<P>,
+    ) -> impl Future<Output = Result<Vec<AMM>, AMMError>>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>;
+}
+
+pub trait AutomatedMarketMakerFactory: DiscoverySync + Into<Factory> {
     type PoolVariant: AutomatedMarketMaker + Default;
 
     /// Returns the address of the factory.
@@ -52,33 +65,32 @@ macro_rules! factory {
             $($factory_type($factory_type),)+
         }
 
-        impl AutomatedMarketMakerFactory for Factory {
-            type PoolVariant = NoopAMM;
-             fn address(&self) -> Address {
+        impl Factory {
+             pub fn address(&self) -> Address {
                 match self {
                     $(Factory::$factory_type(factory) => factory.address(),)+
                 }
             }
 
-             fn discovery_event(&self) -> B256 {
+             pub fn discovery_event(&self) -> B256 {
                 match self {
                     $(Factory::$factory_type(factory) => factory.discovery_event(),)+
                 }
             }
 
-             fn create_pool(&self, log: Log) -> Result<AMM, AMMError> {
+             pub fn create_pool(&self, log: Log) -> Result<AMM, AMMError> {
                 match self {
                     $(Factory::$factory_type(factory) => factory.create_pool(log),)+
                 }
             }
 
-             fn creation_block(&self) -> u64 {
+             pub fn creation_block(&self) -> u64 {
                 match self {
                     $(Factory::$factory_type(factory) => factory.creation_block(),)+
                 }
             }
 
-             fn pool_events(&self) -> Vec<B256> {
+             pub fn pool_events(&self) -> Vec<B256> {
                 match self {
                     $(Factory::$factory_type(factory) => factory.pool_events(),)+
                 }
@@ -98,6 +110,20 @@ macro_rules! factory {
         }
 
         impl Eq for Factory {}
+
+
+        impl Factory {
+            pub async fn discovery_sync<T, N, P>(&self, to_block: u64, provider: Arc<P>) -> Result<Vec<AMM>, AMMError>
+                where
+                    T: Transport + Clone,
+                    N: Network,
+                    P: Provider<T, N>,
+                {
+                    match self {
+                        $(Factory::$factory_type(factory) => factory.discovery_sync(to_block, provider).await,)+
+                    }
+                }
+            }
     };
 }
 
@@ -115,10 +141,6 @@ impl AutomatedMarketMaker for NoopAMM {
     }
 
     fn sync(&mut self, _log: Log) {
-        unreachable!()
-    }
-
-    fn set_decimals(&mut self, _token_decimals: &HashMap<Address, u8>) {
         unreachable!()
     }
 

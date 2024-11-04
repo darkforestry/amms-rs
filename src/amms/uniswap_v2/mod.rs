@@ -7,26 +7,41 @@ use super::{
         U256_16, U256_191, U256_192, U256_2, U256_255, U256_32, U256_4, U256_64, U256_8,
     },
     error::AMMError,
-    factory::{AutomatedMarketMakerFactory, Factory},
+    factory::{AutomatedMarketMakerFactory, DiscoverySync, Factory},
 };
 
 use alloy::{
-    primitives::{Address, B256, U256},
+    dyn_abi::DynSolType,
+    network::Network,
+    primitives::{Address, Bytes, B256, U256},
+    providers::Provider,
     rpc::types::Log,
     sol,
-    sol_types::SolEvent,
+    sol_types::{SolCall, SolEvent},
+    transports::Transport,
 };
 use eyre::Result;
+use futures::{
+    stream::{futures_unordered, FuturesUnordered},
+    StreamExt,
+};
+use itertools::Itertools;
 use rug::Float;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, hash::Hash};
+use std::{collections::HashMap, future::Future, hash::Hash, sync::Arc};
+use IGetUniswapV2PoolDataBatchRequest::IGetUniswapV2PoolDataBatchRequestInstance;
+use IUniswapV2Factory::{IUniswapV2FactoryCalls, IUniswapV2FactoryInstance};
 
 sol!(
 // UniswapV2Factory
 #[allow(missing_docs)]
 #[derive(Debug)]
+#[sol(rpc)]
 contract IUniswapV2Factory {
-event PairCreated(address indexed token0, address indexed token1, address pair, uint256);
+    event PairCreated(address indexed token0, address indexed token1, address pair, uint256);
+    function allPairs(uint256) external view returns (address pair);
+    function allPairsLength() external view returns (uint256);
+
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -36,7 +51,22 @@ contract IUniswapV2Pair {
     function token0() external view returns (address);
     function token1() external view returns (address);
     function swap(uint256 amount0Out, uint256 amount1Out, address to, bytes calldata data);
+    function getReserves() external view returns (uint112 reserve0, uint112 reserve1, uint32 blockTimestampLast);
 });
+
+sol!(
+    #[allow(missing_docs)]
+    #[sol(rpc)]
+    IGetUniswapV2PairsBatchRequest,
+    "contracts/out/GetUniswapV2PairsBatchRequest.sol/GetUniswapV2PairsBatchRequest.json"
+);
+
+sol!(
+    #[allow(missing_docs)]
+    #[sol(rpc)]
+    IGetUniswapV2PoolDataBatchRequest,
+    "contracts/out/GetUniswapV2PoolDataBatchRequest.sol/GetUniswapV2PoolDataBatchRequest.json"
+);
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct UniswapV2Pool {
@@ -57,11 +87,6 @@ impl AutomatedMarketMaker for UniswapV2Pool {
 
     fn sync_events(&self) -> Vec<B256> {
         vec![IUniswapV2Pair::Sync::SIGNATURE_HASH]
-    }
-
-    fn set_decimals(&mut self, token_decimals: &HashMap<Address, u8>) {
-        self.token_a_decimals = *token_decimals.get(&self.token_a).expect("TODO:");
-        self.token_b_decimals = *token_decimals.get(&self.token_b).expect("TODO:");
     }
 
     fn sync(&mut self, log: Log) {
@@ -202,66 +227,6 @@ impl UniswapV2Pool {
     }
 }
 
-impl Into<AMM> for UniswapV2Pool {
-    fn into(self) -> AMM {
-        AMM::UniswapV2Pool(self)
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Hash, PartialEq, Eq)]
-pub struct UniswapV2Factory {
-    pub address: Address,
-    pub fee: usize,
-    pub creation_block: u64,
-}
-
-impl UniswapV2Factory {
-    pub fn new(address: Address, fee: usize, creation_block: u64) -> Self {
-        Self {
-            address,
-            creation_block,
-            fee,
-        }
-    }
-}
-
-impl Into<Factory> for UniswapV2Factory {
-    fn into(self) -> Factory {
-        Factory::UniswapV2Factory(self)
-    }
-}
-
-impl AutomatedMarketMakerFactory for UniswapV2Factory {
-    type PoolVariant = UniswapV2Pool;
-
-    fn address(&self) -> Address {
-        self.address
-    }
-
-    fn discovery_event(&self) -> B256 {
-        IUniswapV2Factory::PairCreated::SIGNATURE_HASH
-    }
-
-    fn create_pool(&self, log: Log) -> Result<AMM, AMMError> {
-        let event = IUniswapV2Factory::PairCreated::decode_log(&log.inner, false)
-            .expect("TODO: handle this error");
-        Ok(AMM::UniswapV2Pool(UniswapV2Pool {
-            address: event.pair,
-            token_a: event.token0,
-            token_a_decimals: 0,
-            token_b: event.token1,
-            token_b_decimals: 0,
-            reserve_0: 0,
-            reserve_1: 0,
-            fee: self.fee,
-        }))
-    }
-
-    fn creation_block(&self) -> u64 {
-        self.creation_block
-    }
-}
-
 pub fn div_uu(x: U256, y: U256) -> Result<u128, AMMError> {
     if !y.is_zero() {
         let mut answer;
@@ -340,6 +305,250 @@ pub fn div_uu(x: U256, y: U256) -> Result<u128, AMMError> {
         Ok(answer.to::<u128>())
     } else {
         Err(AMMError::DivisionByZero)
+    }
+}
+
+impl Into<AMM> for UniswapV2Pool {
+    fn into(self) -> AMM {
+        AMM::UniswapV2Pool(self)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Hash, PartialEq, Eq)]
+pub struct UniswapV2Factory {
+    pub address: Address,
+    pub fee: usize,
+    pub creation_block: u64,
+}
+
+impl UniswapV2Factory {
+    pub fn new(address: Address, fee: usize, creation_block: u64) -> Self {
+        Self {
+            address,
+            creation_block,
+            fee,
+        }
+    }
+
+    async fn get_all_pairs<T, N, P>(
+        factory_address: Address,
+        block_number: u64,
+        provider: Arc<P>,
+    ) -> Vec<Address>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
+        let factory = IUniswapV2FactoryInstance::new(factory_address, provider.clone());
+        let pairs_length = factory
+            .allPairsLength()
+            .call()
+            .block(block_number.into())
+            .await
+            .expect("TODO:")
+            ._0
+            .to::<usize>();
+
+        let step = 766;
+        let mut futures_unordered = FuturesUnordered::new();
+        for i in (0..pairs_length).step_by(step) {
+            // Note that the batch contract handles if the step is greater than the pairs length
+            // So we can pass the step in as is without checking for this condition
+            let deployer = IGetUniswapV2PairsBatchRequest::deploy_builder(
+                provider.clone(),
+                U256::from(i),
+                U256::from(step),
+                factory_address,
+            );
+
+            futures_unordered.push(async move {
+                let res = deployer
+                    .call_raw()
+                    .block(block_number.into())
+                    .await
+                    .expect("TODO: handle error");
+                let constructor_return = DynSolType::Array(Box::new(DynSolType::Address));
+                let return_data_tokens =
+                    constructor_return.abi_decode_sequence(&res).expect("TODO:");
+
+                return_data_tokens
+            });
+        }
+
+        let mut pairs = Vec::new();
+        let mut i = 0;
+        while let Some(return_data) = futures_unordered.next().await {
+            if let Some(tokens_arr) = return_data.as_array() {
+                for token in tokens_arr {
+                    if let Some(addr) = token.as_address() {
+                        if !addr.is_zero() {
+                            i += 1;
+                            dbg!(i);
+                            pairs.push(addr);
+                        }
+                    }
+                }
+            };
+        }
+
+        pairs
+    }
+
+    async fn get_all_pools<T, N, P>(
+        pairs: Vec<Address>,
+        fee: usize,
+        block_number: u64,
+        provider: Arc<P>,
+    ) -> Vec<AMM>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
+        let step = 127;
+        let pairs = pairs
+            .into_iter()
+            .chunks(step)
+            .into_iter()
+            .map(|chunk| chunk.collect())
+            .collect::<Vec<Vec<Address>>>();
+
+        let mut futures_unordered = FuturesUnordered::new();
+        for group in pairs {
+            let deployer = IGetUniswapV2PoolDataBatchRequestInstance::deploy_builder(
+                provider.clone(),
+                group.clone(),
+            );
+
+            futures_unordered.push(async move {
+                let res = deployer
+                    .call_raw()
+                    .block(block_number.into())
+                    .await
+                    .expect("TODO: handle error");
+                let constructor_return = DynSolType::Array(Box::new(DynSolType::Tuple(vec![
+                    DynSolType::Address,
+                    DynSolType::Address,
+                    DynSolType::Uint(112),
+                    DynSolType::Uint(112),
+                    DynSolType::Uint(8),
+                    DynSolType::Uint(8),
+                ])));
+
+                let return_data_tokens =
+                    constructor_return.abi_decode_sequence(&res).expect("TODO:");
+
+                (group, return_data_tokens)
+            });
+        }
+
+        let mut amms = Vec::new();
+        let mut i = 0;
+        while let Some((group, return_data)) = futures_unordered.next().await {
+            if let Some(tokens_arr) = return_data.as_array() {
+                for (token, pool_address) in tokens_arr.iter().zip(group.iter()) {
+                    if let Some(pool_data) = token.as_tuple() {
+                        // If the pool token A is not zero, signaling that the pool data was polulated
+                        if let Some(token_a) = pool_data[0].as_address() {
+                            if token_a.is_zero() {
+                                continue;
+                            }
+
+                            i += 1;
+                            dbg!(i);
+
+                            let pool = UniswapV2Pool {
+                                address: *pool_address,
+                                token_a,
+                                token_b: pool_data[1].as_address().expect("TODO:"),
+                                reserve_0: pool_data[2].as_uint().expect("TODO:").0.to::<u128>(),
+                                reserve_1: pool_data[3].as_uint().expect("TODO:").0.to::<u128>(),
+                                token_a_decimals: pool_data[4]
+                                    .as_uint()
+                                    .expect("TODO:")
+                                    .0
+                                    .to::<u8>(),
+                                token_b_decimals: pool_data[5]
+                                    .as_uint()
+                                    .expect("TODO:")
+                                    .0
+                                    .to::<u8>(),
+                                fee,
+                            };
+
+                            amms.push(pool.into())
+                        }
+                    }
+                }
+            }
+        }
+
+        amms
+    }
+}
+
+impl Into<Factory> for UniswapV2Factory {
+    fn into(self) -> Factory {
+        Factory::UniswapV2Factory(self)
+    }
+}
+
+impl AutomatedMarketMakerFactory for UniswapV2Factory {
+    type PoolVariant = UniswapV2Pool;
+
+    fn address(&self) -> Address {
+        self.address
+    }
+
+    fn discovery_event(&self) -> B256 {
+        IUniswapV2Factory::PairCreated::SIGNATURE_HASH
+    }
+
+    fn create_pool(&self, log: Log) -> Result<AMM, AMMError> {
+        let event = IUniswapV2Factory::PairCreated::decode_log(&log.inner, false)
+            .expect("TODO: handle this error");
+        Ok(AMM::UniswapV2Pool(UniswapV2Pool {
+            address: event.pair,
+            token_a: event.token0,
+            token_a_decimals: 0,
+            token_b: event.token1,
+            token_b_decimals: 0,
+            reserve_0: 0,
+            reserve_1: 0,
+            fee: self.fee,
+        }))
+    }
+
+    fn creation_block(&self) -> u64 {
+        self.creation_block
+    }
+}
+
+impl DiscoverySync for UniswapV2Factory {
+    fn discovery_sync<T, N, P>(
+        &self,
+        to_block: u64,
+        provider: Arc<P>,
+    ) -> impl Future<Output = Result<Vec<AMM>, AMMError>>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
+        let provider = provider.clone();
+        let factory_address = self.address;
+
+        async move {
+            let pairs =
+                UniswapV2Factory::get_all_pairs(factory_address, to_block, provider.clone()).await;
+
+            dbg!("uv2 pairs", pairs.len());
+            let pools = UniswapV2Factory::get_all_pools(pairs, self.fee, to_block, provider).await;
+            dbg!("uv2 pools", pools.len());
+
+            Ok(pools)
+        }
     }
 }
 

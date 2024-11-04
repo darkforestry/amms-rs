@@ -1,18 +1,28 @@
 use std::sync::Arc;
 
-use alloy::{primitives::address, providers::ProviderBuilder};
+use alloy::{
+    primitives::{address, Address},
+    providers::ProviderBuilder,
+    rpc::client::ClientBuilder,
+    transports::layers::{RetryBackoffLayer, RetryBackoffService},
+};
 use pamms::{
-    amms::{uniswap_v2::UniswapV2Factory, uniswap_v3::UniswapV3Factory},
+    amms::{amm::AutomatedMarketMaker, uniswap_v2::UniswapV2Factory, uniswap_v3::UniswapV3Factory},
     state_space::StateSpaceBuilder,
+    ThrottleLayer,
 };
 
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
     tracing_subscriber::fmt::init();
-
-    // Add rpc endpoint here:
     let rpc_endpoint = std::env::var("ETHEREUM_PROVIDER")?;
-    let provider = Arc::new(ProviderBuilder::new().on_http(rpc_endpoint.parse()?));
+
+    let client = ClientBuilder::default()
+        .layer(ThrottleLayer::new(100, None)?)
+        .layer(RetryBackoffLayer::new(5, 200, 330))
+        .http(rpc_endpoint.parse()?);
+
+    let provider = Arc::new(ProviderBuilder::new().on_client(client));
 
     let factories = vec![
         // UniswapV2
@@ -23,34 +33,27 @@ async fn main() -> eyre::Result<()> {
         // )
         // .into(),
         // Sushiswap
-        UniswapV2Factory::new(
-            address!("C0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac"),
-            300,
-            10794229,
-        )
-        .into(),
-        // UniswapV3Factory::new(
-        //     address!("1F98431c8aD98523631AE4a59f267346ea31F984"),
-        //     12369621,
+        // UniswapV2Factory::new(
+        //     address!("C0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac"),
+        //     300,
+        //     10794229,
         // )
         // .into(),
+        UniswapV3Factory::new(
+            address!("1F98431c8aD98523631AE4a59f267346ea31F984"),
+            12369621,
+        )
+        .into(),
     ];
 
-    let state_space_manager: pamms::state_space::StateSpaceManager<
-        alloy::transports::http::Http<alloy::transports::http::Client>,
-        alloy::network::Ethereum,
-        alloy::providers::RootProvider<
-            alloy::transports::http::Http<alloy::transports::http::Client>,
-        >,
-    > = StateSpaceBuilder::new(provider.clone())
-        .with_factories(factories)
+    let now = std::time::Instant::now();
+
+    let state_space_manager = StateSpaceBuilder::new(provider.clone(), factories)
         .with_discovery()
-        // .with_filters()
-        // .block(123456)
-        .sync_step(10000)
-        .with_throttle(10)
         .sync()
         .await;
+
+    dbg!(now.elapsed());
 
     Ok(())
 }

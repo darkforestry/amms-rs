@@ -55,7 +55,9 @@ contract GetBalancerV2PoolDataBatchRequest {
                 } else {
                     decimals[j] = tokenDecimals;
                 }
-                weights[j] = IBPool(poolAddress).getDenormalizedWeight(tokens[j]);
+                weights[j] = IBPool(poolAddress).getDenormalizedWeight(
+                    tokens[j]
+                );
                 liquidity[j] = IBPool(poolAddress).getBalance(tokens[j]);
             }
 
@@ -78,7 +80,9 @@ contract GetBalancerV2PoolDataBatchRequest {
     }
 
     function getTokenDecimals(address token) internal returns (uint8) {
-        (bool success, bytes memory data) = token.call(abi.encodeWithSignature("decimals()"));
+        (bool success, bytes memory data) = token.call(
+            abi.encodeWithSignature("decimals()")
+        );
 
         if (success) {
             uint256 decimals;

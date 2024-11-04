@@ -10,6 +10,7 @@ use super::filters::filter::PoolFilter;
 pub struct DiscoveryManager {
     pub factories: HashMap<Address, Factory>,
     pub pool_filters: Option<Vec<PoolFilter>>,
+    pub token_decimals: HashMap<Address, u8>,
 }
 
 impl DiscoveryManager {
