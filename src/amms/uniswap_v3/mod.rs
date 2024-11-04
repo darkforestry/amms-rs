@@ -816,7 +816,7 @@ impl UniswapV3Factory {
 
         let mut futures = FuturesUnordered::new();
 
-        let max_range = 15900;
+        let max_range = 15000;
         let mut group_range = 0;
         let mut group = vec![];
 

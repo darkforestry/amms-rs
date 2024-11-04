@@ -96,14 +96,6 @@ where
     }
 
     pub async fn sync(self) -> StateSpaceManager<T, N, P> {
-        // let throttle = if self.throttle > 0 {
-        //     Some(Arc::new(RateLimiter::direct(Quota::per_second(
-        //         NonZeroU32::new(self.throttle).unwrap(),
-        //     ))))
-        // } else {
-        //     None
-        // };
-
         let chain_tip = self.provider.get_block_number().await.expect("TODO:");
 
         let mut futures = FuturesUnordered::new();
