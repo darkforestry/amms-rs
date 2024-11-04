@@ -1203,6 +1203,8 @@ mod test {
             provider.clone(),
         );
 
+        // Test swap from USDC to WETH
+
         let amount_in = U256::from(100000000); // 100 USDC
         let amount_out = pool.simulate_swap(pool.token_a, Address::default(), amount_in)?;
 
@@ -1271,186 +1273,229 @@ mod test {
 
         assert_eq!(amount_out_3, expected_amount_out_3.amountOut);
 
+        // Test swap from WETH to USDC
+
+        let amount_in = U256::from(1000000000000000000_u128); // 1 ETH
+        let amount_out = pool.simulate_swap(pool.token_b, Address::default(), amount_in)?;
+        let expected_amount_out = quoter
+            .quoteExactInputSingle(
+                pool.token_b,
+                pool.token_a,
+                U24::from(pool.fee),
+                amount_in,
+                U160::ZERO,
+            )
+            .block(current_block.into())
+            .call()
+            .await?;
+        assert_eq!(amount_out, expected_amount_out.amountOut);
+
+        let amount_in_1 = U256::from(10000000000000000000_u128); // 10 ETH
+        let amount_out_1 = pool.simulate_swap(pool.token_b, Address::default(), amount_in_1)?;
+        let expected_amount_out_1 = quoter
+            .quoteExactInputSingle(
+                pool.token_b,
+                pool.token_a,
+                U24::from(pool.fee),
+                amount_in_1,
+                U160::ZERO,
+            )
+            .block(current_block.into())
+            .call()
+            .await?;
+        assert_eq!(amount_out_1, expected_amount_out_1.amountOut);
+
+        let amount_in_2 = U256::from(100000000000000000000_u128); // 100 ETH
+        let amount_out_2 = pool.simulate_swap(pool.token_b, Address::default(), amount_in_2)?;
+        let expected_amount_out_2 = quoter
+            .quoteExactInputSingle(
+                pool.token_b,
+                pool.token_a,
+                U24::from(pool.fee),
+                amount_in_2,
+                U160::ZERO,
+            )
+            .block(current_block.into())
+            .call()
+            .await?;
+        assert_eq!(amount_out_2, expected_amount_out_2.amountOut);
+
+        let amount_in_3 = U256::from(100000000000000000000_u128); // 100_000 ETH
+        let amount_out_3 = pool.simulate_swap(pool.token_b, Address::default(), amount_in_3)?;
+        let expected_amount_out_3 = quoter
+            .quoteExactInputSingle(
+                pool.token_b,
+                pool.token_a,
+                U24::from(pool.fee),
+                amount_in_3,
+                U160::ZERO,
+            )
+            .block(current_block.into())
+            .call()
+            .await?;
+
+        assert_eq!(amount_out_3, expected_amount_out_3.amountOut);
+
         Ok(())
     }
 
-    // #[tokio::test]
-    // #[ignore] // Ignoring to not throttle the Provider on workflows
-    // async fn test_simulate_swap_weth_usdc() {
-    //     let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT").unwrap();
-    //     let provider = ProviderBuilder::new().on_http(rpc_endpoint.parse().unwrap());
+    #[tokio::test]
+    async fn test_simulate_swap_link_weth() -> eyre::Result<()> {
+        let rpc_endpoint = std::env::var("ETHEREUM_PROVIDER")?;
 
-    //     let (pool, synced_block) = initialize_usdc_weth_pool(provider.clone()).await.unwrap();
-    //     let quoter = IQuoter::new(
-    //         address!("b27308f9f90d607463bb33ea1bebb41c27ce5ab6"),
-    //         provider.clone(),
-    //     );
+        let client = ClientBuilder::default()
+            .layer(ThrottleLayer::new(250, None)?)
+            .layer(RetryBackoffLayer::new(5, 200, 330))
+            .http(rpc_endpoint.parse()?);
 
-    //     let amount_in = U256::from(1000000000000000000_u128); // 1 ETH
-    //     let amount_out = pool
-    //         .simulate_swap(pool.token_b, Address::default(), amount_in)
-    //         .unwrap();
-    //     let expected_amount_out = quoter
-    //         .quoteExactInputSingle(
-    //             pool.token_b,
-    //             pool.token_a,
-    //             U24::from(pool.fee),
-    //             amount_in,
-    //             U160::ZERO,
-    //         )
-    //         .block(synced_block.into())
-    //         .call()
-    //         .await
-    //         .unwrap();
+        let provider = Arc::new(ProviderBuilder::new().on_client(client));
 
-    //     assert_eq!(amount_out, expected_amount_out.amountOut);
+        let current_block = provider.get_block_number().await?;
+        let pool = weth_link_pool(current_block, provider.clone()).await?;
 
-    //     let amount_in_1 = U256::from(10000000000000000000_u128); // 10 ETH
-    //     let amount_out_1 = pool
-    //         .simulate_swap(pool.token_b, Address::default(), amount_in_1)
-    //         .unwrap();
-    //     let expected_amount_out_1 = quoter
-    //         .quoteExactInputSingle(
-    //             pool.token_b,
-    //             pool.token_a,
-    //             U24::from(pool.fee),
-    //             amount_in_1,
-    //             U160::ZERO,
-    //         )
-    //         .block(synced_block.into())
-    //         .call()
-    //         .await
-    //         .unwrap();
+        let quoter = IQuoter::new(
+            address!("b27308f9f90d607463bb33ea1bebb41c27ce5ab6"),
+            provider.clone(),
+        );
 
-    //     assert_eq!(amount_out_1, expected_amount_out_1.amountOut);
+        // Test swap LINK to WETH
+        let amount_in = U256::from(1000000000000000000_u128); // 1 LINK
+        let amount_out = pool.simulate_swap(pool.token_a, Address::default(), amount_in)?;
+        let expected_amount_out = quoter
+            .quoteExactInputSingle(
+                pool.token_a,
+                pool.token_b,
+                U24::from(pool.fee),
+                amount_in,
+                U160::ZERO,
+            )
+            .block(current_block.into())
+            .call()
+            .await?;
 
-    //     let amount_in_2 = U256::from(100000000000000000000_u128); // 100 ETH
-    //     let amount_out_2 = pool
-    //         .simulate_swap(pool.token_b, Address::default(), amount_in_2)
-    //         .unwrap();
-    //     let expected_amount_out_2 = quoter
-    //         .quoteExactInputSingle(
-    //             pool.token_b,
-    //             pool.token_a,
-    //             U24::from(pool.fee),
-    //             amount_in_2,
-    //             U160::ZERO,
-    //         )
-    //         .block(synced_block.into())
-    //         .call()
-    //         .await
-    //         .unwrap();
+        assert_eq!(amount_out, expected_amount_out.amountOut);
 
-    //     assert_eq!(amount_out_2, expected_amount_out_2.amountOut);
+        let amount_in_1 = U256::from(100000000000000000000_u128); // 100 LINK
+        let amount_out_1 = pool
+            .simulate_swap(pool.token_a, Address::default(), amount_in_1)
+            .unwrap();
+        let expected_amount_out_1 = quoter
+            .quoteExactInputSingle(
+                pool.token_a,
+                pool.token_b,
+                U24::from(pool.fee),
+                amount_in_1,
+                U160::ZERO,
+            )
+            .block(current_block.into())
+            .call()
+            .await?;
 
-    //     let amount_in_3 = U256::from(100000000000000000000_u128); // 100_000 ETH
-    //     let amount_out_3 = pool
-    //         .simulate_swap(pool.token_b, Address::default(), amount_in_3)
-    //         .unwrap();
-    //     let expected_amount_out_3 = quoter
-    //         .quoteExactInputSingle(
-    //             pool.token_b,
-    //             pool.token_a,
-    //             U24::from(pool.fee),
-    //             amount_in_3,
-    //             U160::ZERO,
-    //         )
-    //         .block(synced_block.into())
-    //         .call()
-    //         .await
-    //         .unwrap();
+        assert_eq!(amount_out_1, expected_amount_out_1.amountOut);
 
-    //     assert_eq!(amount_out_3, expected_amount_out_3.amountOut);
-    // }
+        let amount_in_2 = U256::from(10000000000000000000000_u128); // 10_000 LINK
+        let amount_out_2 = pool
+            .simulate_swap(pool.token_a, Address::default(), amount_in_2)
+            .unwrap();
+        let expected_amount_out_2 = quoter
+            .quoteExactInputSingle(
+                pool.token_a,
+                pool.token_b,
+                U24::from(pool.fee),
+                amount_in_2,
+                U160::ZERO,
+            )
+            .block(current_block.into())
+            .call()
+            .await?;
 
-    // #[tokio::test]
-    // #[ignore] // Ignoring to not throttle the Provider on workflows
-    // async fn test_simulate_swap_link_weth() {
-    //     let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT").unwrap();
-    //     let provider = ProviderBuilder::new().on_http(rpc_endpoint.parse().unwrap());
+        assert_eq!(amount_out_2, expected_amount_out_2.amountOut);
 
-    //     let (pool, synced_block) = initialize_weth_link_pool(provider.clone()).await.unwrap();
-    //     let quoter = IQuoter::new(
-    //         address!("b27308f9f90d607463bb33ea1bebb41c27ce5ab6"),
-    //         provider.clone(),
-    //     );
+        let amount_in_3 = U256::from(10000000000000000000000_u128); // 1_000_000 LINK
+        let amount_out_3 = pool
+            .simulate_swap(pool.token_a, Address::default(), amount_in_3)
+            .unwrap();
+        let expected_amount_out_3 = quoter
+            .quoteExactInputSingle(
+                pool.token_a,
+                pool.token_b,
+                U24::from(pool.fee),
+                amount_in_3,
+                U160::ZERO,
+            )
+            .block(current_block.into())
+            .call()
+            .await?;
 
-    //     let amount_in = U256::from(1000000000000000000_u128); // 1 LINK
-    //     let amount_out = pool
-    //         .simulate_swap(pool.token_a, Address::default(), amount_in)
-    //         .unwrap();
-    //     let expected_amount_out = quoter
-    //         .quoteExactInputSingle(
-    //             pool.token_a,
-    //             pool.token_b,
-    //             U24::from(pool.fee),
-    //             amount_in,
-    //             U160::ZERO,
-    //         )
-    //         .block(synced_block.into())
-    //         .call()
-    //         .await
-    //         .unwrap();
+        assert_eq!(amount_out_3, expected_amount_out_3.amountOut);
 
-    //     assert_eq!(amount_out, expected_amount_out.amountOut);
+        // Test swap WETH to LINK
 
-    //     let amount_in_1 = U256::from(100000000000000000000_u128); // 100 LINK
-    //     let amount_out_1 = pool
-    //         .simulate_swap(pool.token_a, Address::default(), amount_in_1)
-    //         .unwrap();
-    //     let expected_amount_out_1 = quoter
-    //         .quoteExactInputSingle(
-    //             pool.token_a,
-    //             pool.token_b,
-    //             U24::from(pool.fee),
-    //             amount_in_1,
-    //             U160::ZERO,
-    //         )
-    //         .block(synced_block.into())
-    //         .call()
-    //         .await
-    //         .unwrap();
+        let amount_in = U256::from(1000000000000000000_u128); // 1 ETH
+        let amount_out = pool.simulate_swap(pool.token_b, Address::default(), amount_in)?;
+        let expected_amount_out = quoter
+            .quoteExactInputSingle(
+                pool.token_b,
+                pool.token_a,
+                U24::from(pool.fee),
+                amount_in,
+                U160::ZERO,
+            )
+            .block(current_block.into())
+            .call()
+            .await?;
 
-    //     assert_eq!(amount_out_1, expected_amount_out_1.amountOut);
+        assert_eq!(amount_out, expected_amount_out.amountOut);
 
-    //     let amount_in_2 = U256::from(10000000000000000000000_u128); // 10_000 LINK
-    //     let amount_out_2 = pool
-    //         .simulate_swap(pool.token_a, Address::default(), amount_in_2)
-    //         .unwrap();
-    //     let expected_amount_out_2 = quoter
-    //         .quoteExactInputSingle(
-    //             pool.token_a,
-    //             pool.token_b,
-    //             U24::from(pool.fee),
-    //             amount_in_2,
-    //             U160::ZERO,
-    //         )
-    //         .block(synced_block.into())
-    //         .call()
-    //         .await
-    //         .unwrap();
+        let amount_in_1 = U256::from(10000000000000000000_u128); // 10 ETH
+        let amount_out_1 = pool.simulate_swap(pool.token_b, Address::default(), amount_in_1)?;
+        let expected_amount_out_1 = quoter
+            .quoteExactInputSingle(
+                pool.token_b,
+                pool.token_a,
+                U24::from(pool.fee),
+                amount_in_1,
+                U160::ZERO,
+            )
+            .block(current_block.into())
+            .call()
+            .await?;
 
-    //     assert_eq!(amount_out_2, expected_amount_out_2.amountOut);
+        assert_eq!(amount_out_1, expected_amount_out_1.amountOut);
 
-    //     let amount_in_3 = U256::from(10000000000000000000000_u128); // 1_000_000 LINK
-    //     let amount_out_3 = pool
-    //         .simulate_swap(pool.token_a, Address::default(), amount_in_3)
-    //         .unwrap();
-    //     let expected_amount_out_3 = quoter
-    //         .quoteExactInputSingle(
-    //             pool.token_a,
-    //             pool.token_b,
-    //             U24::from(pool.fee),
-    //             amount_in_3,
-    //             U160::ZERO,
-    //         )
-    //         .block(synced_block.into())
-    //         .call()
-    //         .await
-    //         .unwrap();
+        let amount_in_2 = U256::from(100000000000000000000_u128); // 100 ETH
+        let amount_out_2 = pool.simulate_swap(pool.token_b, Address::default(), amount_in_2)?;
+        let expected_amount_out_2 = quoter
+            .quoteExactInputSingle(
+                pool.token_b,
+                pool.token_a,
+                U24::from(pool.fee),
+                amount_in_2,
+                U160::ZERO,
+            )
+            .block(current_block.into())
+            .call()
+            .await?;
+        assert_eq!(amount_out_2, expected_amount_out_2.amountOut);
 
-    //     assert_eq!(amount_out_3, expected_amount_out_3.amountOut);
-    // }
+        let amount_in_3 = U256::from(100000000000000000000_u128); // 100_000 ETH
+        let amount_out_3 = pool.simulate_swap(pool.token_b, Address::default(), amount_in_3)?;
+        let expected_amount_out_3 = quoter
+            .quoteExactInputSingle(
+                pool.token_b,
+                pool.token_a,
+                U24::from(pool.fee),
+                amount_in_3,
+                U160::ZERO,
+            )
+            .block(current_block.into())
+            .call()
+            .await?;
+
+        assert_eq!(amount_out_3, expected_amount_out_3.amountOut);
+
+        Ok(())
+    }
 
     // #[tokio::test]
     // #[ignore] // Ignoring to not throttle the Provider on workflows
