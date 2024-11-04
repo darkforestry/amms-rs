@@ -41,12 +41,12 @@ pub async fn discover_factories<T, N, P>(
     factories: Vec<DiscoverableFactory>,
     number_of_amms_threshold: u64,
     provider: P,
-    step: u64,
+    block_step: u64,
 ) -> Result<Vec<Factory>, AMMError>
 where
-    T: Transport + Clone,
-    N: Network,
-    P: Provider<T, N> + Clone,
+    T: Transport + Clone + 'static,
+    N: Network + 'static,
+    P: Provider<T, N> + Clone + Send + Sync + 'static,
 {
     let mut event_signatures = vec![];
 
@@ -58,10 +58,10 @@ where
     let block_filter = Filter::new().event_signature(event_signatures);
 
     let mut from_block = 0;
-    let current_block = provider.get_block_number().await?;
+    let block_number = provider.get_block_number().await?;
 
     // For each block within the range, get all pairs asynchronously
-    // let step = 100000;
+    // let block_step = 50000;
 
     // Set up filter and events to filter each block you are searching by
     let mut identified_factories: HashMap<Address, (Factory, u64)> = HashMap::new();
@@ -85,9 +85,9 @@ where
     // Create stream to process block async
     let stream = stream::iter(&block_num_vec).map(|&(from_block, target_block)| {
         let block_filter = block_filter.clone();
-        let client = client.clone();
+        let provider = provider.clone();
         task::spawn(async move {
-            process_block_logs_batch(&from_block, &target_block, client, &block_filter).await
+            process_block_logs_batch(&from_block, &target_block, provider, &block_filter).await
         })
     });
 
@@ -97,8 +97,11 @@ where
     for result in results {
         match result.await {
             Ok(Ok(local_identified_factories)) => {
-                for (addrs, count) in local_identified_factories {
-                    *identified_factories.entry(addrs).or_insert(0) += count;
+                for (addrs, (factory, count)) in local_identified_factories {
+                    identified_factories
+                        .entry(addrs)
+                        .and_modify(|entry| entry.1 += count) // Increment the count if the address exists
+                        .or_insert((factory, count)); // Insert new entry if the address doesn't exist
                 }
             }
             Ok(Err(err)) => {
@@ -126,16 +129,21 @@ where
     Ok(filtered_factories)
 }
 
-async fn process_block_logs_batch(
+async fn process_block_logs_batch<T, N, P>(
     from_block: &u64,
     target_block: &u64,
-    client: RootProvider<Http<Client>>,
+    provider: P,
     block_filter: &Filter,
-) -> anyhow::Result<HashMap<Address, u64>> {
+) -> Result<HashMap<Address, (Factory, u64)>, AMMError>
+where
+    T: Transport + Clone,
+    N: Network,
+    P: Provider<T, N> + Clone,
+{
     let block_filter = block_filter.clone();
-    let mut local_identified_factories: HashMap<Address, u64> = HashMap::new();
+    let mut local_identified_factories: HashMap<Address, (Factory, u64)> = HashMap::new();
 
-    let logs = client
+    let logs = provider
         .get_logs(&block_filter.from_block(*from_block).to_block(*target_block))
         .await?;
 
