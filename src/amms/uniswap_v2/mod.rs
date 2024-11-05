@@ -377,13 +377,11 @@ impl UniswapV2Factory {
         }
 
         let mut pairs = Vec::new();
-        let mut i = 0;
         while let Some(return_data) = futures_unordered.next().await {
             if let Some(tokens_arr) = return_data.as_array() {
                 for token in tokens_arr {
                     if let Some(addr) = token.as_address() {
                         if !addr.is_zero() {
-                            i += 1;
                             pairs.push(addr);
                         }
                     }

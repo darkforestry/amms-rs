@@ -43,7 +43,8 @@ use std::{
     time,
 };
 use uniswap_v3_math::{
-    tick, tick_bitmap,
+    tick,
+    tick_bitmap::{self, next_initialized_tick_within_one_word},
     tick_math::{MAX_SQRT_RATIO, MAX_TICK, MIN_SQRT_RATIO, MIN_TICK},
 };
 use GetUniswapV3PoolTickDataBatchRequest::{
@@ -1047,12 +1048,12 @@ impl UniswapV3Factory {
     }
 }
 
-// TODO: add to uv3 math
 fn tick_to_word(tick: i32, tick_spacing: i32) -> i32 {
     let mut compressed = tick / tick_spacing;
     if tick < 0 && tick % tick_spacing != 0 {
         compressed -= 1;
     }
+
     compressed >> 8
 }
 
