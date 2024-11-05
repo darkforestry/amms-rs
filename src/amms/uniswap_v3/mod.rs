@@ -1517,6 +1517,7 @@ mod test {
 
     // TODO: swap sim mut
 
+    // NOTE: test is failing due to invalid push0 opcode, update this test to use a block post push0
     #[tokio::test]
     async fn test_calculate_price() -> eyre::Result<()> {
         let rpc_endpoint = std::env::var("ETHEREUM_PROVIDER")?;
