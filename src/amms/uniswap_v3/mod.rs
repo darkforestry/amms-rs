@@ -833,18 +833,18 @@ impl UniswapV3Factory {
 
             dbg!(min_word, max_word);
 
-            let mut word_range = max_word - min_word + 1;
+            let mut word_range = max_word - min_word;
 
             while word_range > 0 {
                 let remaining_range = max_range - group_range;
                 let range = word_range.min(remaining_range);
 
-                dbg!(min_word, min_word + range - 1);
+                dbg!(min_word, min_word + range);
 
                 group.push(TickBitmapInfo {
                     pool: uniswap_v3_pool.address,
                     minWord: min_word as i16,
-                    maxWord: (min_word + range - 1) as i16,
+                    maxWord: (min_word + range) as i16,
                 });
 
                 word_range -= range;
