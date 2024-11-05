@@ -828,6 +828,7 @@ impl UniswapV3Factory {
             let AMM::UniswapV3Pool(uniswap_v3_pool) = pool else {
                 unreachable!()
             };
+
             let mut min_word = tick_to_word(MIN_TICK, uniswap_v3_pool.tick_spacing);
             let max_word = tick_to_word(MAX_TICK, uniswap_v3_pool.tick_spacing);
 
@@ -892,6 +893,10 @@ impl UniswapV3Factory {
                 .expect("TODO: handle error");
 
             if let Some(tokens_arr) = return_data.as_array() {
+                for x in tokens_arr.iter() {
+                    dbg!(x.as_array().unwrap().len());
+                }
+
                 for (tick_bitmaps, (pool_address, min_word, max_word)) in
                     tokens_arr.iter().zip(pools.iter())
                 {
@@ -939,7 +944,7 @@ impl UniswapV3Factory {
                         for k in (0..256)
                             .filter(|k| (U256_1 << U256::from(*k as u64)) & *bitmap != U256::ZERO)
                         {
-                            let tick_index = i * 256 + k * uniswap_v3_pool.tick_spacing as usize;
+                            let tick_index = (i * 256 + k) * uniswap_v3_pool.tick_spacing as usize;
                             let tick = tick_index as i32;
                             let tick = tick.clamp(MIN_TICK, MAX_TICK);
 
