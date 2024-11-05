@@ -832,15 +832,12 @@ impl UniswapV3Factory {
             let mut min_word = tick_to_word(MIN_TICK, uniswap_v3_pool.tick_spacing);
             let max_word = tick_to_word(MAX_TICK, uniswap_v3_pool.tick_spacing);
 
-            dbg!(min_word, max_word);
-
+            // NOTE: found the issue, we are getting max word - min word which is just pos - negative
             let mut word_range = max_word - min_word;
 
             while word_range > 0 {
                 let remaining_range = max_range - group_range;
                 let range = word_range.min(remaining_range);
-
-                dbg!(min_word, min_word + range);
 
                 group.push(TickBitmapInfo {
                     pool: uniswap_v3_pool.address,
@@ -861,6 +858,7 @@ impl UniswapV3Factory {
                         .collect::<Vec<_>>();
 
                     let calldata = group.drain(..).collect();
+
                     group_range = 0;
 
                     futures.push(async move {
@@ -893,10 +891,6 @@ impl UniswapV3Factory {
                 .expect("TODO: handle error");
 
             if let Some(tokens_arr) = return_data.as_array() {
-                for x in tokens_arr.iter() {
-                    dbg!(x.as_array().unwrap().len());
-                }
-
                 for (tick_bitmaps, (pool_address, min_word, max_word)) in
                     tokens_arr.iter().zip(pools.iter())
                 {
@@ -905,6 +899,8 @@ impl UniswapV3Factory {
                         unreachable!()
                     };
 
+                    // NOTE: we can probably make this more efficient, in amms, we only need applicable tick bitmaps, in this setup we are getting
+                    // everything. We can probably filter out words that are not used at some point
                     for (word_pos, bitmap) in
                         (*min_word..=*max_word).zip(tick_bitmaps.as_array().unwrap())
                     {
@@ -951,8 +947,9 @@ impl UniswapV3Factory {
                         }) {
                             let tick_index = (word_pos * 256 + i) * uniswap_v3_pool.tick_spacing;
 
-                            // NOTE: we should return an error here, we should never be > MAX_TICK or < MIN_TICK
-                            // let tick = tick.clamp(MIN_TICK, MAX_TICK);
+                            if tick_index < MIN_TICK || tick_index > MAX_TICK {
+                                panic!("TODO: return error");
+                            }
 
                             initialized_ticks
                                 .push(Signed::<24, 1>::from_str(&tick_index.to_string()).unwrap());
@@ -977,6 +974,7 @@ impl UniswapV3Factory {
         let mut group = vec![];
 
         for (pool_address, mut ticks) in pool_ticks {
+            // NOTE: ticks is + 1 too much
             while !ticks.is_empty() {
                 let remaining_ticks = max_ticks - group_ticks;
                 let selected_ticks = ticks.drain(0..remaining_ticks.min(ticks.len()));
@@ -1169,33 +1167,6 @@ mod test {
         UniswapV3Factory::sync_all_pools(&mut pools, block_number, provider).await;
 
         if let Some(AMM::UniswapV3Pool(pool)) = pools.pop() {
-            // for (tick, info) in &pool.ticks {
-            //     if info.liquidity_net == 0 {
-            //         dbg!("liquidity net is 0");
-            //     }
-            //     if !info.initialized {
-            //         dbg!("not initialized");
-            //     }
-            //     if info.liquidity_gross == 0 {
-            //         dbg!("liquidity gross is 0");
-            //     }
-            // }
-            let tick_count = pool.ticks.len();
-            let tick_bitmap_count = pool.tick_bitmap.len();
-            dbg!(
-                tick_count,
-                tick_bitmap_count,
-                pool.token_a,
-                pool.token_b,
-                pool.fee,
-                pool.token_a_decimals,
-                pool.token_b_decimals,
-                pool.tick_spacing,
-                pool.liquidity,
-                pool.sqrt_price,
-                pool.tick,
-                pool.tick_spacing,
-            );
             Ok(pool)
         } else {
             unreachable!()

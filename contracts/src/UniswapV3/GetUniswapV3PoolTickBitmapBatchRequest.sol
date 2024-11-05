@@ -28,10 +28,6 @@ contract GetUniswapV3PoolTickBitmapBatchRequest {
             for (int16 j = info.minWord; j <= info.maxWord; ++j) {
                 uint256 tickBitmap = pool.tickBitmap(j);
 
-                if (tickBitmap == 0) {
-                    continue;
-                }
-
                 tickBitmaps[wordIdx] = tickBitmap;
                 ++wordIdx;
             }
