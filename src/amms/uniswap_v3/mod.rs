@@ -692,9 +692,13 @@ impl UniswapV3Factory {
         N: Network,
         P: Provider<T, N>,
     {
+        dbg!("Syncing slot 0");
         UniswapV3Factory::sync_slot_0(pools, block_number, provider.clone()).await;
+        dbg!("Syncing tick bitmaps");
         UniswapV3Factory::sync_tick_bitmaps(pools, block_number, provider.clone()).await;
+        dbg!("Syncing tick data");
         UniswapV3Factory::sync_tick_data(pools, block_number, provider.clone()).await;
+        dbg!("Syncing token decimals");
         UniswapV3Factory::sync_token_decimals(pools, provider).await;
     }
 
@@ -795,7 +799,7 @@ impl UniswapV3Factory {
     {
         let mut futures = FuturesUnordered::new();
 
-        let max_range = 100;
+        let max_range = 12500;
         let mut group_range = 0;
         let mut group = vec![];
 
@@ -859,10 +863,14 @@ impl UniswapV3Factory {
             .collect::<HashMap<Address, &mut AMM>>();
 
         let return_type = DynSolType::Array(Box::new(DynSolType::Array(Box::new(
-            DynSolType::Tuple(vec![DynSolType::Uint(256), DynSolType::Uint(256)]),
+            DynSolType::Tuple(vec![DynSolType::Int(16), DynSolType::Uint(256)]),
         ))));
 
+        let mut i = 0;
         while let Some((pools, return_data)) = futures.next().await {
+            dbg!(i);
+            i += 1;
+
             let return_data = return_type
                 .abi_decode_sequence(&return_data)
                 .expect("TODO: handle error");
@@ -876,10 +884,10 @@ impl UniswapV3Factory {
                         unreachable!()
                     };
 
-                    // Initialize tick_bitmap with zeros across the range
-                    for word_pos in *min_word..=*max_word {
-                        uv3_pool.tick_bitmap.insert(word_pos, U256::ZERO);
-                    }
+                    // // Initialize tick_bitmap with zeros across the range
+                    // for word_pos in *min_word..=*max_word {
+                    //     uv3_pool.tick_bitmap.insert(word_pos, U256::ZERO);
+                    // }
 
                     let tick_bitmaps = tokens.as_array().unwrap();
                     for tick_bitmap in tick_bitmaps {
