@@ -934,27 +934,28 @@ impl UniswapV3Factory {
                     let tick_bitmaps = (min_word..=max_word)
                         .map(|word_pos| {
                             let bitmap = uniswap_v3_pool.tick_bitmap.get(&(word_pos as i16));
-                            bitmap.unwrap_or(&U256::ZERO).clone()
+                            (word_pos, bitmap.unwrap_or(&U256::ZERO).clone())
                         })
                         .collect::<Vec<_>>();
 
                     let mut initialized_ticks = vec![];
 
-                    for (i, bitmap) in tick_bitmaps.iter().enumerate() {
-                        for k in (0..256)
-                            .filter(|k| (U256_1 << U256::from(*k as u64)) & *bitmap != U256::ZERO)
-                        {
-                            let tick_index = (i * 256 + k) * uniswap_v3_pool.tick_spacing as usize;
-                            let tick = tick_index as i32;
+                    // NOTE: this needs to be word pos
+                    for (word_pos, bitmap) in tick_bitmaps.iter() {
+                        if bitmap == &U256::ZERO {
+                            continue;
+                        }
 
-                            if tick < MIN_TICK || tick > MAX_TICK {
-                                dbg!("need to clamp");
-                            }
+                        for i in (0..256).filter(|i| {
+                            (*bitmap & (U256_1 << U256::from(*i as usize))) != U256::ZERO
+                        }) {
+                            let tick_index = (word_pos * 256 + i) * uniswap_v3_pool.tick_spacing;
 
-                            let tick = tick.clamp(MIN_TICK, MAX_TICK);
+                            // NOTE: we should return an error here, we should never be > MAX_TICK or < MIN_TICK
+                            // let tick = tick.clamp(MIN_TICK, MAX_TICK);
 
                             initialized_ticks
-                                .push(Signed::<24, 1>::from_str(&tick.to_string()).unwrap());
+                                .push(Signed::<24, 1>::from_str(&tick_index.to_string()).unwrap());
                         }
                     }
 
