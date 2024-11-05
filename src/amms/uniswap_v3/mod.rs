@@ -946,6 +946,11 @@ impl UniswapV3Factory {
                         {
                             let tick_index = (i * 256 + k) * uniswap_v3_pool.tick_spacing as usize;
                             let tick = tick_index as i32;
+
+                            if tick < MIN_TICK || tick > MAX_TICK {
+                                dbg!("need to clamp");
+                            }
+
                             let tick = tick.clamp(MIN_TICK, MAX_TICK);
 
                             initialized_ticks
@@ -1033,7 +1038,6 @@ impl UniswapV3Factory {
                     };
 
                     if let Some(tick_bitmaps) = tick_bitmaps.as_array() {
-                        dbg!("getting here");
                         // TODO: do we need to insert unitilized ticks as well?
                         for (tick, tick_idx) in tick_bitmaps.iter().zip(tick_info.ticks.iter()) {
                             let tick = tick.as_tuple().unwrap();
