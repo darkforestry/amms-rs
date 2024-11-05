@@ -4,10 +4,8 @@ pub mod filters;
 
 use crate::amms::amm::AutomatedMarketMaker;
 use crate::amms::amm::AMM;
-use crate::amms::factory::AutomatedMarketMakerFactory;
-use crate::amms::factory::DiscoverySync;
 use crate::amms::factory::Factory;
-use alloy::rpc::types::{FilterSet, Log};
+use alloy::rpc::types::FilterSet;
 use alloy::{
     network::Network,
     primitives::{Address, FixedBytes},
@@ -20,10 +18,7 @@ use derive_more::derive::{Deref, DerefMut};
 use discovery::DiscoveryManager;
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
-use governor::Quota;
-use governor::RateLimiter;
-use std::collections::{BTreeMap, HashSet};
-use std::num::NonZeroU32;
+use std::collections::HashSet;
 use std::{collections::HashMap, marker::PhantomData, sync::Arc};
 use tokio::sync::RwLock;
 

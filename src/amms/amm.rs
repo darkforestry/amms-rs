@@ -1,18 +1,10 @@
 use alloy::{
-    network::Network,
     primitives::{Address, B256, U256},
-    providers::Provider,
     rpc::types::Log,
-    transports::Transport,
 };
 use eyre::Result;
 use serde::{Deserialize, Serialize};
-use std::{
-    collections::HashMap,
-    future::Future,
-    hash::{Hash, Hasher},
-    sync::Arc,
-};
+use std::hash::{Hash, Hasher};
 
 use super::{error::AMMError, uniswap_v2::UniswapV2Pool, uniswap_v3::UniswapV3Pool};
 

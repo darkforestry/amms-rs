@@ -1,4 +1,3 @@
-use std::{env, path::Path, process::Command};
 
 const SCRIPT_CMD: &str = "./scripts/build.sh";
 

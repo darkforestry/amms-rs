@@ -1,6 +1,4 @@
 use std::{
-    collections::HashMap,
-    default,
     future::Future,
     hash::{Hash, Hasher},
     sync::Arc,
@@ -10,12 +8,10 @@ use alloy::{
     network::Network,
     primitives::{Address, B256, U256},
     providers::Provider,
-    rpc::types::eth::{Filter, Log},
-    sol_types::SolEvent,
+    rpc::types::eth::Log,
     transports::Transport,
 };
 use eyre::Result;
-use futures::stream::{FuturesUnordered, StreamExt};
 use serde::{Deserialize, Serialize};
 
 use super::{

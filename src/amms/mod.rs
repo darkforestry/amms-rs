@@ -56,7 +56,7 @@ where
             .expect("TODO: handle error");
 
         if let Some(tokens_arr) = return_data.as_array() {
-            for (decimals, token_address) in tokens_arr.iter().zip(token_addresses.into_iter()) {
+            for (decimals, token_address) in tokens_arr.iter().zip(token_addresses.iter()) {
                 token_decimals.insert(
                     *token_address,
                     decimals.as_uint().expect("TODO:").0.to::<u8>(),

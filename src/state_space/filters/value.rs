@@ -106,7 +106,7 @@ where
         let return_tokens = constructor_return.abi_decode_sequence(&res)?;
         if let Some(tokens) = return_tokens.as_array() {
             return tokens
-                .into_iter()
+                .iter()
                 .map(|token| {
                     let pool_info = PoolInfoReturn::try_from(token)?;
                     Ok((pool_info.poolAddress, pool_info))

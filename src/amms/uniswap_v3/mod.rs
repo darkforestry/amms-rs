@@ -1,7 +1,4 @@
-use crate::{
-    amms::{consts::U256_1, uniswap_v2::q64_to_float},
-    state_space::StateSpace,
-};
+use crate::amms::consts::U256_1;
 
 use super::{
     amm::{AutomatedMarketMaker, AMM},
@@ -14,42 +11,25 @@ use crate::amms::uniswap_v3::GetUniswapV3PoolTickBitmapBatchRequest::TickBitmapI
 use alloy::{
     dyn_abi::DynSolType,
     network::Network,
-    primitives::{address, Address, Signed, B256, I256, U256},
+    primitives::{Address, Signed, B256, I256, U256},
     providers::Provider,
     rpc::types::{Filter, FilterSet, Log},
-    signers::k256::elliptic_curve::{group, rand_core::le},
     sol,
-    sol_types::{SolEvent, SolValue},
+    sol_types::SolEvent,
     transports::Transport,
 };
 use eyre::Result;
-use futures::{
-    stream::{FuturesOrdered, FuturesUnordered},
-    StreamExt,
-};
-use governor::{Quota, RateLimiter};
-use itertools::Itertools;
+use futures::{stream::FuturesUnordered, StreamExt};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
 use std::{
     cmp::Ordering,
-    collections::{BTreeMap, HashMap, HashSet},
-    future::Future,
+    collections::{HashMap, HashSet},
     hash::Hash,
-    num::NonZeroU32,
-    result,
     str::FromStr,
     sync::Arc,
-    time,
 };
-use uniswap_v3_math::{
-    tick,
-    tick_bitmap::{self, next_initialized_tick_within_one_word},
-    tick_math::{MAX_SQRT_RATIO, MAX_TICK, MIN_SQRT_RATIO, MIN_TICK},
-};
-use GetUniswapV3PoolTickDataBatchRequest::{
-    GetUniswapV3PoolTickDataBatchRequestInstance, TickDataInfo,
-};
+use uniswap_v3_math::tick_math::{MAX_SQRT_RATIO, MAX_TICK, MIN_SQRT_RATIO, MIN_TICK};
 
 sol! {
     // UniswapV3Factory
@@ -644,9 +624,9 @@ impl UniswapV3Pool {
     }
 }
 
-impl Into<AMM> for UniswapV3Pool {
-    fn into(self) -> AMM {
-        AMM::UniswapV3Pool(self)
+impl From<UniswapV3Pool> for AMM {
+    fn from(val: UniswapV3Pool) -> Self {
+        AMM::UniswapV3Pool(val)
     }
 }
 
@@ -813,10 +793,6 @@ impl UniswapV3Factory {
         N: Network,
         P: Provider<T, N>,
     {
-        let now = time::Instant::now();
-        // TODO: update how we are provisioning the group. We should set a max word pos to fetch and
-        // only include as many pools as we can fit in the max word range in a single group
-
         let mut futures = FuturesUnordered::new();
 
         let max_range = 15900;
@@ -857,7 +833,7 @@ impl UniswapV3Factory {
                         .map(|info| (info.pool, info.minWord, info.maxWord))
                         .collect::<Vec<_>>();
 
-                    let calldata = group.drain(..).collect();
+                    let calldata = std::mem::take(&mut group);
 
                     group_range = 0;
 
@@ -906,7 +882,7 @@ impl UniswapV3Factory {
                     {
                         uv3_pool
                             .tick_bitmap
-                            .insert(word_pos as i16, bitmap.as_uint().unwrap().0);
+                            .insert(word_pos, bitmap.as_uint().unwrap().0);
                     }
                 }
             }
@@ -930,7 +906,7 @@ impl UniswapV3Factory {
                     let tick_bitmaps = (min_word..=max_word)
                         .map(|word_pos| {
                             let bitmap = uniswap_v3_pool.tick_bitmap.get(&(word_pos as i16));
-                            (word_pos, bitmap.unwrap_or(&U256::ZERO).clone())
+                            (word_pos, *bitmap.unwrap_or(&U256::ZERO))
                         })
                         .collect::<Vec<_>>();
 
@@ -947,7 +923,7 @@ impl UniswapV3Factory {
                         }) {
                             let tick_index = (word_pos * 256 + i) * uniswap_v3_pool.tick_spacing;
 
-                            if tick_index < MIN_TICK || tick_index > MAX_TICK {
+                            if !(MIN_TICK..=MAX_TICK).contains(&tick_index) {
                                 panic!("TODO: return error");
                             }
 
@@ -987,7 +963,7 @@ impl UniswapV3Factory {
 
                 if group_ticks >= max_ticks || ticks.is_empty() {
                     let provider = provider.clone();
-                    let calldata = group.drain(..).collect::<Vec<TickDataInfo>>();
+                    let calldata = std::mem::take(&mut group);
 
                     group_ticks = 0;
                     group.clear();
@@ -1065,9 +1041,9 @@ fn tick_to_word(tick: i32, tick_spacing: i32) -> i32 {
     compressed >> 8
 }
 
-impl Into<Factory> for UniswapV3Factory {
-    fn into(self) -> Factory {
-        Factory::UniswapV3Factory(self)
+impl From<UniswapV3Factory> for Factory {
+    fn from(val: UniswapV3Factory) -> Self {
+        Factory::UniswapV3Factory(val)
     }
 }
 
@@ -1102,22 +1078,20 @@ impl AutomatedMarketMakerFactory for UniswapV3Factory {
 }
 
 impl DiscoverySync for UniswapV3Factory {
-    fn discovery_sync<T, N, P>(
+    async fn discovery_sync<T, N, P>(
         &self,
         to_block: u64,
         provider: Arc<P>,
-    ) -> impl Future<Output = Result<Vec<AMM>, AMMError>>
+    ) -> Result<Vec<AMM>, AMMError>
     where
         T: Transport + Clone,
         N: Network,
         P: Provider<T, N>,
     {
-        async move {
-            let mut pools = self.get_all_pools(to_block, provider.clone()).await;
-            UniswapV3Factory::sync_all_pools(&mut pools, to_block, provider).await;
+        let mut pools = self.get_all_pools(to_block, provider.clone()).await;
+        UniswapV3Factory::sync_all_pools(&mut pools, to_block, provider).await;
 
-            Ok(pools)
-        }
+        Ok(pools)
     }
 }
 
