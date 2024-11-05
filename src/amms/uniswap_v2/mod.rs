@@ -13,24 +13,21 @@ use super::{
 use alloy::{
     dyn_abi::DynSolType,
     network::Network,
-    primitives::{Address, Bytes, B256, U256},
+    primitives::{Address, B256, U256},
     providers::Provider,
     rpc::types::Log,
     sol,
-    sol_types::{SolCall, SolEvent},
+    sol_types::SolEvent,
     transports::Transport,
 };
 use eyre::Result;
-use futures::{
-    stream::{futures_unordered, FuturesUnordered},
-    StreamExt,
-};
+use futures::{stream::FuturesUnordered, StreamExt};
 use itertools::Itertools;
 use rug::Float;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, future::Future, hash::Hash, sync::Arc};
+use std::{future::Future, hash::Hash, sync::Arc};
 use IGetUniswapV2PoolDataBatchRequest::IGetUniswapV2PoolDataBatchRequestInstance;
-use IUniswapV2Factory::{IUniswapV2FactoryCalls, IUniswapV2FactoryInstance};
+use IUniswapV2Factory::IUniswapV2FactoryInstance;
 
 sol!(
 // UniswapV2Factory
@@ -161,7 +158,7 @@ impl AutomatedMarketMaker for UniswapV2Pool {
 
     fn calculate_price(&self, base_token: Address, _quote_token: Address) -> Result<f64, AMMError> {
         let price = self.calculate_price_64_x_64(base_token)?;
-        Ok(q64_to_float(price)?)
+        q64_to_float(price)
     }
 }
 
@@ -308,9 +305,9 @@ pub fn div_uu(x: U256, y: U256) -> Result<u128, AMMError> {
     }
 }
 
-impl Into<AMM> for UniswapV2Pool {
-    fn into(self) -> AMM {
-        AMM::UniswapV2Pool(self)
+impl From<UniswapV2Pool> for AMM {
+    fn from(val: UniswapV2Pool) -> Self {
+        AMM::UniswapV2Pool(val)
     }
 }
 
@@ -369,21 +366,17 @@ impl UniswapV2Factory {
                     .await
                     .expect("TODO: handle error");
                 let constructor_return = DynSolType::Array(Box::new(DynSolType::Address));
-                let return_data_tokens =
-                    constructor_return.abi_decode_sequence(&res).expect("TODO:");
 
-                return_data_tokens
+                constructor_return.abi_decode_sequence(&res).expect("TODO:")
             });
         }
 
         let mut pairs = Vec::new();
-        let mut i = 0;
         while let Some(return_data) = futures_unordered.next().await {
             if let Some(tokens_arr) = return_data.as_array() {
                 for token in tokens_arr {
                     if let Some(addr) = token.as_address() {
                         if !addr.is_zero() {
-                            i += 1;
                             pairs.push(addr);
                         }
                     }
@@ -443,7 +436,6 @@ impl UniswapV2Factory {
         }
 
         let mut amms = Vec::new();
-        let mut i = 0;
         while let Some((group, return_data)) = futures_unordered.next().await {
             if let Some(tokens_arr) = return_data.as_array() {
                 for (token, pool_address) in tokens_arr.iter().zip(group.iter()) {
@@ -453,8 +445,6 @@ impl UniswapV2Factory {
                             if token_a.is_zero() {
                                 continue;
                             }
-
-                            i += 1;
 
                             let pool = UniswapV2Pool {
                                 address: *pool_address,
@@ -486,9 +476,9 @@ impl UniswapV2Factory {
     }
 }
 
-impl Into<Factory> for UniswapV2Factory {
-    fn into(self) -> Factory {
-        Factory::UniswapV2Factory(self)
+impl From<UniswapV2Factory> for Factory {
+    fn from(val: UniswapV2Factory) -> Self {
+        Factory::UniswapV2Factory(val)
     }
 }
 

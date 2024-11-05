@@ -1,13 +1,11 @@
 use std::sync::Arc;
 
 use alloy::{
-    primitives::{address, Address},
-    providers::ProviderBuilder,
-    rpc::client::ClientBuilder,
-    transports::layers::{RetryBackoffLayer, RetryBackoffService},
+    primitives::address, providers::ProviderBuilder, rpc::client::ClientBuilder,
+    transports::layers::RetryBackoffLayer,
 };
 use pamms::{
-    amms::{amm::AutomatedMarketMaker, uniswap_v2::UniswapV2Factory, uniswap_v3::UniswapV3Factory},
+    amms::{uniswap_v2::UniswapV2Factory, uniswap_v3::UniswapV3Factory},
     state_space::StateSpaceBuilder,
     ThrottleLayer,
 };

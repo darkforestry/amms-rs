@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use alloy::primitives::{Address, FixedBytes};
 
-use crate::amms::factory::{AutomatedMarketMakerFactory, Factory};
+use crate::amms::factory::Factory;
 
 use super::filters::filter::PoolFilter;
 

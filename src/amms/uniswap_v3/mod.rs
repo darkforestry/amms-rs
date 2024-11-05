@@ -1,7 +1,4 @@
-use crate::{
-    amms::{consts::U256_1, uniswap_v2::q64_to_float},
-    state_space::StateSpace,
-};
+use crate::amms::consts::U256_1;
 
 use super::{
     amm::{AutomatedMarketMaker, AMM},
@@ -14,41 +11,25 @@ use crate::amms::uniswap_v3::GetUniswapV3PoolTickBitmapBatchRequest::TickBitmapI
 use alloy::{
     dyn_abi::DynSolType,
     network::Network,
-    primitives::{address, Address, Signed, B256, I256, U256},
+    primitives::{Address, Signed, B256, I256, U256},
     providers::Provider,
     rpc::types::{Filter, FilterSet, Log},
-    signers::k256::elliptic_curve::{group, rand_core::le},
     sol,
-    sol_types::{SolEvent, SolValue},
+    sol_types::SolEvent,
     transports::Transport,
 };
 use eyre::Result;
-use futures::{
-    stream::{FuturesOrdered, FuturesUnordered},
-    StreamExt,
-};
-use governor::{Quota, RateLimiter};
-use itertools::Itertools;
+use futures::{stream::FuturesUnordered, StreamExt};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
 use std::{
     cmp::Ordering,
-    collections::{BTreeMap, HashMap, HashSet},
-    future::Future,
+    collections::{HashMap, HashSet},
     hash::Hash,
-    num::NonZeroU32,
-    result,
     str::FromStr,
     sync::Arc,
-    time,
 };
-use uniswap_v3_math::{
-    tick, tick_bitmap,
-    tick_math::{MAX_SQRT_RATIO, MAX_TICK, MIN_SQRT_RATIO, MIN_TICK},
-};
-use GetUniswapV3PoolTickDataBatchRequest::{
-    GetUniswapV3PoolTickDataBatchRequestInstance, TickDataInfo,
-};
+use uniswap_v3_math::tick_math::{MAX_SQRT_RATIO, MAX_TICK, MIN_SQRT_RATIO, MIN_TICK};
 
 sol! {
     // UniswapV3Factory
@@ -330,6 +311,8 @@ impl AutomatedMarketMaker for UniswapV3Pool {
 
             current_state.amount_calculated -= I256::from_raw(step.amount_out);
 
+            // TODO: adjust for fee protocol
+
             // If the price moved all the way to the next price, recompute the liquidity change for the next iteration
             if current_state.sqrt_price_x_96 == step.sqrt_price_next_x96 {
                 if step.initialized {
@@ -555,7 +538,7 @@ impl UniswapV3Pool {
 
         if liquidity_delta != 0 {
             //if the tick is between the tick lower and tick upper, update the liquidity between the ticks
-            if self.tick > tick_lower && self.tick < tick_upper {
+            if self.tick >= tick_lower && self.tick < tick_upper {
                 self.liquidity = if liquidity_delta < 0 {
                     self.liquidity - ((-liquidity_delta) as u128)
                 } else {
@@ -641,9 +624,9 @@ impl UniswapV3Pool {
     }
 }
 
-impl Into<AMM> for UniswapV3Pool {
-    fn into(self) -> AMM {
-        AMM::UniswapV3Pool(self)
+impl From<UniswapV3Pool> for AMM {
+    fn from(val: UniswapV3Pool) -> Self {
+        AMM::UniswapV3Pool(val)
     }
 }
 
@@ -810,10 +793,6 @@ impl UniswapV3Factory {
         N: Network,
         P: Provider<T, N>,
     {
-        let now = time::Instant::now();
-        // TODO: update how we are provisioning the group. We should set a max word pos to fetch and
-        // only include as many pools as we can fit in the max word range in a single group
-
         let mut futures = FuturesUnordered::new();
 
         let max_range = 15900;
@@ -825,9 +804,12 @@ impl UniswapV3Factory {
             let AMM::UniswapV3Pool(uniswap_v3_pool) = pool else {
                 unreachable!()
             };
+
             let mut min_word = tick_to_word(MIN_TICK, uniswap_v3_pool.tick_spacing);
             let max_word = tick_to_word(MAX_TICK, uniswap_v3_pool.tick_spacing);
-            let mut word_range = max_word - min_word + 1;
+
+            // NOTE: found the issue, we are getting max word - min word which is just pos - negative
+            let mut word_range = max_word - min_word;
 
             while word_range > 0 {
                 let remaining_range = max_range - group_range;
@@ -840,18 +822,19 @@ impl UniswapV3Factory {
                 });
 
                 word_range -= range;
-                min_word += range;
+                min_word += range - 1;
                 group_range += range;
 
                 // If group is full, fire it off and reset
-                if group_range >= max_range {
+                if group_range >= max_range || word_range <= 0 {
                     let provider = provider.clone();
                     let pool_info = group
                         .iter()
                         .map(|info| (info.pool, info.minWord, info.maxWord))
                         .collect::<Vec<_>>();
 
-                    let calldata = group.drain(..).collect();
+                    let calldata = std::mem::take(&mut group);
+
                     group_range = 0;
 
                     futures.push(async move {
@@ -892,12 +875,14 @@ impl UniswapV3Factory {
                         unreachable!()
                     };
 
+                    // NOTE: we can probably make this more efficient, in amms, we only need applicable tick bitmaps, in this setup we are getting
+                    // everything. We can probably filter out words that are not used at some point
                     for (word_pos, bitmap) in
                         (*min_word..=*max_word).zip(tick_bitmaps.as_array().unwrap())
                     {
                         uv3_pool
                             .tick_bitmap
-                            .insert(word_pos as i16, bitmap.as_uint().unwrap().0);
+                            .insert(word_pos, bitmap.as_uint().unwrap().0);
                     }
                 }
             }
@@ -921,22 +906,29 @@ impl UniswapV3Factory {
                     let tick_bitmaps = (min_word..=max_word)
                         .map(|word_pos| {
                             let bitmap = uniswap_v3_pool.tick_bitmap.get(&(word_pos as i16));
-                            bitmap.unwrap_or(&U256::ZERO).clone()
+                            (word_pos, *bitmap.unwrap_or(&U256::ZERO))
                         })
                         .collect::<Vec<_>>();
 
                     let mut initialized_ticks = vec![];
 
-                    for (i, bitmap) in tick_bitmaps.iter().enumerate() {
-                        for k in (0..256)
-                            .filter(|k| (U256_1 << U256::from(*k as u64)) & *bitmap != U256::ZERO)
-                        {
-                            let tick_index = i * 256 + k * uniswap_v3_pool.tick_spacing as usize;
-                            let tick = tick_index as i32;
-                            let tick = tick.clamp(MIN_TICK, MAX_TICK);
+                    // NOTE: this needs to be word pos
+                    for (word_pos, bitmap) in tick_bitmaps.iter() {
+                        if bitmap == &U256::ZERO {
+                            continue;
+                        }
+
+                        for i in (0..256).filter(|i| {
+                            (*bitmap & (U256_1 << U256::from(*i as usize))) != U256::ZERO
+                        }) {
+                            let tick_index = (word_pos * 256 + i) * uniswap_v3_pool.tick_spacing;
+
+                            if !(MIN_TICK..=MAX_TICK).contains(&tick_index) {
+                                panic!("TODO: return error");
+                            }
 
                             initialized_ticks
-                                .push(Signed::<24, 1>::from_str(&tick.to_string()).unwrap());
+                                .push(Signed::<24, 1>::from_str(&tick_index.to_string()).unwrap());
                         }
                     }
 
@@ -958,19 +950,20 @@ impl UniswapV3Factory {
         let mut group = vec![];
 
         for (pool_address, mut ticks) in pool_ticks {
+            // NOTE: ticks is + 1 too much
             while !ticks.is_empty() {
                 let remaining_ticks = max_ticks - group_ticks;
-                let ticks = ticks.drain(0..remaining_ticks.min(ticks.len()));
-                group_ticks += ticks.len();
+                let selected_ticks = ticks.drain(0..remaining_ticks.min(ticks.len()));
+                group_ticks += selected_ticks.len();
 
                 group.push(GetUniswapV3PoolTickDataBatchRequest::TickDataInfo {
                     pool: pool_address,
-                    ticks: ticks.collect(),
+                    ticks: selected_ticks.collect(),
                 });
 
-                if group_ticks >= max_ticks {
+                if group_ticks >= max_ticks || ticks.is_empty() {
                     let provider = provider.clone();
-                    let calldata = group.drain(..).collect::<Vec<TickDataInfo>>();
+                    let calldata = std::mem::take(&mut group);
 
                     group_ticks = 0;
                     group.clear();
@@ -1020,6 +1013,7 @@ impl UniswapV3Factory {
                     };
 
                     if let Some(tick_bitmaps) = tick_bitmaps.as_array() {
+                        // TODO: do we need to insert unitilized ticks as well?
                         for (tick, tick_idx) in tick_bitmaps.iter().zip(tick_info.ticks.iter()) {
                             let tick = tick.as_tuple().unwrap();
 
@@ -1038,18 +1032,18 @@ impl UniswapV3Factory {
     }
 }
 
-// TODO: add to uv3 math
 fn tick_to_word(tick: i32, tick_spacing: i32) -> i32 {
     let mut compressed = tick / tick_spacing;
     if tick < 0 && tick % tick_spacing != 0 {
         compressed -= 1;
     }
+
     compressed >> 8
 }
 
-impl Into<Factory> for UniswapV3Factory {
-    fn into(self) -> Factory {
-        Factory::UniswapV3Factory(self)
+impl From<UniswapV3Factory> for Factory {
+    fn from(val: UniswapV3Factory) -> Self {
+        Factory::UniswapV3Factory(val)
     }
 }
 
@@ -1084,21 +1078,441 @@ impl AutomatedMarketMakerFactory for UniswapV3Factory {
 }
 
 impl DiscoverySync for UniswapV3Factory {
-    fn discovery_sync<T, N, P>(
+    async fn discovery_sync<T, N, P>(
         &self,
         to_block: u64,
         provider: Arc<P>,
-    ) -> impl Future<Output = Result<Vec<AMM>, AMMError>>
+    ) -> Result<Vec<AMM>, AMMError>
     where
         T: Transport + Clone,
         N: Network,
         P: Provider<T, N>,
     {
-        async move {
-            let mut pools = self.get_all_pools(to_block, provider.clone()).await;
-            UniswapV3Factory::sync_all_pools(&mut pools, to_block, provider).await;
+        let mut pools = self.get_all_pools(to_block, provider.clone()).await;
+        UniswapV3Factory::sync_all_pools(&mut pools, to_block, provider).await;
 
-            Ok(pools)
+        Ok(pools)
+    }
+}
+
+#[cfg(test)]
+mod test {
+
+    use crate::ThrottleLayer;
+
+    use super::*;
+
+    use alloy::{
+        primitives::{address, aliases::U24, U160, U256},
+        providers::ProviderBuilder,
+        rpc::client::ClientBuilder,
+        transports::layers::RetryBackoffLayer,
+    };
+
+    sol! {
+        /// Interface of the Quoter
+        #[derive(Debug, PartialEq, Eq)]
+        #[sol(rpc)]
+        contract IQuoter {
+            function quoteExactInputSingle(address tokenIn, address tokenOut,uint24 fee, uint256 amountIn, uint160 sqrtPriceLimitX96) external returns (uint256 amountOut);
         }
+    }
+
+    async fn usdc_weth_pool<T, N, P>(
+        block_number: u64,
+        provider: Arc<P>,
+    ) -> eyre::Result<UniswapV3Pool>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N> + Clone,
+    {
+        let pool = AMM::UniswapV3Pool(UniswapV3Pool {
+            address: address!("88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640"),
+            token_a: address!("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"),
+            token_b: address!("C02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"),
+            tick_spacing: 10,
+            fee: 500,
+            ..Default::default()
+        });
+
+        let mut pools = vec![pool];
+
+        UniswapV3Factory::sync_all_pools(&mut pools, block_number, provider).await;
+
+        if let Some(AMM::UniswapV3Pool(pool)) = pools.pop() {
+            Ok(pool)
+        } else {
+            unreachable!()
+        }
+    }
+
+    async fn weth_link_pool<T, N, P>(
+        block_number: u64,
+        provider: Arc<P>,
+    ) -> eyre::Result<UniswapV3Pool>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N> + Clone,
+    {
+        let pool = AMM::UniswapV3Pool(UniswapV3Pool {
+            address: address!("5d4F3C6fA16908609BAC31Ff148Bd002AA6b8c83"),
+            token_a: address!("514910771AF9Ca656af840dff83E8264EcF986CA"),
+            token_b: address!("C02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"),
+            tick_spacing: 10,
+            fee: 500,
+            ..Default::default()
+        });
+
+        let mut pools = vec![pool];
+
+        UniswapV3Factory::sync_all_pools(&mut pools, block_number, provider).await;
+
+        if let Some(AMM::UniswapV3Pool(pool)) = pools.pop() {
+            Ok(pool)
+        } else {
+            unreachable!()
+        }
+    }
+
+    #[tokio::test]
+    async fn test_simulate_swap_usdc_weth() -> eyre::Result<()> {
+        let rpc_endpoint = std::env::var("ETHEREUM_PROVIDER")?;
+
+        let client = ClientBuilder::default()
+            .layer(ThrottleLayer::new(250, None)?)
+            .layer(RetryBackoffLayer::new(5, 200, 330))
+            .http(rpc_endpoint.parse()?);
+
+        let provider = Arc::new(ProviderBuilder::new().on_client(client));
+
+        let current_block = provider.get_block_number().await?;
+        let pool = usdc_weth_pool(current_block, provider.clone()).await?;
+
+        let quoter = IQuoter::new(
+            address!("b27308f9f90d607463bb33ea1bebb41c27ce5ab6"),
+            provider.clone(),
+        );
+
+        // Test swap from USDC to WETH
+
+        let amount_in = U256::from(100000000); // 100 USDC
+        let amount_out = pool.simulate_swap(pool.token_a, Address::default(), amount_in)?;
+
+        let expected_amount_out = quoter
+            .quoteExactInputSingle(
+                pool.token_a,
+                pool.token_b,
+                U24::from(pool.fee),
+                amount_in,
+                U160::ZERO,
+            )
+            .block(current_block.into())
+            .call()
+            .await?;
+
+        assert_eq!(amount_out, expected_amount_out.amountOut);
+
+        let amount_in_1 = U256::from(10000000000_u64); // 10_000 USDC
+        let amount_out_1 = pool.simulate_swap(pool.token_a, Address::default(), amount_in_1)?;
+
+        let expected_amount_out_1 = quoter
+            .quoteExactInputSingle(
+                pool.token_a,
+                pool.token_b,
+                U24::from(pool.fee),
+                amount_in_1,
+                U160::ZERO,
+            )
+            .block(current_block.into())
+            .call()
+            .await?;
+
+        assert_eq!(amount_out_1, expected_amount_out_1.amountOut);
+
+        let amount_in_2 = U256::from(10000000000000_u128); // 10_000_000 USDC
+        let amount_out_2 = pool.simulate_swap(pool.token_a, Address::default(), amount_in_2)?;
+
+        let expected_amount_out_2 = quoter
+            .quoteExactInputSingle(
+                pool.token_a,
+                pool.token_b,
+                U24::from(pool.fee),
+                amount_in_2,
+                U160::ZERO,
+            )
+            .block(current_block.into())
+            .call()
+            .await?;
+
+        assert_eq!(amount_out_2, expected_amount_out_2.amountOut);
+
+        let amount_in_3 = U256::from(100000000000000_u128); // 100_000_000 USDC
+        let amount_out_3 = pool.simulate_swap(pool.token_a, Address::default(), amount_in_3)?;
+
+        let expected_amount_out_3 = quoter
+            .quoteExactInputSingle(
+                pool.token_a,
+                pool.token_b,
+                U24::from(pool.fee),
+                amount_in_3,
+                U160::ZERO,
+            )
+            .block(current_block.into())
+            .call()
+            .await?;
+
+        assert_eq!(amount_out_3, expected_amount_out_3.amountOut);
+
+        // Test swap from WETH to USDC
+
+        let amount_in = U256::from(1000000000000000000_u128); // 1 ETH
+        let amount_out = pool.simulate_swap(pool.token_b, Address::default(), amount_in)?;
+        let expected_amount_out = quoter
+            .quoteExactInputSingle(
+                pool.token_b,
+                pool.token_a,
+                U24::from(pool.fee),
+                amount_in,
+                U160::ZERO,
+            )
+            .block(current_block.into())
+            .call()
+            .await?;
+        assert_eq!(amount_out, expected_amount_out.amountOut);
+
+        let amount_in_1 = U256::from(10000000000000000000_u128); // 10 ETH
+        let amount_out_1 = pool.simulate_swap(pool.token_b, Address::default(), amount_in_1)?;
+        let expected_amount_out_1 = quoter
+            .quoteExactInputSingle(
+                pool.token_b,
+                pool.token_a,
+                U24::from(pool.fee),
+                amount_in_1,
+                U160::ZERO,
+            )
+            .block(current_block.into())
+            .call()
+            .await?;
+        assert_eq!(amount_out_1, expected_amount_out_1.amountOut);
+
+        let amount_in_2 = U256::from(100000000000000000000_u128); // 100 ETH
+        let amount_out_2 = pool.simulate_swap(pool.token_b, Address::default(), amount_in_2)?;
+        let expected_amount_out_2 = quoter
+            .quoteExactInputSingle(
+                pool.token_b,
+                pool.token_a,
+                U24::from(pool.fee),
+                amount_in_2,
+                U160::ZERO,
+            )
+            .block(current_block.into())
+            .call()
+            .await?;
+        assert_eq!(amount_out_2, expected_amount_out_2.amountOut);
+
+        let amount_in_3 = U256::from(100000000000000000000_u128); // 100_000 ETH
+        let amount_out_3 = pool.simulate_swap(pool.token_b, Address::default(), amount_in_3)?;
+        let expected_amount_out_3 = quoter
+            .quoteExactInputSingle(
+                pool.token_b,
+                pool.token_a,
+                U24::from(pool.fee),
+                amount_in_3,
+                U160::ZERO,
+            )
+            .block(current_block.into())
+            .call()
+            .await?;
+
+        assert_eq!(amount_out_3, expected_amount_out_3.amountOut);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_simulate_swap_link_weth() -> eyre::Result<()> {
+        let rpc_endpoint = std::env::var("ETHEREUM_PROVIDER")?;
+
+        let client = ClientBuilder::default()
+            .layer(ThrottleLayer::new(250, None)?)
+            .layer(RetryBackoffLayer::new(5, 200, 330))
+            .http(rpc_endpoint.parse()?);
+
+        let provider = Arc::new(ProviderBuilder::new().on_client(client));
+
+        let current_block = provider.get_block_number().await?;
+        let pool = weth_link_pool(current_block, provider.clone()).await?;
+
+        let quoter = IQuoter::new(
+            address!("b27308f9f90d607463bb33ea1bebb41c27ce5ab6"),
+            provider.clone(),
+        );
+
+        // Test swap LINK to WETH
+        let amount_in = U256::from(1000000000000000000_u128); // 1 LINK
+        let amount_out = pool.simulate_swap(pool.token_a, Address::default(), amount_in)?;
+        let expected_amount_out = quoter
+            .quoteExactInputSingle(
+                pool.token_a,
+                pool.token_b,
+                U24::from(pool.fee),
+                amount_in,
+                U160::ZERO,
+            )
+            .block(current_block.into())
+            .call()
+            .await?;
+
+        assert_eq!(amount_out, expected_amount_out.amountOut);
+
+        let amount_in_1 = U256::from(100000000000000000000_u128); // 100 LINK
+        let amount_out_1 = pool
+            .simulate_swap(pool.token_a, Address::default(), amount_in_1)
+            .unwrap();
+        let expected_amount_out_1 = quoter
+            .quoteExactInputSingle(
+                pool.token_a,
+                pool.token_b,
+                U24::from(pool.fee),
+                amount_in_1,
+                U160::ZERO,
+            )
+            .block(current_block.into())
+            .call()
+            .await?;
+
+        assert_eq!(amount_out_1, expected_amount_out_1.amountOut);
+
+        let amount_in_2 = U256::from(10000000000000000000000_u128); // 10_000 LINK
+        let amount_out_2 = pool
+            .simulate_swap(pool.token_a, Address::default(), amount_in_2)
+            .unwrap();
+        let expected_amount_out_2 = quoter
+            .quoteExactInputSingle(
+                pool.token_a,
+                pool.token_b,
+                U24::from(pool.fee),
+                amount_in_2,
+                U160::ZERO,
+            )
+            .block(current_block.into())
+            .call()
+            .await?;
+
+        assert_eq!(amount_out_2, expected_amount_out_2.amountOut);
+
+        let amount_in_3 = U256::from(10000000000000000000000_u128); // 1_000_000 LINK
+        let amount_out_3 = pool
+            .simulate_swap(pool.token_a, Address::default(), amount_in_3)
+            .unwrap();
+        let expected_amount_out_3 = quoter
+            .quoteExactInputSingle(
+                pool.token_a,
+                pool.token_b,
+                U24::from(pool.fee),
+                amount_in_3,
+                U160::ZERO,
+            )
+            .block(current_block.into())
+            .call()
+            .await?;
+
+        assert_eq!(amount_out_3, expected_amount_out_3.amountOut);
+
+        // Test swap WETH to LINK
+
+        let amount_in = U256::from(1000000000000000000_u128); // 1 ETH
+        let amount_out = pool.simulate_swap(pool.token_b, Address::default(), amount_in)?;
+        let expected_amount_out = quoter
+            .quoteExactInputSingle(
+                pool.token_b,
+                pool.token_a,
+                U24::from(pool.fee),
+                amount_in,
+                U160::ZERO,
+            )
+            .block(current_block.into())
+            .call()
+            .await?;
+
+        assert_eq!(amount_out, expected_amount_out.amountOut);
+
+        let amount_in_1 = U256::from(10000000000000000000_u128); // 10 ETH
+        let amount_out_1 = pool.simulate_swap(pool.token_b, Address::default(), amount_in_1)?;
+        let expected_amount_out_1 = quoter
+            .quoteExactInputSingle(
+                pool.token_b,
+                pool.token_a,
+                U24::from(pool.fee),
+                amount_in_1,
+                U160::ZERO,
+            )
+            .block(current_block.into())
+            .call()
+            .await?;
+
+        assert_eq!(amount_out_1, expected_amount_out_1.amountOut);
+
+        let amount_in_2 = U256::from(100000000000000000000_u128); // 100 ETH
+        let amount_out_2 = pool.simulate_swap(pool.token_b, Address::default(), amount_in_2)?;
+        let expected_amount_out_2 = quoter
+            .quoteExactInputSingle(
+                pool.token_b,
+                pool.token_a,
+                U24::from(pool.fee),
+                amount_in_2,
+                U160::ZERO,
+            )
+            .block(current_block.into())
+            .call()
+            .await?;
+        assert_eq!(amount_out_2, expected_amount_out_2.amountOut);
+
+        let amount_in_3 = U256::from(100000000000000000000_u128); // 100_000 ETH
+        let amount_out_3 = pool.simulate_swap(pool.token_b, Address::default(), amount_in_3)?;
+        let expected_amount_out_3 = quoter
+            .quoteExactInputSingle(
+                pool.token_b,
+                pool.token_a,
+                U24::from(pool.fee),
+                amount_in_3,
+                U160::ZERO,
+            )
+            .block(current_block.into())
+            .call()
+            .await?;
+
+        assert_eq!(amount_out_3, expected_amount_out_3.amountOut);
+
+        Ok(())
+    }
+
+    // TODO: swap sim mut
+
+    // NOTE: test is failing due to invalid push0 opcode, update this test to use a block post push0
+    #[tokio::test]
+    async fn test_calculate_price() -> eyre::Result<()> {
+        let rpc_endpoint = std::env::var("ETHEREUM_PROVIDER")?;
+
+        let client = ClientBuilder::default()
+            .layer(ThrottleLayer::new(250, None)?)
+            .layer(RetryBackoffLayer::new(5, 200, 330))
+            .http(rpc_endpoint.parse()?);
+
+        let provider = Arc::new(ProviderBuilder::new().on_client(client));
+
+        let block_number = 16515398;
+        let pool = usdc_weth_pool(block_number, provider.clone()).await?;
+
+        let float_price_a = pool.calculate_price(pool.token_a, Address::default())?;
+
+        let float_price_b = pool.calculate_price(pool.token_b, Address::default())?;
+
+        assert_eq!(float_price_a, 0.0006081236083117488);
+        assert_eq!(float_price_b, 1644.4025299004006);
+
+        Ok(())
     }
 }
