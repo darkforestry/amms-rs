@@ -799,7 +799,7 @@ impl UniswapV3Factory {
     {
         let mut futures = FuturesUnordered::new();
 
-        let max_range = 12500;
+        let max_range = 15900;
         let mut group_range = 0;
         let mut group = vec![];
 
@@ -867,6 +867,9 @@ impl UniswapV3Factory {
         ))));
 
         let mut i = 0;
+
+        // TODO: collect all futures and then process in parallel
+
         while let Some((pools, return_data)) = futures.next().await {
             dbg!(i);
             i += 1;
