@@ -964,8 +964,8 @@ impl UniswapV3Factory {
         let mut group_ticks = 0;
         let mut group = vec![];
 
+        // TODO: collect all futures and then process in parallel
         for (pool_address, mut ticks) in pool_ticks {
-            // NOTE: ticks is + 1 too much
             while !ticks.is_empty() {
                 let remaining_ticks = max_ticks - group_ticks;
                 let selected_ticks = ticks.drain(0..remaining_ticks.min(ticks.len()));
