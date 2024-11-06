@@ -692,9 +692,13 @@ impl UniswapV3Factory {
         N: Network,
         P: Provider<T, N>,
     {
+        dbg!("Syncing slot 0");
         UniswapV3Factory::sync_slot_0(pools, block_number, provider.clone()).await;
+        dbg!("Syncing tick bitmaps");
         UniswapV3Factory::sync_tick_bitmaps(pools, block_number, provider.clone()).await;
+        dbg!("Syncing tick data");
         UniswapV3Factory::sync_tick_data(pools, block_number, provider.clone()).await;
+        dbg!("Syncing token decimals");
         UniswapV3Factory::sync_token_decimals(pools, provider).await;
     }
 
@@ -858,16 +862,24 @@ impl UniswapV3Factory {
             .map(|pool| (pool.address(), pool))
             .collect::<HashMap<Address, &mut AMM>>();
 
-        let return_type =
-            DynSolType::Array(Box::new(DynSolType::Array(Box::new(DynSolType::Uint(256)))));
+        let return_type = DynSolType::Array(Box::new(DynSolType::Array(Box::new(
+            DynSolType::Tuple(vec![DynSolType::Int(16), DynSolType::Uint(256)]),
+        ))));
+
+        let mut i = 0;
+
+        // TODO: collect all futures and then process in parallel
 
         while let Some((pools, return_data)) = futures.next().await {
+            dbg!(i);
+            i += 1;
+
             let return_data = return_type
                 .abi_decode_sequence(&return_data)
                 .expect("TODO: handle error");
 
             if let Some(tokens_arr) = return_data.as_array() {
-                for (tick_bitmaps, (pool_address, min_word, max_word)) in
+                for (tokens, (pool_address, min_word, max_word)) in
                     tokens_arr.iter().zip(pools.iter())
                 {
                     let pool = pool_set.get_mut(pool_address).expect("TODO: handle error");
@@ -875,14 +887,17 @@ impl UniswapV3Factory {
                         unreachable!()
                     };
 
-                    // NOTE: we can probably make this more efficient, in amms, we only need applicable tick bitmaps, in this setup we are getting
-                    // everything. We can probably filter out words that are not used at some point
-                    for (word_pos, bitmap) in
-                        (*min_word..=*max_word).zip(tick_bitmaps.as_array().unwrap())
-                    {
-                        uv3_pool
-                            .tick_bitmap
-                            .insert(word_pos, bitmap.as_uint().unwrap().0);
+                    // // Initialize tick_bitmap with zeros across the range
+                    // for word_pos in *min_word..=*max_word {
+                    //     uv3_pool.tick_bitmap.insert(word_pos, U256::ZERO);
+                    // }
+
+                    let tick_bitmaps = tokens.as_array().unwrap();
+                    for tick_bitmap in tick_bitmaps {
+                        let tick_bitmap = tick_bitmap.as_tuple().unwrap();
+                        let word_pos = tick_bitmap[0].as_int().unwrap().0.try_into().unwrap();
+                        let bitmap = tick_bitmap[1].as_uint().unwrap().0;
+                        uv3_pool.tick_bitmap.insert(word_pos, bitmap);
                     }
                 }
             }
@@ -949,8 +964,8 @@ impl UniswapV3Factory {
         let mut group_ticks = 0;
         let mut group = vec![];
 
+        // TODO: collect all futures and then process in parallel
         for (pool_address, mut ticks) in pool_ticks {
-            // NOTE: ticks is + 1 too much
             while !ticks.is_empty() {
                 let remaining_ticks = max_ticks - group_ticks;
                 let selected_ticks = ticks.drain(0..remaining_ticks.min(ticks.len()));

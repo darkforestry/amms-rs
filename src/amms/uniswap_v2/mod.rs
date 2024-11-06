@@ -398,7 +398,7 @@ impl UniswapV2Factory {
         N: Network,
         P: Provider<T, N>,
     {
-        let step = 127;
+        let step = 120;
         let pairs = pairs
             .into_iter()
             .chunks(step)
