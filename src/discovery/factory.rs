@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
-use tokio::task;
-use tokio_stream::{self as stream, StreamExt};
+use futures::stream::{FuturesUnordered, StreamExt};
 
 use alloy::{
     network::Network,
@@ -55,16 +54,9 @@ where
     }
     tracing::trace!(?event_signatures);
 
-    let block_filter = Filter::new().event_signature(event_signatures);
-
+    // For each block within the range, get all pairs asynchronously
     let mut from_block = 0;
     let block_number = provider.get_block_number().await?;
-
-    // For each block within the range, get all pairs asynchronously
-    // let block_step = 50000;
-
-    // Set up filter and events to filter each block you are searching by
-    let mut identified_factories: HashMap<Address, (Factory, u64)> = HashMap::new();
 
     // set up a vector with the block range for each batch
     let mut block_num_vec: Vec<(u64, u64)> = Vec::new();
@@ -82,21 +74,28 @@ where
         from_block += block_step;
     }
 
-    // Create stream to process block async
-    let stream = stream::iter(&block_num_vec).map(|&(from_block, target_block)| {
+    // Create futures unordered
+    let factories_tasks = FuturesUnordered::new();
+    // Set up filter and events to filter each block you are searching by
+    let block_filter = Filter::new().event_signature(event_signatures);
+
+    // Push task to futures unordered
+    for (from_block, target_block) in block_num_vec {
         let block_filter = block_filter.clone();
         let provider = provider.clone();
-        task::spawn(async move {
+        factories_tasks.push(async move {
             process_block_logs_batch(&from_block, &target_block, provider, &block_filter).await
-        })
-    });
+        });
+    }
 
-    // collect the results of the stream in a vector
-    let results = stream.collect::<Vec<_>>().await;
+    // collect the results when they are finished
+    let factory_results = factories_tasks.collect::<Vec<_>>().await;
 
-    for result in results {
-        match result.await {
-            Ok(Ok(local_identified_factories)) => {
+    // process resulst
+    let mut identified_factories: HashMap<Address, (Factory, u64)> = HashMap::new();
+    for result in factory_results {
+        match result {
+            Ok(local_identified_factories) => {
                 for (addrs, (factory, count)) in local_identified_factories {
                     identified_factories
                         .entry(addrs)
@@ -104,13 +103,9 @@ where
                         .or_insert((factory, count)); // Insert new entry if the address doesn't exist
                 }
             }
-            Ok(Err(err)) => {
-                // The task ran successfully, but there was an error in the Result.
-                eprintln!("Error occurred: {:?}", err);
-            }
-            Err(join_err) => {
+            Err(e) => {
                 // The task itself failed (possibly panicked).
-                eprintln!("Task join error: {:?}", join_err);
+                tracing::error!("Task error: {:?}", e)
             }
         }
     }

@@ -23,7 +23,6 @@ serde = "1.0"
 serde_json = "1.0"
 thiserror = "1.0"
 tokio = { version = "1.41", default-features = false }
-tokio-stream = "0.1.16"
 tracing = "0.1"
 uniswap_v3_math = { git = "https://github.com/0xKitsune/uniswap-v3-math.git" }
 alloy = { version = "0.5", features = [
