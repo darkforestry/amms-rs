@@ -35,7 +35,6 @@ contract GetUniswapV3PoolTickBitmapBatchRequest {
                 }
 
                 // Encode the word pos in the tick spacing after the first tick
-                uint24 tickSpacing = uint24(pool.tickSpacing());
                 uint256 encodedWordPosition;
                 assembly {
                     // Shift left 255 to insert the word pos in the tick spacing after the first tick
@@ -74,5 +73,4 @@ contract GetUniswapV3PoolTickBitmapBatchRequest {
 interface IUniswapV3PoolState {
     /// @notice Returns 256 packed tick initialized boolean values. See TickBitmap for more information
     function tickBitmap(int16 wordPosition) external view returns (uint256);
-    function tickSpacing() external view returns (int24);
 }
