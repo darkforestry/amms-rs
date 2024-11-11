@@ -897,7 +897,7 @@ impl UniswapV3Factory {
                         // TODO:this is wrong and written at goblin hours, fix this
                         let word_pos = (encoded_tick_bitmap << 1).high_i16();
 
-                        let mask = (U256_1 << 255) + !U256::ZERO >> (uv3_pool.tick_spacing + 1);
+                        let mask = (U256_1 << 255) + (!U256::ZERO >> (uv3_pool.tick_spacing + 1));
                         let bitmap = encoded_tick_bitmap & mask;
 
                         uv3_pool.tick_bitmap.insert(word_pos, bitmap);
