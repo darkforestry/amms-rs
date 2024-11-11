@@ -892,10 +892,13 @@ impl UniswapV3Factory {
 
                     let tick_bitmaps = tokens.as_array().unwrap();
                     for tick_bitmap in tick_bitmaps {
-                        let tick_bitmap = tick_bitmap.as_uint().unwrap().0;
+                        let encoded_tick_bitmap = tick_bitmap.as_uint().unwrap().0;
                         // First shift left to clear the first tick and then isolate the word position
                         // TODO:this is wrong and written at goblin hours, fix this
-                        let word_pos = (tick_bitmap << 1) >> (256 - uv3_pool.tick_spacing);
+                        let word_pos = (encoded_tick_bitmap << 1).high_i16();
+
+                        let mask = (U256_1 << 255) + !U256::ZERO >> (uv3_pool.tick_spacing + 1);
+                        let bitmap = encoded_tick_bitmap & mask;
 
                         uv3_pool.tick_bitmap.insert(word_pos, bitmap);
                     }
