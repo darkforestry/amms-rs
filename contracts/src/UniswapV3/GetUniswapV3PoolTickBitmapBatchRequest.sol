@@ -18,16 +18,16 @@ contract GetUniswapV3PoolTickBitmapBatchRequest {
         uint256 tickBitmap;
     }
 
+    /// @notice TODO: add comments about encoding scheme
+
     constructor(TickBitmapInfo[] memory allPoolInfo) {
-        TickBitmap[][] memory allTickBitmaps = new TickBitmap[][](
-            allPoolInfo.length
-        );
+        uint256[][] memory allTickBitmaps = new uint256[][](allPoolInfo.length);
 
         for (uint256 i = 0; i < allPoolInfo.length; ++i) {
             TickBitmapInfo memory info = allPoolInfo[i];
             IUniswapV3PoolState pool = IUniswapV3PoolState(info.pool);
 
-            TickBitmap[] memory tickBitmaps = new TickBitmap[](
+            uint256[] memory tickBitmaps = new uint256[](
                 uint16(info.maxWord - info.minWord) + 1
             );
 
@@ -39,10 +39,7 @@ contract GetUniswapV3PoolTickBitmapBatchRequest {
                     continue;
                 }
 
-                tickBitmaps[wordIdx] = TickBitmap({
-                    wordPostion: j,
-                    tickBitmap: tickBitmap
-                });
+                tickBitmaps[wordIdx] = tickBitmap;
 
                 ++wordIdx;
             }
