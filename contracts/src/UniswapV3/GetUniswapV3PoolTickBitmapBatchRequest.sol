@@ -13,11 +13,6 @@ contract GetUniswapV3PoolTickBitmapBatchRequest {
         int16 maxWord;
     }
 
-    struct TickBitmap {
-        int16 wordPostion;
-        uint256 tickBitmap;
-    }
-
     /// @notice TODO: add comments about encoding scheme
 
     constructor(TickBitmapInfo[] memory allPoolInfo) {
@@ -43,7 +38,8 @@ contract GetUniswapV3PoolTickBitmapBatchRequest {
                 uint24 tickSpacing = uint24(pool.tickSpacing());
                 uint256 encodedWordPosition;
                 assembly {
-                    encodedWordPosition := shl(sub(256, tickSpacing), j)
+                    // Shift left 255 to insert the word pos in the tick spacing after the first tick
+                    encodedWordPosition := shl(255, j)
                 }
 
                 tickBitmap = tickBitmap & encodedWordPosition;

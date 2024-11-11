@@ -862,9 +862,7 @@ impl UniswapV3Factory {
             .map(|pool| (pool.address(), pool))
             .collect::<HashMap<Address, &mut AMM>>();
 
-        let return_type = DynSolType::Array(Box::new(DynSolType::Array(Box::new(
-            DynSolType::Tuple(vec![DynSolType::Int(16), DynSolType::Uint(256)]),
-        ))));
+        let return_type = DynSolType::Array(Box::new(DynSolType::Uint(256)));
 
         let mut i = 0;
 
@@ -894,9 +892,11 @@ impl UniswapV3Factory {
 
                     let tick_bitmaps = tokens.as_array().unwrap();
                     for tick_bitmap in tick_bitmaps {
-                        let tick_bitmap = tick_bitmap.as_tuple().unwrap();
-                        let word_pos = tick_bitmap[0].as_int().unwrap().0.try_into().unwrap();
-                        let bitmap = tick_bitmap[1].as_uint().unwrap().0;
+                        let tick_bitmap = tick_bitmap.as_uint().unwrap().0;
+                        // First shift left to clear the first tick and then isolate the word position
+                        // TODO:this is wrong and written at goblin hours, fix this
+                        let word_pos = (tick_bitmap << 1) >> (256 - uv3_pool.tick_spacing);
+
                         uv3_pool.tick_bitmap.insert(word_pos, bitmap);
                     }
                 }
