@@ -791,6 +791,35 @@ impl UniswapV3Factory {
         }
     }
 
+    // TODO: move this somewhere else and fix
+    fn decode_tick_bitmap(tick_bitmap: U256, tick_spacing: i32) -> u16 {
+        let mut decoded_word_pos: i16 = 0;
+        let mut spacing_bit_pos = 0;
+        let mut tick_pos = 0;
+
+        // NOTE: word pos will always fit in a u16
+        // NOTE: this is big endian rn
+        for b in 16..=0 {
+            // Check if the bit at the current tick position is set in the bitmap
+            let bit_pos = (tick_pos * tick_spacing + (spacing_bit_pos) + 1) as usize;
+
+            // Check if the bit is set
+            if tick_bitmap.bit(bit_pos) {
+                // Set the corresponding bit in the decoded `wordPos`
+                decoded_word_pos |= 1 << b;
+            }
+
+            spacing_bit_pos += 1;
+
+            if spacing_bit_pos == tick_spacing {
+                tick_pos += 1;
+                spacing_bit_pos = 0;
+            }
+        }
+
+        decoded_word_pos
+    }
+
     async fn sync_tick_bitmaps<T, N, P>(pools: &mut [AMM], block_number: u64, provider: Arc<P>)
     where
         T: Transport + Clone,
@@ -1196,6 +1225,7 @@ mod test {
         let rpc_endpoint = std::env::var("ETHEREUM_PROVIDER")?;
 
         //NOTE: -3466 to 3466 word pos range, we need to split up the word pos throughout the tick bitmap spacing
+        // NOTE: word pos always fits within i16 though so we can just break it up this way
         let min_word = tick_to_word(MIN_TICK, 1);
         let max_word = tick_to_word(MAX_TICK, 10);
 
