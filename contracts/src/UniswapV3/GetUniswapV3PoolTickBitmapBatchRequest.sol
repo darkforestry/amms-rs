@@ -43,6 +43,8 @@ contract GetUniswapV3PoolTickBitmapBatchRequest {
                 uint256 wordPos = uint16(j);
 
                 // loop through wordPos
+
+                // NOTE: fix to be cleaner and match decoding
                 for (uint256 b = 0; b < 16; ++b) {
                     // Check if the bit in pattern at position i is set
                     if ((wordPos & (1 << (15 - b))) != 0) {
