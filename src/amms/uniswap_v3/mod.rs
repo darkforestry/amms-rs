@@ -112,8 +112,8 @@ pub struct UniswapV3Pool {
     pub liquidity: u128,      // NOTE:
     pub sqrt_price: U256,     // NOTE:
     pub fee: u32,
-    pub tick: i32, // NOTE:
-    pub tick_spacing: i32,
+    pub tick: i32,         // NOTE:
+    pub tick_spacing: i32, // TODO: we can make this a u8, tick spacing will never exceed 200
     pub tick_bitmap: HashMap<i16, U256>,
     pub ticks: HashMap<i32, Info>,
 }
@@ -832,10 +832,7 @@ impl UniswapV3Factory {
                 // If group is full, fire it off and reset
                 if group_range >= max_range || word_range <= 0 {
                     let provider = provider.clone();
-                    let pool_info = group
-                        .iter()
-                        .map(|info| (info.pool, info.minWord, info.maxWord))
-                        .collect::<Vec<_>>();
+                    let pool_info = group.iter().map(|info| info.pool).collect::<Vec<_>>();
 
                     let calldata = std::mem::take(&mut group);
 
@@ -862,7 +859,8 @@ impl UniswapV3Factory {
             .map(|pool| (pool.address(), pool))
             .collect::<HashMap<Address, &mut AMM>>();
 
-        let return_type = DynSolType::Array(Box::new(DynSolType::Uint(256)));
+        let return_type =
+            DynSolType::Array(Box::new(DynSolType::Array(Box::new(DynSolType::Uint(256)))));
 
         let mut i = 0;
 
@@ -877,27 +875,26 @@ impl UniswapV3Factory {
                 .expect("TODO: handle error");
 
             if let Some(tokens_arr) = return_data.as_array() {
-                for (tokens, (pool_address, min_word, max_word)) in
-                    tokens_arr.iter().zip(pools.iter())
-                {
+                for (tokens, pool_address) in tokens_arr.iter().zip(pools.iter()) {
                     let pool = pool_set.get_mut(pool_address).expect("TODO: handle error");
                     let AMM::UniswapV3Pool(ref mut uv3_pool) = pool else {
                         unreachable!()
                     };
 
-                    // // Initialize tick_bitmap with zeros across the range
-                    // for word_pos in *min_word..=*max_word {
-                    //     uv3_pool.tick_bitmap.insert(word_pos, U256::ZERO);
-                    // }
-
+                    let mask = (U256_1 << 255) + (!U256::ZERO >> (uv3_pool.tick_spacing + 1));
                     let tick_bitmaps = tokens.as_array().unwrap();
+
                     for tick_bitmap in tick_bitmaps {
                         let encoded_tick_bitmap = tick_bitmap.as_uint().unwrap().0;
                         // First shift left to clear the first tick and then isolate the word position
                         // TODO:this is wrong and written at goblin hours, fix this
-                        let word_pos = (encoded_tick_bitmap << 1).high_i16();
+                        let word_pos = encoded_tick_bitmap
+                            .wrapping_shl(1)
+                            .wrapping_shr(255 - uv3_pool.tick_spacing as usize)
+                            .to::<u32>() as i16;
 
-                        let mask = (U256_1 << 255) + (!U256::ZERO >> (uv3_pool.tick_spacing + 1));
+                        dbg!(word_pos);
+
                         let bitmap = encoded_tick_bitmap & mask;
 
                         uv3_pool.tick_bitmap.insert(word_pos, bitmap);
@@ -1197,6 +1194,12 @@ mod test {
     #[tokio::test]
     async fn test_simulate_swap_usdc_weth() -> eyre::Result<()> {
         let rpc_endpoint = std::env::var("ETHEREUM_PROVIDER")?;
+
+        //NOTE: -3466 to 3466 word pos range, we need to split up the word pos throughout the tick bitmap spacing
+        let min_word = tick_to_word(MIN_TICK, 1);
+        let max_word = tick_to_word(MAX_TICK, 10);
+
+        dbg!(max_word, min_word);
 
         let client = ClientBuilder::default()
             .layer(ThrottleLayer::new(250, None)?)

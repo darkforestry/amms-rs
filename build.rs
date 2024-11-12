@@ -1,4 +1,3 @@
-
 const SCRIPT_CMD: &str = "./scripts/build.sh";
 
 fn main() -> Result<(), std::io::Error> {

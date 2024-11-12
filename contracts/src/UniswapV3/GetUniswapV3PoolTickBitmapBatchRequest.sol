@@ -34,14 +34,29 @@ contract GetUniswapV3PoolTickBitmapBatchRequest {
                     continue;
                 }
 
-                // Encode the word pos in the tick spacing after the first tick
-                uint256 encodedWordPosition;
-                assembly {
-                    // Shift left 255 to insert the word pos in the tick spacing after the first tick
-                    encodedWordPosition := shl(255, j)
+                uint256 tickSpacing = uint24(pool.tickSpacing());
+
+                // Interleave the wordPos into the bitmap in the tick spacing
+                uint256 tickPos = 0;
+                uint256 capacity = tickSpacing;
+
+                uint256 wordPos = uint16(j);
+
+                // loop through wordPos
+                for (uint256 b = 0; b < 16; ++b) {
+                    // Check if the bit in pattern at position i is set
+                    if ((wordPos & (1 << (15 - b))) != 0) {
+                        tickBitmap |= 1 << ((tickPos * tickSpacing) + capacity);
+                    }
+
+                    if (capacity == 0) {
+                        ++tickPos;
+                        capacity = tickSpacing;
+                    } else {
+                        --capacity;
+                    }
                 }
 
-                tickBitmap = tickBitmap & encodedWordPosition;
                 tickBitmaps[wordIdx] = tickBitmap;
 
                 ++wordIdx;
@@ -73,4 +88,5 @@ contract GetUniswapV3PoolTickBitmapBatchRequest {
 interface IUniswapV3PoolState {
     /// @notice Returns 256 packed tick initialized boolean values. See TickBitmap for more information
     function tickBitmap(int16 wordPosition) external view returns (uint256);
+    function tickSpacing() external view returns (int24);
 }
