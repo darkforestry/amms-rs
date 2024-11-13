@@ -791,35 +791,6 @@ impl UniswapV3Factory {
         }
     }
 
-    // TODO: move this somewhere else and fix
-    fn decode_tick_bitmap(tick_bitmap: U256, tick_spacing: i32) -> u16 {
-        let mut decoded_word_pos: i16 = 0;
-        let mut spacing_bit_pos = 0;
-        let mut tick_pos = 0;
-
-        // NOTE: word pos will always fit in a u16
-        // NOTE: this is big endian rn
-        for b in 0..=16 {
-            // Check if the bit at the current tick position is set in the bitmap
-            let bit_pos = 255 - (tick_pos * tick_spacing + (spacing_bit_pos)) as usize;
-
-            // Check if the bit is set
-            if tick_bitmap.bit(bit_pos) {
-                // Set the corresponding bit in the decoded `wordPos`
-                decoded_word_pos |= 1 << 16 - b;
-            }
-
-            spacing_bit_pos += 1;
-
-            if spacing_bit_pos == tick_spacing {
-                tick_pos += 1;
-                spacing_bit_pos = 0;
-            }
-        }
-
-        decoded_word_pos
-    }
-
     async fn sync_tick_bitmaps<T, N, P>(pools: &mut [AMM], block_number: u64, provider: Arc<P>)
     where
         T: Transport + Clone,
@@ -911,16 +882,13 @@ impl UniswapV3Factory {
                     };
 
                     let mask = (U256_1 << 255) + (!U256::ZERO >> (uv3_pool.tick_spacing + 1));
+
                     let tick_bitmaps = tokens.as_array().unwrap();
 
                     for tick_bitmap in tick_bitmaps {
                         let encoded_tick_bitmap = tick_bitmap.as_uint().unwrap().0;
-                        // First shift left to clear the first tick and then isolate the word position
-                        // TODO:this is wrong and written at goblin hours, fix this
-                        let word_pos = encoded_tick_bitmap
-                            .wrapping_shl(1)
-                            .wrapping_shr(255 - uv3_pool.tick_spacing as usize)
-                            .to::<u32>() as i16;
+
+                        let word_pos = decode_word_pos(encoded_tick_bitmap, uv3_pool.tick_spacing);
 
                         dbg!(word_pos);
 
@@ -1074,6 +1042,35 @@ impl UniswapV3Factory {
             }
         }
     }
+}
+
+// TODO: move this somewhere else and fix
+fn decode_word_pos(encoded_tick_bitmap: U256, tick_spacing: i32) -> i16 {
+    let mut decoded_word_pos: i16 = 0;
+    let mut spacing_bit_pos = 0;
+    let mut tick_pos = 0;
+
+    // NOTE: word pos will always fit in a u16
+    // NOTE: this is big endian rn
+    for b in 0..=16 {
+        // Check if the bit at the current tick position is set in the bitmap
+        let bit_pos = 255 - (tick_pos * tick_spacing + (spacing_bit_pos)) as usize;
+
+        // Check if the bit is set
+        if encoded_tick_bitmap.bit(bit_pos) {
+            // Set the corresponding bit in the decoded `wordPos`
+            decoded_word_pos |= 1 << 16 - b;
+        }
+
+        spacing_bit_pos += 1;
+
+        if spacing_bit_pos == tick_spacing {
+            tick_pos += 1;
+            spacing_bit_pos = 0;
+        }
+    }
+
+    decoded_word_pos
 }
 
 fn tick_to_word(tick: i32, tick_spacing: i32) -> i32 {
