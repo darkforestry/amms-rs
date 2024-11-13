@@ -1054,7 +1054,7 @@ fn decode_word_pos(encoded_tick_bitmap: U256, tick_spacing: i32) -> i16 {
     // NOTE: this is big endian rn
     for b in 0..=16 {
         // Check if the bit at the current tick position is set in the bitmap
-        let bit_pos = 255 - (tick_pos * tick_spacing + (spacing_bit_pos)) as usize;
+        let bit_pos = 255 - spacing_bit_pos - (tick_pos * tick_spacing) as usize;
 
         // Check if the bit is set
         if encoded_tick_bitmap.bit(bit_pos) {
@@ -1064,7 +1064,7 @@ fn decode_word_pos(encoded_tick_bitmap: U256, tick_spacing: i32) -> i16 {
 
         spacing_bit_pos += 1;
 
-        if spacing_bit_pos == tick_spacing {
+        if (b + 1) % tick_spacing == 0 {
             tick_pos += 1;
             spacing_bit_pos = 0;
         }

@@ -44,18 +44,19 @@ contract GetUniswapV3PoolTickBitmapBatchRequest {
                 // loop through wordPos
                 // NOTE: This can be more efficient, word pos can fit in smaller bits based on tick spacing
                 for (uint256 b = 0; b <= 16; ++b) {
-                    // Check if the bit in pattern at position i is set
-                    if ((wordPos & (1 << b)) != 0) {
+                    // Check if the most significant bit is set
+                    if ((wordPos & (1 << (16 - b))) != 0) {
+                        // Set the most significant bit in the tick spacing
                         tickBitmap |=
                             1 <<
-                            (255 - ((tickPos * tickSpacing) + spacingBitPos));
+                            (255 - spacingBitPos - ((tickPos * tickSpacing)));
                     }
 
-                    spacingBitPos += 1;
-
-                    if (spacingBitPos == tickSpacing) {
+                    if ((b + 1) % tickSpacing == 0) {
                         tickPos += 1;
                         spacingBitPos = 0;
+                    } else {
+                        spacingBitPos += 1;
                     }
                 }
 
