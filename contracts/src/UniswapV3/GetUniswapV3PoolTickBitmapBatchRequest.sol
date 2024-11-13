@@ -38,24 +38,24 @@ contract GetUniswapV3PoolTickBitmapBatchRequest {
 
                 // Interleave the wordPos into the bitmap in the tick spacing
                 uint256 tickPos = 0;
-                uint256 capacity = tickSpacing;
-
+                uint256 spacingBitPos = 0;
                 uint256 wordPos = uint16(j);
 
                 // loop through wordPos
-
-                // NOTE: fix to be cleaner and match decoding
+                // NOTE: This can be more efficient, word pos can fit in smaller bits based on tick spacing
                 for (uint256 b = 0; b < 16; ++b) {
                     // Check if the bit in pattern at position i is set
-                    if ((wordPos & (1 << (15 - b))) != 0) {
-                        tickBitmap |= 1 << ((tickPos * tickSpacing) + capacity);
+                    if ((wordPos & (1 << b)) != 0) {
+                        tickBitmap |=
+                            1 <<
+                            (255 - ((tickPos * tickSpacing) + spacingBitPos));
                     }
 
-                    if (capacity == 0) {
-                        ++tickPos;
-                        capacity = tickSpacing;
-                    } else {
-                        --capacity;
+                    spacingBitPos += 1;
+
+                    if (spacingBitPos == tickSpacing) {
+                        tickPos += 1;
+                        spacingBitPos = 0;
                     }
                 }
 
