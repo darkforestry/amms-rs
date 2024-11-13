@@ -799,14 +799,14 @@ impl UniswapV3Factory {
 
         // NOTE: word pos will always fit in a u16
         // NOTE: this is big endian rn
-        for b in 16..=0 {
+        for b in 0..=16 {
             // Check if the bit at the current tick position is set in the bitmap
-            let bit_pos = (tick_pos * tick_spacing + (spacing_bit_pos) + 1) as usize;
+            let bit_pos = 255 - (tick_pos * tick_spacing + (spacing_bit_pos)) as usize;
 
             // Check if the bit is set
             if tick_bitmap.bit(bit_pos) {
                 // Set the corresponding bit in the decoded `wordPos`
-                decoded_word_pos |= 1 << b;
+                decoded_word_pos |= 1 << 16 - b;
             }
 
             spacing_bit_pos += 1;
