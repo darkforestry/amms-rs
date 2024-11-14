@@ -35,12 +35,13 @@ contract GetUniswapV3PoolTickBitmapBatchRequest {
                 }
 
                 uint256 tickSpacing = uint24(pool.tickSpacing());
-
-                uint256 mask = ~(~uint256(0) << (tickSpacing + 1));
                 uint256 numGroups = (16 / tickSpacing) + 1;
-                uint256 wordPos = uint16(j);
+                uint256 mask = ~(~uint256(0) << tickSpacing);
 
-                for (i = 0; i <= numGroups; ++i) {}
+                for (i = 0; i <= numGroups; ++i) {
+                    uint256 bits = uint16(j) & (mask << (i * tickSpacing));
+                    tickBitmap += (bits << ((256 - i * tickSpacing) - 1));
+                }
 
                 tickBitmaps[wordIdx] = tickBitmap;
 
