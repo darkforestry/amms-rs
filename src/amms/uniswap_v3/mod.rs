@@ -1044,6 +1044,19 @@ impl UniswapV3Factory {
     }
 }
 
+fn decode_word_pos(encoded_tick_bitmap: U256, tick_spacing: u32) -> U256 {
+    let num_groups = (16 / tick_spacing) + 1;
+    let mask = U256::MAX >> (256 - tick_spacing);
+    let mut tick_bitmap = U256::zero();
+
+    for i in 0..=num_groups {
+        let bits = encoded_tick_bitmap & (mask << (i * tick_spacing));
+        tick_bitmap |= bits << ((256 - i * tick_spacing) - 1);
+    }
+
+    tick_bitmap
+}
+
 // TODO: move this somewhere else and fix
 fn decode_word_pos(encoded_tick_bitmap: U256, tick_spacing: i32) -> i16 {
     let mut decoded_word_pos: i16 = 0;
