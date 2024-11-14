@@ -36,29 +36,13 @@ contract GetUniswapV3PoolTickBitmapBatchRequest {
 
                 uint256 tickSpacing = uint24(pool.tickSpacing());
 
-                // Interleave the wordPos into the bitmap in the tick spacing
-                uint256 tickPos = 0;
-                uint256 spacingBitPos = 0;
-                uint256 wordPos = uint16(j);
+                uint256 mask = (1 << (tickSpacing + 1)) ^
+                    (1 << (tickSpacin + 1));
 
-                // loop through wordPos
-                // NOTE: This can be more efficient, word pos can fit in smaller bits based on tick spacing
-                for (uint256 b = 0; b <= 16; ++b) {
-                    // Check if the most significant bit is set
-                    if ((wordPos & (1 << (16 - b))) != 0) {
-                        // Set the most significant bit in the tick spacing
-                        tickBitmap |=
-                            1 <<
-                            (255 - spacingBitPos - ((tickPos * tickSpacing)));
-                    }
+                uint256 numGroups = (16 / tickSpacing) + 1;
 
-                    if ((b + 1) % tickSpacing == 0) {
-                        tickPos += 1;
-                        spacingBitPos = 0;
-                    } else {
-                        spacingBitPos += 1;
-                    }
-                }
+                uint256 wordPos = j;
+                for (i = 0; i <= numGroups; ++i) {}
 
                 tickBitmaps[wordIdx] = tickBitmap;
 
