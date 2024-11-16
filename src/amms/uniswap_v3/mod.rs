@@ -28,6 +28,7 @@ use std::{
     hash::Hash,
     str::FromStr,
     sync::Arc,
+    u16,
 };
 use uniswap_v3_math::tick_math::{MAX_SQRT_RATIO, MAX_TICK, MIN_SQRT_RATIO, MIN_TICK};
 
@@ -1044,51 +1045,30 @@ impl UniswapV3Factory {
     }
 }
 
-fn decode_tick_bitmap(encoded_tick_bitmap: U256, tick_spacing: u32) -> (U256, i16) {
-    let num_groups = (16 / tick_spacing) + 1;
-    let mask = !(U256::MAX >> (tick_spacing) + 1) >> 1;
-    let mut tick_bitmap = U256::ZERO;
+fn decode_tick_bitmap(mut encoded_tick_bitmap: U256, tick_spacing: u32) -> (U256, i16) {
+    if tick_spacing > 16 {
+        let mask = U256::from(u16::MAX) << 255;
+        let tick_bitmap = encoded_tick_bitmap ^ mask;
+        let word_pos: U256 = (encoded_tick_bitmap & mask) >> 239;
 
-    let mut word_pos = 0;
+        return (tick_bitmap, word_pos.to::<i16>());
+    } else {
+        let num_groups = (16 / tick_spacing) + 1;
+        let mask = U256::from(u16::MAX << (16 - tick_spacing));
 
-    for i in 0..=num_groups {
-        let bits = encoded_tick_bitmap & (mask << (i * tick_spacing));
+        let mut word_pos: u16 = 0;
+        for i in 0..=num_groups {
+            let mask = mask << 255 - (i + 1) * tick_spacing;
 
-        tick_bitmap ^= bits << ((256 - i * tick_spacing) - 1);
+            let word_pos_bits = encoded_tick_bitmap ^ mask;
+            // NOTE: shift word pos bits and add them to word pos
 
-        // word_pos += bits
-    }
-
-    (tick_bitmap, word_pos)
-}
-
-// TODO: move this somewhere else and fix
-fn decode_word_pos(encoded_tick_bitmap: U256, tick_spacing: i32) -> i16 {
-    let mut decoded_word_pos: i16 = 0;
-    let mut spacing_bit_pos = 0;
-    let mut tick_pos = 0;
-
-    // NOTE: word pos will always fit in a u16
-    // NOTE: this is big endian rn
-    for b in 0..=16 {
-        // Check if the bit at the current tick position is set in the bitmap
-        let bit_pos = 255 - spacing_bit_pos - (tick_pos * tick_spacing) as usize;
-
-        // Check if the bit is set
-        if encoded_tick_bitmap.bit(bit_pos) {
-            // Set the corresponding bit in the decoded `wordPos`
-            decoded_word_pos |= 1 << 16 - b;
+            // Remove word pos bits from tick bitmap
+            encoded_tick_bitmap &= mask;
         }
 
-        spacing_bit_pos += 1;
-
-        if (b + 1) % tick_spacing == 0 {
-            tick_pos += 1;
-            spacing_bit_pos = 0;
-        }
+        todo!()
     }
-
-    decoded_word_pos
 }
 
 fn tick_to_word(tick: i32, tick_spacing: i32) -> i32 {
