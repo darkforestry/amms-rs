@@ -34,11 +34,17 @@ contract GetUniswapV3PoolTickBitmapBatchRequest {
                     continue;
                 }
 
+                /// @notice We pack the word position within the tickSpacing of the tickBitmap
+                /// to reduce the size of deployed bytecode which enables larger batch calls and faster sync times
                 uint256 tickSpacing = uint24(pool.tickSpacing());
 
+                // If tick spacing can fit the entire wordPos in a single contiguous string of bytes
+                // left shift wordPos to fit in this spacing and add to tick bitmap
                 if (tickSpacing > 16) {
                     tickBitmap += j << (255 - tickSpacing);
                 } else {
+                    // If the wordPos can not fit into a single tickSpacing, we must break up the tick spacing over
+                    // subsequent tick spacings
                     uint256 numGroups = (16 % tickSpacing == 0)
                         ? 16 / tickSpacing
                         : (16 / tickSpacing) + 1;
@@ -46,7 +52,7 @@ contract GetUniswapV3PoolTickBitmapBatchRequest {
                     uint256 mask = type(uint16).max << (16 - tickSpacing);
 
                     for (i = 0; i <= numGroups; ++i) {
-                        uint256 bits = uint16(j) & (mask >> (i * tickSpacing));
+                        uint256 bits = uint256(j) & (mask >> (i * tickSpacing));
                         tickBitmap += (bits << (255 - (i + 1) * tickSpacing));
                     }
                 }

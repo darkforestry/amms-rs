@@ -1053,12 +1053,17 @@ fn decode_tick_bitmap(mut encoded_tick_bitmap: U256, tick_spacing: u32) -> (U256
 
         return (tick_bitmap, word_pos.to::<i16>());
     } else {
-        let num_groups = (16 / tick_spacing) + 1;
-        let mask = U256::from(u16::MAX << (16 - tick_spacing));
+        let num_groups = if 16 % tick_spacing == 0 {
+            16 / tick_spacing
+        } else {
+            (16 / tick_spacing) + 1
+        };
+
+        let mask = U256::MAX << 239 - tick_spacing;
 
         let mut word_pos: u16 = 0;
         for i in 0..=num_groups {
-            let mask = mask << 255 - (i + 1) * tick_spacing;
+            // let mask = mask << 255 - (i + 1) * tick_spacing;
 
             let word_pos_bits = encoded_tick_bitmap ^ mask;
             // NOTE: shift word pos bits and add them to word pos
