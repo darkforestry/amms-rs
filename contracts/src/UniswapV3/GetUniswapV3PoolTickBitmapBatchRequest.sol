@@ -49,10 +49,10 @@ contract GetUniswapV3PoolTickBitmapBatchRequest {
                         ? 16 / tickSpacing
                         : (16 / tickSpacing) + 1;
 
-                    uint256 mask = type(uint16).max << (16 - tickSpacing);
+                    uint16 mask = type(uint16).max >> (16 - tickSpacing);
 
                     for (i = 0; i <= numGroups; ++i) {
-                        uint256 bits = uint256(j) & (mask >> (i * tickSpacing));
+                        uint256 bits = uint16(j) & (mask << (i * tickSpacing));
                         tickBitmap += (bits << (255 - (i + 1) * tickSpacing));
                     }
                 }

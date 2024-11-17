@@ -882,20 +882,10 @@ impl UniswapV3Factory {
                         unreachable!()
                     };
 
-                    let mask = (U256_1 << 255) + (!U256::ZERO >> (uv3_pool.tick_spacing + 1));
-
                     let tick_bitmaps = tokens.as_array().unwrap();
 
                     for tick_bitmap in tick_bitmaps {
                         let encoded_tick_bitmap = tick_bitmap.as_uint().unwrap().0;
-
-                        let word_pos = decode_word_pos(encoded_tick_bitmap, uv3_pool.tick_spacing);
-
-                        dbg!(word_pos);
-
-                        let bitmap = encoded_tick_bitmap & mask;
-
-                        uv3_pool.tick_bitmap.insert(word_pos, bitmap);
                     }
                 }
             }
@@ -1047,7 +1037,7 @@ impl UniswapV3Factory {
 
 fn decode_tick_bitmap(mut encoded_tick_bitmap: U256, tick_spacing: u32) -> (U256, i16) {
     if tick_spacing > 16 {
-        let mask = U256::from(u16::MAX) << 255;
+        let mask = U256::from(u16::MAX) << (255 - tick_spacing);
         let tick_bitmap = encoded_tick_bitmap ^ mask;
         let word_pos: U256 = (encoded_tick_bitmap & mask) >> 239;
 
@@ -1059,8 +1049,10 @@ fn decode_tick_bitmap(mut encoded_tick_bitmap: U256, tick_spacing: u32) -> (U256
             (16 / tick_spacing) + 1
         };
 
+        // TODO: fix mask
         let mask = U256::MAX << 239 - tick_spacing;
 
+        // TODO: fix this
         let mut word_pos: u16 = 0;
         for i in 0..=num_groups {
             // let mask = mask << 255 - (i + 1) * tick_spacing;
