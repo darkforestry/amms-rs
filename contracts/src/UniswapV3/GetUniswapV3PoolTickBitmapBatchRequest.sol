@@ -13,21 +13,16 @@ contract GetUniswapV3PoolTickBitmapBatchRequest {
         int16 maxWord;
     }
 
-    struct TickBitmap {
-        int16 wordPostion;
-        uint256 tickBitmap;
-    }
+    /// @notice TODO: add comments about encoding scheme
 
     constructor(TickBitmapInfo[] memory allPoolInfo) {
-        TickBitmap[][] memory allTickBitmaps = new TickBitmap[][](
-            allPoolInfo.length
-        );
+        uint256[][] memory allTickBitmaps = new uint256[][](allPoolInfo.length);
 
         for (uint256 i = 0; i < allPoolInfo.length; ++i) {
             TickBitmapInfo memory info = allPoolInfo[i];
             IUniswapV3PoolState pool = IUniswapV3PoolState(info.pool);
 
-            TickBitmap[] memory tickBitmaps = new TickBitmap[](
+            uint256[] memory tickBitmaps = new uint256[](
                 uint16(info.maxWord - info.minWord) + 1
             );
 
@@ -39,11 +34,33 @@ contract GetUniswapV3PoolTickBitmapBatchRequest {
                     continue;
                 }
 
-                tickBitmaps[wordIdx] = TickBitmap({
-                    wordPostion: j,
-                    tickBitmap: tickBitmap
-                });
+                // /// @notice We pack the word position within the tickSpacing of the tickBitmap
+                // /// to reduce the size of deployed bytecode which enables larger batch calls and faster sync times
+                // uint256 tickSpacing = uint24(pool.tickSpacing());
 
+                // // If tick spacing can fit the entire wordPos in a single contiguous string of bytes
+                // // left shift wordPos to fit in this spacing and add to tick bitmap
+                // if (tickSpacing > 16) {
+                //     tickBitmap += uint(256(int256(j)) << (255 - tickSpacing);
+                // } else {
+                //     // If the wordPos can not fit into a single tickSpacing, we must break up the tick spacing over
+                //     // subsequent tick spacings
+                //     uint256 numGroups = (16 % tickSpacing == 0)
+                //         ? 16 / tickSpacing
+                //         : (16 / tickSpacing) + 1;
+
+                //     uint16 mask = type(uint16).max >> (16 - tickSpacing);
+
+                //     for (i = 0; i <= numGroups; ++i) {
+                //         uint256 bits = uint16(j) & (mask << (i * tickSpacing));
+                //         tickBitmap += (bits << (255 - (i + 1) * tickSpacing));
+                //     }
+                // }
+
+                tickBitmaps[wordIdx] = uint256(int256(j));
+                ++wordIdx;
+
+                tickBitmaps[wordIdx] = tickBitmap;
                 ++wordIdx;
             }
 
@@ -73,4 +90,5 @@ contract GetUniswapV3PoolTickBitmapBatchRequest {
 interface IUniswapV3PoolState {
     /// @notice Returns 256 packed tick initialized boolean values. See TickBitmap for more information
     function tickBitmap(int16 wordPosition) external view returns (uint256);
+    function tickSpacing() external view returns (int24);
 }
