@@ -31,6 +31,7 @@ use std::{
     sync::Arc,
     u16,
 };
+use tokio::task::JoinSet;
 use uniswap_v3_math::tick_math::{MAX_SQRT_RATIO, MAX_TICK, MIN_SQRT_RATIO, MIN_TICK};
 
 sol! {
@@ -688,20 +689,36 @@ impl UniswapV3Factory {
         pools
     }
 
-    async fn sync_all_pools<T, N, P>(pools: &mut [AMM], block_number: u64, provider: Arc<P>)
+    async fn sync_all_pools<T, N, P>(pools: &mut Vec<AMM>, block_number: u64, provider: Arc<P>)
     where
         T: Transport + Clone,
         N: Network,
         P: Provider<T, N>,
     {
-        dbg!("Syncing slot 0");
         UniswapV3Factory::sync_slot_0(pools, block_number, provider.clone()).await;
+        UniswapV3Factory::sync_token_decimals(pools, provider.clone()).await;
+
         dbg!("Syncing tick bitmaps");
+
+        // Drop pools with zero liquidity
+        pools.retain(|pool| match pool {
+            AMM::UniswapV3Pool(uv3_pool) => {
+                uv3_pool.liquidity > 0
+                    && uv3_pool.token_a_decimals > 0
+                    && uv3_pool.token_b_decimals > 0
+            }
+            _ => true,
+        });
+
+        dbg!(pools.len());
+
         UniswapV3Factory::sync_tick_bitmaps(pools, block_number, provider.clone()).await;
         dbg!("Syncing tick data");
+
         UniswapV3Factory::sync_tick_data(pools, block_number, provider.clone()).await;
+
         dbg!("Syncing token decimals");
-        UniswapV3Factory::sync_token_decimals(pools, provider).await;
+        // NOTE: call these concurrently
     }
 
     async fn sync_token_decimals<T, N, P>(pools: &mut [AMM], provider: Arc<P>)
@@ -864,12 +881,7 @@ impl UniswapV3Factory {
         let return_type =
             DynSolType::Array(Box::new(DynSolType::Array(Box::new(DynSolType::Uint(256)))));
 
-        let mut i = 0;
-
         while let Some((pools, return_data)) = futures.next().await {
-            dbg!(i);
-            i += 1;
-
             let return_data = return_type
                 .abi_decode_sequence(&return_data)
                 .expect("TODO: handle error");
@@ -908,34 +920,30 @@ impl UniswapV3Factory {
                     let min_word = tick_to_word(MIN_TICK, uniswap_v3_pool.tick_spacing);
                     let max_word = tick_to_word(MAX_TICK, uniswap_v3_pool.tick_spacing);
 
-                    let tick_bitmaps = (min_word..=max_word)
-                        .map(|word_pos| {
-                            let bitmap = uniswap_v3_pool.tick_bitmap.get(&(word_pos as i16));
-                            (word_pos, *bitmap.unwrap_or(&U256::ZERO))
+                    let initialized_ticks: Vec<Signed<24, 1>> = (min_word..=max_word)
+                        // Filter out empty bitmaps
+                        .filter_map(|word_pos| {
+                            uniswap_v3_pool
+                                .tick_bitmap
+                                .get(&(word_pos as i16))
+                                .filter(|&bitmap| *bitmap != U256::ZERO)
+                                .map(|&bitmap| (word_pos, bitmap))
                         })
-                        .collect::<Vec<_>>();
+                        // Get non zero bitmaps
+                        .flat_map(|(word_pos, bitmap)| {
+                            (0..256)
+                                .filter(move |i| {
+                                    (bitmap & (U256::from(1) << U256::from(*i))) != U256::ZERO
+                                })
+                                .map(move |i| {
+                                    let tick_index =
+                                        (word_pos * 256 + i) * uniswap_v3_pool.tick_spacing;
 
-                    let mut initialized_ticks = vec![];
-
-                    // NOTE: this needs to be word pos
-                    for (word_pos, bitmap) in tick_bitmaps.iter() {
-                        if bitmap == &U256::ZERO {
-                            continue;
-                        }
-
-                        for i in (0..256).filter(|i| {
-                            (*bitmap & (U256_1 << U256::from(*i as usize))) != U256::ZERO
-                        }) {
-                            let tick_index = (word_pos * 256 + i) * uniswap_v3_pool.tick_spacing;
-
-                            if !(MIN_TICK..=MAX_TICK).contains(&tick_index) {
-                                panic!("TODO: return error");
-                            }
-
-                            initialized_ticks
-                                .push(Signed::<24, 1>::from_str(&tick_index.to_string()).unwrap());
-                        }
-                    }
+                                    // TODO: update to use from be bytes or similar
+                                    Signed::<24, 1>::from_str(&tick_index.to_string()).unwrap()
+                                })
+                        })
+                        .collect();
 
                     // Only return pools with non-empty initialized ticks
                     if !initialized_ticks.is_empty() {
