@@ -15,9 +15,9 @@ contract GetUniswapV3PoolTickDataBatchRequest {
     // NOTE: we can update the return type to be more specific and reduce size
     // TODO: pick a bettter name for this
     struct Info {
+        bool initialized;
         uint128 liquidityGross;
         int128 liquidityNet;
-        bool initialized;
     }
 
     constructor(TickDataInfo[] memory allPoolInfo) {

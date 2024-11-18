@@ -695,10 +695,9 @@ impl UniswapV3Factory {
         N: Network,
         P: Provider<T, N>,
     {
+        // NOTE: call these concurrently
         UniswapV3Factory::sync_slot_0(pools, block_number, provider.clone()).await;
         UniswapV3Factory::sync_token_decimals(pools, provider.clone()).await;
-
-        dbg!("Syncing tick bitmaps");
 
         *pools = pools
             .par_drain(..)
@@ -712,19 +711,8 @@ impl UniswapV3Factory {
             })
             .collect();
 
-        dbg!(pools.len());
-
-        let now = std::time::Instant::now();
         UniswapV3Factory::sync_tick_bitmaps(pools, block_number, provider.clone()).await;
-        dbg!("Syncing tick data");
-
-        dbg!(now.elapsed());
-        todo!("");
-
         UniswapV3Factory::sync_tick_data(pools, block_number, provider.clone()).await;
-
-        dbg!("Syncing token decimals");
-        // NOTE: call these concurrently
     }
 
     async fn sync_token_decimals<T, N, P>(pools: &mut [AMM], provider: Arc<P>)
@@ -810,11 +798,10 @@ impl UniswapV3Factory {
     {
         let mut futures: FuturesUnordered<BoxFuture<'_, _>> = FuturesUnordered::new();
 
-        let max_range = 6500;
+        let max_range = 6900;
         let mut group_range = 0;
         let mut group = vec![];
 
-        // TODO: collect groups in parallel and then spawn tasks separately
         for pool in pools.iter() {
             let AMM::UniswapV3Pool(uniswap_v3_pool) = pool else {
                 unreachable!()
@@ -868,6 +855,7 @@ impl UniswapV3Factory {
             }
         }
 
+        // Flush group if not empty
         if !group.is_empty() {
             let provider = provider.clone();
             let pool_info = group.iter().map(|info| info.pool).collect::<Vec<_>>();
@@ -934,7 +922,7 @@ impl UniswapV3Factory {
                                 .filter(|&bitmap| *bitmap != U256::ZERO)
                                 .map(|&bitmap| (word_pos, bitmap))
                         })
-                        // Get non zero bitmaps
+                        // Get tick index for non zero bitmaps
                         .flat_map(|(word_pos, bitmap)| {
                             (0..256)
                                 .filter(move |i| {
@@ -962,12 +950,11 @@ impl UniswapV3Factory {
             })
             .collect::<Vec<(Address, Vec<Signed<24, 1>>)>>();
 
-        let mut futures = FuturesUnordered::new();
-        let max_ticks = 200;
+        let mut futures: FuturesUnordered<BoxFuture<'_, _>> = FuturesUnordered::new();
+        let max_ticks = 60;
         let mut group_ticks = 0;
         let mut group = vec![];
 
-        // TODO: collect all futures and then process in parallel
         for (pool_address, mut ticks) in pool_ticks {
             while !ticks.is_empty() {
                 let remaining_ticks = max_ticks - group_ticks;
@@ -979,14 +966,14 @@ impl UniswapV3Factory {
                     ticks: selected_ticks.collect(),
                 });
 
-                if group_ticks >= max_ticks || ticks.is_empty() {
+                if group_ticks >= max_ticks {
                     let provider = provider.clone();
                     let calldata = std::mem::take(&mut group);
 
                     group_ticks = 0;
                     group.clear();
 
-                    futures.push(async move {
+                    futures.push(Box::pin(async move {
                         (
                             calldata.clone(),
                             GetUniswapV3PoolTickDataBatchRequest::deploy_builder(
@@ -997,9 +984,25 @@ impl UniswapV3Factory {
                             .await
                             .expect("TODO: handle error"),
                         )
-                    });
+                    }));
                 }
             }
+        }
+
+        if !group.is_empty() {
+            let provider = provider.clone();
+            let calldata = std::mem::take(&mut group);
+
+            futures.push(Box::pin(async move {
+                (
+                    calldata.clone(),
+                    GetUniswapV3PoolTickDataBatchRequest::deploy_builder(provider, calldata)
+                        .call_raw()
+                        .block(block_number.into())
+                        .await
+                        .expect("TODO: handle error"),
+                )
+            }));
         }
 
         let mut pool_set = pools
@@ -1007,43 +1010,29 @@ impl UniswapV3Factory {
             .map(|pool| (pool.address(), pool))
             .collect::<HashMap<Address, &mut AMM>>();
 
-        let return_type = DynSolType::Array(Box::new(DynSolType::Array(Box::new(
-            DynSolType::Tuple(vec![
-                DynSolType::Uint(128),
-                DynSolType::Int(128),
-                DynSolType::Bool,
-            ]),
-        ))));
-
         while let Some((tick_info, return_data)) = futures.next().await {
-            let return_data = return_type
-                .abi_decode_sequence(&return_data)
-                .expect("TODO: handle error");
+            let return_data =
+                <Vec<Vec<(bool, u128, i128)>> as SolValue>::abi_decode(&return_data, false)
+                    .expect("TODO:");
 
-            if let Some(tokens_arr) = return_data.as_array() {
-                for (tick_bitmaps, tick_info) in tokens_arr.iter().zip(tick_info.iter()) {
-                    let pool = pool_set
-                        .get_mut(&tick_info.pool)
-                        .expect("TODO: handle error");
+            for (tick_bitmaps, tick_info) in return_data.iter().zip(tick_info.iter()) {
+                let pool = pool_set
+                    .get_mut(&tick_info.pool)
+                    .expect("TODO: handle error");
 
-                    let AMM::UniswapV3Pool(ref mut uv3_pool) = pool else {
-                        unreachable!()
+                let AMM::UniswapV3Pool(ref mut uv3_pool) = pool else {
+                    unreachable!()
+                };
+
+                // TODO: do we need to insert unitilized ticks as well?
+                for (tick, tick_idx) in tick_bitmaps.iter().zip(tick_info.ticks.iter()) {
+                    let info = Info {
+                        liquidity_gross: tick.1,
+                        liquidity_net: tick.2,
+                        initialized: tick.0,
                     };
 
-                    if let Some(tick_bitmaps) = tick_bitmaps.as_array() {
-                        // TODO: do we need to insert unitilized ticks as well?
-                        for (tick, tick_idx) in tick_bitmaps.iter().zip(tick_info.ticks.iter()) {
-                            let tick = tick.as_tuple().unwrap();
-
-                            let info = Info {
-                                liquidity_gross: tick[0].as_uint().unwrap().0.to::<u128>(),
-                                liquidity_net: tick[1].as_int().unwrap().0.try_into().unwrap(),
-                                initialized: tick[2].as_bool().unwrap(),
-                            };
-
-                            uv3_pool.ticks.insert(tick_idx.as_i32(), info);
-                        }
-                    }
+                    uv3_pool.ticks.insert(tick_idx.as_i32(), info);
                 }
             }
         }
