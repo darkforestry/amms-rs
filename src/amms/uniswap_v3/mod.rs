@@ -15,13 +15,13 @@ use alloy::{
     providers::Provider,
     rpc::types::{Filter, FilterSet, Log},
     sol,
-    sol_types::SolEvent,
-    transports::Transport,
+    sol_types::{SolEvent, SolValue},
+    transports::{BoxFuture, Transport},
 };
 use eyre::Result;
 use futures::{stream::FuturesUnordered, StreamExt};
 use itertools::Itertools;
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+use rayon::iter::{IntoParallelRefIterator, ParallelDrainRange, ParallelIterator};
 use serde::{Deserialize, Serialize};
 use std::{
     cmp::Ordering,
@@ -700,20 +700,26 @@ impl UniswapV3Factory {
 
         dbg!("Syncing tick bitmaps");
 
-        // Drop pools with zero liquidity
-        pools.retain(|pool| match pool {
-            AMM::UniswapV3Pool(uv3_pool) => {
-                uv3_pool.liquidity > 0
-                    && uv3_pool.token_a_decimals > 0
-                    && uv3_pool.token_b_decimals > 0
-            }
-            _ => true,
-        });
+        *pools = pools
+            .par_drain(..)
+            .filter(|pool| match pool {
+                AMM::UniswapV3Pool(uv3_pool) => {
+                    uv3_pool.liquidity > 0
+                        && uv3_pool.token_a_decimals > 0
+                        && uv3_pool.token_b_decimals > 0
+                }
+                _ => true,
+            })
+            .collect();
 
         dbg!(pools.len());
 
+        let now = std::time::Instant::now();
         UniswapV3Factory::sync_tick_bitmaps(pools, block_number, provider.clone()).await;
         dbg!("Syncing tick data");
+
+        dbg!(now.elapsed());
+        todo!("");
 
         UniswapV3Factory::sync_tick_data(pools, block_number, provider.clone()).await;
 
@@ -780,32 +786,18 @@ impl UniswapV3Factory {
             });
         });
 
-        let return_type = DynSolType::Array(Box::new(DynSolType::Tuple(vec![
-            DynSolType::Int(24),
-            DynSolType::Uint(128),
-            DynSolType::Uint(256),
-        ])));
+        while let Some((pools, return_data)) = futures.next().await {
+            let return_data = <Vec<(i32, u128, U256)> as SolValue>::abi_decode(&return_data, false)
+                .expect("TODO:");
 
-        while let Some(res) = futures.next().await {
-            let (pools, return_data) = res;
+            for (slot_0_data, pool) in return_data.iter().zip(pools.iter_mut()) {
+                let AMM::UniswapV3Pool(ref mut uv3_pool) = pool else {
+                    unreachable!()
+                };
 
-            let return_data = return_type
-                .abi_decode_sequence(&return_data)
-                .expect("TODO: handle error");
-
-            if let Some(tokens_arr) = return_data.as_array() {
-                for (slot_0_data, pool) in tokens_arr.iter().zip(pools.iter_mut()) {
-                    let AMM::UniswapV3Pool(ref mut uv3_pool) = pool else {
-                        unreachable!()
-                    };
-
-                    if let Some(slot_0_data) = slot_0_data.as_tuple() {
-                        uv3_pool.tick = slot_0_data[0].as_int().expect("TODO:").0.as_i32();
-                        uv3_pool.liquidity =
-                            slot_0_data[1].as_uint().expect("TODO:").0.to::<u128>();
-                        uv3_pool.sqrt_price = slot_0_data[2].as_uint().expect("TODO:").0;
-                    }
-                }
+                uv3_pool.tick = slot_0_data.0;
+                uv3_pool.liquidity = slot_0_data.1;
+                uv3_pool.sqrt_price = slot_0_data.2;
             }
         }
     }
@@ -816,9 +808,9 @@ impl UniswapV3Factory {
         N: Network,
         P: Provider<T, N>,
     {
-        let mut futures = FuturesUnordered::new();
+        let mut futures: FuturesUnordered<BoxFuture<'_, _>> = FuturesUnordered::new();
 
-        let max_range = 15900;
+        let max_range = 6500;
         let mut group_range = 0;
         let mut group = vec![];
 
@@ -849,7 +841,10 @@ impl UniswapV3Factory {
                 group_range += range;
 
                 // If group is full, fire it off and reset
-                if group_range >= max_range || word_range <= 0 {
+
+                // NOTE: we are firing off for each pool, but really we want to make sure that we are grouping pools
+                if group_range >= max_range {
+                    // if group_range >= max_range || word_range <= 0 {
                     let provider = provider.clone();
                     let pool_info = group.iter().map(|info| info.pool).collect::<Vec<_>>();
 
@@ -857,7 +852,7 @@ impl UniswapV3Factory {
 
                     group_range = 0;
 
-                    futures.push(async move {
+                    futures.push(Box::pin(async move {
                         (
                             pool_info,
                             GetUniswapV3PoolTickBitmapBatchRequest::deploy_builder(
@@ -868,9 +863,27 @@ impl UniswapV3Factory {
                             .await
                             .expect("TODO: handle error"),
                         )
-                    });
+                    }));
                 }
             }
+        }
+
+        if !group.is_empty() {
+            let provider = provider.clone();
+            let pool_info = group.iter().map(|info| info.pool).collect::<Vec<_>>();
+
+            let calldata = std::mem::take(&mut group);
+
+            futures.push(Box::pin(async move {
+                (
+                    pool_info,
+                    GetUniswapV3PoolTickBitmapBatchRequest::deploy_builder(provider, calldata)
+                        .call_raw()
+                        .block(block_number.into())
+                        .await
+                        .expect("TODO: handle error"),
+                )
+            }));
         }
 
         let mut pool_set = pools
@@ -878,29 +891,21 @@ impl UniswapV3Factory {
             .map(|pool| (pool.address(), pool))
             .collect::<HashMap<Address, &mut AMM>>();
 
-        let return_type =
-            DynSolType::Array(Box::new(DynSolType::Array(Box::new(DynSolType::Uint(256)))));
-
         while let Some((pools, return_data)) = futures.next().await {
-            let return_data = return_type
-                .abi_decode_sequence(&return_data)
-                .expect("TODO: handle error");
+            let return_data =
+                <Vec<Vec<U256>> as SolValue>::abi_decode(&return_data, false).expect("TODO:");
 
-            if let Some(tokens_arr) = return_data.as_array() {
-                for (tokens, pool_address) in tokens_arr.iter().zip(pools.iter()) {
-                    let pool = pool_set.get_mut(pool_address).expect("TODO: handle error");
-                    let AMM::UniswapV3Pool(ref mut uv3_pool) = pool else {
-                        unreachable!()
-                    };
+            for (tick_bitmaps, pool_address) in return_data.iter().zip(pools.iter()) {
+                let pool = pool_set.get_mut(pool_address).expect("TODO: handle error");
+                let AMM::UniswapV3Pool(ref mut uv3_pool) = pool else {
+                    unreachable!()
+                };
 
-                    let tick_bitmaps = tokens.as_array().unwrap();
+                for chunk in tick_bitmaps.chunks_exact(2) {
+                    let word_pos = I256::from_raw(chunk[0]).as_i16();
+                    let tick_bitmap = chunk[1];
 
-                    for chunk in tick_bitmaps.chunks_exact(2) {
-                        let word_pos = I256::from_raw(chunk[0].as_uint().unwrap().0).as_i16();
-                        let tick_bitmap = chunk[1].as_uint().unwrap().0;
-
-                        uv3_pool.tick_bitmap.insert(word_pos, tick_bitmap);
-                    }
+                    uv3_pool.tick_bitmap.insert(word_pos, tick_bitmap);
                 }
             }
         }
@@ -1042,42 +1047,6 @@ impl UniswapV3Factory {
                 }
             }
         }
-    }
-}
-
-fn decode_tick_bitmap(mut encoded_tick_bitmap: U256, tick_spacing: u32) -> (U256, i16) {
-    if tick_spacing > 16 {
-        let mask = U256::from(u16::MAX) << (255 - tick_spacing);
-        let tick_bitmap = encoded_tick_bitmap ^ mask;
-        let word_pos: U256 = (encoded_tick_bitmap & mask) >> 239;
-
-        return (tick_bitmap, word_pos.to::<i16>());
-    } else {
-        let num_groups = if 16 % tick_spacing == 0 {
-            16 / tick_spacing
-        } else {
-            (16 / tick_spacing) + 1
-        };
-
-        // TODO: fix mask
-        // 0000011111..1 tick spacing
-        let mask = U256::MAX >> (256 - tick_spacing);
-
-        // TODO: fix this
-        let mut word_pos = U256::ZERO;
-        for i in 0..=num_groups {
-            let shift = 255 - (i + 1) * tick_spacing;
-            let mask = mask << shift;
-
-            let word_pos_bits = (encoded_tick_bitmap & mask) >> shift;
-            word_pos += word_pos_bits;
-
-            // NOTE: shift word pos bits and add them to word pos
-        }
-
-        dbg!(word_pos);
-
-        todo!()
     }
 }
 
