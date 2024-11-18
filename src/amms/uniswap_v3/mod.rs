@@ -1,15 +1,12 @@
-use crate::amms::consts::U256_1;
-
 use super::{
     amm::{AutomatedMarketMaker, AMM},
     error::AMMError,
     factory::{AutomatedMarketMakerFactory, DiscoverySync, Factory},
     get_token_decimals,
 };
-
+use crate::amms::consts::U256_1;
 use crate::amms::uniswap_v3::GetUniswapV3PoolTickBitmapBatchRequest::TickBitmapInfo;
 use alloy::{
-    dyn_abi::DynSolType,
     network::Network,
     primitives::{Address, Signed, B256, I256, U256},
     providers::Provider,
@@ -20,7 +17,6 @@ use alloy::{
 };
 use eyre::Result;
 use futures::{stream::FuturesUnordered, StreamExt};
-use itertools::Itertools;
 use rayon::iter::{IntoParallelRefIterator, ParallelDrainRange, ParallelIterator};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -29,9 +25,7 @@ use std::{
     hash::Hash,
     str::FromStr,
     sync::Arc,
-    u16,
 };
-use tokio::task::JoinSet;
 use uniswap_v3_math::tick_math::{MAX_SQRT_RATIO, MAX_TICK, MIN_SQRT_RATIO, MIN_TICK};
 
 sol! {
@@ -695,7 +689,6 @@ impl UniswapV3Factory {
         N: Network,
         P: Provider<T, N>,
     {
-        // NOTE: call these concurrently
         UniswapV3Factory::sync_slot_0(pools, block_number, provider.clone()).await;
         UniswapV3Factory::sync_token_decimals(pools, provider.clone()).await;
 
