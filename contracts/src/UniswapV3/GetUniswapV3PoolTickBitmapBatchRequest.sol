@@ -58,7 +58,7 @@ contract GetUniswapV3PoolTickBitmapBatchRequest {
                 // }
 
                 tickBitmaps[wordIdx] = uint256(int256(j));
-                wordIdx++;
+                ++wordIdx;
 
                 tickBitmaps[wordIdx] = tickBitmap;
                 ++wordIdx;

@@ -883,13 +883,9 @@ impl UniswapV3Factory {
 
                     let tick_bitmaps = tokens.as_array().unwrap();
 
-                    // for tick_bitmap in tick_bitmaps {
-                    //     let bitmap = tick_bitmap.as_uint().unwrap().0;
-                    // }
-
-                    for i in (0..tick_bitmaps.len()).step_by(2) {
-                        let word_pos = tick_bitmaps[i].as_int().unwrap().0.as_i16();
-                        let tick_bitmap = tick_bitmaps[i + 1].as_uint().unwrap().0;
+                    for chunk in tick_bitmaps.chunks_exact(2) {
+                        let word_pos = I256::from_raw(chunk[0].as_uint().unwrap().0).as_i16();
+                        let tick_bitmap = chunk[1].as_uint().unwrap().0;
 
                         uv3_pool.tick_bitmap.insert(word_pos, tick_bitmap);
                     }
