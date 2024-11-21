@@ -5,7 +5,10 @@ pub mod filters;
 use crate::amms::amm::AutomatedMarketMaker;
 use crate::amms::amm::AMM;
 use crate::amms::factory::Factory;
+use alloy::pubsub::PubSubFrontend;
+use alloy::pubsub::Subscription;
 use alloy::rpc::types::FilterSet;
+use alloy::rpc::types::Header;
 use alloy::{
     network::Network,
     primitives::{Address, FixedBytes},
@@ -13,10 +16,14 @@ use alloy::{
     rpc::types::Filter,
     transports::Transport,
 };
+use async_stream::stream;
 use cache::StateChangeCache;
 use derive_more::derive::{Deref, DerefMut};
 use discovery::DiscoveryManager;
+use eyre::Error;
+use futures::stream;
 use futures::stream::FuturesUnordered;
+use futures::Stream;
 use futures::StreamExt;
 use std::collections::HashSet;
 use std::{collections::HashMap, marker::PhantomData, sync::Arc};
@@ -39,6 +46,42 @@ pub struct StateSpaceManager<T, N, P> {
     // TODO: think about making cache trait then we could experiment with different implementations
 }
 
+// NOTE: make it so that you can also just invoke the function to process a block and return the state space
+// so that you can invoke it manually with the stream rather than subscribing
+
+impl<T, N, P> StateSpaceManager<T, N, P>
+where
+    T: Transport + Clone,
+    N: Network,
+    P: Provider<PubSubFrontend, N> + 'static,
+{
+    pub async fn subscribe<S>(&mut self) -> impl Stream<Item = Vec<Address>> {
+        // Subscribe to the block stream
+        let mut block_stream = self.provider.subscribe_blocks().await.expect("TODO:");
+
+        // Clone resources needed for processing
+        let state = Arc::clone(&self.state);
+        let state_change_cache = Arc::clone(&self.state_change_cache);
+        let block_filter = self.block_filter.clone();
+        let latest_block = Arc::new(tokio::sync::Mutex::new(self.latest_block)); // Thread-safe `latest_block`
+
+        // NOTE: think through the best way to do this, whether  getting logs from different provider or the same one
+        // Return a stream that processes blocks
+        stream! {
+            while let Some(block) = block_stream.next().await {
+
+                // TODO: Get logs from the block and process logs
+
+
+                yield vec![];
+
+            }
+        }
+    }
+
+    // TODO: function to manually process logs, allowing for
+}
+
 // NOTE: Drop impl, create a checkpoint
 
 #[derive(Debug, Default)]
@@ -59,7 +102,7 @@ impl<T, N, P> StateSpaceBuilder<T, N, P>
 where
     T: Transport + Clone,
     N: Network,
-    P: Provider<T, N> + 'static,
+    P: Provider<PubSubFrontend, N> + 'static,
 {
     pub fn new(provider: Arc<P>, factories: Vec<Factory>) -> StateSpaceBuilder<T, N, P> {
         Self {
