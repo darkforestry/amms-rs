@@ -8,7 +8,8 @@ use crate::{
     errors::EventLogError,
 };
 use alloy::{
-    network::{BlockResponse, HeaderResponse, Network},
+    consensus::BlockHeader,
+    network::Network,
     primitives::{Address, FixedBytes},
     providers::Provider,
     rpc::types::eth::{Filter, Log},
@@ -127,7 +128,7 @@ where
         &self,
         buffer: usize,
     ) -> (
-        Receiver<<N as alloy::providers::Network>::BlockResponse>,
+        Receiver<<N as alloy::providers::Network>::HeaderResponse>,
         JoinHandle<Result<(), StateSpaceError<N>>>,
     ) {
         let (stream_tx, stream_rx) = tokio::sync::mpsc::channel(buffer);
@@ -152,7 +153,7 @@ where
     pub async fn subscribe_sync_amms(
         &self,
         mut latest_synced_block: u64,
-        mut stream_rx: Receiver<<N as alloy::providers::Network>::BlockResponse>,
+        mut stream_rx: Receiver<<N as alloy::providers::Network>::HeaderResponse>,
         buffer: usize,
     ) -> (
         Receiver<Vec<Address>>,
@@ -168,7 +169,7 @@ where
         let updated_amms_handle: JoinHandle<Result<(), StateSpaceError<N>>> =
             tokio::spawn(async move {
                 while let Some(block) = stream_rx.recv().await {
-                    let chain_head_block_number = block.header().number();
+                    let chain_head_block_number = block.number();
 
                     // If the chain head block number <= latest synced block, a reorg has occurred
                     if chain_head_block_number <= latest_synced_block {
