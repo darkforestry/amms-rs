@@ -15,7 +15,7 @@ pub struct StateChangeSendErrorWrapper(pub tokio::sync::mpsc::error::SendError<V
 
 #[derive(Debug)]
 pub struct BlockSendErrorWrapper<N: Network>(
-    pub tokio::sync::mpsc::error::SendError<<N as alloy::providers::Network>::BlockResponse>,
+    pub tokio::sync::mpsc::error::SendError<<N as alloy::providers::Network>::HeaderResponse>,
 );
 
 // Implement Display for StateChangeSendErrorWrapper
