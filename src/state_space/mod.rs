@@ -5,10 +5,17 @@ pub mod filters;
 use crate::amms::amm::AutomatedMarketMaker;
 use crate::amms::amm::AMM;
 use crate::amms::factory::Factory;
+use alloy::consensus::ReceiptEnvelope;
+use alloy::network::Ethereum;
 use alloy::pubsub::PubSubFrontend;
 use alloy::pubsub::Subscription;
+use alloy::rpc::types::state;
+use alloy::rpc::types::Block;
+use alloy::rpc::types::BlockTransactions;
 use alloy::rpc::types::FilterSet;
 use alloy::rpc::types::Header;
+use alloy::rpc::types::Log;
+use alloy::rpc::types::TransactionReceipt;
 use alloy::{
     network::Network,
     primitives::{Address, FixedBytes},
@@ -25,9 +32,11 @@ use futures::stream;
 use futures::stream::FuturesUnordered;
 use futures::Stream;
 use futures::StreamExt;
+use rayon::iter::IntoParallelIterator;
+use rayon::iter::ParallelIterator;
 use std::collections::HashSet;
 use std::{collections::HashMap, marker::PhantomData, sync::Arc};
-use tokio::sync::RwLock;
+use std::sync::RwLock;
 
 pub const CACHE_SIZE: usize = 30;
 
@@ -52,34 +61,67 @@ pub struct StateSpaceManager<T, N, P> {
 impl<T, N, P> StateSpaceManager<T, N, P>
 where
     T: Transport + Clone,
-    N: Network,
-    P: Provider<PubSubFrontend, N> + 'static,
+    P: Provider<PubSubFrontend> + 'static,
 {
     pub async fn subscribe<S>(&mut self) -> impl Stream<Item = Vec<Address>> {
         // Subscribe to the block stream
         let mut block_stream = self.provider.subscribe_blocks().await.expect("TODO:");
-
         // Clone resources needed for processing
         let state = Arc::clone(&self.state);
         let state_change_cache = Arc::clone(&self.state_change_cache);
         let block_filter = self.block_filter.clone();
         let latest_block = Arc::new(tokio::sync::Mutex::new(self.latest_block)); // Thread-safe `latest_block`
-
+        let provider = Arc::clone(&self.provider);
         // NOTE: think through the best way to do this, whether  getting logs from different provider or the same one
         // Return a stream that processes blocks
         stream! {
-            while let Some(block) = block_stream.next().await {
-
-                // TODO: Get logs from the block and process logs
-
-
-                yield vec![];
-
+            let mut stream = block_stream.into_stream();
+            while let Some(t) = stream.next().await {
+                yield Self::process_block(t, block_filter.clone(), provider.clone(), state.clone()).await;
             }
         }
     }
 
     // TODO: function to manually process logs, allowing for
+    async fn process_block(
+        block: Block,
+        block_filter: Filter,
+        provider: Arc<P>,
+        state: Arc<RwLock<StateSpace>>,
+    ) -> Vec<Address> {
+        let receipts = provider
+            .get_block_receipts(block.header.hash.into())
+            .await
+            .expect("TODO:");
+        if let Some(receipts) = receipts {
+            return receipts
+                .iter()
+                .map(|r| {
+                    let inner = &r.inner;
+                    let logs = inner
+                        .logs()
+                        .iter()
+                        .filter_map(|l| {
+                            if block_filter
+                                .topics
+                                .iter()
+                                .any(|t| t.matches(l.topic0().unwrap_or_default()))
+                                && block_filter.address.matches(&l.address())
+                            {
+                                Some(l.clone())
+                            } else {
+                                None
+                            }
+                        })
+                        .collect::<Vec<_>>();
+                    state.write().unwrap().sync_logs(logs.clone());
+                    logs.iter().map(|l| l.address()).collect::<Vec<_>>()
+                })
+                .flatten()
+                .collect();
+        }
+        vec![]
+    }
 }
 
 // NOTE: Drop impl, create a checkpoint
@@ -194,3 +236,14 @@ where
 
 #[derive(Debug, Default, Deref, DerefMut)]
 pub struct StateSpace(HashMap<Address, AMM>);
+
+impl StateSpace {
+    pub fn sync_logs(&mut self, logs: Vec<Log>) {
+        for log in logs {
+            let address = log.address();
+            if let Some(amm) = self.get_mut(&address) {
+                amm.sync(log);
+            }
+        }
+    }
+}
