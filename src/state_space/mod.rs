@@ -57,33 +57,32 @@ where
     T: Transport + Clone,
     P: Provider<PubSubFrontend> + 'static,
 {
-    pub async fn subscribe<S>(&'static mut self) -> impl Stream<Item = Vec<Address>> {
+    pub async fn subscribe<S>(&'static self) -> impl Stream<Item = Vec<Address>> {
         // Subscribe to the block stream
         let block_stream = self.provider.subscribe_blocks().await.expect("TODO:");
         // Clone resources needed for processing
         let latest_block = Arc::new(tokio::sync::Mutex::new(self.latest_block)); // Thread-safe `latest_block`
 
-        let this = Arc::new(RwLock::new(self));
         stream! {
-            this.write().unwrap().sync_tip(*latest_block.lock().await).await;
+            self.sync_tip(*latest_block.lock().await).await;
             let mut stream = block_stream.into_stream();
 
             while let Some(block) = stream.next().await {
                 let latest = *latest_block.lock().await;
                 if block.header.number < latest{
-                    let state_at_block = this.write().unwrap().state_change_cache.write().unwrap().unwind_state_changes(latest - block.header.number);
+                    let state_at_block = self.state_change_cache.write().unwrap().unwind_state_changes(latest - block.header.number);
                     for amm in state_at_block {
-                        this.write().unwrap().state.write().unwrap().insert(amm.address(), amm);
+                        self.state.write().unwrap().insert(amm.address(), amm);
                     }
                 }
                 *latest_block.lock().await = block.header.number;
                 //TODO: Reorg aware block stream
-                yield this.write().unwrap().sync_block(block).await;
+                yield self.sync_block(block).await;
             }
         }
     }
 
-    async fn sync_tip(&mut self, latest_block: u64) {
+    async fn sync_tip(&self, latest_block: u64) {
         let tip = self.provider.get_block_number().await.expect("TODO:");
         let rng = latest_block..=tip;
         let blocks = rng.into_iter().map(|i| {
@@ -110,7 +109,7 @@ where
     }
 
     // TODO: function to manually process logs, allowing for
-    async fn sync_block(&mut self, block: Block) -> Vec<Address> {
+    async fn sync_block(&self, block: Block) -> Vec<Address> {
         let receipts = self
             .provider
             .get_block_receipts(block.header.hash.into())
