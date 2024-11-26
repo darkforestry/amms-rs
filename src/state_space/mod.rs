@@ -12,10 +12,12 @@ use alloy::pubsub::Subscription;
 use alloy::rpc::types::state;
 use alloy::rpc::types::Block;
 use alloy::rpc::types::BlockTransactions;
+use alloy::rpc::types::BlockTransactionsKind;
 use alloy::rpc::types::FilterSet;
 use alloy::rpc::types::Header;
 use alloy::rpc::types::Log;
 use alloy::rpc::types::TransactionReceipt;
+use alloy::signers::k256::elliptic_curve::rand_core::block;
 use alloy::{
     network::Network,
     primitives::{Address, FixedBytes},
@@ -35,8 +37,8 @@ use futures::StreamExt;
 use rayon::iter::IntoParallelIterator;
 use rayon::iter::ParallelIterator;
 use std::collections::HashSet;
-use std::{collections::HashMap, marker::PhantomData, sync::Arc};
 use std::sync::RwLock;
+use std::{collections::HashMap, marker::PhantomData, sync::Arc};
 
 pub const CACHE_SIZE: usize = 30;
 
@@ -65,19 +67,60 @@ where
 {
     pub async fn subscribe<S>(&mut self) -> impl Stream<Item = Vec<Address>> {
         // Subscribe to the block stream
-        let mut block_stream = self.provider.subscribe_blocks().await.expect("TODO:");
+        let block_stream = self.provider.subscribe_blocks().await.expect("TODO:");
         // Clone resources needed for processing
         let state = Arc::clone(&self.state);
         let state_change_cache = Arc::clone(&self.state_change_cache);
         let block_filter = self.block_filter.clone();
         let latest_block = Arc::new(tokio::sync::Mutex::new(self.latest_block)); // Thread-safe `latest_block`
         let provider = Arc::clone(&self.provider);
+
         // NOTE: think through the best way to do this, whether  getting logs from different provider or the same one
         // Return a stream that processes blocks
         stream! {
+            Self::sync_tip(*latest_block.lock().await, block_filter.clone(), provider.clone(), state.clone()).await;
             let mut stream = block_stream.into_stream();
+
             while let Some(t) = stream.next().await {
+                //TODO: Reorg aware block stream
                 yield Self::process_block(t, block_filter.clone(), provider.clone(), state.clone()).await;
+            }
+        }
+    }
+
+    async fn sync_tip(
+        latest_block: u64,
+        block_filter: Filter,
+        provider: Arc<P>,
+        state: Arc<RwLock<StateSpace>>,
+    ) {
+        let tip = provider.get_block_number().await.expect("TODO:");
+        let rng = latest_block..=tip;
+        let blocks = rng.into_iter().map(|i| {
+            let provider = Arc::clone(&provider);
+            async move {
+                let block = provider
+                    .get_block(i.into(), BlockTransactionsKind::Full)
+                    .await
+                    .expect("TODO:");
+                block
+            }
+        });
+
+        let blocks = futures::future::join_all(blocks)
+            .await
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        for block in blocks {
+            if let Some(block) = block {
+                let _ = Self::process_block(
+                    block,
+                    block_filter.clone(),
+                    provider.clone(),
+                    state.clone(),
+                )
+                .await;
             }
         }
     }

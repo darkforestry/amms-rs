@@ -47,7 +47,6 @@ async fn main() -> eyre::Result<()> {
     let now = std::time::Instant::now();
 
     let state_space_manager = StateSpaceBuilder::new(provider.clone(), factories)
-        .with_discovery()
         .sync()
         .await;
 
