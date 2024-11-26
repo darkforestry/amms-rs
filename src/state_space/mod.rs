@@ -5,19 +5,12 @@ pub mod filters;
 use crate::amms::amm::AutomatedMarketMaker;
 use crate::amms::amm::AMM;
 use crate::amms::factory::Factory;
-use alloy::consensus::ReceiptEnvelope;
-use alloy::network::Ethereum;
+
 use alloy::pubsub::PubSubFrontend;
-use alloy::pubsub::Subscription;
-use alloy::rpc::types::state;
 use alloy::rpc::types::Block;
-use alloy::rpc::types::BlockTransactions;
 use alloy::rpc::types::BlockTransactionsKind;
 use alloy::rpc::types::FilterSet;
-use alloy::rpc::types::Header;
 use alloy::rpc::types::Log;
-use alloy::rpc::types::TransactionReceipt;
-use alloy::signers::k256::elliptic_curve::rand_core::block;
 use alloy::{
     network::Network,
     primitives::{Address, FixedBytes},
@@ -26,16 +19,14 @@ use alloy::{
     transports::Transport,
 };
 use async_stream::stream;
+use cache::StateChange;
 use cache::StateChangeCache;
 use derive_more::derive::{Deref, DerefMut};
 use discovery::DiscoveryManager;
-use eyre::Error;
-use futures::stream;
+
 use futures::stream::FuturesUnordered;
 use futures::Stream;
 use futures::StreamExt;
-use rayon::iter::IntoParallelIterator;
-use rayon::iter::ParallelIterator;
 use std::collections::HashSet;
 use std::sync::RwLock;
 use std::{collections::HashMap, marker::PhantomData, sync::Arc};
@@ -78,12 +69,20 @@ where
         // NOTE: think through the best way to do this, whether  getting logs from different provider or the same one
         // Return a stream that processes blocks
         stream! {
-            Self::sync_tip(*latest_block.lock().await, block_filter.clone(), provider.clone(), state.clone()).await;
+            Self::sync_tip(*latest_block.lock().await, block_filter.clone(), provider.clone(), state.clone(), state_change_cache.clone()).await;
             let mut stream = block_stream.into_stream();
 
             while let Some(t) = stream.next().await {
+                let latest = *latest_block.lock().await;
+                if t.header.number < latest{
+                    let state_at_block = state_change_cache.write().unwrap().unwind_state_changes(latest - t.header.number);
+                    for amm in state_at_block {
+                        state.write().unwrap().insert(amm.address(), amm);
+                    }
+                }
+                *latest_block.lock().await = t.header.number;
                 //TODO: Reorg aware block stream
-                yield Self::process_block(t, block_filter.clone(), provider.clone(), state.clone()).await;
+                yield Self::sync_block(t, block_filter.clone(), provider.clone(), state.clone(), state_change_cache.clone()).await;
             }
         }
     }
@@ -93,6 +92,7 @@ where
         block_filter: Filter,
         provider: Arc<P>,
         state: Arc<RwLock<StateSpace>>,
+        cache: Arc<RwLock<StateChangeCache<CACHE_SIZE>>>,
     ) {
         let tip = provider.get_block_number().await.expect("TODO:");
         let rng = latest_block..=tip;
@@ -114,11 +114,12 @@ where
             .collect::<Vec<_>>();
         for block in blocks {
             if let Some(block) = block {
-                let _ = Self::process_block(
+                let _ = Self::sync_block(
                     block,
                     block_filter.clone(),
                     provider.clone(),
                     state.clone(),
+                    cache.clone(),
                 )
                 .await;
             }
@@ -126,11 +127,12 @@ where
     }
 
     // TODO: function to manually process logs, allowing for
-    async fn process_block(
+    async fn sync_block(
         block: Block,
         block_filter: Filter,
         provider: Arc<P>,
         state: Arc<RwLock<StateSpace>>,
+        cache: Arc<RwLock<StateChangeCache<CACHE_SIZE>>>,
     ) -> Vec<Address> {
         let receipts = provider
             .get_block_receipts(block.header.hash.into())
@@ -157,7 +159,15 @@ where
                             }
                         })
                         .collect::<Vec<_>>();
-                    state.write().unwrap().sync_logs(logs.clone());
+                    let state_change = state
+                        .write()
+                        .unwrap()
+                        .sync_logs(logs.clone(), block.header.number);
+                    cache
+                        .write()
+                        .unwrap()
+                        .add_state_change_to_cache(state_change)
+                        .expect("TODO:");
                     logs.iter().map(|l| l.address()).collect::<Vec<_>>()
                 })
                 .flatten()
@@ -281,12 +291,16 @@ where
 pub struct StateSpace(HashMap<Address, AMM>);
 
 impl StateSpace {
-    pub fn sync_logs(&mut self, logs: Vec<Log>) {
+    pub fn sync_logs(&mut self, logs: Vec<Log>, block_number: u64) -> StateChange {
+        let mut amms = HashSet::new();
         for log in logs {
             let address = log.address();
             if let Some(amm) = self.get_mut(&address) {
                 amm.sync(log);
+                amms.insert(amm.clone());
             }
         }
+
+        StateChange::new(amms.into_iter().collect(), block_number)
     }
 }
