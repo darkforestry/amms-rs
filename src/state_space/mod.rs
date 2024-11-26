@@ -33,6 +33,7 @@ use std::{collections::HashMap, marker::PhantomData, sync::Arc};
 
 pub const CACHE_SIZE: usize = 30;
 
+#[derive(Clone)]
 pub struct StateSpaceManager<T, N, P> {
     pub provider: Arc<P>,
     // TODO: think about making the state space a trait, so we can have different implementations and bench whatever is best?
@@ -56,48 +57,37 @@ where
     T: Transport + Clone,
     P: Provider<PubSubFrontend> + 'static,
 {
-    pub async fn subscribe<S>(&mut self) -> impl Stream<Item = Vec<Address>> {
+    pub async fn subscribe<S>(&'static mut self) -> impl Stream<Item = Vec<Address>> {
         // Subscribe to the block stream
         let block_stream = self.provider.subscribe_blocks().await.expect("TODO:");
         // Clone resources needed for processing
-        let state = Arc::clone(&self.state);
-        let state_change_cache = Arc::clone(&self.state_change_cache);
-        let block_filter = self.block_filter.clone();
         let latest_block = Arc::new(tokio::sync::Mutex::new(self.latest_block)); // Thread-safe `latest_block`
-        let provider = Arc::clone(&self.provider);
 
-        // NOTE: think through the best way to do this, whether  getting logs from different provider or the same one
-        // Return a stream that processes blocks
+        let this = Arc::new(RwLock::new(self));
         stream! {
-            Self::sync_tip(*latest_block.lock().await, block_filter.clone(), provider.clone(), state.clone(), state_change_cache.clone()).await;
+            this.write().unwrap().sync_tip(*latest_block.lock().await).await;
             let mut stream = block_stream.into_stream();
 
-            while let Some(t) = stream.next().await {
+            while let Some(block) = stream.next().await {
                 let latest = *latest_block.lock().await;
-                if t.header.number < latest{
-                    let state_at_block = state_change_cache.write().unwrap().unwind_state_changes(latest - t.header.number);
+                if block.header.number < latest{
+                    let state_at_block = this.write().unwrap().state_change_cache.write().unwrap().unwind_state_changes(latest - block.header.number);
                     for amm in state_at_block {
-                        state.write().unwrap().insert(amm.address(), amm);
+                        this.write().unwrap().state.write().unwrap().insert(amm.address(), amm);
                     }
                 }
-                *latest_block.lock().await = t.header.number;
+                *latest_block.lock().await = block.header.number;
                 //TODO: Reorg aware block stream
-                yield Self::sync_block(t, block_filter.clone(), provider.clone(), state.clone(), state_change_cache.clone()).await;
+                yield this.write().unwrap().sync_block(block).await;
             }
         }
     }
 
-    async fn sync_tip(
-        latest_block: u64,
-        block_filter: Filter,
-        provider: Arc<P>,
-        state: Arc<RwLock<StateSpace>>,
-        cache: Arc<RwLock<StateChangeCache<CACHE_SIZE>>>,
-    ) {
-        let tip = provider.get_block_number().await.expect("TODO:");
+    async fn sync_tip(&mut self, latest_block: u64) {
+        let tip = self.provider.get_block_number().await.expect("TODO:");
         let rng = latest_block..=tip;
         let blocks = rng.into_iter().map(|i| {
-            let provider = Arc::clone(&provider);
+            let provider = self.provider.clone();
             async move {
                 let block = provider
                     .get_block(i.into(), BlockTransactionsKind::Full)
@@ -114,27 +104,15 @@ where
             .collect::<Vec<_>>();
         for block in blocks {
             if let Some(block) = block {
-                let _ = Self::sync_block(
-                    block,
-                    block_filter.clone(),
-                    provider.clone(),
-                    state.clone(),
-                    cache.clone(),
-                )
-                .await;
+                let _ = self.sync_block(block).await;
             }
         }
     }
 
     // TODO: function to manually process logs, allowing for
-    async fn sync_block(
-        block: Block,
-        block_filter: Filter,
-        provider: Arc<P>,
-        state: Arc<RwLock<StateSpace>>,
-        cache: Arc<RwLock<StateChangeCache<CACHE_SIZE>>>,
-    ) -> Vec<Address> {
-        let receipts = provider
+    async fn sync_block(&mut self, block: Block) -> Vec<Address> {
+        let receipts = self
+            .provider
             .get_block_receipts(block.header.hash.into())
             .await
             .expect("TODO:");
@@ -147,11 +125,12 @@ where
                         .logs()
                         .iter()
                         .filter_map(|l| {
-                            if block_filter
+                            if self
+                                .block_filter
                                 .topics
                                 .iter()
                                 .any(|t| t.matches(l.topic0().unwrap_or_default()))
-                                && block_filter.address.matches(&l.address())
+                                && self.block_filter.address.matches(&l.address())
                             {
                                 Some(l.clone())
                             } else {
@@ -159,11 +138,12 @@ where
                             }
                         })
                         .collect::<Vec<_>>();
-                    let state_change = state
+                    let state_change = self
+                        .state
                         .write()
                         .unwrap()
                         .sync_logs(logs.clone(), block.header.number);
-                    cache
+                    self.state_change_cache
                         .write()
                         .unwrap()
                         .add_state_change_to_cache(state_change)

@@ -6,7 +6,7 @@ use crate::amms::factory::Factory;
 
 use super::filters::filter::PoolFilter;
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct DiscoveryManager {
     pub factories: HashMap<Address, Factory>,
     pub pool_filters: Option<Vec<PoolFilter>>,
