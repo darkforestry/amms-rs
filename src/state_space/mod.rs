@@ -27,6 +27,8 @@ use futures::stream::FuturesUnordered;
 use futures::Stream;
 use futures::StreamExt;
 use std::collections::HashSet;
+use std::sync::atomic::AtomicU64;
+use std::sync::atomic::Ordering;
 use std::sync::RwLock;
 use std::{collections::HashMap, marker::PhantomData, sync::Arc};
 
@@ -60,21 +62,20 @@ where
         // Subscribe to the block stream
         let block_stream = self.provider.subscribe_blocks().await.expect("TODO:");
         // Clone resources needed for processing
-        let latest_block = Arc::new(tokio::sync::Mutex::new(self.latest_block)); // Thread-safe `latest_block`
+        let latest_block = AtomicU64::new(self.latest_block); // Thread-safe `latest_block`
 
         stream! {
             let mut stream = block_stream.into_stream();
 
             while let Some(block) = stream.next().await {
-                let latest = *latest_block.lock().await;
-                if block.header.number < latest{
-                    let state_at_block = self.state_change_cache.write().unwrap().unwind_state_changes(latest - block.header.number);
+                let l = latest_block.load(Ordering::Relaxed);
+                if l < block.header.number {
+                    let state_at_block = self.state_change_cache.write().unwrap().unwind_state_changes(l - block.header.number);
                     for amm in state_at_block {
                         self.state.write().unwrap().insert(amm.address(), amm);
                     }
                 }
-                *latest_block.lock().await = block.header.number;
-                //TODO: Reorg aware block stream
+                latest_block.store(block.header.number, Ordering::Relaxed);
                 yield self.sync_block(block).await;
             }
         }
