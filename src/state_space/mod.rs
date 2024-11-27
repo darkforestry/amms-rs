@@ -91,7 +91,7 @@ where
     }
 
     // TODO: function to manually process logs, allowing for
-    async fn sync_block(&self, block_number: u64) -> Vec<Address> {
+    pub async fn sync_block(&self, block_number: u64) -> Vec<Address> {
         let logs = self
             .provider
             .get_logs(&self.block_filter.clone().select(block_number))
