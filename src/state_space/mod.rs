@@ -82,7 +82,7 @@ where
                 }
 
                 // Sync the state space with any state chnages from block
-                let affected_amms = self.sync_block(block).await;
+                let affected_amms = self.sync_block(block_number).await;
                 latest_block.store(block_number, Ordering::Relaxed);
 
                 yield affected_amms;
@@ -91,24 +91,31 @@ where
     }
 
     // TODO: function to manually process logs, allowing for
-    async fn sync_block(&self, block: Block) -> Vec<Address> {
+    async fn sync_block(&self, block_number: u64) -> Vec<Address> {
         let logs = self
             .provider
-            .get_logs(&self.block_filter.clone().select(block.header.number))
+            .get_logs(&self.block_filter.clone().select(block_number))
             .await
             .expect("TODO:");
+
+        let affected_addresses = logs.iter().map(|l| l.address()).collect::<Vec<_>>();
 
         let state_change = self
             .state
             .write()
             .unwrap()
-            .sync_logs(logs.clone(), block.header.number);
+            .sync_logs(logs)
+            .into_iter()
+            .next()
+            .unwrap();
+
         self.state_change_cache
             .write()
             .unwrap()
             .add_state_change_to_cache(state_change)
             .expect("TODO:");
-        logs.iter().map(|l| l.address()).collect::<Vec<_>>()
+
+        affected_addresses
     }
 }
 
@@ -212,7 +219,7 @@ where
 
         StateSpaceManager {
             provider: self.provider,
-            latest_block: chain_tip,
+            latest_block: Arc::new(AtomicU64::new(self.latest_block)),
             state: Arc::new(RwLock::new(state_space)),
             state_change_cache: Arc::new(RwLock::new(StateChangeCache::default())),
             discovery_manager,
@@ -223,19 +230,39 @@ where
 }
 
 #[derive(Debug, Default, Deref, DerefMut)]
+// TODO: add cache to state space as a private field do eliminate unnecessary mutex on state space cache
 pub struct StateSpace(HashMap<Address, AMM>);
 
 impl StateSpace {
-    pub fn sync_logs(&mut self, logs: Vec<Log>, block_number: u64) -> StateChange {
-        let mut amms = HashSet::new();
+    pub fn sync_logs(&mut self, logs: Vec<Log>) -> Vec<StateChange> {
+        let mut block_number = logs
+            .first()
+            .expect("TODO: handle error")
+            .block_number
+            .expect("TODO: Handle this");
+
+        let mut cached_amms = HashSet::new();
+        let mut state_changes = vec![];
+
         for log in logs {
+            // If the block number is updated, cache the current block state changes
+            let log_block_number = log.block_number.expect("TODO: Handle this");
+            if log_block_number != block_number {
+                state_changes.push(StateChange::new(
+                    cached_amms.drain().collect(),
+                    block_number,
+                ));
+                block_number = log_block_number;
+            }
+
+            // If the AMM is in the state space add the current state to cache and sync from log
             let address = log.address();
             if let Some(amm) = self.get_mut(&address) {
+                cached_amms.insert(amm.clone());
                 amm.sync(log);
-                amms.insert(amm.clone());
             }
         }
 
-        StateChange::new(amms.into_iter().collect(), block_number)
+        state_changes
     }
 }
