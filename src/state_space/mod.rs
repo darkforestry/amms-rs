@@ -75,9 +75,10 @@ where
 
                 // Check if there is a reorg and unwind to state before block_number
                 if latest >= block_number {
-                    let state_at_block = self.state_change_cache.write().unwrap().unwind_state_changes(block_number);
-                    for amm in state_at_block {
-                        self.state.write().unwrap().insert(amm.address(), amm);
+                    let cached_state = self.state_change_cache.write().unwrap().unwind_state_changes(block_number);
+                    let mut state = self.state.write().unwrap();
+                    for amm in cached_state {
+                        state.insert(amm.address(), amm);
                     }
                 }
 
