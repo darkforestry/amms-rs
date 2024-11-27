@@ -233,7 +233,7 @@ where
 #[derive(Debug, Default)]
 // TODO: add cache to state space as a private field do eliminate unnecessary mutex on state space cache
 pub struct StateSpace {
-    state: HashMap<Address, AMM>,
+    pub state: HashMap<Address, AMM>,
     cache: StateChangeCache<CACHE_SIZE>,
 }
 
