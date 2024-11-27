@@ -230,9 +230,12 @@ where
     }
 }
 
-#[derive(Debug, Default, Deref, DerefMut)]
+#[derive(Debug, Default)]
 // TODO: add cache to state space as a private field do eliminate unnecessary mutex on state space cache
-pub struct StateSpace(HashMap<Address, AMM>);
+pub struct StateSpace {
+    state: HashMap<Address, AMM>,
+    cache: StateChangeCache<CACHE_SIZE>,
+}
 
 impl StateSpace {
     pub fn sync_logs(&mut self, logs: Vec<Log>) -> Vec<StateChange> {
@@ -258,7 +261,7 @@ impl StateSpace {
 
             // If the AMM is in the state space add the current state to cache and sync from log
             let address = log.address();
-            if let Some(amm) = self.get_mut(&address) {
+            if let Some(amm) = self.state.get_mut(&address) {
                 cached_amms.insert(amm.clone());
                 amm.sync(log);
             }
