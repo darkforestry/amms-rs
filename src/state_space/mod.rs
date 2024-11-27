@@ -8,7 +8,6 @@ use crate::amms::factory::Factory;
 
 use alloy::pubsub::PubSubFrontend;
 use alloy::rpc::types::Block;
-use alloy::rpc::types::BlockTransactionsKind;
 use alloy::rpc::types::FilterSet;
 use alloy::rpc::types::Log;
 use alloy::{
@@ -64,7 +63,6 @@ where
         let latest_block = Arc::new(tokio::sync::Mutex::new(self.latest_block)); // Thread-safe `latest_block`
 
         stream! {
-            self.sync_tip(*latest_block.lock().await).await;
             let mut stream = block_stream.into_stream();
 
             while let Some(block) = stream.next().await {
@@ -82,77 +80,24 @@ where
         }
     }
 
-    async fn sync_tip(&self, latest_block: u64) {
-        let tip = self.provider.get_block_number().await.expect("TODO:");
-        let rng = latest_block..=tip;
-        let blocks = rng.into_iter().map(|i| {
-            let provider = self.provider.clone();
-            async move {
-                let block = provider
-                    .get_block(i.into(), BlockTransactionsKind::Full)
-                    .await
-                    .expect("TODO:");
-                block
-            }
-        });
-
-        let blocks = futures::future::join_all(blocks)
-            .await
-            .iter()
-            .cloned()
-            .collect::<Vec<_>>();
-        for block in blocks {
-            if let Some(block) = block {
-                let _ = self.sync_block(block).await;
-            }
-        }
-    }
-
     // TODO: function to manually process logs, allowing for
     async fn sync_block(&self, block: Block) -> Vec<Address> {
-        let receipts = self
+        let logs = self
             .provider
-            .get_block_receipts(block.header.hash.into())
+            .get_logs(&self.block_filter.clone().select(block.header.number))
             .await
             .expect("TODO:");
-        if let Some(receipts) = receipts {
-            return receipts
-                .iter()
-                .map(|r| {
-                    let inner = &r.inner;
-                    let logs = inner
-                        .logs()
-                        .iter()
-                        .filter_map(|l| {
-                            if self
-                                .block_filter
-                                .topics
-                                .iter()
-                                .any(|t| t.matches(l.topic0().unwrap_or_default()))
-                                && self.block_filter.address.matches(&l.address())
-                            {
-                                Some(l.clone())
-                            } else {
-                                None
-                            }
-                        })
-                        .collect::<Vec<_>>();
-                    let state_change = self
-                        .state
-                        .write()
-                        .unwrap()
-                        .sync_logs(logs.clone(), block.header.number);
-                    self.state_change_cache
-                        .write()
-                        .unwrap()
-                        .add_state_change_to_cache(state_change)
-                        .expect("TODO:");
-                    logs.iter().map(|l| l.address()).collect::<Vec<_>>()
-                })
-                .flatten()
-                .collect();
-        }
-        vec![]
+        let state_change = self
+            .state
+            .write()
+            .unwrap()
+            .sync_logs(logs.clone(), block.header.number);
+        self.state_change_cache
+            .write()
+            .unwrap()
+            .add_state_change_to_cache(state_change)
+            .expect("TODO:");
+        logs.iter().map(|l| l.address()).collect::<Vec<_>>()
     }
 }
 
@@ -176,7 +121,7 @@ impl<T, N, P> StateSpaceBuilder<T, N, P>
 where
     T: Transport + Clone,
     N: Network,
-    P: Provider<PubSubFrontend, N> + 'static,
+    P: Provider<T, N> + 'static,
 {
     pub fn new(provider: Arc<P>, factories: Vec<Factory>) -> StateSpaceBuilder<T, N, P> {
         Self {
