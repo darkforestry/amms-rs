@@ -69,7 +69,7 @@ where
 
             while let Some(block) = stream.next().await {
                 let l = latest_block.load(Ordering::Relaxed);
-                if l < block.header.number {
+                if l > block.header.number {
                     let state_at_block = self.state_change_cache.write().unwrap().unwind_state_changes(l - block.header.number);
                     for amm in state_at_block {
                         self.state.write().unwrap().insert(amm.address(), amm);
