@@ -6,9 +6,13 @@ use crate::amms::amm::AutomatedMarketMaker;
 use crate::amms::amm::AMM;
 use crate::amms::factory::Factory;
 
+use alloy::network::BlockResponse;
 use alloy::pubsub::PubSubFrontend;
+use alloy::pubsub::Subscription;
+use alloy::pubsub::SubscriptionStream;
 use alloy::rpc::types::Block;
 use alloy::rpc::types::FilterSet;
+use alloy::rpc::types::Header;
 use alloy::rpc::types::Log;
 use alloy::{
     network::Network,
@@ -42,7 +46,7 @@ pub struct StateSpaceManager<T, N, P> {
     // NOTE: explore more efficient rw locks
     state_change_cache: Arc<RwLock<StateChangeCache<CACHE_SIZE>>>,
     // NOTE: does this need to be atomic u64?
-    latest_block: u64,
+    latest_block: Arc<AtomicU64>,
     discovery_manager: Option<DiscoveryManager>,
     pub block_filter: Filter,
     // TODO: add support for caching
@@ -59,24 +63,29 @@ where
     P: Provider<PubSubFrontend> + 'static,
 {
     pub async fn subscribe<S>(&'static self) -> impl Stream<Item = Vec<Address>> {
-        // Subscribe to the block stream
         let block_stream = self.provider.subscribe_blocks().await.expect("TODO:");
-        // Clone resources needed for processing
-        let latest_block = AtomicU64::new(self.latest_block); // Thread-safe `latest_block`
+        let mut block_stream = block_stream.into_stream();
+
+        let latest_block = self.latest_block.clone();
 
         stream! {
-            let mut stream = block_stream.into_stream();
+            while let Some(block) = block_stream.next().await {
+                let latest = latest_block.load(Ordering::Relaxed);
+                let block_number = block.header.number;
 
-            while let Some(block) = stream.next().await {
-                let l = latest_block.load(Ordering::Relaxed);
-                if l > block.header.number {
-                    let state_at_block = self.state_change_cache.write().unwrap().unwind_state_changes(l - block.header.number);
+                // Check if there is a reorg and unwind to state before block_number
+                if latest >= block_number {
+                    let state_at_block = self.state_change_cache.write().unwrap().unwind_state_changes(block_number);
                     for amm in state_at_block {
                         self.state.write().unwrap().insert(amm.address(), amm);
                     }
                 }
-                latest_block.store(block.header.number, Ordering::Relaxed);
-                yield self.sync_block(block).await;
+
+                // Sync the state space with any state chnages from block
+                let affected_amms = self.sync_block(block).await;
+                latest_block.store(block_number, Ordering::Relaxed);
+
+                yield affected_amms;
             }
         }
     }
@@ -88,6 +97,7 @@ where
             .get_logs(&self.block_filter.clone().select(block.header.number))
             .await
             .expect("TODO:");
+
         let state_change = self
             .state
             .write()
