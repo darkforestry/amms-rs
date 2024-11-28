@@ -29,10 +29,7 @@ impl<const CAP: usize> StateChangeCache<CAP> {
         self.cache.is_empty()
     }
 
-    pub fn add_state_change_to_cache(
-        &mut self,
-        state_change: StateChange,
-    ) -> Result<(), CapacityError<StateChange>> {
+    pub fn push(&mut self, state_change: StateChange) -> Result<(), CapacityError<StateChange>> {
         let cache = &mut self.cache;
 
         if cache.is_full() {

@@ -14,7 +14,7 @@ pub trait AutomatedMarketMaker {
 
     fn sync_events(&self) -> Vec<B256>;
 
-    fn sync(&mut self, log: Log);
+    fn sync(&mut self, log: &Log);
 
     /// Returns a vector of tokens in the AMM.
     fn tokens(&self) -> Vec<Address>;
@@ -62,7 +62,7 @@ macro_rules! amm {
                 }
             }
 
-            fn sync(&mut self, log: Log) {
+            fn sync(&mut self, log: &Log) {
                 match self {
                     $(AMM::$pool_type(pool) => pool.sync(log),)+
                 }

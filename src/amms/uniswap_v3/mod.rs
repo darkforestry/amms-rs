@@ -175,7 +175,7 @@ impl AutomatedMarketMaker for UniswapV3Pool {
         ]
     }
 
-    fn sync(&mut self, log: Log) {
+    fn sync(&mut self, log: &Log) {
         let event_signature = log.topics()[0];
         match event_signature {
             IUniswapV3PoolEvents::Swap::SIGNATURE_HASH => {
