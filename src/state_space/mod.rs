@@ -70,53 +70,21 @@ where
 
         stream! {
             while let Some(block) = block_stream.next().await {
-                let latest = latest_block.load(Ordering::Relaxed);
                 let block_number = block.header.number;
 
-                // Check if there is a reorg and unwind to state before block_number
-                if latest >= block_number {
-                    let cached_state = self.state_change_cache.write().unwrap().unwind_state_changes(block_number);
-                    let mut state = self.state.write().unwrap();
-                    for amm in cached_state {
-                        state.insert(amm.address(), amm);
-                    }
-                }
+                let logs = self
+                .provider
+                .get_logs(&self.block_filter.clone().select(block_number))
+                .await
+                .expect("TODO:");
 
-                // Sync the state space with any state chnages from block
-                let affected_amms = self.sync_block(block_number).await;
+                let affected_amms = logs.iter().map(|l| l.address()).collect::<Vec<_>>();
+                self.state.write().expect("TODO: handle error").sync(logs);
                 latest_block.store(block_number, Ordering::Relaxed);
 
                 yield affected_amms;
             }
         }
-    }
-
-    // TODO: function to manually process logs, allowing for
-    pub async fn sync_block(&self, block_number: u64) -> Vec<Address> {
-        let logs = self
-            .provider
-            .get_logs(&self.block_filter.clone().select(block_number))
-            .await
-            .expect("TODO:");
-
-        let affected_addresses = logs.iter().map(|l| l.address()).collect::<Vec<_>>();
-
-        let state_change = self
-            .state
-            .write()
-            .unwrap()
-            .sync_logs(logs)
-            .into_iter()
-            .next()
-            .unwrap();
-
-        self.state_change_cache
-            .write()
-            .unwrap()
-            .add_state_change_to_cache(state_change)
-            .expect("TODO:");
-
-        affected_addresses
     }
 }
 
@@ -191,7 +159,7 @@ where
 
             for amm in amms {
                 // println!("Adding AMM: {:?}", amm.address());
-                state_space.insert(amm.address(), amm);
+                state_space.state.insert(amm.address(), amm);
             }
         }
 
@@ -234,25 +202,33 @@ where
 // TODO: add cache to state space as a private field do eliminate unnecessary mutex on state space cache
 pub struct StateSpace {
     pub state: HashMap<Address, AMM>,
+    pub latest_block: Arc<AtomicU64>,
     cache: StateChangeCache<CACHE_SIZE>,
 }
 
 impl StateSpace {
-    pub fn sync_logs(&mut self, logs: Vec<Log>) -> Vec<StateChange> {
+    pub fn sync(&mut self, logs: Vec<Log>) {
+        let latest = self.latest_block.load(Ordering::Relaxed);
         let mut block_number = logs
             .first()
             .expect("TODO: handle error")
             .block_number
             .expect("TODO: Handle this");
 
-        let mut cached_amms = HashSet::new();
-        let mut state_changes = vec![];
+        // Check if there is a reorg and unwind to state before block_number
+        if latest >= block_number {
+            let cached_state = self.cache.unwind_state_changes(block_number);
+            for amm in cached_state {
+                self.state.insert(amm.address(), amm);
+            }
+        }
 
+        let mut cached_amms = HashSet::new();
         for log in logs {
             // If the block number is updated, cache the current block state changes
             let log_block_number = log.block_number.expect("TODO: Handle this");
             if log_block_number != block_number {
-                state_changes.push(StateChange::new(
+                self.cache.push(StateChange::new(
                     cached_amms.drain().collect(),
                     block_number,
                 ));
@@ -267,6 +243,11 @@ impl StateSpace {
             }
         }
 
-        state_changes
+        if !cached_amms.is_empty() {
+            self.cache.push(StateChange::new(
+                cached_amms.drain().collect(),
+                block_number,
+            ));
+        }
     }
 }
