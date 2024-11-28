@@ -151,6 +151,7 @@ where
             // TODO: probably also need to specify latest block to sync to
             futures.push(tokio::spawn(async move {
                 factory.discovery_sync(chain_tip, provider).await
+                // TODO: NOTE: filter amms with discovery filter stage, then sync and then filter
             }));
         }
 
