@@ -78,10 +78,11 @@ where
                 .await
                 .expect("TODO:");
 
-                let affected_amms = logs.iter().map(|l| l.address()).collect::<Vec<_>>();
-                self.state.write().expect("TODO: handle error").sync(logs);
+                self.state.write().expect("TODO: handle error").sync(&logs);
                 latest_block.store(block_number, Ordering::Relaxed);
 
+
+                let affected_amms = logs.iter().map(|l| l.address()).collect::<Vec<_>>();
                 yield affected_amms;
             }
         }
@@ -207,7 +208,7 @@ pub struct StateSpace {
 }
 
 impl StateSpace {
-    pub fn sync(&mut self, logs: Vec<Log>) {
+    pub fn sync(&mut self, logs: &[Log]) {
         let latest = self.latest_block.load(Ordering::Relaxed);
         let mut block_number = logs
             .first()

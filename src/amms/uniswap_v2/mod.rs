@@ -86,7 +86,7 @@ impl AutomatedMarketMaker for UniswapV2Pool {
         vec![IUniswapV2Pair::Sync::SIGNATURE_HASH]
     }
 
-    fn sync(&mut self, log: Log) {
+    fn sync(&mut self, log: &Log) {
         let sync_event =
             IUniswapV2Pair::Sync::decode_log(&log.inner, false).expect("TODO: handle this error");
 
