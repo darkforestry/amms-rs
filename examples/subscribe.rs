@@ -23,23 +23,11 @@ async fn main() -> eyre::Result<()> {
     let provider = Arc::new(ProviderBuilder::new().on_client(client));
 
     let factories = vec![
-        // // UniswapV2
-        // UniswapV2Factory::new(
-        //     address!("5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f"),
-        //     300,
-        //     10000835,
-        // )
-        // .into(),
-        // // Sushiswap
-        // UniswapV2Factory::new(
-        //     address!("C0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac"),
-        //     300,
-        //     10794229,
-        // )
-        // .into(),
-        UniswapV3Factory::new(
-            address!("1F98431c8aD98523631AE4a59f267346ea31F984"),
-            12369621,
+        // UniswapV2
+        UniswapV2Factory::new(
+            address!("5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f"),
+            300,
+            10000835,
         )
         .into(),
     ];
@@ -48,6 +36,12 @@ async fn main() -> eyre::Result<()> {
         .with_discovery()
         .sync()
         .await;
+
+    // Subscribe to state changes
+    let mut stream = state_space_manager.subscribe().take(5);
+    while let Some(amms) = stream.next().await {
+        dbg!(amms);
+    }
 
     Ok(())
 }
