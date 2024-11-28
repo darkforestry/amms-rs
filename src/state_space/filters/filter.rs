@@ -8,6 +8,12 @@ use crate::state_space::filters::WhitelistFilter;
 #[async_trait]
 pub trait AMMFilter {
     async fn filter(&self, amms: Vec<AMM>) -> Result<Vec<AMM>>;
+    fn stage(&self) -> FilterStage;
+}
+
+pub enum FilterStage {
+    Discovery,
+    Sync,
 }
 
 macro_rules! filter {
@@ -22,6 +28,12 @@ macro_rules! filter {
             async fn filter(&self, amms: Vec<AMM>) -> Result<Vec<AMM>> {
                 match self {
                     $(PoolFilter::$filter_type(filter) => filter.filter(amms).await,)+
+                }
+            }
+
+            fn stage(&self) -> FilterStage {
+                match self {
+                    $(PoolFilter::$filter_type(filter) => filter.stage(),)+
                 }
             }
         }

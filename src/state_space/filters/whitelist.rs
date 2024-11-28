@@ -4,7 +4,7 @@ use eyre::Result;
 
 use crate::amms::amm::{AutomatedMarketMaker, AMM};
 
-use super::filter::AMMFilter;
+use super::filter::{AMMFilter, FilterStage};
 
 #[derive(Debug, Clone)]
 pub struct WhitelistFilter {
@@ -29,5 +29,9 @@ impl AMMFilter for WhitelistFilter {
                     || amm.tokens().iter().any(|t| self.whitelist.contains(t))
             })
             .collect())
+    }
+
+    fn stage(&self) -> FilterStage {
+        FilterStage::Discovery
     }
 }

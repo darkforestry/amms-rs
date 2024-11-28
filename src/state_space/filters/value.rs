@@ -13,7 +13,7 @@ use async_trait::async_trait;
 use eyre::{eyre, Result};
 use WethValueInPools::{PoolInfo, PoolInfoReturn};
 
-use super::AMMFilter;
+use super::{filter::FilterStage, AMMFilter};
 
 sol! {
     #[sol(rpc)]
@@ -167,5 +167,9 @@ where
             })
             .collect::<Vec<_>>();
         Ok(filtered_amms)
+    }
+
+    fn stage(&self) -> FilterStage {
+        FilterStage::Sync
     }
 }
