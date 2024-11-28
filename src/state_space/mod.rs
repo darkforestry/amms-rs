@@ -27,6 +27,7 @@ use cache::StateChangeCache;
 use derive_more::derive::{Deref, DerefMut};
 use discovery::DiscoveryManager;
 
+use filters::PoolFilter;
 use futures::stream::FuturesUnordered;
 use futures::Stream;
 use futures::StreamExt;
@@ -97,8 +98,7 @@ pub struct StateSpaceBuilder<T, N, P> {
     pub provider: Arc<P>,
     pub latest_block: u64,
     pub factories: Vec<Factory>,
-    // NOTE: this is the list of filters each discovered pool will go through
-    // pub filters: Vec<Filter>,
+    pub filters: Vec<PoolFilter>,
     pub discovery: bool,
     phantom: PhantomData<(T, N)>,
     // TODO: add support for caching
@@ -116,6 +116,7 @@ where
             provider,
             latest_block: 0,
             factories,
+            filters: vec![],
             discovery: false,
             phantom: PhantomData,
         }
@@ -128,10 +129,9 @@ where
         }
     }
 
-    // NOTE: if you only want to listen to specfic pools, you can add whitelist filter
-    // pub fn with_filters(self, filters: Vec<Filter>) -> StateSpaceBuilder<T, N, P> {
-    //     StateSpaceBuilder { filters, ..self }
-    // }
+    pub fn with_filters(self, filters: Vec<PoolFilter>) -> StateSpaceBuilder<T, N, P> {
+        StateSpaceBuilder { filters, ..self }
+    }
 
     pub fn with_discovery(self) -> StateSpaceBuilder<T, N, P> {
         StateSpaceBuilder {

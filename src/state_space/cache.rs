@@ -29,7 +29,7 @@ impl<const CAP: usize> StateChangeCache<CAP> {
         self.cache.is_empty()
     }
 
-    pub fn push(&mut self, state_change: StateChange) -> Result<(), CapacityError<StateChange>> {
+    pub fn push(&mut self, state_change: StateChange) {
         let cache = &mut self.cache;
 
         if cache.is_full() {
@@ -37,7 +37,8 @@ impl<const CAP: usize> StateChangeCache<CAP> {
             self.oldest_block = cache.back().unwrap().block_number;
         }
 
-        cache.push_front(state_change)
+        // We can unwrap here since we check if the cache is full
+        cache.push_front(state_change).unwrap();
     }
 
     /// Unwinds the state changes up to the given block number
