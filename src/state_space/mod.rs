@@ -5,10 +5,15 @@ pub mod filters;
 use crate::amms::amm::AutomatedMarketMaker;
 use crate::amms::amm::AMM;
 use crate::amms::factory::Factory;
+
+use alloy::network::BlockResponse;
 use alloy::pubsub::PubSubFrontend;
 use alloy::pubsub::Subscription;
+use alloy::pubsub::SubscriptionStream;
+use alloy::rpc::types::Block;
 use alloy::rpc::types::FilterSet;
 use alloy::rpc::types::Header;
+use alloy::rpc::types::Log;
 use alloy::{
     network::Network,
     primitives::{Address, FixedBytes},
@@ -17,20 +22,23 @@ use alloy::{
     transports::Transport,
 };
 use async_stream::stream;
+use cache::StateChange;
 use cache::StateChangeCache;
 use derive_more::derive::{Deref, DerefMut};
 use discovery::DiscoveryManager;
-use eyre::Error;
-use futures::stream;
+
 use futures::stream::FuturesUnordered;
 use futures::Stream;
 use futures::StreamExt;
 use std::collections::HashSet;
+use std::sync::atomic::AtomicU64;
+use std::sync::atomic::Ordering;
+use std::sync::RwLock;
 use std::{collections::HashMap, marker::PhantomData, sync::Arc};
-use tokio::sync::RwLock;
 
 pub const CACHE_SIZE: usize = 30;
 
+#[derive(Clone)]
 pub struct StateSpaceManager<T, N, P> {
     pub provider: Arc<P>,
     // TODO: think about making the state space a trait, so we can have different implementations and bench whatever is best?
@@ -38,7 +46,7 @@ pub struct StateSpaceManager<T, N, P> {
     // NOTE: explore more efficient rw locks
     state_change_cache: Arc<RwLock<StateChangeCache<CACHE_SIZE>>>,
     // NOTE: does this need to be atomic u64?
-    latest_block: u64,
+    latest_block: Arc<AtomicU64>,
     discovery_manager: Option<DiscoveryManager>,
     pub block_filter: Filter,
     // TODO: add support for caching
@@ -52,34 +60,33 @@ pub struct StateSpaceManager<T, N, P> {
 impl<T, N, P> StateSpaceManager<T, N, P>
 where
     T: Transport + Clone,
-    N: Network,
-    P: Provider<PubSubFrontend, N> + 'static,
+    P: Provider<PubSubFrontend> + 'static,
 {
-    pub async fn subscribe<S>(&mut self) -> impl Stream<Item = Vec<Address>> {
-        // Subscribe to the block stream
-        let mut block_stream = self.provider.subscribe_blocks().await.expect("TODO:");
+    pub async fn subscribe<S>(&'static self) -> impl Stream<Item = Vec<Address>> {
+        let block_stream = self.provider.subscribe_blocks().await.expect("TODO:");
+        let mut block_stream = block_stream.into_stream();
 
-        // Clone resources needed for processing
-        let state = Arc::clone(&self.state);
-        let state_change_cache = Arc::clone(&self.state_change_cache);
-        let block_filter = self.block_filter.clone();
-        let latest_block = Arc::new(tokio::sync::Mutex::new(self.latest_block)); // Thread-safe `latest_block`
+        let latest_block = self.latest_block.clone();
 
-        // NOTE: think through the best way to do this, whether  getting logs from different provider or the same one
-        // Return a stream that processes blocks
         stream! {
             while let Some(block) = block_stream.next().await {
+                let block_number = block.header.number;
 
-                // TODO: Get logs from the block and process logs
+                let logs = self
+                .provider
+                .get_logs(&self.block_filter.clone().select(block_number))
+                .await
+                .expect("TODO:");
+
+                self.state.write().expect("TODO: handle error").sync(&logs);
+                latest_block.store(block_number, Ordering::Relaxed);
 
 
-                yield vec![];
-
+                let affected_amms = logs.iter().map(|l| l.address()).collect::<Vec<_>>();
+                yield affected_amms;
             }
         }
     }
-
-    // TODO: function to manually process logs, allowing for
 }
 
 // NOTE: Drop impl, create a checkpoint
@@ -102,7 +109,7 @@ impl<T, N, P> StateSpaceBuilder<T, N, P>
 where
     T: Transport + Clone,
     N: Network,
-    P: Provider<PubSubFrontend, N> + 'static,
+    P: Provider<T, N> + 'static,
 {
     pub fn new(provider: Arc<P>, factories: Vec<Factory>) -> StateSpaceBuilder<T, N, P> {
         Self {
@@ -153,7 +160,7 @@ where
 
             for amm in amms {
                 // println!("Adding AMM: {:?}", amm.address());
-                state_space.insert(amm.address(), amm);
+                state_space.state.insert(amm.address(), amm);
             }
         }
 
@@ -182,7 +189,7 @@ where
 
         StateSpaceManager {
             provider: self.provider,
-            latest_block: chain_tip,
+            latest_block: Arc::new(AtomicU64::new(self.latest_block)),
             state: Arc::new(RwLock::new(state_space)),
             state_change_cache: Arc::new(RwLock::new(StateChangeCache::default())),
             discovery_manager,
@@ -192,5 +199,56 @@ where
     }
 }
 
-#[derive(Debug, Default, Deref, DerefMut)]
-pub struct StateSpace(HashMap<Address, AMM>);
+#[derive(Debug, Default)]
+// TODO: add cache to state space as a private field do eliminate unnecessary mutex on state space cache
+pub struct StateSpace {
+    pub state: HashMap<Address, AMM>,
+    pub latest_block: Arc<AtomicU64>,
+    cache: StateChangeCache<CACHE_SIZE>,
+}
+
+impl StateSpace {
+    pub fn sync(&mut self, logs: &[Log]) {
+        let latest = self.latest_block.load(Ordering::Relaxed);
+        let mut block_number = logs
+            .first()
+            .expect("TODO: handle error")
+            .block_number
+            .expect("TODO: Handle this");
+
+        // Check if there is a reorg and unwind to state before block_number
+        if latest >= block_number {
+            let cached_state = self.cache.unwind_state_changes(block_number);
+            for amm in cached_state {
+                self.state.insert(amm.address(), amm);
+            }
+        }
+
+        let mut cached_amms = HashSet::new();
+        for log in logs {
+            // If the block number is updated, cache the current block state changes
+            let log_block_number = log.block_number.expect("TODO: Handle this");
+            if log_block_number != block_number {
+                self.cache.push(StateChange::new(
+                    cached_amms.drain().collect(),
+                    block_number,
+                ));
+                block_number = log_block_number;
+            }
+
+            // If the AMM is in the state space add the current state to cache and sync from log
+            let address = log.address();
+            if let Some(amm) = self.state.get_mut(&address) {
+                cached_amms.insert(amm.clone());
+                amm.sync(log);
+            }
+        }
+
+        if !cached_amms.is_empty() {
+            self.cache.push(StateChange::new(
+                cached_amms.drain().collect(),
+                block_number,
+            ));
+        }
+    }
+}
