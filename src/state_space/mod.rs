@@ -99,7 +99,7 @@ pub struct StateSpaceBuilder<T, N, P> {
     pub latest_block: u64,
     pub factories: Vec<Factory>,
     pub filters: Vec<PoolFilter>,
-    pub discovery: bool,
+    // pub discovery: bool,
     phantom: PhantomData<(T, N)>,
     // TODO: add support for caching
     // TODO: add support to load from cache
@@ -117,7 +117,7 @@ where
             latest_block: 0,
             factories,
             filters: vec![],
-            discovery: false,
+            // discovery: false,
             phantom: PhantomData,
         }
     }
@@ -133,12 +133,12 @@ where
         StateSpaceBuilder { filters, ..self }
     }
 
-    pub fn with_discovery(self) -> StateSpaceBuilder<T, N, P> {
-        StateSpaceBuilder {
-            discovery: true,
-            ..self
-        }
-    }
+    // pub fn with_discovery(self) -> StateSpaceBuilder<T, N, P> {
+    //     StateSpaceBuilder {
+    //         discovery: true,
+    //         ..self
+    //     }
+    // }
 
     pub async fn sync(self) -> StateSpaceManager<T, N, P> {
         let chain_tip = self.provider.get_block_number().await.expect("TODO:");
@@ -179,16 +179,16 @@ where
                 filter_set.insert(event);
             }
 
-            if self.discovery {
-                filter_set.insert(factory.discovery_event());
-            }
+            // if self.discovery {
+            //     filter_set.insert(factory.discovery_event());
+            // }
         }
 
-        let discovery_manager = if self.discovery {
-            Some(DiscoveryManager::new(self.factories))
-        } else {
-            None
-        };
+        // let discovery_manager = if self.discovery {
+        //     Some(DiscoveryManager::new(self.factories))
+        // } else {
+        //     None
+        // };
 
         let block_filter = Filter::new().event_signature(FilterSet::from(
             filter_set.into_iter().collect::<Vec<FixedBytes<32>>>(),
@@ -199,7 +199,7 @@ where
             latest_block: Arc::new(AtomicU64::new(self.latest_block)),
             state: Arc::new(RwLock::new(state_space)),
             state_change_cache: Arc::new(RwLock::new(StateChangeCache::default())),
-            discovery_manager,
+            discovery_manager: None,
             block_filter,
             phantom: PhantomData,
         }

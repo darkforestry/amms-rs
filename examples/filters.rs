@@ -44,7 +44,6 @@ async fn main() -> eyre::Result<()> {
     ];
 
     let state_space_manager = StateSpaceBuilder::new(provider.clone(), factories)
-        .with_discovery()
         .with_filters(filters)
         .sync()
         .await;
