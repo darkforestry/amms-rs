@@ -387,19 +387,18 @@ impl UniswapV2Factory {
         pairs
     }
 
-    async fn get_all_pools<T, N, P>(
-        pairs: Vec<Address>,
-        fee: usize,
+    async fn sync_all_pools<T, N, P>(
+        amms: Vec<AMM>,
         block_number: u64,
         provider: Arc<P>,
-    ) -> Vec<AMM>
+    ) -> Result<Vec<AMM>, AMMError>
     where
         T: Transport + Clone,
         N: Network,
         P: Provider<T, N>,
     {
         let step = 120;
-        let pairs = pairs
+        let pairs = amms
             .into_iter()
             .chunks(step)
             .into_iter()
@@ -516,28 +515,6 @@ impl AutomatedMarketMakerFactory for UniswapV2Factory {
 }
 
 impl DiscoverySync for UniswapV2Factory {
-    fn discovery_sync<T, N, P>(
-        &self,
-        to_block: u64,
-        provider: Arc<P>,
-    ) -> impl Future<Output = Result<Vec<AMM>, AMMError>>
-    where
-        T: Transport + Clone,
-        N: Network,
-        P: Provider<T, N>,
-    {
-        let provider = provider.clone();
-        let factory_address = self.address;
-
-        async move {
-            let pairs =
-                UniswapV2Factory::get_all_pairs(factory_address, to_block, provider.clone()).await;
-            let pools = UniswapV2Factory::get_all_pools(pairs, self.fee, to_block, provider).await;
-
-            Ok(pools)
-        }
-    }
-
     fn discover<T, N, P>(
         &self,
         to_block: u64,
@@ -581,7 +558,7 @@ impl DiscoverySync for UniswapV2Factory {
         N: Network,
         P: Provider<T, N>,
     {
-        UniswapV3Factory::sync_all_pools(amms, to_block, provider)
+        UniswapV2Factory::sync_all_pools(amms, to_block, provider)
     }
 }
 

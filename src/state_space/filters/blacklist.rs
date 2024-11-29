@@ -4,7 +4,7 @@ use eyre::Result;
 
 use crate::amms::amm::{AutomatedMarketMaker, AMM};
 
-use super::filter::{AMMFilter, FilterStage};
+use super::{AMMFilter, FilterStage};
 
 #[derive(Debug, Clone)]
 pub struct BlacklistFilter {
@@ -31,7 +31,9 @@ impl AMMFilter for BlacklistFilter {
             .collect())
     }
 
+    /// Filter stage is set to after the sync stage to ensure the blacklist is applied to all
+    /// pool and token addresses after the pools have been fully populated
     fn stage(&self) -> FilterStage {
-        FilterStage::Discovery
+        FilterStage::Sync
     }
 }

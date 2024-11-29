@@ -642,7 +642,6 @@ impl UniswapV3Factory {
         }
     }
 
-    // TODO: fix this to use UV3 Error
     async fn get_all_pools<T, N, P>(
         &self,
         block_number: u64,

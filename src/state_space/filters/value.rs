@@ -1,5 +1,6 @@
 use std::{collections::HashMap, marker::PhantomData, sync::Arc};
 
+use super::{AMMFilter, FilterStage};
 use crate::amms::amm::{AutomatedMarketMaker, AMM};
 use alloy::{
     dyn_abi::{DynSolType, DynSolValue},
@@ -12,8 +13,6 @@ use alloy::{
 use async_trait::async_trait;
 use eyre::{eyre, Result};
 use WethValueInPools::{PoolInfo, PoolInfoReturn};
-
-use super::{filter::FilterStage, AMMFilter};
 
 sol! {
     #[sol(rpc)]

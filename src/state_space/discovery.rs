@@ -4,7 +4,7 @@ use alloy::primitives::{Address, FixedBytes};
 
 use crate::amms::factory::Factory;
 
-use super::filters::filter::PoolFilter;
+use super::filters::PoolFilter;
 
 #[derive(Debug, Default, Clone)]
 pub struct DiscoveryManager {

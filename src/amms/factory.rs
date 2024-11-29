@@ -50,7 +50,7 @@ pub trait AutomatedMarketMakerFactory: DiscoverySync + Into<Factory> {
     /// Returns the address of the factory.
     fn address(&self) -> Address;
 
-    // TODO: update to be factory error
+    // TODO: update to be factory error?
     fn create_pool(&self, log: Log) -> Result<AMM, AMMError>;
 
     /// Returns the block number at which the factory was created.

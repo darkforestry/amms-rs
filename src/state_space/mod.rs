@@ -150,14 +150,20 @@ where
 
             // TODO: probably also need to specify latest block to sync to
             futures.push(tokio::spawn(async move {
-                factory.discovery_sync(chain_tip, provider).await
+                let amms = factory
+                    .discover(chain_tip, provider)
+                    .await
+                    .expect("TODO: handle error");
+
                 // TODO: NOTE: filter amms with discovery filter stage, then sync and then filter
+
+                amms
             }));
         }
 
         let mut state_space = StateSpace::default();
         while let Some(res) = futures.next().await {
-            let amms = res.expect("TODO:").expect("TODO:");
+            let amms = res.expect("TODO:");
 
             for amm in amms {
                 // println!("Adding AMM: {:?}", amm.address());

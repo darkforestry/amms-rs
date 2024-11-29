@@ -4,48 +4,56 @@ use eyre::Result;
 
 use crate::amms::amm::{AutomatedMarketMaker, AMM};
 
-use super::filter::{AMMFilter, FilterStage};
+use super::{AMMFilter, FilterStage};
 
 #[derive(Debug, Clone)]
-pub struct WhitelistFilter {
-    /// A whitelist of addresses to exclusively allow
+pub struct PoolWhitelistFilter {
     pools: Vec<Address>,
-    tokens: Vec<Address>,
 }
 
-impl WhitelistFilter {
-    pub fn new() -> Self {
-        Self {
-            pools: vec![],
-            tokens: vec![],
-        }
-    }
-
-    pub fn with_pools(mut self, pools: Vec<Address>) -> Self {
-        self.pools = pools;
-        self
-    }
-
-    pub fn with_tokens(mut self, tokens: Vec<Address>) -> Self {
-        self.tokens = tokens;
-        self
+impl PoolWhitelistFilter {
+    pub fn new(pools: Vec<Address>) -> Self {
+        Self { pools }
     }
 }
 
 #[async_trait]
-impl AMMFilter for WhitelistFilter {
+impl AMMFilter for PoolWhitelistFilter {
     /// Filter for any AMMs or tokens in the whitelist
     async fn filter(&self, amms: Vec<AMM>) -> Result<Vec<AMM>> {
         Ok(amms
             .into_iter()
-            .filter(|amm| {
-                self.pools.contains(&amm.address())
-                    || amm.tokens().iter().any(|t| self.tokens.contains(t))
-            })
+            .filter(|amm| self.pools.contains(&amm.address()))
             .collect())
     }
 
     fn stage(&self) -> FilterStage {
         FilterStage::Discovery
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct TokenWhitelistFilter {
+    tokens: Vec<Address>,
+}
+
+impl TokenWhitelistFilter {
+    pub fn new(tokens: Vec<Address>) -> Self {
+        Self { tokens }
+    }
+}
+
+#[async_trait]
+impl AMMFilter for TokenWhitelistFilter {
+    /// Filter for any AMMs or tokens in the whitelist
+    async fn filter(&self, amms: Vec<AMM>) -> Result<Vec<AMM>> {
+        Ok(amms
+            .into_iter()
+            .filter(|amm| amm.tokens().iter().any(|t| self.tokens.contains(t)))
+            .collect())
+    }
+
+    fn stage(&self) -> FilterStage {
+        FilterStage::Sync
     }
 }
