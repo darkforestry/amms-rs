@@ -20,6 +20,7 @@ use async_stream::stream;
 use cache::StateChange;
 use cache::StateChangeCache;
 
+use filters::AMMFilter;
 use filters::PoolFilter;
 use futures::stream::FuturesUnordered;
 use futures::Stream;
@@ -132,15 +133,33 @@ where
         let factories = self.factories.clone();
         for factory in factories {
             let provider = self.provider.clone();
-
-            // TODO: probably also need to specify latest block to sync to
+            let filters = self.filters.clone();
             futures.push(tokio::spawn(async move {
-                // TODO: NOTE: filter amms with discovery filter stage, then sync and then filter
-
-                factory
-                    .discover(chain_tip, provider)
+                let mut amms = factory
+                    .discover(chain_tip, provider.clone())
                     .await
-                    .expect("TODO: handle error")
+                    .expect("TODO: handle error");
+
+                // Apply discovery filters
+                for filter in filters.iter() {
+                    if filter.stage() == filters::FilterStage::Discovery {
+                        amms = filter.filter(amms).await.expect("TODO: handle error");
+                    }
+                }
+
+                amms = factory
+                    .sync(amms, chain_tip, provider)
+                    .await
+                    .expect("TODO: handle error");
+
+                // Apply sync filters
+                for filter in filters.iter() {
+                    if filter.stage() == filters::FilterStage::Sync {
+                        amms = filter.filter(amms).await.expect("TODO: handle error");
+                    }
+                }
+
+                amms
             }));
         }
 

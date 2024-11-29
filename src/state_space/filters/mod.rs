@@ -14,6 +14,7 @@ pub trait AMMFilter {
     fn stage(&self) -> FilterStage;
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FilterStage {
     Discovery,
     Sync,
