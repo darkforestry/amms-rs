@@ -1121,8 +1121,6 @@ impl DiscoverySync for UniswapV3Factory {
 #[cfg(test)]
 mod test {
 
-    use crate::ThrottleLayer;
-
     use super::*;
 
     use alloy::{
@@ -1131,6 +1129,7 @@ mod test {
         rpc::client::ClientBuilder,
         transports::layers::RetryBackoffLayer,
     };
+    use alloy_throttle::ThrottleLayer;
 
     sol! {
         /// Interface of the Quoter

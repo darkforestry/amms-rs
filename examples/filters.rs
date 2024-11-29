@@ -4,14 +4,7 @@ use alloy::{
     primitives::address, providers::ProviderBuilder, rpc::client::ClientBuilder,
     transports::layers::RetryBackoffLayer,
 };
-use pamms::{
-    amms::uniswap_v2::UniswapV2Factory,
-    state_space::{
-        filters::whitelist::{PoolWhitelistFilter, TokenWhitelistFilter},
-        StateSpaceBuilder,
-    },
-    ThrottleLayer,
-};
+use alloy_throttle::ThrottleLayer;
 
 #[tokio::main]
 async fn main() -> eyre::Result<()> {

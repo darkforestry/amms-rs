@@ -10,9 +10,12 @@ repository = "https://github.com/darkforestry/amms-rs"
 keywords = ["ethereum", "amm", "mev"]
 exclude = ["target/*", ".github/*", ".gitignore"]
 
+
+# TODO: clean up and organize deps
 [dependencies]
 # darkforest
 uniswap_v3_math = "0.5.2"
+alloy-throttle = { git = "https://github.com/darkforestry/alloy-throttle.git" }
 
 # alloy
 alloy = { version = "0.5", features = [
@@ -39,8 +42,7 @@ serde = "1.0"
 serde_json = "1.0"
 
 # misc
-arraydeque = { version = "0.5", optional = true }
-# artemis-core = { git = "https://github.com/paradigmxyz/artemis.git", branch = "main", optional = true }
+arraydeque = "0.5"
 lazy_static = "1.5"
 num-bigfloat = "1.7"
 regex = "1.10"
@@ -53,12 +55,6 @@ tower = "0.5.1"
 rayon = "1.10.0"
 async-stream = "0.3.6"
 
-[features]
-default = ["state-space"]
-state-space = ["arraydeque"]
-# TODO: Uncomment this when artemis is published as a crate
-# artemis = ["artemis-core"] 
-artemis = []
 
 [dev-dependencies]
 rand = "0.8.5"
