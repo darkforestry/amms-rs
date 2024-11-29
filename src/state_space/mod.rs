@@ -32,6 +32,7 @@ use futures::stream::FuturesUnordered;
 use futures::Stream;
 use futures::StreamExt;
 use std::collections::HashSet;
+use std::pin::Pin;
 use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering;
 use std::sync::RwLock;
@@ -55,17 +56,25 @@ pub struct StateSpaceManager {
 // so that you can invoke it manually with the stream rather than subscribing
 
 impl StateSpaceManager {
-    pub async fn subscribe<S>(&self, stream_provider: Arc<S>) -> impl Stream<Item = Vec<Address>>
+    pub async fn subscribe<S>(
+        &self,
+        stream_provider: Arc<S>,
+    ) -> Pin<Box<dyn Stream<Item = Vec<Address>> + Send>>
     where
-        S: Provider<PubSubFrontend>,
+        S: Provider<PubSubFrontend> + 'static,
     {
         let latest_block = self.latest_block.clone();
         let state = self.state.clone();
         let mut block_filter = self.block_filter.clone();
 
-        stream! {
-            let block_stream = stream_provider.subscribe_blocks().await.expect("TODO:");
-            let mut block_stream = block_stream.into_stream();
+        let block_stream = stream_provider
+            .subscribe_blocks()
+            .await
+            .expect("TODO:")
+            .into_stream();
+
+        Box::pin(stream! {
+            tokio::pin!(block_stream);
 
             while let Some(block) = block_stream.next().await {
                 let block_number = block.header.number;
@@ -80,11 +89,10 @@ impl StateSpaceManager {
                 state.write().expect("TODO: handle error").sync(&logs);
                 latest_block.store(block_number, Ordering::Relaxed);
 
-
                 let affected_amms = logs.iter().map(|l| l.address()).collect::<Vec<_>>();
                 yield affected_amms;
             }
-        }
+        })
     }
 }
 

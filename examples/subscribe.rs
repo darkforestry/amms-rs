@@ -46,7 +46,7 @@ async fn main() -> eyre::Result<()> {
 
     // Subscribe to state changes
     let mut stream = state_space_manager.subscribe(stream_provider).await.take(5);
-    while let Some(state_changes) = stream.next() {
+    while let Some(state_changes) = stream.next().await {
         dbg!(state_changes);
     }
 
