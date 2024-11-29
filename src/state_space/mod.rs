@@ -6,13 +6,8 @@ use crate::amms::amm::AutomatedMarketMaker;
 use crate::amms::amm::AMM;
 use crate::amms::factory::Factory;
 
-use alloy::network::BlockResponse;
 use alloy::pubsub::PubSubFrontend;
-use alloy::pubsub::Subscription;
-use alloy::pubsub::SubscriptionStream;
-use alloy::rpc::types::Block;
 use alloy::rpc::types::FilterSet;
-use alloy::rpc::types::Header;
 use alloy::rpc::types::Log;
 use alloy::{
     network::Network,
@@ -24,8 +19,6 @@ use alloy::{
 use async_stream::stream;
 use cache::StateChange;
 use cache::StateChangeCache;
-use derive_more::derive::{Deref, DerefMut};
-use discovery::DiscoveryManager;
 
 use filters::PoolFilter;
 use futures::stream::FuturesUnordered;
@@ -142,14 +135,12 @@ where
 
             // TODO: probably also need to specify latest block to sync to
             futures.push(tokio::spawn(async move {
-                let amms = factory
-                    .discover(chain_tip, provider)
-                    .await
-                    .expect("TODO: handle error");
-
                 // TODO: NOTE: filter amms with discovery filter stage, then sync and then filter
 
-                amms
+                factory
+                    .discover(chain_tip, provider)
+                    .await
+                    .expect("TODO: handle error")
             }));
         }
 

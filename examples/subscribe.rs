@@ -3,13 +3,12 @@ use std::sync::Arc;
 use alloy::{
     primitives::address,
     providers::{ProviderBuilder, WsConnect},
-    pubsub::PubSubFrontend,
     rpc::client::ClientBuilder,
     transports::layers::RetryBackoffLayer,
 };
 use futures::StreamExt;
 use pamms::{
-    amms::{uniswap_v2::UniswapV2Factory, uniswap_v3::UniswapV3Factory},
+    amms::uniswap_v2::UniswapV2Factory,
     state_space::StateSpaceBuilder,
     ThrottleLayer,
 };

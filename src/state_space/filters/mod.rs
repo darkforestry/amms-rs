@@ -5,7 +5,6 @@ pub mod whitelist;
 use async_trait::async_trait;
 use blacklist::BlacklistFilter;
 use eyre::Result;
-use value::ValueFilter;
 use whitelist::{PoolWhitelistFilter, TokenWhitelistFilter};
 
 use crate::amms::amm::AMM;

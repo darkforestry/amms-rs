@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use alloy::{
-    primitives::address, providers::ProviderBuilder, pubsub::PubSubFrontend,
-    rpc::client::ClientBuilder, transports::layers::RetryBackoffLayer,
+    primitives::address, providers::ProviderBuilder, rpc::client::ClientBuilder,
+    transports::layers::RetryBackoffLayer,
 };
 use pamms::{
     amms::{uniswap_v2::UniswapV2Factory, uniswap_v3::UniswapV3Factory},
@@ -38,7 +38,7 @@ async fn main() -> eyre::Result<()> {
         .into(),
     ];
 
-    let state_space_manager = StateSpaceBuilder::new(provider.clone(), factories)
+    let _state_space_manager = StateSpaceBuilder::new(provider.clone(), factories)
         .sync()
         .await;
 
