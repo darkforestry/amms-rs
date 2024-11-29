@@ -34,6 +34,7 @@ pub trait DiscoverySync {
         P: Provider<T, N>;
 
     fn sync<T, N, P>(
+        &self,
         amms: Vec<AMM>,
         to_block: u64,
         provider: Arc<P>,

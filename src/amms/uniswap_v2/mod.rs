@@ -17,7 +17,7 @@ use alloy::{
     providers::Provider,
     rpc::types::Log,
     sol,
-    sol_types::SolEvent,
+    sol_types::{SolEvent, SolValue},
     transports::Transport,
 };
 use eyre::Result;
@@ -25,7 +25,7 @@ use futures::{stream::FuturesUnordered, StreamExt};
 use itertools::Itertools;
 use rug::Float;
 use serde::{Deserialize, Serialize};
-use std::{future::Future, hash::Hash, sync::Arc};
+use std::{collections::HashMap, future::Future, hash::Hash, sync::Arc};
 use IGetUniswapV2PoolDataBatchRequest::IGetUniswapV2PoolDataBatchRequestInstance;
 use IUniswapV2Factory::IUniswapV2FactoryInstance;
 
@@ -399,10 +399,10 @@ impl UniswapV2Factory {
     {
         let step = 120;
         let pairs = amms
-            .into_iter()
+            .iter()
             .chunks(step)
             .into_iter()
-            .map(|chunk| chunk.collect())
+            .map(|chunk| chunk.map(|amm| amm.address()).collect())
             .collect::<Vec<Vec<Address>>>();
 
         let mut futures_unordered = FuturesUnordered::new();
@@ -419,61 +419,57 @@ impl UniswapV2Factory {
                     .await
                     .expect("TODO: handle error");
 
-                // TODO: update this to use soltype instead of dynsoltype
-                let constructor_return = DynSolType::Array(Box::new(DynSolType::Tuple(vec![
-                    DynSolType::Address,
-                    DynSolType::Address,
-                    DynSolType::Uint(112),
-                    DynSolType::Uint(112),
-                    DynSolType::Uint(8),
-                    DynSolType::Uint(8),
-                ])));
+                let return_data =
+                    <Vec<(Address, Address, u128, u128, u32, u32)> as SolValue>::abi_decode(
+                        &res, false,
+                    )
+                    .expect("TODO:");
 
-                let return_data_tokens =
-                    constructor_return.abi_decode_sequence(&res).expect("TODO:");
-
-                (group, return_data_tokens)
+                (group, return_data)
             });
         }
 
-        let mut amms = Vec::new();
+        let mut amms = amms
+            .into_iter()
+            .map(|amm| (amm.address(), amm))
+            .collect::<HashMap<_, _>>();
+
         while let Some((group, return_data)) = futures_unordered.next().await {
-            if let Some(tokens_arr) = return_data.as_array() {
-                for (token, pool_address) in tokens_arr.iter().zip(group.iter()) {
-                    if let Some(pool_data) = token.as_tuple() {
-                        // If the pool token A is not zero, signaling that the pool data was polulated
-                        if let Some(token_a) = pool_data[0].as_address() {
-                            if token_a.is_zero() {
-                                continue;
-                            }
+            for (pool_data, pool_address) in return_data.iter().zip(group.iter()) {
+                // If the pool token A is not zero, signaling that the pool data was polulated
 
-                            let pool = UniswapV2Pool {
-                                address: *pool_address,
-                                token_a,
-                                token_b: pool_data[1].as_address().expect("TODO:"),
-                                reserve_0: pool_data[2].as_uint().expect("TODO:").0.to::<u128>(),
-                                reserve_1: pool_data[3].as_uint().expect("TODO:").0.to::<u128>(),
-                                token_a_decimals: pool_data[4]
-                                    .as_uint()
-                                    .expect("TODO:")
-                                    .0
-                                    .to::<u8>(),
-                                token_b_decimals: pool_data[5]
-                                    .as_uint()
-                                    .expect("TODO:")
-                                    .0
-                                    .to::<u8>(),
-                                fee,
-                            };
-
-                            amms.push(pool.into())
-                        }
-                    }
+                if pool_data.0.is_zero() {
+                    continue;
                 }
+
+                let amm = amms.get_mut(pool_address).expect("TODO: handle this error");
+
+                let AMM::UniswapV2Pool(pool) = amm else {
+                    // NOTE: We should never receive a non UniswapV2Pool AMM here, we can handle this more gracefully in the future
+                    panic!("Unexpected pool type")
+                };
+
+                pool.token_a = pool_data.0;
+                pool.token_b = pool_data.1;
+                pool.reserve_0 = pool_data.2;
+                pool.reserve_1 = pool_data.3;
+                pool.token_a_decimals = pool_data.4 as u8;
+                pool.token_b_decimals = pool_data.5 as u8;
             }
         }
 
-        amms
+        let amms = amms
+            .into_iter()
+            .filter_map(|(_, amm)| {
+                if amm.tokens().iter().any(|t| t.is_zero()) {
+                    None
+                } else {
+                    Some(amm)
+                }
+            })
+            .collect();
+
+        Ok(amms)
     }
 }
 
@@ -549,6 +545,7 @@ impl DiscoverySync for UniswapV2Factory {
     }
 
     fn sync<T, N, P>(
+        &self,
         amms: Vec<AMM>,
         to_block: u64,
         provider: Arc<P>,

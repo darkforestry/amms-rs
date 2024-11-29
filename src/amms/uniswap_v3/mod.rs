@@ -1104,6 +1104,7 @@ impl DiscoverySync for UniswapV3Factory {
     }
 
     fn sync<T, N, P>(
+        &self,
         amms: Vec<AMM>,
         to_block: u64,
         provider: Arc<P>,
