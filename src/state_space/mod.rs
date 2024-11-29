@@ -40,46 +40,44 @@ use std::{collections::HashMap, marker::PhantomData, sync::Arc};
 pub const CACHE_SIZE: usize = 30;
 
 #[derive(Clone)]
-pub struct StateSpaceManager<T, N, P> {
-    pub provider: Arc<P>,
-    // TODO: think about making the state space a trait, so we can have different implementations and bench whatever is best?
+pub struct StateSpaceManager {
     pub state: Arc<RwLock<StateSpace>>,
     // NOTE: explore more efficient rw locks
     state_change_cache: Arc<RwLock<StateChangeCache<CACHE_SIZE>>>,
     // NOTE: does this need to be atomic u64?
     latest_block: Arc<AtomicU64>,
-    discovery_manager: Option<DiscoveryManager>,
+    // discovery_manager: Option<DiscoveryManager>,
     pub block_filter: Filter,
     // TODO: add support for caching
-    phantom: PhantomData<(T, N)>,
-    // TODO: think about making cache trait then we could experiment with different implementations
 }
 
 // NOTE: make it so that you can also just invoke the function to process a block and return the state space
 // so that you can invoke it manually with the stream rather than subscribing
 
-impl<T, N, P> StateSpaceManager<T, N, P>
-where
-    T: Transport + Clone,
-    P: Provider<PubSubFrontend> + 'static,
-{
-    pub async fn subscribe<S>(&'static self) -> impl Stream<Item = Vec<Address>> {
-        let block_stream = self.provider.subscribe_blocks().await.expect("TODO:");
-        let mut block_stream = block_stream.into_stream();
-
+impl StateSpaceManager {
+    pub async fn subscribe<S>(&self, stream_provider: Arc<S>) -> impl Stream<Item = Vec<Address>>
+    where
+        S: Provider<PubSubFrontend>,
+    {
         let latest_block = self.latest_block.clone();
+        let state = self.state.clone();
+        let mut block_filter = self.block_filter.clone();
 
         stream! {
+            let block_stream = stream_provider.subscribe_blocks().await.expect("TODO:");
+            let mut block_stream = block_stream.into_stream();
+
             while let Some(block) = block_stream.next().await {
                 let block_number = block.header.number;
+                block_filter = block_filter.select(block_number);
 
-                let logs = self
-                .provider
-                .get_logs(&self.block_filter.clone().select(block_number))
+
+                let logs = stream_provider
+                .get_logs(&block_filter)
                 .await
                 .expect("TODO:");
 
-                self.state.write().expect("TODO: handle error").sync(&logs);
+                state.write().expect("TODO: handle error").sync(&logs);
                 latest_block.store(block_number, Ordering::Relaxed);
 
 
@@ -99,7 +97,6 @@ pub struct StateSpaceBuilder<T, N, P> {
     pub latest_block: u64,
     pub factories: Vec<Factory>,
     pub filters: Vec<PoolFilter>,
-    // pub discovery: bool,
     phantom: PhantomData<(T, N)>,
     // TODO: add support for caching
     // TODO: add support to load from cache
@@ -133,14 +130,7 @@ where
         StateSpaceBuilder { filters, ..self }
     }
 
-    // pub fn with_discovery(self) -> StateSpaceBuilder<T, N, P> {
-    //     StateSpaceBuilder {
-    //         discovery: true,
-    //         ..self
-    //     }
-    // }
-
-    pub async fn sync(self) -> StateSpaceManager<T, N, P> {
+    pub async fn sync(self) -> StateSpaceManager {
         let chain_tip = self.provider.get_block_number().await.expect("TODO:");
 
         let mut futures = FuturesUnordered::new();
@@ -178,30 +168,17 @@ where
             for event in factory.pool_events() {
                 filter_set.insert(event);
             }
-
-            // if self.discovery {
-            //     filter_set.insert(factory.discovery_event());
-            // }
         }
-
-        // let discovery_manager = if self.discovery {
-        //     Some(DiscoveryManager::new(self.factories))
-        // } else {
-        //     None
-        // };
 
         let block_filter = Filter::new().event_signature(FilterSet::from(
             filter_set.into_iter().collect::<Vec<FixedBytes<32>>>(),
         ));
 
         StateSpaceManager {
-            provider: self.provider,
             latest_block: Arc::new(AtomicU64::new(self.latest_block)),
             state: Arc::new(RwLock::new(state_space)),
             state_change_cache: Arc::new(RwLock::new(StateChangeCache::default())),
-            discovery_manager: None,
             block_filter,
-            phantom: PhantomData,
         }
     }
 }

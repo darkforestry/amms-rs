@@ -1,13 +1,13 @@
 use std::sync::Arc;
 
 use alloy::{
-    primitives::address, providers::ProviderBuilder, pubsub::PubSubFrontend,
-    rpc::client::ClientBuilder, transports::layers::RetryBackoffLayer,
+    primitives::address, providers::ProviderBuilder, rpc::client::ClientBuilder,
+    transports::layers::RetryBackoffLayer,
 };
 use pamms::{
-    amms::{uniswap_v2::UniswapV2Factory, uniswap_v3::UniswapV3Factory},
+    amms::uniswap_v2::UniswapV2Factory,
     state_space::{
-        filters::{whitelist::PoolWhitelistFilter, WhitelistFilter},
+        filters::whitelist::{PoolWhitelistFilter, TokenWhitelistFilter},
         StateSpaceBuilder,
     },
     ThrottleLayer,
