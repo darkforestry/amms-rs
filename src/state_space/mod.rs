@@ -43,17 +43,11 @@ pub const CACHE_SIZE: usize = 30;
 #[derive(Clone)]
 pub struct StateSpaceManager {
     pub state: Arc<RwLock<StateSpace>>,
-    // NOTE: explore more efficient rw locks
-    state_change_cache: Arc<RwLock<StateChangeCache<CACHE_SIZE>>>,
-    // NOTE: does this need to be atomic u64?
     latest_block: Arc<AtomicU64>,
     // discovery_manager: Option<DiscoveryManager>,
     pub block_filter: Filter,
     // TODO: add support for caching
 }
-
-// NOTE: make it so that you can also just invoke the function to process a block and return the state space
-// so that you can invoke it manually with the stream rather than subscribing
 
 impl StateSpaceManager {
     pub async fn subscribe<S>(
@@ -185,7 +179,6 @@ where
         StateSpaceManager {
             latest_block: Arc::new(AtomicU64::new(self.latest_block)),
             state: Arc::new(RwLock::new(state_space)),
-            state_change_cache: Arc::new(RwLock::new(StateChangeCache::default())),
             block_filter,
         }
     }
