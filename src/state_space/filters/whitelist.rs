@@ -9,12 +9,26 @@ use super::filter::{AMMFilter, FilterStage};
 #[derive(Debug, Clone)]
 pub struct WhitelistFilter {
     /// A whitelist of addresses to exclusively allow
-    whitelist: Vec<Address>,
+    pools: Vec<Address>,
+    tokens: Vec<Address>,
 }
 
 impl WhitelistFilter {
-    pub fn new(whitelist: Vec<Address>) -> Self {
-        Self { whitelist }
+    pub fn new() -> Self {
+        Self {
+            pools: vec![],
+            tokens: vec![],
+        }
+    }
+
+    pub fn with_pools(mut self, pools: Vec<Address>) -> Self {
+        self.pools = pools;
+        self
+    }
+
+    pub fn with_tokens(mut self, tokens: Vec<Address>) -> Self {
+        self.tokens = tokens;
+        self
     }
 }
 
@@ -25,8 +39,8 @@ impl AMMFilter for WhitelistFilter {
         Ok(amms
             .into_iter()
             .filter(|amm| {
-                self.whitelist.contains(&amm.address())
-                    || amm.tokens().iter().any(|t| self.whitelist.contains(t))
+                self.pools.contains(&amm.address())
+                    || amm.tokens().iter().any(|t| self.tokens.contains(t))
             })
             .collect())
     }

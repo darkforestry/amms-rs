@@ -6,7 +6,7 @@ use alloy::{
 };
 use pamms::{
     amms::{uniswap_v2::UniswapV2Factory, uniswap_v3::UniswapV3Factory},
-    state_space::StateSpaceBuilder,
+    state_space::{filters::WhitelistFilter, StateSpaceBuilder},
     ThrottleLayer,
 };
 
@@ -32,8 +32,11 @@ async fn main() -> eyre::Result<()> {
         .into(),
     ];
 
-    // TODO: add filters
-    let filters = vec![];
+    // Whitelist filter that only include pools with the specified "pools" addresses or any pool containing the specified "tokens"
+    let filters = vec![WhitelistFilter::new()
+        .with_pools(vec![address!("88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640")])
+        .with_tokens(vec![address!("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48")])
+        .into()];
 
     let state_space_manager = StateSpaceBuilder::new(provider.clone(), factories)
         .with_discovery()

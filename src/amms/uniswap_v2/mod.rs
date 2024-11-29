@@ -419,6 +419,8 @@ impl UniswapV2Factory {
                     .block(block_number.into())
                     .await
                     .expect("TODO: handle error");
+
+                // TODO: update this to use soltype instead of dynsoltype
                 let constructor_return = DynSolType::Array(Box::new(DynSolType::Tuple(vec![
                     DynSolType::Address,
                     DynSolType::Address,
@@ -534,6 +536,52 @@ impl DiscoverySync for UniswapV2Factory {
 
             Ok(pools)
         }
+    }
+
+    fn discover<T, N, P>(
+        &self,
+        to_block: u64,
+        provider: Arc<P>,
+    ) -> impl Future<Output = Result<Vec<AMM>, AMMError>>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
+        let provider = provider.clone();
+        async move {
+            let pairs =
+                UniswapV2Factory::get_all_pairs(self.address, to_block, provider.clone()).await;
+
+            Ok(pairs
+                .into_iter()
+                .map(|pair| {
+                    AMM::UniswapV2Pool(UniswapV2Pool {
+                        address: pair,
+                        token_a: Address::default(),
+                        token_a_decimals: 0,
+                        token_b: Address::default(),
+                        token_b_decimals: 0,
+                        reserve_0: 0,
+                        reserve_1: 0,
+                        fee: self.fee,
+                    })
+                })
+                .collect())
+        }
+    }
+
+    fn sync<T, N, P>(
+        amms: Vec<AMM>,
+        to_block: u64,
+        provider: Arc<P>,
+    ) -> impl Future<Output = Result<Vec<AMM>, AMMError>>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
+        UniswapV3Factory::sync_all_pools(amms, to_block, provider)
     }
 }
 

@@ -6,7 +6,7 @@ use crate::state_space::filters::BlacklistFilter;
 use crate::state_space::filters::WhitelistFilter;
 
 #[async_trait]
-pub trait AMMFilter: Into<PoolFilter> {
+pub trait AMMFilter {
     async fn filter(&self, amms: Vec<AMM>) -> Result<Vec<AMM>>;
     fn stage(&self) -> FilterStage;
 }
@@ -37,6 +37,14 @@ macro_rules! filter {
                 }
             }
         }
+
+        $(
+            impl From<$filter_type> for PoolFilter {
+                fn from(filter: $filter_type) -> Self {
+                    PoolFilter::$filter_type(filter)
+                }
+            }
+        )+
     };
 }
 
