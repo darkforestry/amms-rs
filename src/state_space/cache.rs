@@ -1,9 +1,8 @@
 use std::collections::HashMap;
 
-use crate::amm::{AutomatedMarketMaker, AMM};
+use arraydeque::ArrayDeque;
 
-use super::StateChange;
-use arraydeque::{ArrayDeque, CapacityError};
+use crate::amms::amm::{AutomatedMarketMaker, AMM};
 
 #[derive(Debug)]
 
@@ -30,10 +29,7 @@ impl<const CAP: usize> StateChangeCache<CAP> {
         self.cache.is_empty()
     }
 
-    pub fn add_state_change_to_cache(
-        &mut self,
-        state_change: StateChange,
-    ) -> Result<(), CapacityError<StateChange>> {
+    pub fn push(&mut self, state_change: StateChange) {
         let cache = &mut self.cache;
 
         if cache.is_full() {
@@ -41,7 +37,8 @@ impl<const CAP: usize> StateChangeCache<CAP> {
             self.oldest_block = cache.back().unwrap().block_number;
         }
 
-        cache.push_front(state_change)
+        // We can unwrap here since we check if the cache is full
+        cache.push_front(state_change).unwrap();
     }
 
     /// Unwinds the state changes up to the given block number
@@ -89,4 +86,20 @@ impl<const CAP: usize> StateChangeCache<CAP> {
     }
 }
 
+// NOTE: we can probably make this more efficient and create a state change struct for each amm rather than
+// cloning each amm when caching
+#[derive(Debug, Clone)]
+pub struct StateChange {
+    pub state_change: Vec<AMM>,
+    pub block_number: u64,
+}
+
+impl StateChange {
+    pub fn new(state_change: Vec<AMM>, block_number: u64) -> Self {
+        Self {
+            block_number,
+            state_change,
+        }
+    }
+}
 // TODO: add tests
