@@ -22,6 +22,7 @@ use serde::{Deserialize, Serialize};
 use std::{
     cmp::Ordering,
     collections::{HashMap, HashSet},
+    future::Future,
     hash::Hash,
     str::FromStr,
     sync::Arc,
@@ -641,7 +642,11 @@ impl UniswapV3Factory {
         }
     }
 
-    async fn get_all_pools<T, N, P>(&self, block_number: u64, provider: Arc<P>) -> Vec<AMM>
+    async fn get_all_pools<T, N, P>(
+        &self,
+        block_number: u64,
+        provider: Arc<P>,
+    ) -> Result<Vec<AMM>, AMMError>
     where
         T: Transport + Clone,
         N: Network,
@@ -680,19 +685,24 @@ impl UniswapV3Factory {
             }
         }
 
-        pools
+        Ok(pools)
     }
 
-    async fn sync_all_pools<T, N, P>(pools: &mut Vec<AMM>, block_number: u64, provider: Arc<P>)
+    // TODO: update this to use uv3 error and then use thiserror to convert to AMMError
+    async fn sync_all_pools<T, N, P>(
+        mut pools: Vec<AMM>,
+        block_number: u64,
+        provider: Arc<P>,
+    ) -> Result<Vec<AMM>, AMMError>
     where
         T: Transport + Clone,
         N: Network,
         P: Provider<T, N>,
     {
-        UniswapV3Factory::sync_slot_0(pools, block_number, provider.clone()).await;
-        UniswapV3Factory::sync_token_decimals(pools, provider.clone()).await;
+        UniswapV3Factory::sync_slot_0(&mut pools, block_number, provider.clone()).await;
+        UniswapV3Factory::sync_token_decimals(&mut pools, provider.clone()).await;
 
-        *pools = pools
+        pools = pools
             .par_drain(..)
             .filter(|pool| match pool {
                 AMM::UniswapV3Pool(uv3_pool) => {
@@ -704,8 +714,10 @@ impl UniswapV3Factory {
             })
             .collect();
 
-        UniswapV3Factory::sync_tick_bitmaps(pools, block_number, provider.clone()).await;
-        UniswapV3Factory::sync_tick_data(pools, block_number, provider.clone()).await;
+        UniswapV3Factory::sync_tick_bitmaps(&mut pools, block_number, provider.clone()).await;
+        UniswapV3Factory::sync_tick_data(&mut pools, block_number, provider.clone()).await;
+
+        Ok(pools)
     }
 
     async fn sync_token_decimals<T, N, P>(pools: &mut [AMM], provider: Arc<P>)
@@ -1078,20 +1090,31 @@ impl AutomatedMarketMakerFactory for UniswapV3Factory {
 }
 
 impl DiscoverySync for UniswapV3Factory {
-    async fn discovery_sync<T, N, P>(
+    fn discover<T, N, P>(
         &self,
         to_block: u64,
         provider: Arc<P>,
-    ) -> Result<Vec<AMM>, AMMError>
+    ) -> impl Future<Output = Result<Vec<AMM>, AMMError>>
     where
         T: Transport + Clone,
         N: Network,
         P: Provider<T, N>,
     {
-        let mut pools = self.get_all_pools(to_block, provider.clone()).await;
-        UniswapV3Factory::sync_all_pools(&mut pools, to_block, provider).await;
+        self.get_all_pools(to_block, provider.clone())
+    }
 
-        Ok(pools)
+    fn sync<T, N, P>(
+        &self,
+        amms: Vec<AMM>,
+        to_block: u64,
+        provider: Arc<P>,
+    ) -> impl Future<Output = Result<Vec<AMM>, AMMError>>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
+        UniswapV3Factory::sync_all_pools(amms, to_block, provider)
     }
 }
 
@@ -1136,9 +1159,8 @@ mod test {
             ..Default::default()
         });
 
-        let mut pools = vec![pool];
-
-        UniswapV3Factory::sync_all_pools(&mut pools, block_number, provider).await;
+        let mut pools =
+            UniswapV3Factory::sync_all_pools(vec![pool], block_number, provider).await?;
 
         if let Some(AMM::UniswapV3Pool(pool)) = pools.pop() {
             Ok(pool)
@@ -1165,9 +1187,8 @@ mod test {
             ..Default::default()
         });
 
-        let mut pools = vec![pool];
-
-        UniswapV3Factory::sync_all_pools(&mut pools, block_number, provider).await;
+        let mut pools =
+            UniswapV3Factory::sync_all_pools(vec![pool], block_number, provider).await?;
 
         if let Some(AMM::UniswapV3Pool(pool)) = pools.pop() {
             Ok(pool)

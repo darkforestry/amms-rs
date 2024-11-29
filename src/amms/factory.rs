@@ -22,10 +22,20 @@ use super::{
 use super::uniswap_v2::UniswapV2Factory;
 use super::uniswap_v3::UniswapV3Factory;
 
-//NOTE: maybe make some with sync step trait so its easy to see which dexes need to sync via blocks
 pub trait DiscoverySync {
-    fn discovery_sync<T, N, P>(
+    fn discover<T, N, P>(
         &self,
+        to_block: u64,
+        provider: Arc<P>,
+    ) -> impl Future<Output = Result<Vec<AMM>, AMMError>>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>;
+
+    fn sync<T, N, P>(
+        &self,
+        amms: Vec<AMM>,
         to_block: u64,
         provider: Arc<P>,
     ) -> impl Future<Output = Result<Vec<AMM>, AMMError>>
@@ -41,7 +51,7 @@ pub trait AutomatedMarketMakerFactory: DiscoverySync + Into<Factory> {
     /// Returns the address of the factory.
     fn address(&self) -> Address;
 
-    // TODO: update to be factory error
+    // TODO: update to be factory error?
     fn create_pool(&self, log: Log) -> Result<AMM, AMMError>;
 
     /// Returns the block number at which the factory was created.
@@ -109,17 +119,28 @@ macro_rules! factory {
 
 
         impl Factory {
-            pub async fn discovery_sync<T, N, P>(&self, to_block: u64, provider: Arc<P>) -> Result<Vec<AMM>, AMMError>
-                where
-                    T: Transport + Clone,
-                    N: Network,
-                    P: Provider<T, N>,
-                {
-                    match self {
-                        $(Factory::$factory_type(factory) => factory.discovery_sync(to_block, provider).await,)+
-                    }
+            pub async fn discover<T, N, P>(&self, to_block: u64, provider: Arc<P>) -> Result<Vec<AMM>, AMMError>
+            where
+                T: Transport + Clone,
+                N: Network,
+                P: Provider<T, N>,
+            {
+                match self {
+                    $(Factory::$factory_type(factory) => factory.discover(to_block, provider).await,)+
                 }
             }
+
+            pub async fn sync<T, N, P>(&self, amms: Vec<AMM>, to_block: u64, provider: Arc<P>) -> Result<Vec<AMM>, AMMError>
+            where
+                T: Transport + Clone,
+                N: Network,
+                P: Provider<T, N>,
+            {
+                match self {
+                    $(Factory::$factory_type(factory) => factory.sync(amms, to_block, provider).await,)+
+                }
+            }
+        }
     };
 }
 

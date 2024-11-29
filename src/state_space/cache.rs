@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use arraydeque::{ArrayDeque, CapacityError};
+use arraydeque::ArrayDeque;
 
 use crate::amms::amm::{AutomatedMarketMaker, AMM};
 

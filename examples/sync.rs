@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use alloy::{
-    primitives::address, providers::ProviderBuilder, pubsub::PubSubFrontend,
-    rpc::client::ClientBuilder, transports::layers::RetryBackoffLayer,
+    primitives::address, providers::ProviderBuilder, rpc::client::ClientBuilder,
+    transports::layers::RetryBackoffLayer,
 };
 use pamms::{
     amms::{uniswap_v2::UniswapV2Factory, uniswap_v3::UniswapV3Factory},
@@ -23,20 +23,14 @@ async fn main() -> eyre::Result<()> {
     let provider = Arc::new(ProviderBuilder::new().on_client(client));
 
     let factories = vec![
-        // // UniswapV2
-        // UniswapV2Factory::new(
-        //     address!("5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f"),
-        //     300,
-        //     10000835,
-        // )
-        // .into(),
-        // // Sushiswap
-        // UniswapV2Factory::new(
-        //     address!("C0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac"),
-        //     300,
-        //     10794229,
-        // )
-        // .into(),
+        // UniswapV2
+        UniswapV2Factory::new(
+            address!("5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f"),
+            300,
+            10000835,
+        )
+        .into(),
+        // UniswapV3
         UniswapV3Factory::new(
             address!("1F98431c8aD98523631AE4a59f267346ea31F984"),
             12369621,
@@ -44,8 +38,7 @@ async fn main() -> eyre::Result<()> {
         .into(),
     ];
 
-    let state_space_manager = StateSpaceBuilder::new(provider.clone(), factories)
-        .with_discovery()
+    let _state_space_manager = StateSpaceBuilder::new(provider.clone(), factories)
         .sync()
         .await;
 

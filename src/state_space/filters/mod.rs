@@ -1,16 +1,20 @@
+pub mod blacklist;
+pub mod value;
+pub mod whitelist;
+
 use async_trait::async_trait;
+use blacklist::BlacklistFilter;
 use eyre::Result;
+use whitelist::{PoolWhitelistFilter, TokenWhitelistFilter};
 
 use crate::amms::amm::AMM;
-use crate::state_space::filters::BlacklistFilter;
-use crate::state_space::filters::WhitelistFilter;
-
 #[async_trait]
-pub trait AMMFilter: Into<PoolFilter> {
+pub trait AMMFilter {
     async fn filter(&self, amms: Vec<AMM>) -> Result<Vec<AMM>>;
     fn stage(&self) -> FilterStage;
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FilterStage {
     Discovery,
     Sync,
@@ -37,7 +41,20 @@ macro_rules! filter {
                 }
             }
         }
+
+        $(
+            impl From<$filter_type> for PoolFilter {
+                fn from(filter: $filter_type) -> Self {
+                    PoolFilter::$filter_type(filter)
+                }
+            }
+        )+
     };
 }
 
-filter!(BlacklistFilter, WhitelistFilter);
+filter!(
+    BlacklistFilter,
+    PoolWhitelistFilter,
+    TokenWhitelistFilter,
+    // ValueFilter
+);
