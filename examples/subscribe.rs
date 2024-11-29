@@ -7,11 +7,7 @@ use alloy::{
     transports::layers::RetryBackoffLayer,
 };
 use futures::StreamExt;
-use pamms::{
-    amms::uniswap_v2::UniswapV2Factory,
-    state_space::StateSpaceBuilder,
-    ThrottleLayer,
-};
+use pamms::{amms::uniswap_v2::UniswapV2Factory, state_space::StateSpaceBuilder, ThrottleLayer};
 
 // TODO: add another example that shows how to maintain sync without pubsub provider
 #[tokio::main]
