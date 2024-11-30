@@ -5,6 +5,13 @@ use alloy::{
     transports::layers::RetryBackoffLayer,
 };
 use alloy_throttle::ThrottleLayer;
+use amms::{
+    amms::uniswap_v2::UniswapV2Factory,
+    state_space::{
+        filters::whitelist::{PoolWhitelistFilter, TokenWhitelistFilter},
+        StateSpaceBuilder,
+    },
+};
 
 #[tokio::main]
 async fn main() -> eyre::Result<()> {

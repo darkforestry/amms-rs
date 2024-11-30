@@ -6,10 +6,10 @@ use alloy::{
     rpc::client::ClientBuilder,
     transports::layers::RetryBackoffLayer,
 };
+use alloy_throttle::ThrottleLayer;
+use amms::{amms::uniswap_v2::UniswapV2Factory, state_space::StateSpaceBuilder};
 use futures::StreamExt;
-use pamms::{amms::uniswap_v2::UniswapV2Factory, state_space::StateSpaceBuilder, ThrottleLayer};
 
-// TODO: add another example that shows how to maintain sync without pubsub provider
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
     tracing_subscriber::fmt::init();

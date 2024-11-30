@@ -4,10 +4,10 @@ use alloy::{
     primitives::address, providers::ProviderBuilder, rpc::client::ClientBuilder,
     transports::layers::RetryBackoffLayer,
 };
-use pamms::{
+use alloy_throttle::ThrottleLayer;
+use amms::{
     amms::{uniswap_v2::UniswapV2Factory, uniswap_v3::UniswapV3Factory},
     state_space::StateSpaceBuilder,
-    ThrottleLayer,
 };
 
 #[tokio::main]

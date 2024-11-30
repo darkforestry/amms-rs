@@ -29,8 +29,8 @@ use std::collections::HashSet;
 use std::pin::Pin;
 use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering;
-use std::sync::RwLock;
 use std::{collections::HashMap, marker::PhantomData, sync::Arc};
+use tokio::sync::RwLock;
 
 pub const CACHE_SIZE: usize = 30;
 
@@ -74,10 +74,9 @@ impl StateSpaceManager {
                 .await
                 .expect("TODO:");
 
-                state.write().expect("TODO: handle error").sync(&logs);
+                let affected_amms = state.write().await.sync(&logs);
                 latest_block.store(block_number, Ordering::Relaxed);
 
-                let affected_amms = logs.iter().map(|l| l.address()).collect::<Vec<_>>();
                 yield affected_amms;
             }
         })
@@ -202,7 +201,7 @@ pub struct StateSpace {
 }
 
 impl StateSpace {
-    pub fn sync(&mut self, logs: &[Log]) {
+    pub fn sync(&mut self, logs: &[Log]) -> Vec<Address> {
         let latest = self.latest_block.load(Ordering::Relaxed);
         let mut block_number = logs
             .first()
@@ -219,14 +218,15 @@ impl StateSpace {
         }
 
         let mut cached_amms = HashSet::new();
+        let mut affected_amms = HashSet::new();
         for log in logs {
             // If the block number is updated, cache the current block state changes
             let log_block_number = log.block_number.expect("TODO: Handle this");
             if log_block_number != block_number {
-                self.cache.push(StateChange::new(
-                    cached_amms.drain().collect(),
-                    block_number,
-                ));
+                let amms = cached_amms.drain().collect::<Vec<AMM>>();
+                affected_amms.extend(amms.iter().map(|amm| amm.address()));
+                self.cache.push(StateChange::new(amms, block_number));
+
                 block_number = log_block_number;
             }
 
@@ -239,10 +239,11 @@ impl StateSpace {
         }
 
         if !cached_amms.is_empty() {
-            self.cache.push(StateChange::new(
-                cached_amms.drain().collect(),
-                block_number,
-            ));
+            let amms = cached_amms.drain().collect::<Vec<AMM>>();
+            affected_amms.extend(amms.iter().map(|amm| amm.address()));
+            self.cache.push(StateChange::new(amms, block_number));
         }
+
+        affected_amms.into_iter().collect::<Vec<_>>()
     }
 }
