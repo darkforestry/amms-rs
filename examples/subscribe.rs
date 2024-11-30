@@ -1,15 +1,16 @@
 use std::sync::Arc;
 
 use alloy::{
-    primitives::address,
-    providers::{ProviderBuilder, WsConnect},
-    rpc::client::ClientBuilder,
+    primitives::address, providers::ProviderBuilder, rpc::client::ClientBuilder,
     transports::layers::RetryBackoffLayer,
 };
+use alloy_throttle::ThrottleLayer;
+use amms::{
+    amms::{amm::AutomatedMarketMaker, uniswap_v2::UniswapV2Factory},
+    state_space::StateSpaceBuilder,
+};
 use futures::StreamExt;
-use pamms::{amms::uniswap_v2::UniswapV2Factory, state_space::StateSpaceBuilder, ThrottleLayer};
 
-// TODO: add another example that shows how to maintain sync without pubsub provider
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
     tracing_subscriber::fmt::init();
@@ -35,14 +36,19 @@ async fn main() -> eyre::Result<()> {
         .sync()
         .await;
 
-    let ws_endpoint = std::env::var("ETHEREUM_WSS_ENDPOINT")?;
-    let ws = WsConnect::new(ws_endpoint);
-    let stream_provider = Arc::new(ProviderBuilder::new().on_ws(ws).await?);
-
     // Subscribe to state changes
-    let mut stream = state_space_manager.subscribe(stream_provider).await.take(5);
-    while let Some(state_changes) = stream.next().await {
-        dbg!(state_changes);
+    let mut stream = state_space_manager.subscribe().await.take(5);
+    let state = state_space_manager.state;
+
+    while let Some(updated_amms) = stream.next().await {
+        for amm in updated_amms {
+            if let Some(pool) = state.read().await.get(&amm) {
+                if let [token_a, token_b, ..] = pool.tokens()[..] {
+                    let price = pool.calculate_price(token_a, token_b)?;
+                    println!("AMM: {:?} Price: {:?}", amm, price);
+                }
+            }
+        }
     }
 
     Ok(())
