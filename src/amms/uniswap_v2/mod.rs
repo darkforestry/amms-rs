@@ -13,11 +13,11 @@ use super::{
 use alloy::{
     dyn_abi::DynSolType,
     network::Network,
-    primitives::{Address, B256, U256},
+    primitives::{Address, Bytes, B256, U256},
     providers::Provider,
     rpc::types::Log,
     sol,
-    sol_types::{SolEvent, SolValue},
+    sol_types::{SolCall, SolEvent, SolValue},
     transports::Transport,
 };
 use eyre::Result;
@@ -221,6 +221,23 @@ impl UniswapV2Pool {
         } else {
             div_uu(r_0, r_1)
         }
+    }
+
+    pub fn swap_calldata(
+        &self,
+        amount_0_out: U256,
+        amount_1_out: U256,
+        to: Address,
+        calldata: Vec<u8>,
+    ) -> Result<Bytes, AMMError> {
+        Ok(IUniswapV2Pair::swapCall {
+            amount0Out: amount_0_out,
+            amount1Out: amount_1_out,
+            to,
+            data: calldata.into(),
+        }
+        .abi_encode()
+        .into())
     }
 }
 
