@@ -8,11 +8,11 @@ use crate::amms::consts::U256_1;
 use crate::amms::uniswap_v3::GetUniswapV3PoolTickBitmapBatchRequest::TickBitmapInfo;
 use alloy::{
     network::Network,
-    primitives::{Address, Signed, B256, I256, U256},
+    primitives::{Address, Bytes, Signed, B256, I256, U256},
     providers::Provider,
     rpc::types::{Filter, FilterSet, Log},
     sol,
-    sol_types::{SolEvent, SolValue},
+    sol_types::{SolCall, SolEvent, SolValue},
     transports::{BoxFuture, Transport},
 };
 use eyre::Result;
@@ -79,6 +79,13 @@ sol! {
             uint128 liquidity,
             int24 tick
         );
+    }
+
+
+    #[derive(Debug, PartialEq, Eq)]
+    #[sol(rpc)]
+    contract IUniswapV3Pool {
+        function swap(address recipient, bool zeroForOne, int256 amountSpecified, uint160 sqrtPriceLimitX96, bytes calldata data) external returns (int256, int256);
     }
 }
 
@@ -619,6 +626,25 @@ impl UniswapV3Pool {
         } else {
             self.tick_bitmap.insert(word_pos, mask);
         }
+    }
+
+    pub fn swap_calldata(
+        &self,
+        recipient: Address,
+        zero_for_one: bool,
+        amount_specified: I256,
+        sqrt_price_limit_x_96: U256,
+        calldata: Vec<u8>,
+    ) -> Result<Bytes, AMMError> {
+        Ok(IUniswapV3Pool::swapCall {
+            recipient,
+            zeroForOne: zero_for_one,
+            amountSpecified: amount_specified,
+            sqrtPriceLimitX96: sqrt_price_limit_x_96.to(),
+            data: calldata.into(),
+        }
+        .abi_encode()
+        .into())
     }
 }
 
