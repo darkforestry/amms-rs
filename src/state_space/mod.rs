@@ -37,7 +37,7 @@ pub const CACHE_SIZE: usize = 30;
 #[derive(Clone)]
 pub struct StateSpaceManager {
     pub state: Arc<RwLock<StateSpace>>,
-    latest_block: Arc<AtomicU64>,
+    pub latest_block: Arc<AtomicU64>,
     // discovery_manager: Option<DiscoveryManager>,
     pub block_filter: Filter,
     // TODO: add support for caching
