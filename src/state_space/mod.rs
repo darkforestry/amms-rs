@@ -6,7 +6,6 @@ use crate::amms::amm::AutomatedMarketMaker;
 use crate::amms::amm::AMM;
 use crate::amms::factory::Factory;
 
-use alloy::pubsub::PubSubFrontend;
 use alloy::rpc::types::Block;
 use alloy::rpc::types::FilterSet;
 use alloy::rpc::types::Log;
