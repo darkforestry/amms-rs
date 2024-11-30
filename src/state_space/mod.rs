@@ -195,7 +195,6 @@ where
 }
 
 #[derive(Debug, Default)]
-// TODO: add cache to state space as a private field do eliminate unnecessary mutex on state space cache
 pub struct StateSpace {
     pub state: HashMap<Address, AMM>,
     pub latest_block: Arc<AtomicU64>,

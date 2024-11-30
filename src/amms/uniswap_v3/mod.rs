@@ -1029,7 +1029,6 @@ impl UniswapV3Factory {
                     unreachable!()
                 };
 
-                // TODO: do we need to insert unitilized ticks as well?
                 for (tick, tick_idx) in tick_bitmaps.iter().zip(tick_info.ticks.iter()) {
                     let info = Info {
                         liquidity_gross: tick.1,
@@ -1515,8 +1514,6 @@ mod test {
 
         Ok(())
     }
-
-    // TODO: swap sim mut
 
     // NOTE: test is failing due to invalid push0 opcode, update this test to use a block post push0
     #[tokio::test]
