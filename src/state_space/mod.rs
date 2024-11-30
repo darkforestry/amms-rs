@@ -205,6 +205,14 @@ pub struct StateSpace {
 }
 
 impl StateSpace {
+    pub fn get(&self, address: &Address) -> Option<&AMM> {
+        self.state.get(address)
+    }
+
+    pub fn get_mut(&mut self, address: &Address) -> Option<&mut AMM> {
+        self.state.get_mut(address)
+    }
+
     pub fn sync(&mut self, logs: &[Log]) -> Vec<Address> {
         let latest = self.latest_block.load(Ordering::Relaxed);
         let mut block_number = logs
