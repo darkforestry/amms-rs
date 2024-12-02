@@ -6,7 +6,7 @@ use crate::amms::amm::AutomatedMarketMaker;
 use crate::amms::amm::AMM;
 use crate::amms::factory::Factory;
 
-use alloy::pubsub::PubSubFrontend;
+use alloy::rpc::types::Block;
 use alloy::rpc::types::FilterSet;
 use alloy::rpc::types::Log;
 use alloy::{
@@ -29,33 +29,35 @@ use std::collections::HashSet;
 use std::pin::Pin;
 use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering;
-use std::sync::RwLock;
 use std::{collections::HashMap, marker::PhantomData, sync::Arc};
+use tokio::sync::RwLock;
 
 pub const CACHE_SIZE: usize = 30;
 
 #[derive(Clone)]
-pub struct StateSpaceManager {
+pub struct StateSpaceManager<T, N, P> {
     pub state: Arc<RwLock<StateSpace>>,
     pub latest_block: Arc<AtomicU64>,
     // discovery_manager: Option<DiscoveryManager>,
     pub block_filter: Filter,
+    pub provider: Arc<P>,
+    phantom: PhantomData<(T, N)>,
     // TODO: add support for caching
 }
 
-impl StateSpaceManager {
-    pub async fn subscribe<S>(
-        &self,
-        stream_provider: Arc<S>,
-    ) -> Pin<Box<dyn Stream<Item = Vec<Address>> + Send>>
+impl<T, N, P> StateSpaceManager<T, N, P> {
+    pub async fn subscribe(&self) -> Pin<Box<dyn Stream<Item = Vec<Address>> + Send>>
     where
-        S: Provider<PubSubFrontend> + 'static,
+        P: Provider<T, N> + 'static,
+        T: Transport + Clone,
+        N: Network<BlockResponse = Block>,
     {
+        let provider = self.provider.clone();
         let latest_block = self.latest_block.clone();
         let state = self.state.clone();
         let mut block_filter = self.block_filter.clone();
 
-        let block_stream = stream_provider
+        let block_stream = provider
             .subscribe_blocks()
             .await
             .expect("TODO:")
@@ -69,15 +71,14 @@ impl StateSpaceManager {
                 block_filter = block_filter.select(block_number);
 
 
-                let logs = stream_provider
+                let logs = provider
                 .get_logs(&block_filter)
                 .await
                 .expect("TODO:");
 
-                state.write().expect("TODO: handle error").sync(&logs);
+                let affected_amms = state.write().await.sync(&logs);
                 latest_block.store(block_number, Ordering::Relaxed);
 
-                let affected_amms = logs.iter().map(|l| l.address()).collect::<Vec<_>>();
                 yield affected_amms;
             }
         })
@@ -126,7 +127,7 @@ where
         StateSpaceBuilder { filters, ..self }
     }
 
-    pub async fn sync(self) -> StateSpaceManager {
+    pub async fn sync(self) -> StateSpaceManager<T, N, P> {
         let chain_tip = self.provider.get_block_number().await.expect("TODO:");
 
         let mut futures = FuturesUnordered::new();
@@ -190,6 +191,8 @@ where
             latest_block: Arc::new(AtomicU64::new(self.latest_block)),
             state: Arc::new(RwLock::new(state_space)),
             block_filter,
+            provider: self.provider,
+            phantom: PhantomData,
         }
     }
 }
@@ -202,7 +205,15 @@ pub struct StateSpace {
 }
 
 impl StateSpace {
-    pub fn sync(&mut self, logs: &[Log]) {
+    pub fn get(&self, address: &Address) -> Option<&AMM> {
+        self.state.get(address)
+    }
+
+    pub fn get_mut(&mut self, address: &Address) -> Option<&mut AMM> {
+        self.state.get_mut(address)
+    }
+
+    pub fn sync(&mut self, logs: &[Log]) -> Vec<Address> {
         let latest = self.latest_block.load(Ordering::Relaxed);
         let mut block_number = logs
             .first()
@@ -219,14 +230,15 @@ impl StateSpace {
         }
 
         let mut cached_amms = HashSet::new();
+        let mut affected_amms = HashSet::new();
         for log in logs {
             // If the block number is updated, cache the current block state changes
             let log_block_number = log.block_number.expect("TODO: Handle this");
             if log_block_number != block_number {
-                self.cache.push(StateChange::new(
-                    cached_amms.drain().collect(),
-                    block_number,
-                ));
+                let amms = cached_amms.drain().collect::<Vec<AMM>>();
+                affected_amms.extend(amms.iter().map(|amm| amm.address()));
+                self.cache.push(StateChange::new(amms, block_number));
+
                 block_number = log_block_number;
             }
 
@@ -239,10 +251,11 @@ impl StateSpace {
         }
 
         if !cached_amms.is_empty() {
-            self.cache.push(StateChange::new(
-                cached_amms.drain().collect(),
-                block_number,
-            ));
+            let amms = cached_amms.drain().collect::<Vec<AMM>>();
+            affected_amms.extend(amms.iter().map(|amm| amm.address()));
+            self.cache.push(StateChange::new(amms, block_number));
         }
+
+        affected_amms.into_iter().collect::<Vec<_>>()
     }
 }
