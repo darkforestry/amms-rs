@@ -1,6 +1,6 @@
 [package]
 name = "amms"
-version = "0.6.3"
+version = "0.7.0"
 edition = "2021"
 license = "MIT"
 description = "A library to interact with automated market makers across EVM chains."
@@ -79,3 +79,12 @@ opt-level = 3
 lto = true
 codegen-units = 1
 debug = "full"
+
+
+[[bench]]
+name = "uniswap_v2"
+harness = false
+
+[[bench]]
+name = "uniswap_v3"
+harness = false

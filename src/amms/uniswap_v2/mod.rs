@@ -344,7 +344,7 @@ impl UniswapV2Factory {
         }
     }
 
-    async fn get_all_pairs<T, N, P>(
+    pub async fn get_all_pairs<T, N, P>(
         factory_address: Address,
         block_number: u64,
         provider: Arc<P>,
@@ -404,7 +404,7 @@ impl UniswapV2Factory {
         pairs
     }
 
-    async fn sync_all_pools<T, N, P>(
+    pub async fn sync_all_pools<T, N, P>(
         amms: Vec<AMM>,
         block_number: u64,
         provider: Arc<P>,

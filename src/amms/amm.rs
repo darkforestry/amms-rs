@@ -40,6 +40,8 @@ pub trait AutomatedMarketMaker {
         quote_token: Address,
         amount_in: U256,
     ) -> Result<U256, AMMError>;
+
+    // TODO: fn swap_calldata(&self, token_in, token_out, amount_in, amount_out_min) -> Vec<u8>;
 }
 
 macro_rules! amm {
