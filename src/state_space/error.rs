@@ -16,5 +16,5 @@ pub enum StateSpaceError {
     #[error("Logs Are Empty")]
     MissingLogs,
     #[error("Block Number Does not Exist")]
-    MissingBlockNumber
+    MissingBlockNumber,
 }

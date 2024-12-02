@@ -50,7 +50,10 @@ pub struct StateSpaceManager<T, N, P> {
 impl<T, N, P> StateSpaceManager<T, N, P> {
     pub async fn subscribe(
         &self,
-    ) -> Result<Pin<Box<dyn Stream<Item = Result<Vec<Address>, StateSpaceError>> + Send>>, StateSpaceError>
+    ) -> Result<
+        Pin<Box<dyn Stream<Item = Result<Vec<Address>, StateSpaceError>> + Send>>,
+        StateSpaceError,
+    >
     where
         P: Provider<T, N> + 'static,
         T: Transport + Clone,
@@ -61,10 +64,7 @@ impl<T, N, P> StateSpaceManager<T, N, P> {
         let state = self.state.clone();
         let mut block_filter = self.block_filter.clone();
 
-        let block_stream = provider
-            .subscribe_blocks()
-            .await?
-            .into_stream();
+        let block_stream = provider.subscribe_blocks().await?.into_stream();
 
         Ok(Box::pin(stream! {
             tokio::pin!(block_stream);
@@ -136,9 +136,7 @@ where
             let provider = self.provider.clone();
             let filters = self.filters.clone();
             futures.push(tokio::spawn(async move {
-                let mut amms = factory
-                    .discover(chain_tip, provider.clone())
-                    .await?;
+                let mut amms = factory.discover(chain_tip, provider.clone()).await?;
 
                 // Apply discovery filters
                 for filter in filters.iter() {
@@ -147,9 +145,7 @@ where
                     }
                 }
 
-                amms = factory
-                    .sync(amms, chain_tip, provider)
-                    .await?;
+                amms = factory.sync(amms, chain_tip, provider).await?;
 
                 // Apply sync filters
                 for filter in filters.iter() {
@@ -231,7 +227,9 @@ impl StateSpace {
         let mut affected_amms = HashSet::new();
         for log in logs {
             // If the block number is updated, cache the current block state changes
-            let log_block_number = log.block_number.ok_or(StateSpaceError::MissingBlockNumber)?;
+            let log_block_number = log
+                .block_number
+                .ok_or(StateSpaceError::MissingBlockNumber)?;
             if log_block_number != block_number {
                 let amms = cached_amms.drain().collect::<Vec<AMM>>();
                 affected_amms.extend(amms.iter().map(|amm| amm.address()));

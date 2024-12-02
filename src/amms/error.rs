@@ -1,4 +1,7 @@
-use alloy::{primitives::{Address, FixedBytes}, transports::TransportErrorKind};
+use alloy::{
+    primitives::{Address, FixedBytes},
+    transports::TransportErrorKind,
+};
 use thiserror::Error;
 use uniswap_v3_math::error::UniswapV3MathError;
 

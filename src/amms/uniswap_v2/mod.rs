@@ -87,8 +87,7 @@ impl AutomatedMarketMaker for UniswapV2Pool {
     }
 
     fn sync(&mut self, log: &Log) -> Result<(), AMMError> {
-        let sync_event =
-            IUniswapV2Pair::Sync::decode_log(&log.inner, false)?;
+        let sync_event = IUniswapV2Pair::Sync::decode_log(&log.inner, false)?;
 
         let (reserve_0, reserve_1) = (
             sync_event.reserve0.to::<u128>(),
@@ -377,10 +376,7 @@ impl UniswapV2Factory {
             );
 
             futures_unordered.push(async move {
-                let res = deployer
-                    .call_raw()
-                    .block(block_number.into())
-                    .await?;
+                let res = deployer.call_raw().block(block_number.into()).await?;
                 let constructor_return = DynSolType::Array(Box::new(DynSolType::Address));
 
                 Ok::<DynSolValue, AMMError>(constructor_return.abi_decode_sequence(&res)?)
@@ -430,17 +426,17 @@ impl UniswapV2Factory {
             );
 
             futures_unordered.push(async move {
-                let res = deployer
-                    .call_raw()
-                    .block(block_number.into())
-                    .await?;
+                let res = deployer.call_raw().block(block_number.into()).await?;
 
                 let return_data =
                     <Vec<(Address, Address, u128, u128, u32, u32)> as SolValue>::abi_decode(
                         &res, false,
                     )?;
 
-                Ok::<(Vec<Address>, Vec<(Address, Address, u128, u128, u32, u32)>), AMMError>((group, return_data))
+                Ok::<(Vec<Address>, Vec<(Address, Address, u128, u128, u32, u32)>), AMMError>((
+                    group,
+                    return_data,
+                ))
             });
         }
 
@@ -458,7 +454,9 @@ impl UniswapV2Factory {
                     continue;
                 }
 
-                let amm = amms.get_mut(pool_address).ok_or(AMMError::InvalidAMMAddress(*pool_address))?;
+                let amm = amms
+                    .get_mut(pool_address)
+                    .ok_or(AMMError::InvalidAMMAddress(*pool_address))?;
 
                 let AMM::UniswapV2Pool(pool) = amm else {
                     // NOTE: We should never receive a non UniswapV2Pool AMM here, we can handle this more gracefully in the future

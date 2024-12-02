@@ -19,7 +19,6 @@ use eyre::Result;
 use futures::{stream::FuturesUnordered, StreamExt};
 use rayon::iter::{IntoParallelRefIterator, ParallelDrainRange, ParallelIterator};
 use serde::{Deserialize, Serialize};
-use GetUniswapV3PoolTickDataBatchRequest::TickDataInfo;
 use std::{
     cmp::Ordering,
     collections::{HashMap, HashSet},
@@ -29,6 +28,7 @@ use std::{
     sync::Arc,
 };
 use uniswap_v3_math::tick_math::{MAX_SQRT_RATIO, MAX_TICK, MIN_SQRT_RATIO, MIN_TICK};
+use GetUniswapV3PoolTickDataBatchRequest::TickDataInfo;
 
 sol! {
     // UniswapV3Factory
@@ -112,13 +112,13 @@ sol! {
 pub struct UniswapV3Pool {
     pub address: Address,
     pub token_a: Address,
-    pub token_a_decimals: u8, 
+    pub token_a_decimals: u8,
     pub token_b: Address,
-    pub token_b_decimals: u8, 
-    pub liquidity: u128,     
-    pub sqrt_price: U256,    
+    pub token_b_decimals: u8,
+    pub liquidity: u128,
+    pub sqrt_price: U256,
     pub fee: u32,
-    pub tick: i32,        
+    pub tick: i32,
     pub tick_spacing: i32, // TODO: we can make this a u8, tick spacing will never exceed 200
     pub tick_bitmap: HashMap<i16, U256>,
     pub ticks: HashMap<i32, Info>,
@@ -545,7 +545,12 @@ impl AutomatedMarketMaker for UniswapV3Pool {
 
 impl UniswapV3Pool {
     /// Modifies a positions liquidity in the pool.
-    pub fn modify_position(&mut self, tick_lower: i32, tick_upper: i32, liquidity_delta: i128) -> Result<(), AMMError> {
+    pub fn modify_position(
+        &mut self,
+        tick_lower: i32,
+        tick_upper: i32,
+        liquidity_delta: i128,
+    ) -> Result<(), AMMError> {
         //We are only using this function when a mint or burn event is emitted,
         //therefore we do not need to checkTicks as that has happened before the event is emitted
         self.update_position(tick_lower, tick_upper, liquidity_delta)?;
@@ -943,11 +948,12 @@ impl UniswapV3Factory {
 
         while let Some(res) = futures.next().await {
             let (pools, return_data) = res?;
-            let return_data =
-                <Vec<Vec<U256>> as SolValue>::abi_decode(&return_data, false)?;
+            let return_data = <Vec<Vec<U256>> as SolValue>::abi_decode(&return_data, false)?;
 
             for (tick_bitmaps, pool_address) in return_data.iter().zip(pools.iter()) {
-                let pool = pool_set.get_mut(pool_address).ok_or(AMMError::InvalidAMMAddress(*pool_address))?; 
+                let pool = pool_set
+                    .get_mut(pool_address)
+                    .ok_or(AMMError::InvalidAMMAddress(*pool_address))?;
                 let AMM::UniswapV3Pool(ref mut uv3_pool) = pool else {
                     unreachable!()
                 };
@@ -964,7 +970,11 @@ impl UniswapV3Factory {
     }
 
     // TODO: Clean this function up
-    async fn sync_tick_data<T, N, P>(pools: &mut [AMM], block_number: u64, provider: Arc<P>) -> Result<(), AMMError>
+    async fn sync_tick_data<T, N, P>(
+        pools: &mut [AMM],
+        block_number: u64,
+        provider: Arc<P>,
+    ) -> Result<(), AMMError>
     where
         T: Transport + Clone,
         N: Network,
@@ -1062,7 +1072,7 @@ impl UniswapV3Factory {
                     GetUniswapV3PoolTickDataBatchRequest::deploy_builder(provider, calldata)
                         .call_raw()
                         .block(block_number.into())
-                        .await?
+                        .await?,
                 ))
             }));
         }
@@ -1079,7 +1089,8 @@ impl UniswapV3Factory {
 
             for (tick_bitmaps, tick_info) in return_data.iter().zip(tick_info.iter()) {
                 let pool = pool_set
-                    .get_mut(&tick_info.pool).ok_or(AMMError::InvalidAMMAddress(tick_info.pool))?;
+                    .get_mut(&tick_info.pool)
+                    .ok_or(AMMError::InvalidAMMAddress(tick_info.pool))?;
 
                 let AMM::UniswapV3Pool(ref mut uv3_pool) = pool else {
                     unreachable!()
