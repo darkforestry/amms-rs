@@ -1,9 +1,7 @@
-use alloy::{
-    primitives::{Address, FixedBytes},
-    transports::TransportErrorKind,
-};
+use alloy::{primitives::FixedBytes, transports::TransportErrorKind};
 use thiserror::Error;
-use uniswap_v3_math::error::UniswapV3MathError;
+
+use super::{uniswap_v2::error::UniswapV2Error, uniswap_v3::error::UniswapV3Error};
 
 #[derive(Error, Debug)]
 pub enum AMMError {
@@ -19,28 +17,8 @@ pub enum AMMError {
     UniswapV2Error(#[from] UniswapV2Error),
     #[error(transparent)]
     UniswapV3Error(#[from] UniswapV3Error),
-    #[error("Invalid AMM Address")]
-    InvalidAMMAddress(Address),
-    #[error("Unknown Event Signature {0}")]
-    UnknownEventSignature(FixedBytes<32>),
-}
-
-#[derive(Error, Debug)]
-pub enum UniswapV2Error {
-    #[error("Parse Float Error")]
-    ParseFloatError,
-    #[error("Division by zero")]
-    DivisionByZero,
-    #[error("Rounding Error")]
-    RoundingError,
-}
-
-#[derive(Error, Debug)]
-pub enum UniswapV3Error {
     #[error(transparent)]
-    UniswapV3MathError(#[from] UniswapV3MathError),
-    #[error("Liquidity Underflow")]
-    LiquidityUnderflow,
-    #[error("Tick Does Not Exist {0}")]
-    TickNotFound(i32),
+    ParseFloatError(#[from] rug::float::ParseFloatError),
+    #[error("Unrecognized Event Signature {0}")]
+    UnrecognizedEventSignature(FixedBytes<32>),
 }

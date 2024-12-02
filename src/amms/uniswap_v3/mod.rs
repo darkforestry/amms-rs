@@ -1,11 +1,12 @@
+pub mod error;
+
 use super::{
     amm::{AutomatedMarketMaker, AMM},
     error::AMMError,
     factory::{AutomatedMarketMakerFactory, DiscoverySync, Factory},
     get_token_decimals,
 };
-use crate::amms::uniswap_v3::GetUniswapV3PoolTickBitmapBatchRequest::TickBitmapInfo;
-use crate::amms::{consts::U256_1, error::UniswapV3Error};
+use crate::amms::{consts::U256_1, uniswap_v3::GetUniswapV3PoolTickBitmapBatchRequest::TickBitmapInfo};
 use alloy::{
     network::Network,
     primitives::{Address, Bytes, Signed, B256, I256, U256},
@@ -15,6 +16,7 @@ use alloy::{
     sol_types::{SolCall, SolEvent, SolValue},
     transports::{BoxFuture, Transport},
 };
+use error::UniswapV3Error;
 use eyre::Result;
 use futures::{stream::FuturesUnordered, StreamExt};
 use rayon::iter::{IntoParallelRefIterator, ParallelDrainRange, ParallelIterator};
@@ -217,7 +219,7 @@ impl AutomatedMarketMaker for UniswapV3Pool {
                 // tracing::debug!(?burn_event, address = ?self.address, sqrt_price = ?self.sqrt_price, liquidity = ?self.liquidity, tick = ?self.tick, "UniswapV3 burn event");
             }
             _ => {
-                return Err(AMMError::UnknownEventSignature(event_signature));
+                return Err(AMMError::UnrecognizedEventSignature(event_signature));
             }
         }
 
@@ -952,8 +954,8 @@ impl UniswapV3Factory {
 
             for (tick_bitmaps, pool_address) in return_data.iter().zip(pools.iter()) {
                 let pool = pool_set
-                    .get_mut(pool_address)
-                    .ok_or(AMMError::InvalidAMMAddress(*pool_address))?;
+                    .get_mut(pool_address).unwrap();
+
                 let AMM::UniswapV3Pool(ref mut uv3_pool) = pool else {
                     unreachable!()
                 };
@@ -1089,8 +1091,7 @@ impl UniswapV3Factory {
 
             for (tick_bitmaps, tick_info) in return_data.iter().zip(tick_info.iter()) {
                 let pool = pool_set
-                    .get_mut(&tick_info.pool)
-                    .ok_or(AMMError::InvalidAMMAddress(tick_info.pool))?;
+                    .get_mut(&tick_info.pool).unwrap();
 
                 let AMM::UniswapV3Pool(ref mut uv3_pool) = pool else {
                     unreachable!()

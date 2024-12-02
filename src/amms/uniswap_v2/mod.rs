@@ -1,3 +1,5 @@
+pub mod error;
+
 use super::{
     amm::{AutomatedMarketMaker, AMM},
     consts::{
@@ -6,12 +8,11 @@ use super::{
         U256_0XFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF, U256_1, U256_1000, U256_128,
         U256_16, U256_191, U256_192, U256_2, U256_255, U256_32, U256_4, U256_64, U256_8,
     },
-    error::{AMMError, UniswapV2Error},
+    error::AMMError,
     factory::{AutomatedMarketMakerFactory, DiscoverySync, Factory},
 };
 
 use alloy::{
-    dyn_abi::{DynSolType, DynSolValue},
     network::Network,
     primitives::{Address, Bytes, B256, U256},
     providers::Provider,
@@ -20,6 +21,7 @@ use alloy::{
     sol_types::{SolCall, SolEvent, SolValue},
     transports::Transport,
 };
+use error::UniswapV2Error;
 use eyre::Result;
 use futures::{stream::FuturesUnordered, StreamExt};
 use itertools::Itertools;
@@ -171,7 +173,7 @@ pub fn q64_to_float(num: u128) -> Result<f64, AMMError> {
 pub fn u128_to_float(num: u128) -> Result<Float, AMMError> {
     let value_string = num.to_string();
     let parsed_value =
-        Float::parse_radix(value_string, 10).map_err(|_| UniswapV2Error::ParseFloatError)?;
+        Float::parse_radix(value_string, 10)?;
     Ok(Float::with_val(MPFR_T_PRECISION, parsed_value))
 }
 
@@ -307,7 +309,7 @@ pub fn div_uu(x: U256, y: U256) -> Result<u128, AMMError> {
         xl = xl.overflowing_sub(lo).0;
 
         if xh != hi >> U256_128 {
-            return Err(AMMError::UniswapV2Error(UniswapV2Error::RoundingError));
+            return Err(UniswapV2Error::RoundingError.into());
         }
 
         answer += xl / y;
@@ -318,7 +320,7 @@ pub fn div_uu(x: U256, y: U256) -> Result<u128, AMMError> {
 
         Ok(answer.to::<u128>())
     } else {
-        Err(AMMError::UniswapV2Error(UniswapV2Error::DivisionByZero))
+        Err(UniswapV2Error::DivisionByZero.into())
     }
 }
 
@@ -377,24 +379,20 @@ impl UniswapV2Factory {
 
             futures_unordered.push(async move {
                 let res = deployer.call_raw().block(block_number.into()).await?;
-                let constructor_return = DynSolType::Array(Box::new(DynSolType::Address));
+                let return_data = <Vec<Address> as SolValue>::abi_decode(&res, false)?;
 
-                Ok::<DynSolValue, AMMError>(constructor_return.abi_decode_sequence(&res)?)
+                Ok::<Vec<Address>, AMMError>(return_data)
             });
         }
 
         let mut pairs = Vec::new();
         while let Some(res) = futures_unordered.next().await {
-            let return_data = res?;
-            if let Some(tokens_arr) = return_data.as_array() {
-                for token in tokens_arr {
-                    if let Some(addr) = token.as_address() {
-                        if !addr.is_zero() {
-                            pairs.push(addr);
-                        }
-                    }
+            let tokens = res?;
+            for token in tokens {
+                if !token.is_zero() {
+                    pairs.push(token);
                 }
-            };
+            }
         }
 
         Ok(pairs)
@@ -454,9 +452,7 @@ impl UniswapV2Factory {
                     continue;
                 }
 
-                let amm = amms
-                    .get_mut(pool_address)
-                    .ok_or(AMMError::InvalidAMMAddress(*pool_address))?;
+                let amm = amms.get_mut(pool_address).unwrap();
 
                 let AMM::UniswapV2Pool(pool) = amm else {
                     // NOTE: We should never receive a non UniswapV2Pool AMM here, we can handle this more gracefully in the future
