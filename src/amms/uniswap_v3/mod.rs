@@ -4,8 +4,8 @@ use super::{
     factory::{AutomatedMarketMakerFactory, DiscoverySync, Factory},
     get_token_decimals,
 };
-use crate::amms::consts::U256_1;
 use crate::amms::uniswap_v3::GetUniswapV3PoolTickBitmapBatchRequest::TickBitmapInfo;
+use crate::amms::{consts::U256_1, error::UniswapV3Error};
 use alloy::{
     network::Network,
     primitives::{Address, Bytes, Signed, B256, I256, U256},
@@ -19,6 +19,7 @@ use eyre::Result;
 use futures::{stream::FuturesUnordered, StreamExt};
 use rayon::iter::{IntoParallelRefIterator, ParallelDrainRange, ParallelIterator};
 use serde::{Deserialize, Serialize};
+use GetUniswapV3PoolTickDataBatchRequest::TickDataInfo;
 use std::{
     cmp::Ordering,
     collections::{HashMap, HashSet},
@@ -90,34 +91,34 @@ sol! {
 }
 
 sol! {
-#[sol(rpc)]
-GetUniswapV3PoolSlot0BatchRequest,
-"contracts/out/GetUniswapV3PoolSlot0BatchRequest.sol/GetUniswapV3PoolSlot0BatchRequest.json",
+    #[sol(rpc)]
+    GetUniswapV3PoolSlot0BatchRequest,
+    "contracts/out/GetUniswapV3PoolSlot0BatchRequest.sol/GetUniswapV3PoolSlot0BatchRequest.json",
 }
 
 sol! {
-#[sol(rpc)]
-GetUniswapV3PoolTickBitmapBatchRequest,
-"contracts/out/GetUniswapV3PoolTickBitmapBatchRequest.sol/GetUniswapV3PoolTickBitmapBatchRequest.json",
+    #[sol(rpc)]
+    GetUniswapV3PoolTickBitmapBatchRequest,
+    "contracts/out/GetUniswapV3PoolTickBitmapBatchRequest.sol/GetUniswapV3PoolTickBitmapBatchRequest.json",
 }
 
 sol! {
-#[sol(rpc)]
-GetUniswapV3PoolTickDataBatchRequest,
-"contracts/out/GetUniswapV3PoolTickDataBatchRequest.sol/GetUniswapV3PoolTickDataBatchRequest.json"
+    #[sol(rpc)]
+    GetUniswapV3PoolTickDataBatchRequest,
+    "contracts/out/GetUniswapV3PoolTickDataBatchRequest.sol/GetUniswapV3PoolTickDataBatchRequest.json"
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct UniswapV3Pool {
     pub address: Address,
     pub token_a: Address,
-    pub token_a_decimals: u8, // NOTE:
+    pub token_a_decimals: u8, 
     pub token_b: Address,
-    pub token_b_decimals: u8, // NOTE:
-    pub liquidity: u128,      // NOTE:
-    pub sqrt_price: U256,     // NOTE:
+    pub token_b_decimals: u8, 
+    pub liquidity: u128,     
+    pub sqrt_price: U256,    
     pub fee: u32,
-    pub tick: i32,         // NOTE:
+    pub tick: i32,        
     pub tick_spacing: i32, // TODO: we can make this a u8, tick spacing will never exceed 200
     pub tick_bitmap: HashMap<i16, U256>,
     pub ticks: HashMap<i32, Info>,
@@ -183,12 +184,11 @@ impl AutomatedMarketMaker for UniswapV3Pool {
         ]
     }
 
-    fn sync(&mut self, log: &Log) {
+    fn sync(&mut self, log: &Log) -> Result<(), AMMError> {
         let event_signature = log.topics()[0];
         match event_signature {
             IUniswapV3PoolEvents::Swap::SIGNATURE_HASH => {
-                let swap_event =
-                    IUniswapV3PoolEvents::Swap::decode_log(log.as_ref(), false).expect("TODO: ");
+                let swap_event = IUniswapV3PoolEvents::Swap::decode_log(log.as_ref(), false)?;
 
                 self.sqrt_price = swap_event.sqrtPriceX96.to();
                 self.liquidity = swap_event.liquidity;
@@ -197,31 +197,31 @@ impl AutomatedMarketMaker for UniswapV3Pool {
                 // tracing::debug!(?swap_event, address = ?self.address, sqrt_price = ?self.sqrt_price, liquidity = ?self.liquidity, tick = ?self.tick, "UniswapV3 swap event");
             }
             IUniswapV3PoolEvents::Mint::SIGNATURE_HASH => {
-                let mint_event =
-                    IUniswapV3PoolEvents::Mint::decode_log(log.as_ref(), false).expect("TODO: ");
+                let mint_event = IUniswapV3PoolEvents::Mint::decode_log(log.as_ref(), false)?;
 
                 self.modify_position(
                     mint_event.tickLower.unchecked_into(),
                     mint_event.tickUpper.unchecked_into(),
                     mint_event.amount as i128,
-                );
+                )?;
                 // tracing::debug!(?mint_event, address = ?self.address, sqrt_price = ?self.sqrt_price, liquidity = ?self.liquidity, tick = ?self.tick, "UniswapV3 mint event");
             }
             IUniswapV3PoolEvents::Burn::SIGNATURE_HASH => {
-                let burn_event =
-                    IUniswapV3PoolEvents::Burn::decode_log(log.as_ref(), false).expect("TODO: ");
+                let burn_event = IUniswapV3PoolEvents::Burn::decode_log(log.as_ref(), false)?;
 
                 self.modify_position(
                     burn_event.tickLower.unchecked_into(),
                     burn_event.tickUpper.unchecked_into(),
                     -(burn_event.amount as i128),
-                );
+                )?;
                 // tracing::debug!(?burn_event, address = ?self.address, sqrt_price = ?self.sqrt_price, liquidity = ?self.liquidity, tick = ?self.tick, "UniswapV3 burn event");
             }
             _ => {
-                todo!("TODO: Handle this error")
+                return Err(AMMError::UnknownEventSignature(event_signature));
             }
         }
+
+        Ok(())
     }
 
     fn simulate_swap(
@@ -245,11 +245,11 @@ impl AutomatedMarketMaker for UniswapV3Pool {
 
         // Initialize a mutable state state struct to hold the dynamic simulated state of the pool
         let mut current_state = CurrentState {
-            sqrt_price_x_96: self.sqrt_price, //Active price on the pool
-            amount_calculated: I256::ZERO,    //Amount of token_out that has been calculated
-            amount_specified_remaining: I256::from_raw(amount_in), //Amount of token_in that has not been swapped
-            tick: self.tick,                                       //Current i24 tick of the pool
-            liquidity: self.liquidity, //Current available liquidity in the tick range
+            sqrt_price_x_96: self.sqrt_price, // Active price on the pool
+            amount_calculated: I256::ZERO,    // Amount of token_out that has been calculated
+            amount_specified_remaining: I256::from_raw(amount_in), // Amount of token_in that has not been swapped
+            tick: self.tick,                                       // Current i24 tick of the pool
+            liquidity: self.liquidity, // Current available liquidity in the tick range
         };
 
         while current_state.amount_specified_remaining != I256::ZERO
@@ -269,7 +269,8 @@ impl AutomatedMarketMaker for UniswapV3Pool {
                     current_state.tick,
                     self.tick_spacing,
                     zero_for_one,
-                )?;
+                )
+                .map_err(UniswapV3Error::from)?;
 
             // ensure that we do not overshoot the min/max tick, as the tick bitmap is not aware of these bounds
             // Note: this could be removed as we are clamping in the batch contract
@@ -277,7 +278,8 @@ impl AutomatedMarketMaker for UniswapV3Pool {
 
             // Get the next sqrt price from the input amount
             step.sqrt_price_next_x96 =
-                uniswap_v3_math::tick_math::get_sqrt_ratio_at_tick(step.tick_next)?;
+                uniswap_v3_math::tick_math::get_sqrt_ratio_at_tick(step.tick_next)
+                    .map_err(UniswapV3Error::from)?;
 
             // Target spot price
             let swap_target_sqrt_ratio = if zero_for_one {
@@ -304,7 +306,8 @@ impl AutomatedMarketMaker for UniswapV3Pool {
                 current_state.liquidity,
                 current_state.amount_specified_remaining,
                 self.fee,
-            )?;
+            )
+            .map_err(UniswapV3Error::from)?;
 
             // Decrement the amount remaining to be swapped and amount received from the step
             current_state.amount_specified_remaining = current_state
@@ -334,7 +337,7 @@ impl AutomatedMarketMaker for UniswapV3Pool {
 
                     current_state.liquidity = if liquidity_net < 0 {
                         if current_state.liquidity < (-liquidity_net as u128) {
-                            return Err(AMMError::LiquidityUnderflow);
+                            return Err(AMMError::from(UniswapV3Error::LiquidityUnderflow));
                         } else {
                             current_state.liquidity - (-liquidity_net as u128)
                         }
@@ -353,7 +356,8 @@ impl AutomatedMarketMaker for UniswapV3Pool {
             } else if current_state.sqrt_price_x_96 != step.sqrt_price_start_x_96 {
                 current_state.tick = uniswap_v3_math::tick_math::get_tick_at_sqrt_ratio(
                     current_state.sqrt_price_x_96,
-                )?;
+                )
+                .map_err(UniswapV3Error::from)?;
             }
         }
 
@@ -414,7 +418,8 @@ impl AutomatedMarketMaker for UniswapV3Pool {
                     current_state.tick,
                     self.tick_spacing,
                     zero_for_one,
-                )?;
+                )
+                .map_err(UniswapV3Error::from)?;
 
             // ensure that we do not overshoot the min/max tick, as the tick bitmap is not aware of these bounds
             // Note: this could be removed as we are clamping in the batch contract
@@ -422,7 +427,8 @@ impl AutomatedMarketMaker for UniswapV3Pool {
 
             // Get the next sqrt price from the input amount
             step.sqrt_price_next_x96 =
-                uniswap_v3_math::tick_math::get_sqrt_ratio_at_tick(step.tick_next)?;
+                uniswap_v3_math::tick_math::get_sqrt_ratio_at_tick(step.tick_next)
+                    .map_err(UniswapV3Error::from)?;
 
             // Target spot price
             let swap_target_sqrt_ratio = if zero_for_one {
@@ -449,7 +455,8 @@ impl AutomatedMarketMaker for UniswapV3Pool {
                 current_state.liquidity,
                 current_state.amount_specified_remaining,
                 self.fee,
-            )?;
+            )
+            .map_err(UniswapV3Error::from)?;
 
             // Decrement the amount remaining to be swapped and amount received from the step
             current_state.amount_specified_remaining = current_state
@@ -477,7 +484,7 @@ impl AutomatedMarketMaker for UniswapV3Pool {
 
                     current_state.liquidity = if liquidity_net < 0 {
                         if current_state.liquidity < (-liquidity_net as u128) {
-                            return Err(AMMError::LiquidityUnderflow);
+                            return Err(AMMError::from(UniswapV3Error::LiquidityUnderflow));
                         } else {
                             current_state.liquidity - (-liquidity_net as u128)
                         }
@@ -496,7 +503,8 @@ impl AutomatedMarketMaker for UniswapV3Pool {
             } else if current_state.sqrt_price_x_96 != step.sqrt_price_start_x_96 {
                 current_state.tick = uniswap_v3_math::tick_math::get_tick_at_sqrt_ratio(
                     current_state.sqrt_price_x_96,
-                )?;
+                )
+                .map_err(UniswapV3Error::from)?;
             }
         }
 
@@ -517,7 +525,8 @@ impl AutomatedMarketMaker for UniswapV3Pool {
     }
 
     fn calculate_price(&self, base_token: Address, _quote_token: Address) -> Result<f64, AMMError> {
-        let tick = uniswap_v3_math::tick_math::get_tick_at_sqrt_ratio(self.sqrt_price)?;
+        let tick = uniswap_v3_math::tick_math::get_tick_at_sqrt_ratio(self.sqrt_price)
+            .map_err(UniswapV3Error::from)?;
         let shift = self.token_a_decimals as i8 - self.token_b_decimals as i8;
 
         let price = match shift.cmp(&0) {
@@ -536,10 +545,10 @@ impl AutomatedMarketMaker for UniswapV3Pool {
 
 impl UniswapV3Pool {
     /// Modifies a positions liquidity in the pool.
-    pub fn modify_position(&mut self, tick_lower: i32, tick_upper: i32, liquidity_delta: i128) {
+    pub fn modify_position(&mut self, tick_lower: i32, tick_upper: i32, liquidity_delta: i128) -> Result<(), AMMError> {
         //We are only using this function when a mint or burn event is emitted,
         //therefore we do not need to checkTicks as that has happened before the event is emitted
-        self.update_position(tick_lower, tick_upper, liquidity_delta);
+        self.update_position(tick_lower, tick_upper, liquidity_delta)?;
 
         if liquidity_delta != 0 {
             //if the tick is between the tick lower and tick upper, update the liquidity between the ticks
@@ -551,15 +560,22 @@ impl UniswapV3Pool {
                 }
             }
         }
+
+        Ok(())
     }
 
-    pub fn update_position(&mut self, tick_lower: i32, tick_upper: i32, liquidity_delta: i128) {
+    pub fn update_position(
+        &mut self,
+        tick_lower: i32,
+        tick_upper: i32,
+        liquidity_delta: i128,
+    ) -> Result<(), AMMError> {
         let mut flipped_lower = false;
         let mut flipped_upper = false;
 
         if liquidity_delta != 0 {
-            flipped_lower = self.update_tick(tick_lower, liquidity_delta, false);
-            flipped_upper = self.update_tick(tick_upper, liquidity_delta, true);
+            flipped_lower = self.update_tick(tick_lower, liquidity_delta, false)?;
+            flipped_upper = self.update_tick(tick_upper, liquidity_delta, true)?;
             if flipped_lower {
                 self.flip_tick(tick_lower, self.tick_spacing);
             }
@@ -577,16 +593,23 @@ impl UniswapV3Pool {
                 self.ticks.remove(&tick_upper);
             }
         }
+
+        Ok(())
     }
 
-    pub fn update_tick(&mut self, tick: i32, liquidity_delta: i128, upper: bool) -> bool {
+    pub fn update_tick(
+        &mut self,
+        tick: i32,
+        liquidity_delta: i128,
+        upper: bool,
+    ) -> Result<bool, AMMError> {
         let info = match self.ticks.get_mut(&tick) {
             Some(info) => info,
             None => {
                 self.ticks.insert(tick, Info::default());
                 self.ticks
                     .get_mut(&tick)
-                    .expect("Tick does not exist in ticks")
+                    .ok_or(UniswapV3Error::TickNotFound(tick))?
             }
         };
 
@@ -614,7 +637,7 @@ impl UniswapV3Pool {
             info.liquidity_net + liquidity_delta
         };
 
-        flipped
+        Ok(flipped)
     }
 
     pub fn flip_tick(&mut self, tick: i32, tick_spacing: i32) {
@@ -704,10 +727,10 @@ impl UniswapV3Factory {
 
         let mut pools = vec![];
         while let Some(res) = futures.next().await {
-            let logs = res.expect("TODO: handle error");
+            let logs = res?;
 
             for log in logs {
-                pools.push(self.create_pool(log).expect("TODO: handle errors"));
+                pools.push(self.create_pool(log)?);
             }
         }
 
@@ -725,7 +748,7 @@ impl UniswapV3Factory {
         N: Network,
         P: Provider<T, N>,
     {
-        UniswapV3Factory::sync_slot_0(&mut pools, block_number, provider.clone()).await;
+        UniswapV3Factory::sync_slot_0(&mut pools, block_number, provider.clone()).await?;
         UniswapV3Factory::sync_token_decimals(&mut pools, provider.clone()).await;
 
         pools = pools
@@ -740,8 +763,8 @@ impl UniswapV3Factory {
             })
             .collect();
 
-        UniswapV3Factory::sync_tick_bitmaps(&mut pools, block_number, provider.clone()).await;
-        UniswapV3Factory::sync_tick_data(&mut pools, block_number, provider.clone()).await;
+        UniswapV3Factory::sync_tick_bitmaps(&mut pools, block_number, provider.clone()).await?;
+        UniswapV3Factory::sync_tick_data(&mut pools, block_number, provider.clone()).await?;
 
         Ok(pools)
     }
@@ -777,7 +800,11 @@ impl UniswapV3Factory {
         }
     }
 
-    async fn sync_slot_0<T, N, P>(pools: &mut [AMM], block_number: u64, provider: Arc<P>)
+    async fn sync_slot_0<T, N, P>(
+        pools: &mut [AMM],
+        block_number: u64,
+        provider: Arc<P>,
+    ) -> Result<(), AMMError>
     where
         T: Transport + Clone,
         N: Network,
@@ -794,20 +821,20 @@ impl UniswapV3Factory {
                 .collect::<Vec<_>>();
 
             futures.push(async move {
-                (
+                Ok::<(&mut [AMM], Bytes), AMMError>((
                     group,
                     GetUniswapV3PoolSlot0BatchRequest::deploy_builder(provider, pool_addresses)
                         .call_raw()
                         .block(block_number.into())
-                        .await
-                        .expect("TODO: handle error"),
-                )
+                        .await?,
+                ))
             });
         });
 
-        while let Some((pools, return_data)) = futures.next().await {
-            let return_data = <Vec<(i32, u128, U256)> as SolValue>::abi_decode(&return_data, false)
-                .expect("TODO:");
+        while let Some(res) = futures.next().await {
+            let (pools, return_data) = res?;
+            let return_data =
+                <Vec<(i32, u128, U256)> as SolValue>::abi_decode(&return_data, false)?;
 
             for (slot_0_data, pool) in return_data.iter().zip(pools.iter_mut()) {
                 let AMM::UniswapV3Pool(ref mut uv3_pool) = pool else {
@@ -819,9 +846,15 @@ impl UniswapV3Factory {
                 uv3_pool.sqrt_price = slot_0_data.2;
             }
         }
+
+        Ok(())
     }
 
-    async fn sync_tick_bitmaps<T, N, P>(pools: &mut [AMM], block_number: u64, provider: Arc<P>)
+    async fn sync_tick_bitmaps<T, N, P>(
+        pools: &mut [AMM],
+        block_number: u64,
+        provider: Arc<P>,
+    ) -> Result<(), AMMError>
     where
         T: Transport + Clone,
         N: Network,
@@ -871,16 +904,15 @@ impl UniswapV3Factory {
                     group_range = 0;
 
                     futures.push(Box::pin(async move {
-                        (
+                        Ok::<(Vec<Address>, Bytes), AMMError>((
                             pool_info,
                             GetUniswapV3PoolTickBitmapBatchRequest::deploy_builder(
                                 provider, calldata,
                             )
                             .call_raw()
                             .block(block_number.into())
-                            .await
-                            .expect("TODO: handle error"),
-                        )
+                            .await?,
+                        ))
                     }));
                 }
             }
@@ -894,14 +926,13 @@ impl UniswapV3Factory {
             let calldata = std::mem::take(&mut group);
 
             futures.push(Box::pin(async move {
-                (
+                Ok::<(Vec<Address>, Bytes), AMMError>((
                     pool_info,
                     GetUniswapV3PoolTickBitmapBatchRequest::deploy_builder(provider, calldata)
                         .call_raw()
                         .block(block_number.into())
-                        .await
-                        .expect("TODO: handle error"),
-                )
+                        .await?,
+                ))
             }));
         }
 
@@ -910,12 +941,13 @@ impl UniswapV3Factory {
             .map(|pool| (pool.address(), pool))
             .collect::<HashMap<Address, &mut AMM>>();
 
-        while let Some((pools, return_data)) = futures.next().await {
+        while let Some(res) = futures.next().await {
+            let (pools, return_data) = res?;
             let return_data =
-                <Vec<Vec<U256>> as SolValue>::abi_decode(&return_data, false).expect("TODO:");
+                <Vec<Vec<U256>> as SolValue>::abi_decode(&return_data, false)?;
 
             for (tick_bitmaps, pool_address) in return_data.iter().zip(pools.iter()) {
-                let pool = pool_set.get_mut(pool_address).expect("TODO: handle error");
+                let pool = pool_set.get_mut(pool_address).ok_or(AMMError::InvalidAMMAddress(*pool_address))?; 
                 let AMM::UniswapV3Pool(ref mut uv3_pool) = pool else {
                     unreachable!()
                 };
@@ -928,10 +960,11 @@ impl UniswapV3Factory {
                 }
             }
         }
+        Ok(())
     }
 
     // TODO: Clean this function up
-    async fn sync_tick_data<T, N, P>(pools: &mut [AMM], block_number: u64, provider: Arc<P>)
+    async fn sync_tick_data<T, N, P>(pools: &mut [AMM], block_number: u64, provider: Arc<P>) -> Result<(), AMMError>
     where
         T: Transport + Clone,
         N: Network,
@@ -1005,16 +1038,15 @@ impl UniswapV3Factory {
                     group.clear();
 
                     futures.push(Box::pin(async move {
-                        (
+                        Ok::<(Vec<TickDataInfo>, Bytes), AMMError>((
                             calldata.clone(),
                             GetUniswapV3PoolTickDataBatchRequest::deploy_builder(
                                 provider, calldata,
                             )
                             .call_raw()
                             .block(block_number.into())
-                            .await
-                            .expect("TODO: handle error"),
-                        )
+                            .await?,
+                        ))
                     }));
                 }
             }
@@ -1025,14 +1057,13 @@ impl UniswapV3Factory {
             let calldata = std::mem::take(&mut group);
 
             futures.push(Box::pin(async move {
-                (
+                Ok::<(Vec<TickDataInfo>, Bytes), AMMError>((
                     calldata.clone(),
                     GetUniswapV3PoolTickDataBatchRequest::deploy_builder(provider, calldata)
                         .call_raw()
                         .block(block_number.into())
-                        .await
-                        .expect("TODO: handle error"),
-                )
+                        .await?
+                ))
             }));
         }
 
@@ -1041,15 +1072,14 @@ impl UniswapV3Factory {
             .map(|pool| (pool.address(), pool))
             .collect::<HashMap<Address, &mut AMM>>();
 
-        while let Some((tick_info, return_data)) = futures.next().await {
+        while let Some(res) = futures.next().await {
+            let (tick_info, return_data) = res?;
             let return_data =
-                <Vec<Vec<(bool, u128, i128)>> as SolValue>::abi_decode(&return_data, false)
-                    .expect("TODO:");
+                <Vec<Vec<(bool, u128, i128)>> as SolValue>::abi_decode(&return_data, false)?;
 
             for (tick_bitmaps, tick_info) in return_data.iter().zip(tick_info.iter()) {
                 let pool = pool_set
-                    .get_mut(&tick_info.pool)
-                    .expect("TODO: handle error");
+                    .get_mut(&tick_info.pool).ok_or(AMMError::InvalidAMMAddress(tick_info.pool))?;
 
                 let AMM::UniswapV3Pool(ref mut uv3_pool) = pool else {
                     unreachable!()
@@ -1066,6 +1096,7 @@ impl UniswapV3Factory {
                 }
             }
         }
+        Ok(())
     }
 }
 
@@ -1097,7 +1128,7 @@ impl AutomatedMarketMakerFactory for UniswapV3Factory {
 
     fn create_pool(&self, log: Log) -> Result<AMM, AMMError> {
         let pool_created_event: alloy::primitives::Log<IUniswapV3Factory::PoolCreated> =
-            IUniswapV3Factory::PoolCreated::decode_log(&log.inner, false).expect("TODO:");
+            IUniswapV3Factory::PoolCreated::decode_log(&log.inner, false)?;
 
         Ok(AMM::UniswapV3Pool(UniswapV3Pool {
             address: pool_created_event.pool,

@@ -6,12 +6,12 @@ use super::{
         U256_0XFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF, U256_1, U256_1000, U256_128,
         U256_16, U256_191, U256_192, U256_2, U256_255, U256_32, U256_4, U256_64, U256_8,
     },
-    error::AMMError,
+    error::{AMMError, UniswapV2Error},
     factory::{AutomatedMarketMakerFactory, DiscoverySync, Factory},
 };
 
 use alloy::{
-    dyn_abi::DynSolType,
+    dyn_abi::{DynSolType, DynSolValue},
     network::Network,
     primitives::{Address, Bytes, B256, U256},
     providers::Provider,
@@ -86,9 +86,9 @@ impl AutomatedMarketMaker for UniswapV2Pool {
         vec![IUniswapV2Pair::Sync::SIGNATURE_HASH]
     }
 
-    fn sync(&mut self, log: &Log) {
+    fn sync(&mut self, log: &Log) -> Result<(), AMMError> {
         let sync_event =
-            IUniswapV2Pair::Sync::decode_log(&log.inner, false).expect("TODO: handle this error");
+            IUniswapV2Pair::Sync::decode_log(&log.inner, false)?;
 
         let (reserve_0, reserve_1) = (
             sync_event.reserve0.to::<u128>(),
@@ -98,6 +98,7 @@ impl AutomatedMarketMaker for UniswapV2Pool {
 
         self.reserve_0 = reserve_0;
         self.reserve_1 = reserve_1;
+        Ok(())
     }
 
     fn simulate_swap(
@@ -171,7 +172,7 @@ pub fn q64_to_float(num: u128) -> Result<f64, AMMError> {
 pub fn u128_to_float(num: u128) -> Result<Float, AMMError> {
     let value_string = num.to_string();
     let parsed_value =
-        Float::parse_radix(value_string, 10).map_err(|_| AMMError::ParseFloatError)?;
+        Float::parse_radix(value_string, 10).map_err(|_| UniswapV2Error::ParseFloatError)?;
     Ok(Float::with_val(MPFR_T_PRECISION, parsed_value))
 }
 
@@ -183,7 +184,7 @@ impl UniswapV2Pool {
         }
 
         // TODO: we could set this as the fee on the pool instead of calculating this
-        let fee = (10000 - (self.fee / 10)) / 10; //Fee of 300 => (10,000 - 30) / 10  = 997
+        let fee = (10000 - (self.fee / 10)) / 10; // Fee of 300 => (10,000 - 30) / 10  = 997
         let amount_in_with_fee = amount_in * U256::from(fee);
         let numerator = amount_in_with_fee * reserve_out;
         let denominator = reserve_in * U256_1000 + amount_in_with_fee;
@@ -307,7 +308,7 @@ pub fn div_uu(x: U256, y: U256) -> Result<u128, AMMError> {
         xl = xl.overflowing_sub(lo).0;
 
         if xh != hi >> U256_128 {
-            return Err(AMMError::RoundingError);
+            return Err(AMMError::UniswapV2Error(UniswapV2Error::RoundingError));
         }
 
         answer += xl / y;
@@ -318,7 +319,7 @@ pub fn div_uu(x: U256, y: U256) -> Result<u128, AMMError> {
 
         Ok(answer.to::<u128>())
     } else {
-        Err(AMMError::DivisionByZero)
+        Err(AMMError::UniswapV2Error(UniswapV2Error::DivisionByZero))
     }
 }
 
@@ -348,7 +349,7 @@ impl UniswapV2Factory {
         factory_address: Address,
         block_number: u64,
         provider: Arc<P>,
-    ) -> Vec<Address>
+    ) -> Result<Vec<Address>, AMMError>
     where
         T: Transport + Clone,
         N: Network,
@@ -359,8 +360,7 @@ impl UniswapV2Factory {
             .allPairsLength()
             .call()
             .block(block_number.into())
-            .await
-            .expect("TODO:")
+            .await?
             ._0
             .to::<usize>();
 
@@ -380,16 +380,16 @@ impl UniswapV2Factory {
                 let res = deployer
                     .call_raw()
                     .block(block_number.into())
-                    .await
-                    .expect("TODO: handle error");
+                    .await?;
                 let constructor_return = DynSolType::Array(Box::new(DynSolType::Address));
 
-                constructor_return.abi_decode_sequence(&res).expect("TODO:")
+                Ok::<DynSolValue, AMMError>(constructor_return.abi_decode_sequence(&res)?)
             });
         }
 
         let mut pairs = Vec::new();
-        while let Some(return_data) = futures_unordered.next().await {
+        while let Some(res) = futures_unordered.next().await {
+            let return_data = res?;
             if let Some(tokens_arr) = return_data.as_array() {
                 for token in tokens_arr {
                     if let Some(addr) = token.as_address() {
@@ -401,7 +401,7 @@ impl UniswapV2Factory {
             };
         }
 
-        pairs
+        Ok(pairs)
     }
 
     async fn sync_all_pools<T, N, P>(
@@ -433,16 +433,14 @@ impl UniswapV2Factory {
                 let res = deployer
                     .call_raw()
                     .block(block_number.into())
-                    .await
-                    .expect("TODO: handle error");
+                    .await?;
 
                 let return_data =
                     <Vec<(Address, Address, u128, u128, u32, u32)> as SolValue>::abi_decode(
                         &res, false,
-                    )
-                    .expect("TODO:");
+                    )?;
 
-                (group, return_data)
+                Ok::<(Vec<Address>, Vec<(Address, Address, u128, u128, u32, u32)>), AMMError>((group, return_data))
             });
         }
 
@@ -451,7 +449,8 @@ impl UniswapV2Factory {
             .map(|amm| (amm.address(), amm))
             .collect::<HashMap<_, _>>();
 
-        while let Some((group, return_data)) = futures_unordered.next().await {
+        while let Some(res) = futures_unordered.next().await {
+            let (group, return_data) = res?;
             for (pool_data, pool_address) in return_data.iter().zip(group.iter()) {
                 // If the pool token A is not zero, signaling that the pool data was polulated
 
@@ -459,7 +458,7 @@ impl UniswapV2Factory {
                     continue;
                 }
 
-                let amm = amms.get_mut(pool_address).expect("TODO: handle this error");
+                let amm = amms.get_mut(pool_address).ok_or(AMMError::InvalidAMMAddress(*pool_address))?;
 
                 let AMM::UniswapV2Pool(pool) = amm else {
                     // NOTE: We should never receive a non UniswapV2Pool AMM here, we can handle this more gracefully in the future
@@ -508,8 +507,7 @@ impl AutomatedMarketMakerFactory for UniswapV2Factory {
     }
 
     fn create_pool(&self, log: Log) -> Result<AMM, AMMError> {
-        let event = IUniswapV2Factory::PairCreated::decode_log(&log.inner, false)
-            .expect("TODO: handle this error");
+        let event = IUniswapV2Factory::PairCreated::decode_log(&log.inner, false)?;
         Ok(AMM::UniswapV2Pool(UniswapV2Pool {
             address: event.pair,
             token_a: event.token0,
@@ -541,7 +539,7 @@ impl DiscoverySync for UniswapV2Factory {
         let provider = provider.clone();
         async move {
             let pairs =
-                UniswapV2Factory::get_all_pairs(self.address, to_block, provider.clone()).await;
+                UniswapV2Factory::get_all_pairs(self.address, to_block, provider.clone()).await?;
 
             Ok(pairs
                 .into_iter()
