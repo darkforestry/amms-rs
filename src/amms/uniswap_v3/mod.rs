@@ -668,7 +668,7 @@ impl UniswapV3Factory {
         }
     }
 
-    async fn get_all_pools<T, N, P>(
+    pub async fn get_all_pools<T, N, P>(
         &self,
         block_number: u64,
         provider: Arc<P>,
@@ -715,7 +715,7 @@ impl UniswapV3Factory {
     }
 
     // TODO: update this to use uv3 error and then use thiserror to convert to AMMError
-    async fn sync_all_pools<T, N, P>(
+    pub async fn sync_all_pools<T, N, P>(
         mut pools: Vec<AMM>,
         block_number: u64,
         provider: Arc<P>,
