@@ -172,8 +172,7 @@ pub fn q64_to_float(num: u128) -> Result<f64, AMMError> {
 
 pub fn u128_to_float(num: u128) -> Result<Float, AMMError> {
     let value_string = num.to_string();
-    let parsed_value =
-        Float::parse_radix(value_string, 10)?;
+    let parsed_value = Float::parse_radix(value_string, 10)?;
     Ok(Float::with_val(MPFR_T_PRECISION, parsed_value))
 }
 

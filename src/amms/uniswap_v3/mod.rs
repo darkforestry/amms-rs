@@ -6,7 +6,9 @@ use super::{
     factory::{AutomatedMarketMakerFactory, DiscoverySync, Factory},
     get_token_decimals,
 };
-use crate::amms::{consts::U256_1, uniswap_v3::GetUniswapV3PoolTickBitmapBatchRequest::TickBitmapInfo};
+use crate::amms::{
+    consts::U256_1, uniswap_v3::GetUniswapV3PoolTickBitmapBatchRequest::TickBitmapInfo,
+};
 use alloy::{
     network::Network,
     primitives::{Address, Bytes, Signed, B256, I256, U256},
@@ -953,8 +955,7 @@ impl UniswapV3Factory {
             let return_data = <Vec<Vec<U256>> as SolValue>::abi_decode(&return_data, false)?;
 
             for (tick_bitmaps, pool_address) in return_data.iter().zip(pools.iter()) {
-                let pool = pool_set
-                    .get_mut(pool_address).unwrap();
+                let pool = pool_set.get_mut(pool_address).unwrap();
 
                 let AMM::UniswapV3Pool(ref mut uv3_pool) = pool else {
                     unreachable!()
@@ -1090,8 +1091,7 @@ impl UniswapV3Factory {
                 <Vec<Vec<(bool, u128, i128)>> as SolValue>::abi_decode(&return_data, false)?;
 
             for (tick_bitmaps, tick_info) in return_data.iter().zip(tick_info.iter()) {
-                let pool = pool_set
-                    .get_mut(&tick_info.pool).unwrap();
+                let pool = pool_set.get_mut(&tick_info.pool).unwrap();
 
                 let AMM::UniswapV3Pool(ref mut uv3_pool) = pool else {
                     unreachable!()
