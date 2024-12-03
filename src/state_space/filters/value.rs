@@ -1,17 +1,20 @@
 use std::{collections::HashMap, marker::PhantomData, sync::Arc};
 
 use super::{AMMFilter, FilterStage};
-use crate::amms::amm::{AutomatedMarketMaker, AMM};
+use crate::amms::{
+    amm::{AutomatedMarketMaker, AMM},
+    error::AMMError,
+};
 use alloy::{
     dyn_abi::{DynSolType, DynSolValue},
     network::Network,
     primitives::{Address, U256},
     providers::Provider,
     sol,
+    sol_types::SolValue,
     transports::Transport,
 };
 use async_trait::async_trait;
-use eyre::{eyre, Result};
 use WethValueInPools::{PoolInfo, PoolInfoReturn};
 
 sol! {
@@ -32,32 +35,6 @@ where
     pub min_weth_threshold: U256,
     pub provider: Arc<P>,
     phantom: PhantomData<(T, N)>,
-}
-
-impl TryFrom<&DynSolValue> for PoolInfoReturn {
-    type Error = eyre::Error;
-    fn try_from(value: &DynSolValue) -> Result<Self, Self::Error> {
-        let tuple = value.as_tuple().ok_or(eyre!(
-            "Expected tuple with 3 elements: (uint8, address, uint256) for PoolInfoReturn"
-        ))?;
-        let pool_type = tuple[0]
-            .as_uint()
-            .ok_or(eyre!("Failed to decode pool type"))?
-            .0
-            .to();
-        let pool_address = tuple[1]
-            .as_address()
-            .ok_or(eyre!("Failed to decode pool address"))?;
-        let weth_value = tuple[2]
-            .as_uint()
-            .ok_or(eyre!("Failed to decode weth value"))?
-            .0;
-        Ok(Self {
-            poolType: pool_type,
-            poolAddress: pool_address,
-            wethValue: weth_value,
-        })
-    }
 }
 
 impl<const CHUNK_SIZE: usize, T, N, P> ValueFilter<CHUNK_SIZE, T, N, P>
@@ -86,7 +63,7 @@ where
     pub async fn get_weth_value_in_pools(
         &self,
         pools: Vec<PoolInfo>,
-    ) -> Result<HashMap<Address, PoolInfoReturn>> {
+    ) -> Result<HashMap<Address, PoolInfoReturn>, AMMError> {
         let deployer = WethValueInPoolsBatchRequest::deploy_builder(
             self.provider.clone(),
             self.uniswap_v2_factory,
@@ -96,24 +73,12 @@ where
         );
 
         let res = deployer.call_raw().await?;
-        let constructor_return = DynSolType::Array(Box::new(DynSolType::Tuple(vec![
-            DynSolType::Uint(8),
-            DynSolType::Address,
-            DynSolType::Uint(256),
-        ])));
+        let return_data = <Vec<PoolInfoReturn> as SolValue>::abi_decode(&res, false)?;
 
-        let return_tokens = constructor_return.abi_decode_sequence(&res)?;
-        if let Some(tokens) = return_tokens.as_array() {
-            tokens
-                .iter()
-                .map(|token| {
-                    let pool_info = PoolInfoReturn::try_from(token)?;
-                    Ok((pool_info.poolAddress, pool_info))
-                })
-                .collect::<Result<HashMap<_, _>>>()
-        } else {
-            Err(eyre!("Failed to decode return tokens"))
-        }
+        Ok(return_data
+            .into_iter()
+            .map(|pool_info| (pool_info.poolAddress, pool_info))
+            .collect())
     }
 }
 
@@ -124,7 +89,7 @@ where
     N: Network,
     P: Provider<T, N>,
 {
-    async fn filter(&self, amms: Vec<AMM>) -> Result<Vec<AMM>> {
+    async fn filter(&self, amms: Vec<AMM>) -> Result<Vec<AMM>, AMMError> {
         let pool_infos = amms
             .iter()
             .cloned()

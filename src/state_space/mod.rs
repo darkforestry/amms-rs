@@ -5,6 +5,7 @@ pub mod filters;
 
 use crate::amms::amm::AutomatedMarketMaker;
 use crate::amms::amm::AMM;
+use crate::amms::error::AMMError;
 use crate::amms::factory::Factory;
 
 use alloy::rpc::types::Block;
@@ -127,7 +128,7 @@ where
         StateSpaceBuilder { filters, ..self }
     }
 
-    pub async fn sync(self) -> Result<StateSpaceManager<T, N, P>, StateSpaceError> {
+    pub async fn sync(self) -> Result<StateSpaceManager<T, N, P>, AMMError> {
         let chain_tip = self.provider.get_block_number().await?;
 
         let mut futures = FuturesUnordered::new();
@@ -154,7 +155,7 @@ where
                     }
                 }
 
-                Ok::<Vec<AMM>, StateSpaceError>(amms)
+                Ok::<Vec<AMM>, AMMError>(amms)
             }));
         }
 
@@ -209,11 +210,13 @@ impl StateSpace {
 
     pub fn sync(&mut self, logs: &[Log]) -> Result<Vec<Address>, StateSpaceError> {
         let latest = self.latest_block.load(Ordering::Relaxed);
-        let mut block_number = logs
+        let Some(mut block_number) = logs
             .first()
-            .ok_or(StateSpaceError::MissingLogs)?
-            .block_number
-            .ok_or(StateSpaceError::MissingBlockNumber)?;
+            .map(|log| log.block_number.ok_or(StateSpaceError::MissingBlockNumber))
+            .transpose()?
+        else {
+            return Ok(vec![]);
+        };
 
         // Check if there is a reorg and unwind to state before block_number
         if latest >= block_number {

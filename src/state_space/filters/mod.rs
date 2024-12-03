@@ -4,13 +4,12 @@ pub mod whitelist;
 
 use async_trait::async_trait;
 use blacklist::BlacklistFilter;
-use eyre::Result;
 use whitelist::{PoolWhitelistFilter, TokenWhitelistFilter};
 
-use crate::amms::amm::AMM;
+use crate::amms::{amm::AMM, error::AMMError};
 #[async_trait]
 pub trait AMMFilter {
-    async fn filter(&self, amms: Vec<AMM>) -> Result<Vec<AMM>>;
+    async fn filter(&self, amms: Vec<AMM>) -> Result<Vec<AMM>, AMMError>;
     fn stage(&self) -> FilterStage;
 }
 
@@ -29,7 +28,7 @@ macro_rules! filter {
 
         #[async_trait]
         impl AMMFilter for PoolFilter {
-            async fn filter(&self, amms: Vec<AMM>) -> Result<Vec<AMM>> {
+            async fn filter(&self, amms: Vec<AMM>) -> Result<Vec<AMM>, AMMError> {
                 match self {
                     $(PoolFilter::$filter_type(filter) => filter.filter(amms).await,)+
                 }

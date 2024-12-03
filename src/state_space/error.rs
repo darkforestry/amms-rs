@@ -11,10 +11,6 @@ pub enum StateSpaceError {
     TransportError(#[from] alloy_json_rpc::RpcError<TransportErrorKind>),
     #[error(transparent)]
     JoinError(#[from] tokio::task::JoinError),
-    #[error(transparent)]
-    ErrReport(#[from] eyre::Report),
-    #[error("Logs Are Empty")]
-    MissingLogs,
     #[error("Block Number Does not Exist")]
     MissingBlockNumber,
 }

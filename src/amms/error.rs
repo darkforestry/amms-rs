@@ -1,7 +1,7 @@
 use alloy::{primitives::FixedBytes, transports::TransportErrorKind};
 use thiserror::Error;
 
-use super::{uniswap_v2::error::UniswapV2Error, uniswap_v3::error::UniswapV3Error};
+use super::{uniswap_v2::UniswapV2Error, uniswap_v3::UniswapV3Error};
 
 #[derive(Error, Debug)]
 pub enum AMMError {
@@ -21,4 +21,6 @@ pub enum AMMError {
     ParseFloatError(#[from] rug::float::ParseFloatError),
     #[error("Unrecognized Event Signature {0}")]
     UnrecognizedEventSignature(FixedBytes<32>),
+    #[error(transparent)]
+    JoinError(#[from] tokio::task::JoinError),
 }
