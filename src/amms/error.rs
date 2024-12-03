@@ -21,4 +21,6 @@ pub enum AMMError {
     ParseFloatError(#[from] rug::float::ParseFloatError),
     #[error("Unrecognized Event Signature {0}")]
     UnrecognizedEventSignature(FixedBytes<32>),
+    #[error(transparent)]
+    JoinError(#[from] tokio::task::JoinError),
 }

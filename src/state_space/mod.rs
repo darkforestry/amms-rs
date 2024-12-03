@@ -5,6 +5,7 @@ pub mod filters;
 
 use crate::amms::amm::AutomatedMarketMaker;
 use crate::amms::amm::AMM;
+use crate::amms::error::AMMError;
 use crate::amms::factory::Factory;
 
 use alloy::rpc::types::Block;
@@ -127,7 +128,7 @@ where
         StateSpaceBuilder { filters, ..self }
     }
 
-    pub async fn sync(self) -> Result<StateSpaceManager<T, N, P>, StateSpaceError> {
+    pub async fn sync(self) -> Result<StateSpaceManager<T, N, P>, AMMError> {
         let chain_tip = self.provider.get_block_number().await?;
 
         let mut futures = FuturesUnordered::new();
@@ -154,7 +155,7 @@ where
                     }
                 }
 
-                Ok::<Vec<AMM>, StateSpaceError>(amms)
+                Ok::<Vec<AMM>, AMMError>(amms)
             }));
         }
 
