@@ -1,15 +1,11 @@
-use std::sync::Arc;
-
 use alloy::{
     primitives::address, providers::ProviderBuilder, rpc::client::ClientBuilder,
     transports::layers::RetryBackoffLayer,
 };
 use alloy_throttle::ThrottleLayer;
-use amms::{
-    amms::{amm::AutomatedMarketMaker, uniswap_v2::UniswapV2Factory},
-    state_space::StateSpaceBuilder,
-};
+use amms::{amms::uniswap_v2::UniswapV2Factory, state_space::StateSpaceBuilder};
 use futures::StreamExt;
+use std::sync::Arc;
 
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
@@ -38,18 +34,9 @@ async fn main() -> eyre::Result<()> {
 
     // Subscribe to state changes
     let mut stream = state_space_manager.subscribe().await?.take(5);
-    let state = state_space_manager.state;
-
     while let Some(updated_amms) = stream.next().await {
         if let Ok(amms) = updated_amms {
-            for amm in amms {
-                if let Some(pool) = state.read().await.get(&amm) {
-                    if let [token_a, token_b, ..] = pool.tokens()[..] {
-                        let price = pool.calculate_price(token_a, token_b)?;
-                        println!("AMM: {:?} Price: {:?}", amm, price);
-                    }
-                }
-            }
+            println!("Updated AMMs: {:?}", amms);
         }
     }
 
