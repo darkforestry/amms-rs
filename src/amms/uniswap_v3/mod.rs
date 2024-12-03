@@ -341,7 +341,7 @@ impl AutomatedMarketMaker for UniswapV3Pool {
 
                     current_state.liquidity = if liquidity_net < 0 {
                         if current_state.liquidity < (-liquidity_net as u128) {
-                            return Err(AMMError::from(UniswapV3Error::LiquidityUnderflow));
+                            return Err(UniswapV3Error::LiquidityUnderflow.into());
                         } else {
                             current_state.liquidity - (-liquidity_net as u128)
                         }
@@ -612,15 +612,7 @@ impl UniswapV3Pool {
         liquidity_delta: i128,
         upper: bool,
     ) -> Result<bool, AMMError> {
-        let info = match self.ticks.get_mut(&tick) {
-            Some(info) => info,
-            None => {
-                self.ticks.insert(tick, Info::default());
-                self.ticks
-                    .get_mut(&tick)
-                    .ok_or(UniswapV3Error::TickNotFound(tick))?
-            }
-        };
+        let info = self.ticks.entry(tick).or_insert(Info::default());
 
         let liquidity_gross_before = info.liquidity_gross;
 
