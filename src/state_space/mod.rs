@@ -210,11 +210,13 @@ impl StateSpace {
 
     pub fn sync(&mut self, logs: &[Log]) -> Result<Vec<Address>, StateSpaceError> {
         let latest = self.latest_block.load(Ordering::Relaxed);
-        let mut block_number = logs
+        let Some(mut block_number) = logs
             .first()
-            .ok_or(StateSpaceError::MissingLogs)?
-            .block_number
-            .ok_or(StateSpaceError::MissingBlockNumber)?;
+            .map(|log| log.block_number.ok_or(StateSpaceError::MissingBlockNumber))
+            .transpose()?
+        else {
+            return Ok(vec![]);
+        };
 
         // Check if there is a reorg and unwind to state before block_number
         if latest >= block_number {
