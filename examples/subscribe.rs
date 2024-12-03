@@ -1,15 +1,11 @@
-use std::sync::Arc;
-
 use alloy::{
     primitives::address, providers::ProviderBuilder, rpc::client::ClientBuilder,
     transports::layers::RetryBackoffLayer,
 };
 use alloy_throttle::ThrottleLayer;
-use amms::{
-    amms::{amm::AutomatedMarketMaker, uniswap_v2::UniswapV2Factory},
-    state_space::StateSpaceBuilder,
-};
+use amms::{amms::uniswap_v2::UniswapV2Factory, state_space::StateSpaceBuilder};
 use futures::StreamExt;
+use std::sync::Arc;
 
 #[tokio::main]
 async fn main() -> eyre::Result<()> {

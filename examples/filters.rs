@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use alloy::{
     primitives::address, providers::ProviderBuilder, rpc::client::ClientBuilder,
     transports::layers::RetryBackoffLayer,
@@ -12,6 +10,7 @@ use amms::{
         StateSpaceBuilder,
     },
 };
+use std::sync::Arc;
 
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
