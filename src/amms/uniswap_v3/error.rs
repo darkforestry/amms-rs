@@ -7,6 +7,4 @@ pub enum UniswapV3Error {
     UniswapV3MathError(#[from] UniswapV3MathError),
     #[error("Liquidity Underflow")]
     LiquidityUnderflow,
-    #[error("Tick Does Not Exist {0}")]
-    TickNotFound(i32),
 }
