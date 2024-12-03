@@ -1,5 +1,3 @@
-pub mod error;
-
 use super::{
     amm::{AutomatedMarketMaker, AMM},
     consts::{
@@ -21,13 +19,12 @@ use alloy::{
     sol_types::{SolCall, SolEvent, SolValue},
     transports::Transport,
 };
-use error::UniswapV2Error;
-use eyre::Result;
 use futures::{stream::FuturesUnordered, StreamExt};
 use itertools::Itertools;
 use rug::Float;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, future::Future, hash::Hash, sync::Arc};
+use thiserror::Error;
 use IGetUniswapV2PoolDataBatchRequest::IGetUniswapV2PoolDataBatchRequestInstance;
 use IUniswapV2Factory::IUniswapV2FactoryInstance;
 
@@ -66,6 +63,14 @@ sol!(
     IGetUniswapV2PoolDataBatchRequest,
     "contracts/out/GetUniswapV2PoolDataBatchRequest.sol/GetUniswapV2PoolDataBatchRequest.json"
 );
+
+#[derive(Error, Debug)]
+pub enum UniswapV2Error {
+    #[error("Division by zero")]
+    DivisionByZero,
+    #[error("Rounding Error")]
+    RoundingError,
+}
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct UniswapV2Pool {

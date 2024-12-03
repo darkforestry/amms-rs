@@ -1,5 +1,3 @@
-pub mod error;
-
 use super::{
     amm::{AutomatedMarketMaker, AMM},
     error::AMMError,
@@ -18,8 +16,6 @@ use alloy::{
     sol_types::{SolCall, SolEvent, SolValue},
     transports::{BoxFuture, Transport},
 };
-use error::UniswapV3Error;
-use eyre::Result;
 use futures::{stream::FuturesUnordered, StreamExt};
 use rayon::iter::{IntoParallelRefIterator, ParallelDrainRange, ParallelIterator};
 use serde::{Deserialize, Serialize};
@@ -31,6 +27,8 @@ use std::{
     str::FromStr,
     sync::Arc,
 };
+use thiserror::Error;
+use uniswap_v3_math::error::UniswapV3MathError;
 use uniswap_v3_math::tick_math::{MAX_SQRT_RATIO, MAX_TICK, MIN_SQRT_RATIO, MIN_TICK};
 use GetUniswapV3PoolTickDataBatchRequest::TickDataInfo;
 
@@ -110,6 +108,14 @@ sol! {
     #[sol(rpc)]
     GetUniswapV3PoolTickDataBatchRequest,
     "contracts/out/GetUniswapV3PoolTickDataBatchRequest.sol/GetUniswapV3PoolTickDataBatchRequest.json"
+}
+
+#[derive(Error, Debug)]
+pub enum UniswapV3Error {
+    #[error(transparent)]
+    UniswapV3MathError(#[from] UniswapV3MathError),
+    #[error("Liquidity Underflow")]
+    LiquidityUnderflow,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
