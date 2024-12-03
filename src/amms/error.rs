@@ -1,15 +1,26 @@
+use alloy::{primitives::FixedBytes, transports::TransportErrorKind};
 use thiserror::Error;
+
+use super::{uniswap_v2::UniswapV2Error, uniswap_v3::UniswapV3Error};
 
 #[derive(Error, Debug)]
 pub enum AMMError {
     #[error(transparent)]
-    UniswapV3MathError(#[from] uniswap_v3_math::error::UniswapV3MathError),
-    #[error("Liquidity Underflow")]
-    LiquidityUnderflow,
-    #[error("Parse Float Error")]
-    ParseFloatError,
-    #[error("Division by zero")]
-    DivisionByZero,
-    #[error("Rounding Error")]
-    RoundingError,
+    TransportError(#[from] alloy_json_rpc::RpcError<TransportErrorKind>),
+    #[error(transparent)]
+    ContractError(#[from] alloy::contract::Error),
+    #[error(transparent)]
+    ABIError(#[from] alloy::dyn_abi::Error),
+    #[error(transparent)]
+    SolTypesError(#[from] alloy::sol_types::Error),
+    #[error(transparent)]
+    UniswapV2Error(#[from] UniswapV2Error),
+    #[error(transparent)]
+    UniswapV3Error(#[from] UniswapV3Error),
+    #[error(transparent)]
+    ParseFloatError(#[from] rug::float::ParseFloatError),
+    #[error("Unrecognized Event Signature {0}")]
+    UnrecognizedEventSignature(FixedBytes<32>),
+    #[error(transparent)]
+    JoinError(#[from] tokio::task::JoinError),
 }

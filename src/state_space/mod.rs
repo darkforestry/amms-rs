@@ -1,9 +1,11 @@
 pub mod cache;
 pub mod discovery;
+pub mod error;
 pub mod filters;
 
 use crate::amms::amm::AutomatedMarketMaker;
 use crate::amms::amm::AMM;
+use crate::amms::error::AMMError;
 use crate::amms::factory::Factory;
 
 use alloy::rpc::types::Block;
@@ -20,6 +22,7 @@ use async_stream::stream;
 use cache::StateChange;
 use cache::StateChangeCache;
 
+use error::StateSpaceError;
 use filters::AMMFilter;
 use filters::PoolFilter;
 use futures::stream::FuturesUnordered;
@@ -46,7 +49,12 @@ pub struct StateSpaceManager<T, N, P> {
 }
 
 impl<T, N, P> StateSpaceManager<T, N, P> {
-    pub async fn subscribe(&self) -> Pin<Box<dyn Stream<Item = Vec<Address>> + Send>>
+    pub async fn subscribe(
+        &self,
+    ) -> Result<
+        Pin<Box<dyn Stream<Item = Result<Vec<Address>, StateSpaceError>> + Send>>,
+        StateSpaceError,
+    >
     where
         P: Provider<T, N> + 'static,
         T: Transport + Clone,
@@ -57,13 +65,9 @@ impl<T, N, P> StateSpaceManager<T, N, P> {
         let state = self.state.clone();
         let mut block_filter = self.block_filter.clone();
 
-        let block_stream = provider
-            .subscribe_blocks()
-            .await
-            .expect("TODO:")
-            .into_stream();
+        let block_stream = provider.subscribe_blocks().await?.into_stream();
 
-        Box::pin(stream! {
+        Ok(Box::pin(stream! {
             tokio::pin!(block_stream);
 
             while let Some(block) = block_stream.next().await {
@@ -71,17 +75,14 @@ impl<T, N, P> StateSpaceManager<T, N, P> {
                 block_filter = block_filter.select(block_number);
 
 
-                let logs = provider
-                .get_logs(&block_filter)
-                .await
-                .expect("TODO:");
+                let logs = provider.get_logs(&block_filter).await?;
 
-                let affected_amms = state.write().await.sync(&logs);
+                let affected_amms = state.write().await.sync(&logs)?;
                 latest_block.store(block_number, Ordering::Relaxed);
 
-                yield affected_amms;
+                yield Ok(affected_amms);
             }
-        })
+        }))
     }
 }
 
@@ -127,8 +128,8 @@ where
         StateSpaceBuilder { filters, ..self }
     }
 
-    pub async fn sync(self) -> StateSpaceManager<T, N, P> {
-        let chain_tip = self.provider.get_block_number().await.expect("TODO:");
+    pub async fn sync(self) -> Result<StateSpaceManager<T, N, P>, AMMError> {
+        let chain_tip = self.provider.get_block_number().await?;
 
         let mut futures = FuturesUnordered::new();
         let factories = self.factories.clone();
@@ -136,37 +137,31 @@ where
             let provider = self.provider.clone();
             let filters = self.filters.clone();
             futures.push(tokio::spawn(async move {
-                let mut amms = factory
-                    .discover(chain_tip, provider.clone())
-                    .await
-                    .expect("TODO: handle error");
+                let mut amms = factory.discover(chain_tip, provider.clone()).await?;
 
                 // Apply discovery filters
                 for filter in filters.iter() {
                     if filter.stage() == filters::FilterStage::Discovery {
-                        amms = filter.filter(amms).await.expect("TODO: handle error");
+                        amms = filter.filter(amms).await?;
                     }
                 }
 
-                amms = factory
-                    .sync(amms, chain_tip, provider)
-                    .await
-                    .expect("TODO: handle error");
+                amms = factory.sync(amms, chain_tip, provider).await?;
 
                 // Apply sync filters
                 for filter in filters.iter() {
                     if filter.stage() == filters::FilterStage::Sync {
-                        amms = filter.filter(amms).await.expect("TODO: handle error");
+                        amms = filter.filter(amms).await?;
                     }
                 }
 
-                amms
+                Ok::<Vec<AMM>, AMMError>(amms)
             }));
         }
 
         let mut state_space = StateSpace::default();
         while let Some(res) = futures.next().await {
-            let amms = res.expect("TODO:");
+            let amms = res??;
 
             for amm in amms {
                 // println!("Adding AMM: {:?}", amm.address());
@@ -187,13 +182,13 @@ where
             filter_set.into_iter().collect::<Vec<FixedBytes<32>>>(),
         ));
 
-        StateSpaceManager {
+        Ok(StateSpaceManager {
             latest_block: Arc::new(AtomicU64::new(self.latest_block)),
             state: Arc::new(RwLock::new(state_space)),
             block_filter,
             provider: self.provider,
             phantom: PhantomData,
-        }
+        })
     }
 }
 
@@ -213,13 +208,15 @@ impl StateSpace {
         self.state.get_mut(address)
     }
 
-    pub fn sync(&mut self, logs: &[Log]) -> Vec<Address> {
+    pub fn sync(&mut self, logs: &[Log]) -> Result<Vec<Address>, StateSpaceError> {
         let latest = self.latest_block.load(Ordering::Relaxed);
-        let mut block_number = logs
+        let Some(mut block_number) = logs
             .first()
-            .expect("TODO: handle error")
-            .block_number
-            .expect("TODO: Handle this");
+            .map(|log| log.block_number.ok_or(StateSpaceError::MissingBlockNumber))
+            .transpose()?
+        else {
+            return Ok(vec![]);
+        };
 
         // Check if there is a reorg and unwind to state before block_number
         if latest >= block_number {
@@ -233,7 +230,9 @@ impl StateSpace {
         let mut affected_amms = HashSet::new();
         for log in logs {
             // If the block number is updated, cache the current block state changes
-            let log_block_number = log.block_number.expect("TODO: Handle this");
+            let log_block_number = log
+                .block_number
+                .ok_or(StateSpaceError::MissingBlockNumber)?;
             if log_block_number != block_number {
                 let amms = cached_amms.drain().collect::<Vec<AMM>>();
                 affected_amms.extend(amms.iter().map(|amm| amm.address()));
@@ -246,7 +245,7 @@ impl StateSpace {
             let address = log.address();
             if let Some(amm) = self.state.get_mut(&address) {
                 cached_amms.insert(amm.clone());
-                amm.sync(log);
+                amm.sync(log)?;
             }
         }
 
@@ -256,6 +255,6 @@ impl StateSpace {
             self.cache.push(StateChange::new(amms, block_number));
         }
 
-        affected_amms.into_iter().collect::<Vec<_>>()
+        Ok(affected_amms.into_iter().collect())
     }
 }

@@ -157,7 +157,7 @@ impl AutomatedMarketMaker for NoopAMM {
         unreachable!()
     }
 
-    fn sync(&mut self, _log: &Log) {
+    fn sync(&mut self, _log: &Log) -> Result<(), AMMError> {
         unreachable!()
     }
 
