@@ -50,12 +50,14 @@ impl AutomatedMarketMaker for ERC4626Vault {
     }
 
     fn sync_events(&self) -> Vec<B256> {
-        todo!()
+        vec![
+            IERC4626Vault::Deposit::SIGNATURE_HASH,
+            IERC4626Vault::Withdraw::SIGNATURE_HASH,
+        ]
     }
 
     fn sync(&mut self, log: &Log) -> Result<(), AMMError> {
         let event_signature = log.data().topics()[0];
-
         match event_signature {
             IERC4626Vault::Deposit::SIGNATURE_HASH => {
                 let deposit_event = IERC4626Vault::Deposit::decode_log(log.as_ref(), false)?;
@@ -70,6 +72,7 @@ impl AutomatedMarketMaker for ERC4626Vault {
                     "Deposit"
                 );
             }
+
             IERC4626Vault::Withdraw::SIGNATURE_HASH => {
                 let withdraw_event = IERC4626Vault::Withdraw::decode_log(log.as_ref(), false)?;
                 self.asset_reserve -= withdraw_event.assets;
@@ -83,6 +86,7 @@ impl AutomatedMarketMaker for ERC4626Vault {
                     "Withdraw"
                 );
             }
+
             _ => {
                 return Err(AMMError::UnrecognizedEventSignature(event_signature));
             }
@@ -115,10 +119,24 @@ impl AutomatedMarketMaker for ERC4626Vault {
     fn simulate_swap_mut(
         &mut self,
         base_token: Address,
-        quote_token: Address,
+        _quote_token: Address,
         amount_in: U256,
     ) -> Result<U256, AMMError> {
-        todo!()
+        if self.vault_token == base_token {
+            let amount_out = self.get_amount_out(amount_in, self.vault_reserve, self.asset_reserve);
+
+            self.vault_reserve -= amount_in;
+            self.asset_reserve -= amount_out;
+
+            Ok(amount_out)
+        } else {
+            let amount_out = self.get_amount_out(amount_in, self.asset_reserve, self.vault_reserve);
+
+            self.asset_reserve += amount_in;
+            self.vault_reserve += amount_out;
+
+            Ok(amount_out)
+        }
     }
 }
 
