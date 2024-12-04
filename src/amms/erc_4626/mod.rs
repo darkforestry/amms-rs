@@ -1,17 +1,21 @@
 use super::{
-    amm::AutomatedMarketMaker,
+    amm::{AutomatedMarketMaker, AMM},
     consts::{U128_0X10000000000000000, U256_10000},
     error::AMMError,
+    factory::{AutomatedMarketMakerFactory, DiscoverySync},
     uniswap_v2::{div_uu, q64_to_float},
 };
 use alloy::{
+    network::Network,
     primitives::{Address, B256, U256},
+    providers::Provider,
     rpc::types::Log,
     sol,
     sol_types::SolEvent,
+    transports::Transport,
 };
 use serde::{Deserialize, Serialize};
-use std::cmp::Ordering;
+use std::{cmp::Ordering, future::Future, sync::Arc};
 use tracing::info;
 
 sol! {
@@ -192,5 +196,64 @@ impl ERC4626Vault {
         } else {
             Ok(div_uu(r_v, r_a)?)
         }
+    }
+}
+
+pub struct ERC4626Factory {
+    // Block to start searching from for new vaults
+    pub creation_block: u64,
+}
+impl DiscoverySync for ERC4626Factory {
+    fn discover<T, N, P>(
+        &self,
+        to_block: u64,
+        provider: Arc<P>,
+    ) -> impl Future<Output = Result<Vec<AMM>, AMMError>>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
+        info!(
+            target = "amms::erc_4626::discover",
+            "Discovering all vaults"
+        );
+    }
+
+    fn sync<T, N, P>(
+        &self,
+        amms: Vec<AMM>,
+        to_block: u64,
+        provider: Arc<P>,
+    ) -> impl Future<Output = Result<Vec<AMM>, AMMError>>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
+        info!(target = "amms::erc_4626::sync", "Syncing all vaults");
+
+        async move { todo!() }
+    }
+}
+
+// TODO: update factory macro to impl into impl
+impl AutomatedMarketMakerFactory for ERC4626Factory {
+    type PoolVariant = ERC4626Vault;
+
+    fn address(&self) -> Address {
+        todo!()
+    }
+
+    fn create_pool(&self, log: Log) -> Result<AMM, AMMError> {
+        todo!()
+    }
+
+    fn creation_block(&self) -> u64 {
+        self.creation_block
+    }
+
+    fn pool_creation_event(&self) -> B256 {
+        todo!()
     }
 }
