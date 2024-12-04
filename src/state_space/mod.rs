@@ -144,7 +144,17 @@ where
                 // Apply discovery filters
                 for filter in filters.iter() {
                     if filter.stage() == filters::FilterStage::Discovery {
+                        let pre_filter_len = amms.len();
                         amms = filter.filter(amms).await?;
+
+                        info!(
+                            target: "state_space::sync",
+                            factory = %factory.address(),
+                            pre_filter_len,
+                            post_filter_len = amms.len(),
+                            filter = ?filter,
+                            "Discovery filter"
+                        );
                     }
                 }
 
@@ -153,7 +163,17 @@ where
                 // Apply sync filters
                 for filter in filters.iter() {
                     if filter.stage() == filters::FilterStage::Sync {
+                        let pre_filter_len = amms.len();
                         amms = filter.filter(amms).await?;
+
+                        info!(
+                            target: "state_space::sync",
+                            factory = %factory.address(),
+                            pre_filter_len,
+                            post_filter_len = amms.len(),
+                            filter = ?filter,
+                            "Sync filter"
+                        );
                     }
                 }
 
@@ -170,8 +190,6 @@ where
                 state_space.state.insert(amm.address(), amm);
             }
         }
-
-        // TODO: filter amms with specified filters
 
         let mut filter_set = HashSet::new();
         for factory in &self.factories {
