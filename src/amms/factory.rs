@@ -1,9 +1,8 @@
-use std::{
-    future::Future,
-    hash::{Hash, Hasher},
-    sync::Arc,
+use super::{
+    amm::{AutomatedMarketMaker, AMM},
+    error::AMMError,
 };
-
+use super::{erc_4626::ERC4626Factory, uniswap_v2::UniswapV2Factory, uniswap_v3::UniswapV3Factory};
 use alloy::{
     network::Network,
     primitives::{Address, B256, U256},
@@ -13,15 +12,11 @@ use alloy::{
 };
 use eyre::Result;
 use serde::{Deserialize, Serialize};
-
-use super::{
-    amm::{AutomatedMarketMaker, AMM},
-    error::AMMError,
+use std::{
+    future::Future,
+    hash::{Hash, Hasher},
+    sync::Arc,
 };
-
-use super::erc_4626::ERC4626Factory;
-use super::uniswap_v2::UniswapV2Factory;
-use super::uniswap_v3::UniswapV3Factory;
 
 pub trait DiscoverySync {
     fn discover<T, N, P>(

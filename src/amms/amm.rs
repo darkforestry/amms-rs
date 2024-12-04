@@ -1,3 +1,6 @@
+use super::{
+    erc_4626::ERC4626Vault, error::AMMError, uniswap_v2::UniswapV2Pool, uniswap_v3::UniswapV3Pool,
+};
 use alloy::{
     primitives::{Address, B256, U256},
     rpc::types::Log,
@@ -5,8 +8,6 @@ use alloy::{
 use eyre::Result;
 use serde::{Deserialize, Serialize};
 use std::hash::{Hash, Hasher};
-
-use super::{error::AMMError, uniswap_v2::UniswapV2Pool, uniswap_v3::UniswapV3Pool};
 
 pub trait AutomatedMarketMaker {
     /// Address of the AMM
@@ -120,4 +121,4 @@ macro_rules! amm {
     };
 }
 
-amm!(UniswapV2Pool, UniswapV3Pool);
+amm!(UniswapV2Pool, UniswapV3Pool, ERC4626Vault);

@@ -99,6 +99,7 @@ where
                 let pool_type = match amm {
                     AMM::UniswapV2Pool(_) => 0,
                     AMM::UniswapV3Pool(_) => 1,
+                    AMM::ERC4626Vault(_) => todo!(),
                 };
 
                 PoolInfo {

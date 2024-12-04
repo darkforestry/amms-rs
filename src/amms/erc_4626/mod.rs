@@ -244,11 +244,11 @@ impl AutomatedMarketMakerFactory for ERC4626Factory {
     type PoolVariant = ERC4626Vault;
 
     fn address(&self) -> Address {
-        todo!()
+        Address::default()
     }
 
-    fn create_pool(&self, log: Log) -> Result<AMM, AMMError> {
-        todo!()
+    fn create_pool(&self, _log: Log) -> Result<AMM, AMMError> {
+        Ok(ERC4626Vault::default().into())
     }
 
     fn creation_block(&self) -> u64 {
