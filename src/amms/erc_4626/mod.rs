@@ -1,17 +1,30 @@
-use std::cmp::Ordering;
-
-use alloy::{
-    primitives::{Address, B256, U256},
-    rpc::types::Log,
-};
-use serde::{Deserialize, Serialize};
-
 use super::{
     amm::AutomatedMarketMaker,
     consts::{U128_0X10000000000000000, U256_10000},
     error::AMMError,
     uniswap_v2::{div_uu, q64_to_float},
 };
+use alloy::{
+    primitives::{Address, B256, U256},
+    rpc::types::Log,
+    sol,
+    sol_types::SolEvent,
+};
+use serde::{Deserialize, Serialize};
+use std::cmp::Ordering;
+use tracing::info;
+
+sol! {
+    /// Interface of the IERC4626Valut contract
+    #[derive(Debug, PartialEq, Eq)]
+    #[sol(rpc)]
+    contract IERC4626Vault {
+        event Withdraw(address indexed sender, address indexed receiver, address indexed owner, uint256 assets, uint256 shares);
+        event Deposit(address indexed sender,address indexed owner, uint256 assets, uint256 shares);
+        function totalAssets() external view returns (uint256);
+        function totalSupply() external view returns (uint256);
+    }
+}
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ERC4626Vault {
@@ -41,7 +54,41 @@ impl AutomatedMarketMaker for ERC4626Vault {
     }
 
     fn sync(&mut self, log: &Log) -> Result<(), AMMError> {
-        todo!()
+        let event_signature = log.data().topics()[0];
+
+        match event_signature {
+            IERC4626Vault::Deposit::SIGNATURE_HASH => {
+                let deposit_event = IERC4626Vault::Deposit::decode_log(log.as_ref(), false)?;
+                self.asset_reserve += deposit_event.assets;
+                self.vault_reserve += deposit_event.shares;
+
+                info!(
+                    target = "amms::erc_4626::sync",
+                    address = ?self.vault_token,
+                    asset_reserve = ?self.asset_reserve,
+                    vault_reserve = ?self.vault_reserve,
+                    "Deposit"
+                );
+            }
+            IERC4626Vault::Withdraw::SIGNATURE_HASH => {
+                let withdraw_event = IERC4626Vault::Withdraw::decode_log(log.as_ref(), false)?;
+                self.asset_reserve -= withdraw_event.assets;
+                self.vault_reserve -= withdraw_event.shares;
+
+                info!(
+                    target = "amms::erc_4626::sync",
+                    address = ?self.vault_token,
+                    asset_reserve = ?self.asset_reserve,
+                    vault_reserve = ?self.vault_reserve,
+                    "Withdraw"
+                );
+            }
+            _ => {
+                return Err(AMMError::UnrecognizedEventSignature(event_signature));
+            }
+        }
+
+        Ok(())
     }
 
     fn tokens(&self) -> Vec<Address> {
