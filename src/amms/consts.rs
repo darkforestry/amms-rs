@@ -6,6 +6,7 @@ pub const U256_0X100000000: U256 = U256::from_limbs([4294967296, 0, 0, 0]);
 pub const U256_0X10000: U256 = U256::from_limbs([65536, 0, 0, 0]);
 pub const U256_0X100: U256 = U256::from_limbs([256, 0, 0, 0]);
 pub const U256_1000: U256 = U256::from_limbs([1000, 0, 0, 0]);
+pub const U256_10000: U256 = U256::from_limbs([10000, 0, 0, 0]);
 pub const U256_255: U256 = U256::from_limbs([255, 0, 0, 0]);
 pub const U256_192: U256 = U256::from_limbs([192, 0, 0, 0]);
 pub const U256_191: U256 = U256::from_limbs([191, 0, 0, 0]);
