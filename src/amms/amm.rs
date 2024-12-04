@@ -9,21 +9,23 @@ use std::hash::{Hash, Hasher};
 use super::{error::AMMError, uniswap_v2::UniswapV2Pool, uniswap_v3::UniswapV3Pool};
 
 pub trait AutomatedMarketMaker {
-    /// Returns the address of the AMM.
+    /// Address of the AMM
     fn address(&self) -> Address;
 
+    /// Event signatures that indicate when the AMM should be synced
     fn sync_events(&self) -> Vec<B256>;
 
+    /// Syncs the AMM state
     fn sync(&mut self, log: &Log) -> Result<(), AMMError>;
 
-    /// Returns a vector of tokens in the AMM.
+    /// Returns a list of token addresses used in the AMM
     fn tokens(&self) -> Vec<Address>;
 
-    /// Calculates a f64 representation of base token price in the AMM.
+    /// Calculates the price of `base_token` in terms of `quote_token`
     fn calculate_price(&self, base_token: Address, quote_token: Address) -> Result<f64, AMMError>;
 
-    /// Locally simulates a swap in the AMM.
-    /// Returns the amount received for `amount_in` of `token_in`.
+    /// Simulate a swap
+    /// Returns the amount_out in `quote token` for a given `amount_in` of `base_token`
     fn simulate_swap(
         &self,
         base_token: Address,
@@ -31,9 +33,8 @@ pub trait AutomatedMarketMaker {
         amount_in: U256,
     ) -> Result<U256, AMMError>;
 
-    /// Locally simulates a swap in the AMM.
-    /// Mutates the AMM state to the state of the AMM after swapping.
-    /// Returns the amount received for `amount_in` of `token_in`.
+    /// Simulate a swap, mutating the AMM state
+    /// Returns the amount_out in `quote token` for a given `amount_in` of `base_token`
     fn simulate_swap_mut(
         &mut self,
         base_token: Address,

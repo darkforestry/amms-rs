@@ -15,7 +15,6 @@ async fn main() -> eyre::Result<()> {
         fee: 300,
     };
 
-    // Generate the swap calldata
     let to_address = address!("DecafC0ffee15BadDecafC0ffee15BadDecafC0f");
     let swap_calldata = pool.swap_calldata(U256::from(10000), U256::ZERO, to_address, vec![]);
 
