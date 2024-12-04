@@ -199,6 +199,7 @@ impl ERC4626Vault {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Hash, PartialEq, Eq)]
 pub struct ERC4626Factory {
     // Block to start searching from for new vaults
     pub creation_block: u64,
@@ -218,6 +219,7 @@ impl DiscoverySync for ERC4626Factory {
             target = "amms::erc_4626::discover",
             "Discovering all vaults"
         );
+        async move { todo!() }
     }
 
     fn sync<T, N, P>(

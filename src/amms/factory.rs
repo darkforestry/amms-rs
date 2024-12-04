@@ -19,6 +19,7 @@ use super::{
     error::AMMError,
 };
 
+use super::erc_4626::ERC4626Factory;
 use super::uniswap_v2::UniswapV2Factory;
 use super::uniswap_v3::UniswapV3Factory;
 
@@ -45,7 +46,7 @@ pub trait DiscoverySync {
         P: Provider<T, N>;
 }
 
-pub trait AutomatedMarketMakerFactory: DiscoverySync + Into<Factory> {
+pub trait AutomatedMarketMakerFactory: DiscoverySync {
     type PoolVariant: AutomatedMarketMaker + Default;
 
     /// Address of the factory contract
@@ -143,10 +144,18 @@ macro_rules! factory {
                 }
             }
         }
+
+        $(
+            impl From<$factory_type> for Factory {
+                fn from(factory: $factory_type) -> Self {
+                    Factory::$factory_type(factory)
+                }
+            }
+        )+
     };
 }
 
-factory!(UniswapV2Factory, UniswapV3Factory);
+factory!(UniswapV2Factory, UniswapV3Factory, ERC4626Factory);
 
 #[derive(Default)]
 pub struct NoopAMM;

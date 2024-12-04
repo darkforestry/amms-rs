@@ -702,12 +702,6 @@ impl UniswapV3Pool {
     }
 }
 
-impl From<UniswapV3Pool> for AMM {
-    fn from(val: UniswapV3Pool) -> Self {
-        AMM::UniswapV3Pool(val)
-    }
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize, Hash, PartialEq, Eq)]
 pub struct UniswapV3Factory {
     pub address: Address,
@@ -1141,12 +1135,6 @@ fn tick_to_word(tick: i32, tick_spacing: i32) -> i32 {
     }
 
     compressed >> 8
-}
-
-impl From<UniswapV3Factory> for Factory {
-    fn from(val: UniswapV3Factory) -> Self {
-        Factory::UniswapV3Factory(val)
-    }
 }
 
 impl AutomatedMarketMakerFactory for UniswapV3Factory {

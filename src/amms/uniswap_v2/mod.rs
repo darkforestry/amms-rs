@@ -334,12 +334,6 @@ pub fn div_uu(x: U256, y: U256) -> Result<u128, AMMError> {
     }
 }
 
-impl From<UniswapV2Pool> for AMM {
-    fn from(val: UniswapV2Pool) -> Self {
-        AMM::UniswapV2Pool(val)
-    }
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize, Hash, PartialEq, Eq)]
 pub struct UniswapV2Factory {
     pub address: Address,
@@ -490,12 +484,6 @@ impl UniswapV2Factory {
             .collect();
 
         Ok(amms)
-    }
-}
-
-impl From<UniswapV2Factory> for Factory {
-    fn from(val: UniswapV2Factory) -> Self {
-        Factory::UniswapV2Factory(val)
     }
 }
 

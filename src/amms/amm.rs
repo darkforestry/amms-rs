@@ -109,6 +109,14 @@ macro_rules! amm {
         }
 
         impl Eq for AMM {}
+
+        $(
+            impl From<$pool_type> for AMM {
+                fn from(amm: $pool_type) -> Self {
+                    AMM::$pool_type(amm)
+                }
+            }
+        )+
     };
 }
 
