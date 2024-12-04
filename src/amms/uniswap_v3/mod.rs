@@ -28,7 +28,7 @@ use std::{
     sync::Arc,
 };
 use thiserror::Error;
-use tracing::debug;
+use tracing::{debug, info};
 use uniswap_v3_math::error::UniswapV3MathError;
 use uniswap_v3_math::tick_math::{MAX_SQRT_RATIO, MAX_TICK, MIN_SQRT_RATIO, MIN_TICK};
 use GetUniswapV3PoolTickDataBatchRequest::TickDataInfo;
@@ -205,7 +205,7 @@ impl AutomatedMarketMaker for UniswapV3Pool {
                 self.liquidity = swap_event.liquidity;
                 self.tick = swap_event.tick.unchecked_into();
 
-                debug!(
+                info!(
                     target = "amms::uniswap_v3::sync",
                     address = ?self.address,
                     sqrt_price = ?self.sqrt_price,
@@ -223,7 +223,7 @@ impl AutomatedMarketMaker for UniswapV3Pool {
                     mint_event.amount as i128,
                 )?;
 
-                debug!(
+                info!(
                     target = "amms::uniswap_v3::sync",
                     address = ?self.address,
                     sqrt_price = ?self.sqrt_price,
@@ -241,7 +241,7 @@ impl AutomatedMarketMaker for UniswapV3Pool {
                     -(burn_event.amount as i128),
                 )?;
 
-                debug!(
+                info!(
                     target = "amms::uniswap_v3::sync",
                     address = ?self.address,
                     sqrt_price = ?self.sqrt_price,
@@ -1190,6 +1190,12 @@ impl DiscoverySync for UniswapV3Factory {
         N: Network,
         P: Provider<T, N>,
     {
+        info!(
+            target = "amms::uniswap_v3::discover",
+            address = ?self.address,
+            "Discovering all pools"
+        );
+
         self.get_all_pools(to_block, provider.clone())
     }
 
@@ -1204,6 +1210,12 @@ impl DiscoverySync for UniswapV3Factory {
         N: Network,
         P: Provider<T, N>,
     {
+        info!(
+            target = "amms::uniswap_v3::sync",
+            address = ?self.address,
+            "Syncing all pools"
+        );
+
         UniswapV3Factory::sync_all_pools(amms, to_block, provider)
     }
 }

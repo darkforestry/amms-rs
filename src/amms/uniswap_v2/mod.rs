@@ -25,6 +25,7 @@ use rug::Float;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, future::Future, hash::Hash, sync::Arc};
 use thiserror::Error;
+use tracing::{field::debug, info};
 use IGetUniswapV2PoolDataBatchRequest::IGetUniswapV2PoolDataBatchRequestInstance;
 use IUniswapV2Factory::IUniswapV2FactoryInstance;
 
@@ -100,7 +101,12 @@ impl AutomatedMarketMaker for UniswapV2Pool {
             sync_event.reserve0.to::<u128>(),
             sync_event.reserve1.to::<u128>(),
         );
-        // tracing::info!(reserve_0, reserve_1, address = ?self.address, "UniswapV2 sync event");
+
+        info!(
+            target = "amm::uniswap_v2::sync",
+            address = ?self.address,
+            reserve_0, reserve_1, "Sync"
+        );
 
         self.reserve_0 = reserve_0;
         self.reserve_1 = reserve_1;
@@ -534,6 +540,12 @@ impl DiscoverySync for UniswapV2Factory {
         N: Network,
         P: Provider<T, N>,
     {
+        info!(
+            target = "amms::uniswap_v2::discover",
+            address = ?self.address,
+            "Discovering all pools"
+        );
+
         let provider = provider.clone();
         async move {
             let pairs =
@@ -568,6 +580,12 @@ impl DiscoverySync for UniswapV2Factory {
         N: Network,
         P: Provider<T, N>,
     {
+        info!(
+            target = "amms::uniswap_v2::sync",
+            address = ?self.address,
+            "Syncing all pools"
+        );
+
         UniswapV2Factory::sync_all_pools(amms, to_block, provider)
     }
 }
