@@ -34,7 +34,7 @@ async fn main() -> eyre::Result<()> {
         .into(),
     ];
 
-    /*  PoolFilters are applied to any AMMs discovered during syncing.
+    /*  PoolFilters are applied all AMMs when syncing the state space.
        Filters have two "stages", `FilterStage::Discovery` or `FilterStage::Sync`.
        Discovery filters are applied to AMMs after the `StateSpaceManager` has processed all pool created events.
        Sync filters are applied to AMMs after the `StateSpaceManager` has processed all pool sync events.
