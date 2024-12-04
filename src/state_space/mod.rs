@@ -34,6 +34,8 @@ use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering;
 use std::{collections::HashMap, marker::PhantomData, sync::Arc};
 use tokio::sync::RwLock;
+use tracing::debug;
+use tracing::info;
 
 pub const CACHE_SIZE: usize = 30;
 
@@ -220,8 +222,16 @@ impl StateSpace {
 
         // Check if there is a reorg and unwind to state before block_number
         if latest >= block_number {
+            info!(
+                target: "state_space::sync",
+                from = %latest,
+                to = %block_number - 1,
+                "Unwinding state changes"
+            );
+
             let cached_state = self.cache.unwind_state_changes(block_number);
             for amm in cached_state {
+                debug!(target: "state_space::sync", ?amm, "Reverting AMM state");
                 self.state.insert(amm.address(), amm);
             }
         }
@@ -236,8 +246,15 @@ impl StateSpace {
             if log_block_number != block_number {
                 let amms = cached_amms.drain().collect::<Vec<AMM>>();
                 affected_amms.extend(amms.iter().map(|amm| amm.address()));
-                self.cache.push(StateChange::new(amms, block_number));
+                let state_change = StateChange::new(amms, block_number);
 
+                debug!(
+                    target: "state_space::sync",
+                    state_change = ?state_change,
+                    "Caching state change"
+                );
+
+                self.cache.push(state_change);
                 block_number = log_block_number;
             }
 
@@ -246,13 +263,27 @@ impl StateSpace {
             if let Some(amm) = self.state.get_mut(&address) {
                 cached_amms.insert(amm.clone());
                 amm.sync(log)?;
+
+                info!(
+                    target: "state_space::sync",
+                    ?amm,
+                    "Synced AMM"
+                );
             }
         }
 
         if !cached_amms.is_empty() {
             let amms = cached_amms.drain().collect::<Vec<AMM>>();
             affected_amms.extend(amms.iter().map(|amm| amm.address()));
-            self.cache.push(StateChange::new(amms, block_number));
+            let state_change = StateChange::new(amms, block_number);
+
+            debug!(
+                target: "state_space::sync",
+                state_change = ?state_change,
+                "Caching state change"
+            );
+
+            self.cache.push(state_change);
         }
 
         Ok(affected_amms.into_iter().collect())

@@ -28,6 +28,7 @@ use std::{
     sync::Arc,
 };
 use thiserror::Error;
+use tracing::debug;
 use uniswap_v3_math::error::UniswapV3MathError;
 use uniswap_v3_math::tick_math::{MAX_SQRT_RATIO, MAX_TICK, MIN_SQRT_RATIO, MIN_TICK};
 use GetUniswapV3PoolTickDataBatchRequest::TickDataInfo;
@@ -204,7 +205,14 @@ impl AutomatedMarketMaker for UniswapV3Pool {
                 self.liquidity = swap_event.liquidity;
                 self.tick = swap_event.tick.unchecked_into();
 
-                // tracing::debug!(?swap_event, address = ?self.address, sqrt_price = ?self.sqrt_price, liquidity = ?self.liquidity, tick = ?self.tick, "UniswapV3 swap event");
+                debug!(
+                    target = "amms::uniswap_v3::sync",
+                    address = ?self.address,
+                    sqrt_price = ?self.sqrt_price,
+                    liquidity = ?self.liquidity,
+                    tick = ?self.tick,
+                    "Swap"
+                );
             }
             IUniswapV3PoolEvents::Mint::SIGNATURE_HASH => {
                 let mint_event = IUniswapV3PoolEvents::Mint::decode_log(log.as_ref(), false)?;
@@ -214,7 +222,15 @@ impl AutomatedMarketMaker for UniswapV3Pool {
                     mint_event.tickUpper.unchecked_into(),
                     mint_event.amount as i128,
                 )?;
-                // tracing::debug!(?mint_event, address = ?self.address, sqrt_price = ?self.sqrt_price, liquidity = ?self.liquidity, tick = ?self.tick, "UniswapV3 mint event");
+
+                debug!(
+                    target = "amms::uniswap_v3::sync",
+                    address = ?self.address,
+                    sqrt_price = ?self.sqrt_price,
+                    liquidity = ?self.liquidity,
+                    tick = ?self.tick,
+                    "Mint"
+                );
             }
             IUniswapV3PoolEvents::Burn::SIGNATURE_HASH => {
                 let burn_event = IUniswapV3PoolEvents::Burn::decode_log(log.as_ref(), false)?;
@@ -224,7 +240,15 @@ impl AutomatedMarketMaker for UniswapV3Pool {
                     burn_event.tickUpper.unchecked_into(),
                     -(burn_event.amount as i128),
                 )?;
-                // tracing::debug!(?burn_event, address = ?self.address, sqrt_price = ?self.sqrt_price, liquidity = ?self.liquidity, tick = ?self.tick, "UniswapV3 burn event");
+
+                debug!(
+                    target = "amms::uniswap_v3::sync",
+                    address = ?self.address,
+                    sqrt_price = ?self.sqrt_price,
+                    liquidity = ?self.liquidity,
+                    tick = ?self.tick,
+                    "Burn"
+                );
             }
             _ => {
                 return Err(AMMError::UnrecognizedEventSignature(event_signature));
