@@ -500,7 +500,7 @@ impl AutomatedMarketMakerFactory for UniswapV2Factory {
         self.address
     }
 
-    fn discovery_event(&self) -> B256 {
+    fn pool_creation_event(&self) -> B256 {
         IUniswapV2Factory::PairCreated::SIGNATURE_HASH
     }
 

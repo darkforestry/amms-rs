@@ -709,7 +709,7 @@ impl UniswapV3Factory {
         P: Provider<T, N>,
     {
         let disc_filter = Filter::new()
-            .event_signature(FilterSet::from(vec![self.discovery_event()]))
+            .event_signature(FilterSet::from(vec![self.pool_creation_event()]))
             .address(vec![self.address()]);
 
         let sync_provider = provider.clone();
@@ -1132,7 +1132,7 @@ impl AutomatedMarketMakerFactory for UniswapV3Factory {
         self.address
     }
 
-    fn discovery_event(&self) -> B256 {
+    fn pool_creation_event(&self) -> B256 {
         IUniswapV3Factory::PoolCreated::SIGNATURE_HASH
     }
 

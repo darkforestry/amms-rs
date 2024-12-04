@@ -48,17 +48,19 @@ pub trait DiscoverySync {
 pub trait AutomatedMarketMakerFactory: DiscoverySync + Into<Factory> {
     type PoolVariant: AutomatedMarketMaker + Default;
 
-    /// Returns the address of the factory.
+    /// Address of the factory contract
     fn address(&self) -> Address;
 
-    // TODO: update to be factory error?
+    /// Creates an unsynced pool from a creation log.
     fn create_pool(&self, log: Log) -> Result<AMM, AMMError>;
 
     /// Returns the block number at which the factory was created.
     fn creation_block(&self) -> u64;
 
-    fn discovery_event(&self) -> B256;
+    /// Event signature that indicates when a new pool was created
+    fn pool_creation_event(&self) -> B256;
 
+    /// Event signatures signifying when a pool created by the factory should be synced
     fn pool_events(&self) -> Vec<B256> {
         Self::PoolVariant::default().sync_events()
     }
@@ -80,7 +82,7 @@ macro_rules! factory {
 
              pub fn discovery_event(&self) -> B256 {
                 match self {
-                    $(Factory::$factory_type(factory) => factory.discovery_event(),)+
+                    $(Factory::$factory_type(factory) => factory.pool_creation_event(),)+
                 }
             }
 
