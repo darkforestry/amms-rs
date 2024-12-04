@@ -19,6 +19,10 @@ sol! {
     "contracts/out/GetTokenDecimalsBatchRequest.sol/GetTokenDecimalsBatchRequest.json",
 }
 
+/// Fetches the decimal precision for a list of ERC-20 tokens.
+///
+/// # Returns
+/// A map of token addresses to their decimal precision.
 pub async fn get_token_decimals<T, N, P>(
     tokens: Vec<Address>,
     provider: Arc<P>,
