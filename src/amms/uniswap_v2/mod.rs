@@ -11,6 +11,7 @@ use super::{
 };
 
 use alloy::{
+    eips::BlockId,
     network::Network,
     primitives::{Address, Bytes, B256, U256},
     providers::Provider,

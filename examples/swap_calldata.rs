@@ -1,19 +1,27 @@
-use alloy::primitives::{address, U256};
-use amms::amms::uniswap_v2::UniswapV2Pool;
+use alloy::primitives::U256;
+use alloy::providers::Provider;
+use alloy::{
+    primitives::address, providers::ProviderBuilder, rpc::client::ClientBuilder,
+    transports::layers::RetryBackoffLayer,
+};
+use alloy_throttle::ThrottleLayer;
+use amms::amms::{amm::AutomatedMarketMaker, uniswap_v2::UniswapV2Pool};
+use std::sync::Arc;
 
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
-    // Initialize the pool
-    let pool = UniswapV2Pool {
-        address: address!("B4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc"),
-        token_a: address!("6B175474E89094C44Da98b954EedeAC495271d0F"),
-        token_a_decimals: 18,
-        token_b: address!("EeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"),
-        token_b_decimals: 18,
-        reserve_0: 1e24 as u128,
-        reserve_1: 1e24 as u128,
-        fee: 300,
-    };
+    let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
+    let client = ClientBuilder::default()
+        .layer(ThrottleLayer::new(500, None)?)
+        .layer(RetryBackoffLayer::new(5, 200, 330))
+        .http(rpc_endpoint.parse()?);
+
+    let provider = Arc::new(ProviderBuilder::new().on_client(client));
+
+    let block_number = provider.get_block_number().await?;
+    let pool = UniswapV2Pool::new(address!("B4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc"))
+        .init(block_number, provider)
+        .await?;
 
     let to_address = address!("DecafC0ffee15BadDecafC0ffee15BadDecafC0f");
     let swap_calldata = pool.swap_calldata(U256::from(10000), U256::ZERO, to_address, vec![]);

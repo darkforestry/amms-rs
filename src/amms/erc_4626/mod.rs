@@ -5,6 +5,7 @@ use super::{
     uniswap_v2::{div_uu, q64_to_float},
 };
 use alloy::{
+    eips::BlockId,
     network::Network,
     primitives::{Address, B256, U256},
     providers::Provider,
