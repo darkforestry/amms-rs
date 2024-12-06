@@ -14,5 +14,7 @@ use amms::{
 async fn main() -> eyre::Result<()> {
     tracing_subscriber::fmt::init();
 
+    todo!("Add example syncing from a vec of pools");
+
     Ok(())
 }
