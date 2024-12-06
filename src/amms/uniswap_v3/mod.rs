@@ -28,7 +28,7 @@ use std::{
     sync::Arc,
 };
 use thiserror::Error;
-use tracing::{debug, info};
+use tracing::info;
 use uniswap_v3_math::error::UniswapV3MathError;
 use uniswap_v3_math::tick_math::{MAX_SQRT_RATIO, MAX_TICK, MIN_SQRT_RATIO, MIN_TICK};
 use GetUniswapV3PoolTickDataBatchRequest::TickDataInfo;

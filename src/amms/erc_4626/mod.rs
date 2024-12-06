@@ -1,6 +1,6 @@
 use super::{
     amm::AutomatedMarketMaker,
-    consts::{U128_0X10000000000000000, U256_10000},
+    consts::{U128_0X10000000000000000, U256_10000, U256_2},
     error::AMMError,
     uniswap_v2::{div_uu, q64_to_float},
 };
@@ -10,7 +10,7 @@ use alloy::{
     providers::Provider,
     rpc::types::Log,
     sol,
-    sol_types::SolEvent,
+    sol_types::{SolEvent, SolValue},
     transports::Transport,
 };
 use serde::{Deserialize, Serialize};
@@ -27,6 +27,13 @@ sol! {
         function totalAssets() external view returns (uint256);
         function totalSupply() external view returns (uint256);
     }
+}
+
+sol! {
+    #[allow(missing_docs)]
+    #[sol(rpc)]
+    IGetERC4626VaultDataBatchRequest,
+    "contracts/out/GetERC4626VaultDataBatchRequest.sol/GetERC4626VaultDataBatchRequest.json",
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -142,16 +149,82 @@ impl AutomatedMarketMaker for ERC4626Vault {
         }
     }
 
-    async fn init<T, N, P>(self, block_number: u64, provider: Arc<P>) -> Result<Self, AMMError>
+    // TODO: clean up this function
+    async fn init<T, N, P>(mut self, block_number: u64, provider: Arc<P>) -> Result<Self, AMMError>
     where
         T: Transport + Clone,
         N: Network,
         P: Provider<T, N>,
     {
-        todo!("Populate vault data");
-        // let (vault_reserve, asset_reserve) = self.get_reserves(provider, block_number).await?;
-        // self.vault_reserve = vault_reserve;
-        // self.asset_reserve = asset_reserve;
+        let deployer =
+            IGetERC4626VaultDataBatchRequest::deploy_builder(provider, vec![self.vault_token]);
+        let res = deployer.call_raw().block(block_number.into()).await?;
+
+        let data = <Vec<(
+            Address,
+            u16,
+            Address,
+            u16,
+            U256,
+            U256,
+            U256,
+            U256,
+            U256,
+            U256,
+            U256,
+            U256,
+        )> as SolValue>::abi_decode(&res, false)?;
+        let (
+            vault_token,
+            vault_token_dec,
+            asset_token,
+            asset_token_dec,
+            vault_reserve,
+            asset_reserve,
+            deposit_fee_delta_1,
+            deposit_fee_delta_2,
+            deposit_no_fee,
+            withdraw_fee_delta_1,
+            withdraw_fee_delta_2,
+            withdraw_no_fee,
+        ) = if !data.is_empty() {
+            data[0]
+        } else {
+            todo!("Handle error")
+        };
+
+        // If both deltas are zero, the fee is zero
+        if deposit_fee_delta_1.is_zero() && deposit_fee_delta_2.is_zero() {
+            self.deposit_fee = 0;
+
+        // Assuming 18 decimals, if the delta of 1e20 is half the delta of 2e20, relative fee.
+        // Delta / (amount without fee / 10000) to give us the fee in basis points
+        } else if deposit_fee_delta_1 * U256_2 == deposit_fee_delta_2 {
+            self.deposit_fee = (deposit_fee_delta_1 / (deposit_no_fee / U256::from(10_000))).to();
+        } else {
+            todo!("Handle error")
+        }
+
+        // If both deltas are zero, the fee is zero
+        if withdraw_fee_delta_1.is_zero() && withdraw_fee_delta_2.is_zero() {
+            self.withdraw_fee = 0;
+        // Assuming 18 decimals, if the delta of 1e20 is half the delta of 2e20, relative fee.
+        // Delta / (amount without fee / 10000) to give us the fee in basis points
+        } else if withdraw_fee_delta_1 * U256::from(2) == withdraw_fee_delta_2 {
+            self.withdraw_fee =
+                (withdraw_fee_delta_1 / (withdraw_no_fee / U256::from(10_000))).to();
+        } else {
+            // If not a relative fee or zero, ignore vault
+            todo!("Handle error")
+        }
+
+        // if above does not error => populate the vault
+        self.vault_token = vault_token;
+        self.vault_token_decimals = vault_token_dec as u8;
+        self.asset_token = asset_token;
+        self.asset_token_decimals = asset_token_dec as u8;
+        self.vault_reserve = vault_reserve;
+        self.asset_reserve = asset_reserve;
 
         Ok(self)
     }
