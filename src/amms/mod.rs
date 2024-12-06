@@ -8,10 +8,12 @@ use futures::{stream::FuturesUnordered, StreamExt};
 
 pub mod amm;
 pub mod consts;
+pub mod float;
 pub mod error;
 pub mod factory;
 pub mod uniswap_v2;
 pub mod uniswap_v3;
+pub mod balancer;
 
 sol! {
     #[sol(rpc)]
