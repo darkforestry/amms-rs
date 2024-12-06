@@ -1,17 +1,17 @@
-use std::{collections::HashMap, sync::Arc};
+pub mod amm;
+pub mod consts;
+pub mod erc_4626;
+pub mod error;
+pub mod factory;
+pub mod uniswap_v2;
+pub mod uniswap_v3;
 
 use alloy::{
     dyn_abi::DynSolType, network::Network, primitives::Address, providers::Provider, sol,
     transports::Transport,
 };
 use futures::{stream::FuturesUnordered, StreamExt};
-
-pub mod amm;
-pub mod consts;
-pub mod error;
-pub mod factory;
-pub mod uniswap_v2;
-pub mod uniswap_v3;
+use std::{collections::HashMap, sync::Arc};
 
 sol! {
     #[sol(rpc)]

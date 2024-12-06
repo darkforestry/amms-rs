@@ -1,5 +1,5 @@
 use alloy::eips::BlockId;
-use alloy::primitives::U256;
+use alloy::primitives::{Address, U256};
 use alloy::{
     primitives::address, providers::ProviderBuilder, rpc::client::ClientBuilder,
     transports::layers::RetryBackoffLayer,
@@ -22,10 +22,10 @@ async fn main() -> eyre::Result<()> {
         .init(BlockId::latest(), provider)
         .await?;
 
-    let to_address = address!("DecafC0ffee15BadDecafC0ffee15BadDecafC0f");
-    let swap_calldata = pool.swap_calldata(U256::from(10000), U256::ZERO, to_address, vec![]);
-
-    println!("Swap calldata: {:?}", swap_calldata);
+    // Note that the token out does not need to be specified when
+    // simulating a swap for pools with only two tokens.
+    let amount_out = pool.simulate_swap(pool.token_a, Address::default(), U256::from(1000000))?;
+    println!("Amount out: {:?}", amount_out);
 
     Ok(())
 }

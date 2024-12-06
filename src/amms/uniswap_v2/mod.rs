@@ -7,10 +7,11 @@ use super::{
         U256_16, U256_191, U256_192, U256_2, U256_255, U256_32, U256_4, U256_64, U256_8,
     },
     error::AMMError,
-    factory::{AutomatedMarketMakerFactory, DiscoverySync, Factory},
+    factory::{AutomatedMarketMakerFactory, DiscoverySync},
 };
 
 use alloy::{
+    eips::BlockId,
     network::Network,
     primitives::{Address, Bytes, B256, U256},
     providers::Provider,
@@ -25,7 +26,7 @@ use rug::Float;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, future::Future, hash::Hash, sync::Arc};
 use thiserror::Error;
-use tracing::{field::debug, info};
+use tracing::info;
 use IGetUniswapV2PoolDataBatchRequest::IGetUniswapV2PoolDataBatchRequestInstance;
 use IUniswapV2Factory::IUniswapV2FactoryInstance;
 
@@ -173,6 +174,43 @@ impl AutomatedMarketMaker for UniswapV2Pool {
         let price = self.calculate_price_64_x_64(base_token)?;
         q64_to_float(price)
     }
+
+    async fn init<T, N, P>(
+        mut self,
+        block_number: BlockId,
+        provider: Arc<P>,
+    ) -> Result<Self, AMMError>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
+        let deployer = IGetUniswapV2PoolDataBatchRequestInstance::deploy_builder(
+            provider.clone(),
+            vec![self.address()],
+        );
+
+        let res = deployer.call_raw().block(block_number).await?;
+
+        let pool_data =
+            <Vec<(Address, Address, u128, u128, u32, u32)> as SolValue>::abi_decode(&res, false)?
+                [0];
+
+        if pool_data.0.is_zero() {
+            todo!("Return error");
+        }
+
+        self.token_a = pool_data.0;
+        self.token_b = pool_data.1;
+        self.reserve_0 = pool_data.2;
+        self.reserve_1 = pool_data.3;
+        self.token_a_decimals = pool_data.4 as u8;
+        self.token_b_decimals = pool_data.5 as u8;
+
+        // TODO: populate fee?
+
+        Ok(self)
+    }
 }
 
 pub fn q64_to_float(num: u128) -> Result<f64, AMMError> {
@@ -188,6 +226,14 @@ pub fn u128_to_float(num: u128) -> Result<Float, AMMError> {
 }
 
 impl UniswapV2Pool {
+    // Create a new, unsynced UniswapV2 pool
+    pub fn new(address: Address) -> Self {
+        Self {
+            address,
+            ..Default::default()
+        }
+    }
+
     /// Calculates the amount received for a given `amount_in` `reserve_in` and `reserve_out`.
     pub fn get_amount_out(&self, amount_in: U256, reserve_in: U256, reserve_out: U256) -> U256 {
         if amount_in.is_zero() || reserve_in.is_zero() || reserve_out.is_zero() {
@@ -334,12 +380,6 @@ pub fn div_uu(x: U256, y: U256) -> Result<u128, AMMError> {
     }
 }
 
-impl From<UniswapV2Pool> for AMM {
-    fn from(val: UniswapV2Pool) -> Self {
-        AMM::UniswapV2Pool(val)
-    }
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize, Hash, PartialEq, Eq)]
 pub struct UniswapV2Factory {
     pub address: Address,
@@ -358,7 +398,7 @@ impl UniswapV2Factory {
 
     pub async fn get_all_pairs<T, N, P>(
         factory_address: Address,
-        block_number: u64,
+        block_number: BlockId,
         provider: Arc<P>,
     ) -> Result<Vec<Address>, AMMError>
     where
@@ -370,7 +410,7 @@ impl UniswapV2Factory {
         let pairs_length = factory
             .allPairsLength()
             .call()
-            .block(block_number.into())
+            .block(block_number)
             .await?
             ._0
             .to::<usize>();
@@ -388,7 +428,7 @@ impl UniswapV2Factory {
             );
 
             futures_unordered.push(async move {
-                let res = deployer.call_raw().block(block_number.into()).await?;
+                let res = deployer.call_raw().block(block_number).await?;
                 let return_data = <Vec<Address> as SolValue>::abi_decode(&res, false)?;
 
                 Ok::<Vec<Address>, AMMError>(return_data)
@@ -410,7 +450,7 @@ impl UniswapV2Factory {
 
     pub async fn sync_all_pools<T, N, P>(
         amms: Vec<AMM>,
-        block_number: u64,
+        block_number: BlockId,
         provider: Arc<P>,
     ) -> Result<Vec<AMM>, AMMError>
     where
@@ -434,7 +474,7 @@ impl UniswapV2Factory {
             );
 
             futures_unordered.push(async move {
-                let res = deployer.call_raw().block(block_number.into()).await?;
+                let res = deployer.call_raw().block(block_number).await?;
 
                 let return_data =
                     <Vec<(Address, Address, u128, u128, u32, u32)> as SolValue>::abi_decode(
@@ -493,12 +533,6 @@ impl UniswapV2Factory {
     }
 }
 
-impl From<UniswapV2Factory> for Factory {
-    fn from(val: UniswapV2Factory) -> Self {
-        Factory::UniswapV2Factory(val)
-    }
-}
-
 impl AutomatedMarketMakerFactory for UniswapV2Factory {
     type PoolVariant = UniswapV2Pool;
 
@@ -532,7 +566,7 @@ impl AutomatedMarketMakerFactory for UniswapV2Factory {
 impl DiscoverySync for UniswapV2Factory {
     fn discover<T, N, P>(
         &self,
-        to_block: u64,
+        to_block: BlockId,
         provider: Arc<P>,
     ) -> impl Future<Output = Result<Vec<AMM>, AMMError>>
     where
@@ -572,7 +606,7 @@ impl DiscoverySync for UniswapV2Factory {
     fn sync<T, N, P>(
         &self,
         amms: Vec<AMM>,
-        to_block: u64,
+        to_block: BlockId,
         provider: Arc<P>,
     ) -> impl Future<Output = Result<Vec<AMM>, AMMError>>
     where

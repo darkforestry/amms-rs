@@ -1,12 +1,20 @@
+use super::{
+    erc_4626::ERC4626Vault, error::AMMError, uniswap_v2::UniswapV2Pool, uniswap_v3::UniswapV3Pool,
+};
 use alloy::{
+    eips::BlockId,
+    network::Network,
     primitives::{Address, B256, U256},
+    providers::Provider,
     rpc::types::Log,
+    transports::Transport,
 };
 use eyre::Result;
 use serde::{Deserialize, Serialize};
-use std::hash::{Hash, Hasher};
-
-use super::{error::AMMError, uniswap_v2::UniswapV2Pool, uniswap_v3::UniswapV3Pool};
+use std::{
+    hash::{Hash, Hasher},
+    sync::Arc,
+};
 
 pub trait AutomatedMarketMaker {
     /// Address of the AMM
@@ -42,7 +50,14 @@ pub trait AutomatedMarketMaker {
         amount_in: U256,
     ) -> Result<U256, AMMError>;
 
-    // TODO: fn swap_calldata(&self, token_in, token_out, amount_in, amount_out_min) -> Vec<u8>;
+    // Initializes an empty pool and syncs state up to `block_number`
+    // TODO: return an error
+    async fn init<T, N, P>(self, block_number: BlockId, provider: Arc<P>) -> Result<Self, AMMError>
+    where
+        Self: Sized,
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>;
 }
 
 macro_rules! amm {
@@ -94,6 +109,18 @@ macro_rules! amm {
                     $(AMM::$pool_type(pool) => pool.calculate_price(base_token, quote_token),)+
                 }
             }
+
+            async fn init<T, N, P>(self, block_number: BlockId, provider: Arc<P>) -> Result<Self, AMMError>
+            where
+                Self: Sized,
+                T: Transport + Clone,
+                N: Network,
+                P: Provider<T, N>,
+            {
+                match self {
+                    $(AMM::$pool_type(pool) => pool.init(block_number, provider).await.map(AMM::$pool_type),)+
+                }
+            }
         }
 
         impl Hash for AMM {
@@ -109,7 +136,15 @@ macro_rules! amm {
         }
 
         impl Eq for AMM {}
+
+        $(
+            impl From<$pool_type> for AMM {
+                fn from(amm: $pool_type) -> Self {
+                    AMM::$pool_type(amm)
+                }
+            }
+        )+
     };
 }
 
-amm!(UniswapV2Pool, UniswapV3Pool);
+amm!(UniswapV2Pool, UniswapV3Pool, ERC4626Vault);

@@ -1,10 +1,10 @@
-use std::{
-    future::Future,
-    hash::{Hash, Hasher},
-    sync::Arc,
+use super::{
+    amm::{AutomatedMarketMaker, AMM},
+    error::AMMError,
 };
-
+use super::{uniswap_v2::UniswapV2Factory, uniswap_v3::UniswapV3Factory};
 use alloy::{
+    eips::BlockId,
     network::Network,
     primitives::{Address, B256, U256},
     providers::Provider,
@@ -13,19 +13,16 @@ use alloy::{
 };
 use eyre::Result;
 use serde::{Deserialize, Serialize};
-
-use super::{
-    amm::{AutomatedMarketMaker, AMM},
-    error::AMMError,
+use std::{
+    future::Future,
+    hash::{Hash, Hasher},
+    sync::Arc,
 };
-
-use super::uniswap_v2::UniswapV2Factory;
-use super::uniswap_v3::UniswapV3Factory;
 
 pub trait DiscoverySync {
     fn discover<T, N, P>(
         &self,
-        to_block: u64,
+        to_block: BlockId,
         provider: Arc<P>,
     ) -> impl Future<Output = Result<Vec<AMM>, AMMError>>
     where
@@ -36,7 +33,7 @@ pub trait DiscoverySync {
     fn sync<T, N, P>(
         &self,
         amms: Vec<AMM>,
-        to_block: u64,
+        to_block: BlockId,
         provider: Arc<P>,
     ) -> impl Future<Output = Result<Vec<AMM>, AMMError>>
     where
@@ -45,7 +42,7 @@ pub trait DiscoverySync {
         P: Provider<T, N>;
 }
 
-pub trait AutomatedMarketMakerFactory: DiscoverySync + Into<Factory> {
+pub trait AutomatedMarketMakerFactory: DiscoverySync {
     type PoolVariant: AutomatedMarketMaker + Default;
 
     /// Address of the factory contract
@@ -121,7 +118,7 @@ macro_rules! factory {
 
 
         impl Factory {
-            pub async fn discover<T, N, P>(&self, to_block: u64, provider: Arc<P>) -> Result<Vec<AMM>, AMMError>
+            pub async fn discover<T, N, P>(&self, to_block: BlockId, provider: Arc<P>) -> Result<Vec<AMM>, AMMError>
             where
                 T: Transport + Clone,
                 N: Network,
@@ -132,7 +129,7 @@ macro_rules! factory {
                 }
             }
 
-            pub async fn sync<T, N, P>(&self, amms: Vec<AMM>, to_block: u64, provider: Arc<P>) -> Result<Vec<AMM>, AMMError>
+            pub async fn sync<T, N, P>(&self, amms: Vec<AMM>, to_block: BlockId, provider: Arc<P>) -> Result<Vec<AMM>, AMMError>
             where
                 T: Transport + Clone,
                 N: Network,
@@ -143,6 +140,14 @@ macro_rules! factory {
                 }
             }
         }
+
+        $(
+            impl From<$factory_type> for Factory {
+                fn from(factory: $factory_type) -> Self {
+                    Factory::$factory_type(factory)
+                }
+            }
+        )+
     };
 }
 
@@ -189,6 +194,19 @@ impl AutomatedMarketMaker for NoopAMM {
     }
 
     fn tokens(&self) -> Vec<Address> {
+        unreachable!()
+    }
+
+    async fn init<T, N, P>(
+        self,
+        _block_number: BlockId,
+        _provider: Arc<P>,
+    ) -> Result<Self, AMMError>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
         unreachable!()
     }
 }
