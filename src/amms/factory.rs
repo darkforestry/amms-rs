@@ -4,6 +4,7 @@ use super::{
 };
 use super::{uniswap_v2::UniswapV2Factory, uniswap_v3::UniswapV3Factory};
 use alloy::{
+    eips::BlockId,
     network::Network,
     primitives::{Address, B256, U256},
     providers::Provider,
@@ -21,7 +22,7 @@ use std::{
 pub trait DiscoverySync {
     fn discover<T, N, P>(
         &self,
-        to_block: u64,
+        to_block: BlockId,
         provider: Arc<P>,
     ) -> impl Future<Output = Result<Vec<AMM>, AMMError>>
     where
@@ -32,7 +33,7 @@ pub trait DiscoverySync {
     fn sync<T, N, P>(
         &self,
         amms: Vec<AMM>,
-        to_block: u64,
+        to_block: BlockId,
         provider: Arc<P>,
     ) -> impl Future<Output = Result<Vec<AMM>, AMMError>>
     where
@@ -117,7 +118,7 @@ macro_rules! factory {
 
 
         impl Factory {
-            pub async fn discover<T, N, P>(&self, to_block: u64, provider: Arc<P>) -> Result<Vec<AMM>, AMMError>
+            pub async fn discover<T, N, P>(&self, to_block: BlockId, provider: Arc<P>) -> Result<Vec<AMM>, AMMError>
             where
                 T: Transport + Clone,
                 N: Network,
@@ -128,7 +129,7 @@ macro_rules! factory {
                 }
             }
 
-            pub async fn sync<T, N, P>(&self, amms: Vec<AMM>, to_block: u64, provider: Arc<P>) -> Result<Vec<AMM>, AMMError>
+            pub async fn sync<T, N, P>(&self, amms: Vec<AMM>, to_block: BlockId, provider: Arc<P>) -> Result<Vec<AMM>, AMMError>
             where
                 T: Transport + Clone,
                 N: Network,
@@ -196,7 +197,11 @@ impl AutomatedMarketMaker for NoopAMM {
         unreachable!()
     }
 
-    async fn init<T, N, P>(self, _block_number: u64, _provider: Arc<P>) -> Result<Self, AMMError>
+    async fn init<T, N, P>(
+        self,
+        _block_number: BlockId,
+        _provider: Arc<P>,
+    ) -> Result<Self, AMMError>
     where
         T: Transport + Clone,
         N: Network,

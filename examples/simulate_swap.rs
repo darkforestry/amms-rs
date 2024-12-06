@@ -1,5 +1,5 @@
+use alloy::eips::BlockId;
 use alloy::primitives::{Address, U256};
-use alloy::providers::Provider;
 use alloy::{
     primitives::address, providers::ProviderBuilder, rpc::client::ClientBuilder,
     transports::layers::RetryBackoffLayer,
@@ -18,9 +18,8 @@ async fn main() -> eyre::Result<()> {
 
     let provider = Arc::new(ProviderBuilder::new().on_client(client));
 
-    let block_number = provider.get_block_number().await?;
     let pool = UniswapV2Pool::new(address!("B4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc"))
-        .init(block_number, provider)
+        .init(BlockId::latest(), provider)
         .await?;
 
     // Note that the token out does not need to be specified when

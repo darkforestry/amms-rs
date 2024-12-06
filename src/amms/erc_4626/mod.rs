@@ -16,6 +16,7 @@ use alloy::{
 };
 use serde::{Deserialize, Serialize};
 use std::{cmp::Ordering, sync::Arc};
+use thiserror::Error;
 use tracing::info;
 
 sol! {
@@ -35,6 +36,14 @@ sol! {
     #[sol(rpc)]
     IGetERC4626VaultDataBatchRequest,
     "contracts/out/GetERC4626VaultDataBatchRequest.sol/GetERC4626VaultDataBatchRequest.json",
+}
+
+#[derive(Error, Debug)]
+pub enum ERC4626VaultError {
+    #[error("Non relative or zero fee")]
+    NonRelativeOrZeroFee,
+    #[error("Division by zero")]
+    DivisionByZero,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -121,9 +130,9 @@ impl AutomatedMarketMaker for ERC4626Vault {
         amount_in: U256,
     ) -> Result<U256, AMMError> {
         if self.vault_token == base_token {
-            Ok(self.get_amount_out(amount_in, self.vault_reserve, self.asset_reserve))
+            Ok(self.get_amount_out(amount_in, self.vault_reserve, self.asset_reserve)?)
         } else {
-            Ok(self.get_amount_out(amount_in, self.asset_reserve, self.vault_reserve))
+            Ok(self.get_amount_out(amount_in, self.asset_reserve, self.vault_reserve)?)
         }
     }
 
@@ -134,14 +143,16 @@ impl AutomatedMarketMaker for ERC4626Vault {
         amount_in: U256,
     ) -> Result<U256, AMMError> {
         if self.vault_token == base_token {
-            let amount_out = self.get_amount_out(amount_in, self.vault_reserve, self.asset_reserve);
+            let amount_out =
+                self.get_amount_out(amount_in, self.vault_reserve, self.asset_reserve)?;
 
             self.vault_reserve -= amount_in;
             self.asset_reserve -= amount_out;
 
             Ok(amount_out)
         } else {
-            let amount_out = self.get_amount_out(amount_in, self.asset_reserve, self.vault_reserve);
+            let amount_out =
+                self.get_amount_out(amount_in, self.asset_reserve, self.vault_reserve)?;
 
             self.asset_reserve += amount_in;
             self.vault_reserve += amount_out;
@@ -151,7 +162,11 @@ impl AutomatedMarketMaker for ERC4626Vault {
     }
 
     // TODO: clean up this function
-    async fn init<T, N, P>(mut self, block_number: u64, provider: Arc<P>) -> Result<Self, AMMError>
+    async fn init<T, N, P>(
+        mut self,
+        block_number: BlockId,
+        provider: Arc<P>,
+    ) -> Result<Self, AMMError>
     where
         T: Transport + Clone,
         N: Network,
@@ -216,7 +231,7 @@ impl AutomatedMarketMaker for ERC4626Vault {
                 (withdraw_fee_delta_1 / (withdraw_no_fee / U256::from(10_000))).to();
         } else {
             // If not a relative fee or zero, ignore vault
-            todo!("Handle error")
+            return Err(ERC4626VaultError::NonRelativeOrZeroFee.into());
         }
 
         // if above does not error => populate the vault
@@ -241,13 +256,18 @@ impl ERC4626Vault {
         }
     }
 
-    pub fn get_amount_out(&self, amount_in: U256, reserve_in: U256, reserve_out: U256) -> U256 {
+    pub fn get_amount_out(
+        &self,
+        amount_in: U256,
+        reserve_in: U256,
+        reserve_out: U256,
+    ) -> Result<U256, AMMError> {
         if amount_in.is_zero() {
-            return U256::ZERO;
+            return Ok(U256::ZERO);
         }
 
         if self.vault_reserve.is_zero() {
-            return amount_in;
+            return Ok(amount_in);
         }
 
         let fee = if reserve_in == self.vault_reserve {
@@ -256,7 +276,11 @@ impl ERC4626Vault {
             self.deposit_fee
         };
 
-        amount_in * reserve_out / reserve_in * U256::from(10000 - fee) / U256_10000
+        if reserve_in.is_zero() || 10000 - fee == 0 {
+            return Err(ERC4626VaultError::DivisionByZero.into());
+        }
+
+        Ok(amount_in * reserve_out / reserve_in * U256::from(10000 - fee) / U256_10000)
     }
 
     // TODO: Right now this will return a uv2 error, fix this
@@ -295,7 +319,7 @@ impl ERC4626Vault {
     pub async fn get_reserves<T, N, P>(
         &self,
         provider: P,
-        block_number: u64,
+        block_number: BlockId,
     ) -> Result<(U256, U256), AMMError>
     where
         T: Transport + Clone,
@@ -304,19 +328,9 @@ impl ERC4626Vault {
     {
         let vault = IERC4626Vault::new(self.vault_token, provider);
 
-        let total_assets = vault
-            .totalAssets()
-            .block(block_number.into())
-            .call()
-            .await?
-            ._0;
+        let total_assets = vault.totalAssets().block(block_number).call().await?._0;
 
-        let total_supply = vault
-            .totalSupply()
-            .block(block_number.into())
-            .call()
-            .await?
-            ._0;
+        let total_supply = vault.totalSupply().block(block_number).call().await?._0;
 
         Ok((total_supply, total_assets))
     }

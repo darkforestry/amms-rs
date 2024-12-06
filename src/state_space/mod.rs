@@ -8,6 +8,7 @@ use crate::amms::amm::AMM;
 use crate::amms::error::AMMError;
 use crate::amms::factory::Factory;
 
+use alloy::eips::BlockId;
 use alloy::rpc::types::Block;
 use alloy::rpc::types::FilterSet;
 use alloy::rpc::types::Log;
@@ -131,15 +132,15 @@ where
     }
 
     pub async fn sync(self) -> Result<StateSpaceManager<T, N, P>, AMMError> {
-        let chain_tip = self.provider.get_block_number().await?;
-
         let mut futures = FuturesUnordered::new();
         let factories = self.factories.clone();
         for factory in factories {
             let provider = self.provider.clone();
             let filters = self.filters.clone();
             futures.push(tokio::spawn(async move {
-                let mut amms = factory.discover(chain_tip, provider.clone()).await?;
+                let mut amms = factory
+                    .discover(BlockId::latest(), provider.clone())
+                    .await?;
 
                 // Apply discovery filters
                 for filter in filters.iter() {
@@ -158,7 +159,7 @@ where
                     }
                 }
 
-                amms = factory.sync(amms, chain_tip, provider).await?;
+                amms = factory.sync(amms, BlockId::latest(), provider).await?;
 
                 // Apply sync filters
                 for filter in filters.iter() {

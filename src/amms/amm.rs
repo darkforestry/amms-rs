@@ -52,7 +52,7 @@ pub trait AutomatedMarketMaker {
 
     // Initializes an empty pool and syncs state up to `block_number`
     // TODO: return an error
-    async fn init<T, N, P>(self, block_number: u64, provider: Arc<P>) -> Result<Self, AMMError>
+    async fn init<T, N, P>(self, block_number: BlockId, provider: Arc<P>) -> Result<Self, AMMError>
     where
         Self: Sized,
         T: Transport + Clone,
@@ -110,7 +110,7 @@ macro_rules! amm {
                 }
             }
 
-            async fn init<T, N, P>(self, block_number: u64, provider: Arc<P>) -> Result<Self, AMMError>
+            async fn init<T, N, P>(self, block_number: BlockId, provider: Arc<P>) -> Result<Self, AMMError>
             where
                 Self: Sized,
                 T: Transport + Clone,

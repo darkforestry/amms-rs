@@ -1,13 +1,14 @@
 use super::{
     amm::{AutomatedMarketMaker, AMM},
     error::AMMError,
-    factory::{AutomatedMarketMakerFactory, DiscoverySync, Factory},
+    factory::{AutomatedMarketMakerFactory, DiscoverySync},
     get_token_decimals,
 };
 use crate::amms::{
     consts::U256_1, uniswap_v3::GetUniswapV3PoolTickBitmapBatchRequest::TickBitmapInfo,
 };
 use alloy::{
+    eips::BlockId,
     network::Network,
     primitives::{Address, Bytes, Signed, B256, I256, U256},
     providers::Provider,
@@ -576,7 +577,7 @@ impl AutomatedMarketMaker for UniswapV3Pool {
         }
     }
 
-    async fn init<T, N, P>(self, block_number: u64, provider: Arc<P>) -> Result<Self, AMMError>
+    async fn init<T, N, P>(self, block_number: BlockId, provider: Arc<P>) -> Result<Self, AMMError>
     where
         T: Transport + Clone,
         N: Network,
@@ -746,7 +747,7 @@ impl UniswapV3Factory {
 
     pub async fn get_all_pools<T, N, P>(
         &self,
-        block_number: u64,
+        block_number: BlockId,
         provider: Arc<P>,
     ) -> Result<Vec<AMM>, AMMError>
     where
@@ -763,10 +764,10 @@ impl UniswapV3Factory {
 
         let sync_step = 100_000;
         let mut latest_block = self.creation_block;
-        while latest_block < block_number {
+        while latest_block < block_number.as_u64().unwrap_or_default() {
             let mut block_filter = disc_filter.clone();
             let from_block = latest_block;
-            let to_block = (from_block + sync_step).min(block_number);
+            let to_block = (from_block + sync_step).min(block_number.as_u64().unwrap_or_default());
 
             block_filter = block_filter.from_block(from_block);
             block_filter = block_filter.to_block(to_block);
@@ -793,7 +794,7 @@ impl UniswapV3Factory {
     // TODO: update this to use uv3 error and then use thiserror to convert to AMMError
     pub async fn sync_all_pools<T, N, P>(
         mut pools: Vec<AMM>,
-        block_number: u64,
+        block_number: BlockId,
         provider: Arc<P>,
     ) -> Result<Vec<AMM>, AMMError>
     where
@@ -855,7 +856,7 @@ impl UniswapV3Factory {
 
     async fn sync_slot_0<T, N, P>(
         pools: &mut [AMM],
-        block_number: u64,
+        block_number: BlockId,
         provider: Arc<P>,
     ) -> Result<(), AMMError>
     where
@@ -878,7 +879,7 @@ impl UniswapV3Factory {
                     group,
                     GetUniswapV3PoolSlot0BatchRequest::deploy_builder(provider, pool_addresses)
                         .call_raw()
-                        .block(block_number.into())
+                        .block(block_number)
                         .await?,
                 ))
             });
@@ -905,7 +906,7 @@ impl UniswapV3Factory {
 
     async fn sync_tick_bitmaps<T, N, P>(
         pools: &mut [AMM],
-        block_number: u64,
+        block_number: BlockId,
         provider: Arc<P>,
     ) -> Result<(), AMMError>
     where
@@ -963,7 +964,7 @@ impl UniswapV3Factory {
                                 provider, calldata,
                             )
                             .call_raw()
-                            .block(block_number.into())
+                            .block(block_number)
                             .await?,
                         ))
                     }));
@@ -1019,7 +1020,7 @@ impl UniswapV3Factory {
     // TODO: Clean this function up
     async fn sync_tick_data<T, N, P>(
         pools: &mut [AMM],
-        block_number: u64,
+        block_number: BlockId,
         provider: Arc<P>,
     ) -> Result<(), AMMError>
     where
@@ -1101,7 +1102,7 @@ impl UniswapV3Factory {
                                 provider, calldata,
                             )
                             .call_raw()
-                            .block(block_number.into())
+                            .block(block_number)
                             .await?,
                         ))
                     }));
@@ -1118,7 +1119,7 @@ impl UniswapV3Factory {
                     calldata.clone(),
                     GetUniswapV3PoolTickDataBatchRequest::deploy_builder(provider, calldata)
                         .call_raw()
-                        .block(block_number.into())
+                        .block(block_number)
                         .await?,
                 ))
             }));
@@ -1198,7 +1199,7 @@ impl AutomatedMarketMakerFactory for UniswapV3Factory {
 impl DiscoverySync for UniswapV3Factory {
     fn discover<T, N, P>(
         &self,
-        to_block: u64,
+        to_block: BlockId,
         provider: Arc<P>,
     ) -> impl Future<Output = Result<Vec<AMM>, AMMError>>
     where
@@ -1218,7 +1219,7 @@ impl DiscoverySync for UniswapV3Factory {
     fn sync<T, N, P>(
         &self,
         amms: Vec<AMM>,
-        to_block: u64,
+        to_block: BlockId,
         provider: Arc<P>,
     ) -> impl Future<Output = Result<Vec<AMM>, AMMError>>
     where
@@ -1276,10 +1277,8 @@ mod test {
 
         let provider = Arc::new(ProviderBuilder::new().on_client(client));
 
-        let current_block = provider.get_block_number().await?;
-
         let pool = UniswapV3Pool::new(address!("88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640"))
-            .init(current_block, provider.clone())
+            .init(BlockId::latest(), provider.clone())
             .await?;
 
         let quoter = IQuoter::new(
@@ -1300,7 +1299,7 @@ mod test {
                 amount_in,
                 U160::ZERO,
             )
-            .block(current_block.into())
+            .block(BlockId::latest())
             .call()
             .await?;
 
@@ -1317,7 +1316,7 @@ mod test {
                 amount_in_1,
                 U160::ZERO,
             )
-            .block(current_block.into())
+            .block(BlockId::latest())
             .call()
             .await?;
 
@@ -1334,7 +1333,7 @@ mod test {
                 amount_in_2,
                 U160::ZERO,
             )
-            .block(current_block.into())
+            .block(BlockId::latest())
             .call()
             .await?;
 
@@ -1351,7 +1350,7 @@ mod test {
                 amount_in_3,
                 U160::ZERO,
             )
-            .block(current_block.into())
+            .block(BlockId::latest())
             .call()
             .await?;
 
@@ -1369,7 +1368,7 @@ mod test {
                 amount_in,
                 U160::ZERO,
             )
-            .block(current_block.into())
+            .block(BlockId::latest())
             .call()
             .await?;
         assert_eq!(amount_out, expected_amount_out.amountOut);
@@ -1384,7 +1383,7 @@ mod test {
                 amount_in_1,
                 U160::ZERO,
             )
-            .block(current_block.into())
+            .block(BlockId::latest())
             .call()
             .await?;
         assert_eq!(amount_out_1, expected_amount_out_1.amountOut);
@@ -1399,7 +1398,7 @@ mod test {
                 amount_in_2,
                 U160::ZERO,
             )
-            .block(current_block.into())
+            .block(BlockId::latest())
             .call()
             .await?;
         assert_eq!(amount_out_2, expected_amount_out_2.amountOut);
@@ -1414,7 +1413,7 @@ mod test {
                 amount_in_3,
                 U160::ZERO,
             )
-            .block(current_block.into())
+            .block(BlockId::latest())
             .call()
             .await?;
 
@@ -1434,7 +1433,7 @@ mod test {
 
         let provider = Arc::new(ProviderBuilder::new().on_client(client));
 
-        let current_block = provider.get_block_number().await?;
+        let current_block = BlockId::from(provider.get_block_number().await?);
 
         let pool = UniswapV3Pool::new(address!("5d4F3C6fA16908609BAC31Ff148Bd002AA6b8c83"))
             .init(current_block, provider.clone())
@@ -1596,7 +1595,7 @@ mod test {
 
         let provider = Arc::new(ProviderBuilder::new().on_client(client));
 
-        let block_number = 16515398;
+        let block_number = BlockId::from(16515398);
         let pool = UniswapV3Pool::new(address!("88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640"))
             .init(block_number, provider.clone())
             .await?;

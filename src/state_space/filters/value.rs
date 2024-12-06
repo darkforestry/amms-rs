@@ -6,7 +6,6 @@ use crate::amms::{
     error::AMMError,
 };
 use alloy::{
-    dyn_abi::{DynSolType, DynSolValue},
     network::Network,
     primitives::{Address, U256},
     providers::Provider,
