@@ -142,7 +142,7 @@ impl AutomatedMarketMaker for ERC4626Vault {
         }
     }
 
-    async fn init<T, N, P>(&mut self, block_number: u64, provider: Arc<P>) -> Result<(), AMMError>
+    async fn init<T, N, P>(self, block_number: u64, provider: Arc<P>) -> Result<Self, AMMError>
     where
         T: Transport + Clone,
         N: Network,
@@ -153,7 +153,7 @@ impl AutomatedMarketMaker for ERC4626Vault {
         // self.vault_reserve = vault_reserve;
         // self.asset_reserve = asset_reserve;
 
-        Ok(())
+        Ok(self)
     }
 }
 

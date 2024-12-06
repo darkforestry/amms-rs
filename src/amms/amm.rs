@@ -51,8 +51,9 @@ pub trait AutomatedMarketMaker {
 
     // Initializes an empty pool and syncs state up to `block_number`
     // TODO: return an error
-    async fn init<T, N, P>(&mut self, block_number: u64, provider: Arc<P>) -> Result<(), AMMError>
+    async fn init<T, N, P>(self, block_number: u64, provider: Arc<P>) -> Result<Self, AMMError>
     where
+        Self: Sized,
         T: Transport + Clone,
         N: Network,
         P: Provider<T, N>;
@@ -108,14 +109,15 @@ macro_rules! amm {
                 }
             }
 
-            async fn init<T, N, P>(&mut self, block_number: u64, provider: Arc<P>) -> Result<(), AMMError>
+            async fn init<T, N, P>(self, block_number: u64, provider: Arc<P>) -> Result<Self, AMMError>
             where
+                Self: Sized,
                 T: Transport + Clone,
                 N: Network,
                 P: Provider<T, N>,
             {
                 match self {
-                    $(AMM::$pool_type(pool) => pool.init::<T, N, P>(block_number, provider).await,)+
+                    $(AMM::$pool_type(pool) => pool.init(block_number, provider).await.map(AMM::$pool_type),)+
                 }
             }
         }

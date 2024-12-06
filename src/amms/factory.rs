@@ -196,7 +196,7 @@ impl AutomatedMarketMaker for NoopAMM {
         unreachable!()
     }
 
-    async fn init<T, N, P>(&mut self, _block_number: u64, _provider: Arc<P>) -> Result<(), AMMError>
+    async fn init<T, N, P>(self, _block_number: u64, _provider: Arc<P>) -> Result<Self, AMMError>
     where
         T: Transport + Clone,
         N: Network,

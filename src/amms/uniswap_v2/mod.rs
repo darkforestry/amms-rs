@@ -174,14 +174,37 @@ impl AutomatedMarketMaker for UniswapV2Pool {
         q64_to_float(price)
     }
 
-    async fn init<T, N, P>(&mut self, block_number: u64, provider: Arc<P>) -> Result<(), AMMError>
+    async fn init<T, N, P>(mut self, block_number: u64, provider: Arc<P>) -> Result<Self, AMMError>
     where
         T: Transport + Clone,
         N: Network,
         P: Provider<T, N>,
     {
-        todo!("Populate pool data");
-        Ok(())
+        let deployer = IGetUniswapV2PoolDataBatchRequestInstance::deploy_builder(
+            provider.clone(),
+            vec![self.address()],
+        );
+
+        let res = deployer.call_raw().block(block_number.into()).await?;
+
+        let pool_data =
+            <Vec<(Address, Address, u128, u128, u32, u32)> as SolValue>::abi_decode(&res, false)?
+                [0];
+
+        if pool_data.0.is_zero() {
+            todo!("Return error");
+        }
+
+        self.token_a = pool_data.0;
+        self.token_b = pool_data.1;
+        self.reserve_0 = pool_data.2;
+        self.reserve_1 = pool_data.3;
+        self.token_a_decimals = pool_data.4 as u8;
+        self.token_b_decimals = pool_data.5 as u8;
+
+        // TODO: populate fee?
+
+        Ok(self)
     }
 }
 
@@ -199,7 +222,7 @@ pub fn u128_to_float(num: u128) -> Result<Float, AMMError> {
 
 impl UniswapV2Pool {
     // Create a new, unsynced UniswapV2 pool
-    fn new(address: Address) -> Self {
+    pub fn new(address: Address) -> Self {
         Self {
             address,
             ..Default::default()
