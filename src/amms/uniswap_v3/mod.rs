@@ -28,7 +28,7 @@ use std::{
     sync::Arc,
 };
 use thiserror::Error;
-use tracing::{debug, info};
+use tracing::info;
 use uniswap_v3_math::error::UniswapV3MathError;
 use uniswap_v3_math::tick_math::{MAX_SQRT_RATIO, MAX_TICK, MIN_SQRT_RATIO, MIN_TICK};
 use GetUniswapV3PoolTickDataBatchRequest::TickDataInfo;
@@ -575,9 +575,37 @@ impl AutomatedMarketMaker for UniswapV3Pool {
             Ok(1.0 / price)
         }
     }
+
+    async fn init<T, N, P>(self, block_number: u64, provider: Arc<P>) -> Result<Self, AMMError>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
+        let mut pool = vec![self.into()];
+
+        UniswapV3Factory::sync_slot_0(&mut pool, block_number, provider.clone()).await?;
+        UniswapV3Factory::sync_token_decimals(&mut pool, provider.clone()).await;
+        UniswapV3Factory::sync_tick_bitmaps(&mut pool, block_number, provider.clone()).await?;
+        UniswapV3Factory::sync_tick_data(&mut pool, block_number, provider.clone()).await?;
+
+        let AMM::UniswapV3Pool(pool) = pool[0].to_owned() else {
+            unreachable!()
+        };
+
+        Ok(pool)
+    }
 }
 
 impl UniswapV3Pool {
+    // Create a new, unsynced UniswapV3 pool
+    fn new(address: Address) -> Self {
+        Self {
+            address,
+            ..Default::default()
+        }
+    }
+
     /// Modifies a positions liquidity in the pool.
     pub fn modify_position(
         &mut self,
@@ -1230,62 +1258,6 @@ mod test {
         }
     }
 
-    async fn usdc_weth_pool<T, N, P>(
-        block_number: u64,
-        provider: Arc<P>,
-    ) -> eyre::Result<UniswapV3Pool>
-    where
-        T: Transport + Clone,
-        N: Network,
-        P: Provider<T, N> + Clone,
-    {
-        let pool = AMM::UniswapV3Pool(UniswapV3Pool {
-            address: address!("88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640"),
-            token_a: address!("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"),
-            token_b: address!("C02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"),
-            tick_spacing: 10,
-            fee: 500,
-            ..Default::default()
-        });
-
-        let mut pools =
-            UniswapV3Factory::sync_all_pools(vec![pool], block_number, provider).await?;
-
-        if let Some(AMM::UniswapV3Pool(pool)) = pools.pop() {
-            Ok(pool)
-        } else {
-            unreachable!()
-        }
-    }
-
-    async fn weth_link_pool<T, N, P>(
-        block_number: u64,
-        provider: Arc<P>,
-    ) -> eyre::Result<UniswapV3Pool>
-    where
-        T: Transport + Clone,
-        N: Network,
-        P: Provider<T, N> + Clone,
-    {
-        let pool = AMM::UniswapV3Pool(UniswapV3Pool {
-            address: address!("5d4F3C6fA16908609BAC31Ff148Bd002AA6b8c83"),
-            token_a: address!("514910771AF9Ca656af840dff83E8264EcF986CA"),
-            token_b: address!("C02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"),
-            tick_spacing: 10,
-            fee: 500,
-            ..Default::default()
-        });
-
-        let mut pools =
-            UniswapV3Factory::sync_all_pools(vec![pool], block_number, provider).await?;
-
-        if let Some(AMM::UniswapV3Pool(pool)) = pools.pop() {
-            Ok(pool)
-        } else {
-            unreachable!()
-        }
-    }
-
     #[tokio::test]
     async fn test_simulate_swap_usdc_weth() -> eyre::Result<()> {
         let rpc_endpoint = std::env::var("ETHEREUM_PROVIDER")?;
@@ -1305,7 +1277,10 @@ mod test {
         let provider = Arc::new(ProviderBuilder::new().on_client(client));
 
         let current_block = provider.get_block_number().await?;
-        let pool = usdc_weth_pool(current_block, provider.clone()).await?;
+
+        let pool = UniswapV3Pool::new(address!("88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640"))
+            .init(current_block, provider.clone())
+            .await?;
 
         let quoter = IQuoter::new(
             address!("b27308f9f90d607463bb33ea1bebb41c27ce5ab6"),
@@ -1460,7 +1435,10 @@ mod test {
         let provider = Arc::new(ProviderBuilder::new().on_client(client));
 
         let current_block = provider.get_block_number().await?;
-        let pool = weth_link_pool(current_block, provider.clone()).await?;
+
+        let pool = UniswapV3Pool::new(address!("5d4F3C6fA16908609BAC31Ff148Bd002AA6b8c83"))
+            .init(current_block, provider.clone())
+            .await?;
 
         let quoter = IQuoter::new(
             address!("b27308f9f90d607463bb33ea1bebb41c27ce5ab6"),
@@ -1619,7 +1597,9 @@ mod test {
         let provider = Arc::new(ProviderBuilder::new().on_client(client));
 
         let block_number = 16515398;
-        let pool = usdc_weth_pool(block_number, provider.clone()).await?;
+        let pool = UniswapV3Pool::new(address!("88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640"))
+            .init(block_number, provider.clone())
+            .await?;
 
         let float_price_a = pool.calculate_price(pool.token_a, Address::default())?;
 

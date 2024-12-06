@@ -11,6 +11,7 @@ use super::{
 };
 
 use alloy::{
+    eips::BlockId,
     network::Network,
     primitives::{Address, Bytes, B256, U256},
     providers::Provider,
@@ -173,6 +174,39 @@ impl AutomatedMarketMaker for UniswapV2Pool {
         let price = self.calculate_price_64_x_64(base_token)?;
         q64_to_float(price)
     }
+
+    async fn init<T, N, P>(mut self, block_number: u64, provider: Arc<P>) -> Result<Self, AMMError>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
+        let deployer = IGetUniswapV2PoolDataBatchRequestInstance::deploy_builder(
+            provider.clone(),
+            vec![self.address()],
+        );
+
+        let res = deployer.call_raw().block(block_number.into()).await?;
+
+        let pool_data =
+            <Vec<(Address, Address, u128, u128, u32, u32)> as SolValue>::abi_decode(&res, false)?
+                [0];
+
+        if pool_data.0.is_zero() {
+            todo!("Return error");
+        }
+
+        self.token_a = pool_data.0;
+        self.token_b = pool_data.1;
+        self.reserve_0 = pool_data.2;
+        self.reserve_1 = pool_data.3;
+        self.token_a_decimals = pool_data.4 as u8;
+        self.token_b_decimals = pool_data.5 as u8;
+
+        // TODO: populate fee?
+
+        Ok(self)
+    }
 }
 
 pub fn q64_to_float(num: u128) -> Result<f64, AMMError> {
@@ -188,6 +222,14 @@ pub fn u128_to_float(num: u128) -> Result<Float, AMMError> {
 }
 
 impl UniswapV2Pool {
+    // Create a new, unsynced UniswapV2 pool
+    pub fn new(address: Address) -> Self {
+        Self {
+            address,
+            ..Default::default()
+        }
+    }
+
     /// Calculates the amount received for a given `amount_in` `reserve_in` and `reserve_out`.
     pub fn get_amount_out(&self, amount_in: U256, reserve_in: U256, reserve_out: U256) -> U256 {
         if amount_in.is_zero() || reserve_in.is_zero() || reserve_out.is_zero() {
