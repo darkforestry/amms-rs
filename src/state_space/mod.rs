@@ -132,15 +132,15 @@ where
     }
 
     pub async fn sync(self) -> Result<StateSpaceManager<T, N, P>, AMMError> {
-        let mut futures = FuturesUnordered::new();
+        let chain_tip = BlockId::from(self.provider.get_block_number().await?);
         let factories = self.factories.clone();
+        let mut futures = FuturesUnordered::new();
+
         for factory in factories {
             let provider = self.provider.clone();
             let filters = self.filters.clone();
             futures.push(tokio::spawn(async move {
-                let mut amms = factory
-                    .discover(BlockId::latest(), provider.clone())
-                    .await?;
+                let mut amms = factory.discover(chain_tip, provider.clone()).await?;
 
                 // Apply discovery filters
                 for filter in filters.iter() {
@@ -159,7 +159,7 @@ where
                     }
                 }
 
-                amms = factory.sync(amms, BlockId::latest(), provider).await?;
+                amms = factory.sync(amms, chain_tip, provider).await?;
 
                 // Apply sync filters
                 for filter in filters.iter() {
