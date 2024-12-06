@@ -148,11 +148,10 @@ impl AutomatedMarketMaker for ERC4626Vault {
         N: Network,
         P: Provider<T, N>,
     {
-        // TODO: tracing
-
-        let (vault_reserve, asset_reserve) = self.get_reserves(provider, block_number).await?;
-        self.vault_reserve = vault_reserve;
-        self.asset_reserve = asset_reserve;
+        todo!("Populate vault data");
+        // let (vault_reserve, asset_reserve) = self.get_reserves(provider, block_number).await?;
+        // self.vault_reserve = vault_reserve;
+        // self.asset_reserve = asset_reserve;
 
         Ok(())
     }
@@ -160,7 +159,7 @@ impl AutomatedMarketMaker for ERC4626Vault {
 
 // TODO: swap calldata
 impl ERC4626Vault {
-    // Returns a new, unsynced vault
+    // Returns a new, unsynced ERC4626 vault
     pub fn new(address: Address) -> Self {
         Self {
             vault_token: address,

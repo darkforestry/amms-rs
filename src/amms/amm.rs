@@ -108,9 +108,14 @@ macro_rules! amm {
                 }
             }
 
-            fn init<P>(&mut self, block_number: u64, provider: Arc<P>) {
+            async fn init<T, N, P>(&mut self, block_number: u64, provider: Arc<P>) -> Result<(), AMMError>
+            where
+                T: Transport + Clone,
+                N: Network,
+                P: Provider<T, N>,
+            {
                 match self {
-                    $(AMM::$pool_type(pool) => pool.init(block_number, provider),)+
+                    $(AMM::$pool_type(pool) => pool.init::<T, N, P>(block_number, provider).await,)+
                 }
             }
         }

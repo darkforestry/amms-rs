@@ -575,9 +575,27 @@ impl AutomatedMarketMaker for UniswapV3Pool {
             Ok(1.0 / price)
         }
     }
+
+    async fn init<T, N, P>(&mut self, block_number: u64, provider: Arc<P>) -> Result<(), AMMError>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
+        todo!("Populate pool data");
+        Ok(())
+    }
 }
 
 impl UniswapV3Pool {
+    // Create a new, unsynced UniswapV3 pool
+    fn new(address: Address) -> Self {
+        Self {
+            address,
+            ..Default::default()
+        }
+    }
+
     /// Modifies a positions liquidity in the pool.
     pub fn modify_position(
         &mut self,

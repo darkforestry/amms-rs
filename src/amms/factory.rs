@@ -2,7 +2,7 @@ use super::{
     amm::{AutomatedMarketMaker, AMM},
     error::AMMError,
 };
-use super::{erc_4626::ERC4626Factory, uniswap_v2::UniswapV2Factory, uniswap_v3::UniswapV3Factory};
+use super::{uniswap_v2::UniswapV2Factory, uniswap_v3::UniswapV3Factory};
 use alloy::{
     network::Network,
     primitives::{Address, B256, U256},
@@ -150,7 +150,7 @@ macro_rules! factory {
     };
 }
 
-factory!(UniswapV2Factory, UniswapV3Factory, ERC4626Factory);
+factory!(UniswapV2Factory, UniswapV3Factory);
 
 #[derive(Default)]
 pub struct NoopAMM;
@@ -193,6 +193,15 @@ impl AutomatedMarketMaker for NoopAMM {
     }
 
     fn tokens(&self) -> Vec<Address> {
+        unreachable!()
+    }
+
+    async fn init<T, N, P>(&mut self, _block_number: u64, _provider: Arc<P>) -> Result<(), AMMError>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
         unreachable!()
     }
 }

@@ -173,6 +173,16 @@ impl AutomatedMarketMaker for UniswapV2Pool {
         let price = self.calculate_price_64_x_64(base_token)?;
         q64_to_float(price)
     }
+
+    async fn init<T, N, P>(&mut self, block_number: u64, provider: Arc<P>) -> Result<(), AMMError>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
+        todo!("Populate pool data");
+        Ok(())
+    }
 }
 
 pub fn q64_to_float(num: u128) -> Result<f64, AMMError> {
@@ -188,6 +198,14 @@ pub fn u128_to_float(num: u128) -> Result<Float, AMMError> {
 }
 
 impl UniswapV2Pool {
+    // Create a new, unsynced UniswapV2 pool
+    fn new(address: Address) -> Self {
+        Self {
+            address,
+            ..Default::default()
+        }
+    }
+
     /// Calculates the amount received for a given `amount_in` `reserve_in` and `reserve_out`.
     pub fn get_amount_out(&self, amount_in: U256, reserve_in: U256, reserve_out: U256) -> U256 {
         if amount_in.is_zero() || reserve_in.is_zero() || reserve_out.is_zero() {
