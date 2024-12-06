@@ -2,12 +2,18 @@ use super::{
     erc_4626::ERC4626Vault, error::AMMError, uniswap_v2::UniswapV2Pool, uniswap_v3::UniswapV3Pool,
 };
 use alloy::{
+    network::Network,
     primitives::{Address, B256, U256},
+    providers::Provider,
     rpc::types::Log,
+    transports::Transport,
 };
 use eyre::Result;
 use serde::{Deserialize, Serialize};
-use std::hash::{Hash, Hasher};
+use std::{
+    hash::{Hash, Hasher},
+    sync::Arc,
+};
 
 pub trait AutomatedMarketMaker {
     /// Address of the AMM
@@ -43,7 +49,13 @@ pub trait AutomatedMarketMaker {
         amount_in: U256,
     ) -> Result<U256, AMMError>;
 
-    // TODO: fn swap_calldata(&self, token_in, token_out, amount_in, amount_out_min) -> Vec<u8>;
+    // Initializes an empty pool and syncs state up to `block_number`
+    // TODO: return an error
+    async fn init<T, N, P>(&mut self, block_number: u64, provider: Arc<P>) -> Result<(), AMMError>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>;
 }
 
 macro_rules! amm {
@@ -93,6 +105,12 @@ macro_rules! amm {
             fn calculate_price(&self, base_token: Address, quote_token: Address) -> Result<f64, AMMError> {
                 match self {
                     $(AMM::$pool_type(pool) => pool.calculate_price(base_token, quote_token),)+
+                }
+            }
+
+            fn init<P>(&mut self, block_number: u64, provider: Arc<P>) {
+                match self {
+                    $(AMM::$pool_type(pool) => pool.init(block_number, provider),)+
                 }
             }
         }

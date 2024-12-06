@@ -1,8 +1,7 @@
 use super::{
-    amm::{AutomatedMarketMaker, AMM},
+    amm::AutomatedMarketMaker,
     consts::{U128_0X10000000000000000, U256_10000},
     error::AMMError,
-    factory::{AutomatedMarketMakerFactory, DiscoverySync},
     uniswap_v2::{div_uu, q64_to_float},
 };
 use alloy::{
@@ -15,7 +14,7 @@ use alloy::{
     transports::Transport,
 };
 use serde::{Deserialize, Serialize};
-use std::{cmp::Ordering, future::Future, sync::Arc};
+use std::{cmp::Ordering, sync::Arc};
 use tracing::info;
 
 sol! {
@@ -142,11 +141,33 @@ impl AutomatedMarketMaker for ERC4626Vault {
             Ok(amount_out)
         }
     }
+
+    async fn init<T, N, P>(&mut self, block_number: u64, provider: Arc<P>) -> Result<(), AMMError>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
+        // TODO: tracing
+
+        let (vault_reserve, asset_reserve) = self.get_reserves(provider, block_number).await?;
+        self.vault_reserve = vault_reserve;
+        self.asset_reserve = asset_reserve;
+
+        Ok(())
+    }
 }
 
 // TODO: swap calldata
-
 impl ERC4626Vault {
+    // Returns a new, unsynced vault
+    pub fn new(address: Address) -> Self {
+        Self {
+            vault_token: address,
+            ..Default::default()
+        }
+    }
+
     pub fn get_amount_out(&self, amount_in: U256, reserve_in: U256, reserve_out: U256) -> U256 {
         if amount_in.is_zero() {
             return U256::ZERO;
@@ -197,65 +218,33 @@ impl ERC4626Vault {
             Ok(div_uu(r_v, r_a)?)
         }
     }
-}
 
-#[derive(Debug, Clone, Serialize, Deserialize, Hash, PartialEq, Eq)]
-pub struct ERC4626Factory {
-    // Block to start searching from for new vaults
-    pub creation_block: u64,
-}
-impl DiscoverySync for ERC4626Factory {
-    fn discover<T, N, P>(
+    pub async fn get_reserves<T, N, P>(
         &self,
-        to_block: u64,
-        provider: Arc<P>,
-    ) -> impl Future<Output = Result<Vec<AMM>, AMMError>>
+        provider: P,
+        block_number: u64,
+    ) -> Result<(U256, U256), AMMError>
     where
         T: Transport + Clone,
         N: Network,
-        P: Provider<T, N>,
+        P: Provider<T, N> + Clone,
     {
-        info!(
-            target = "amms::erc_4626::discover",
-            "Discovering all vaults"
-        );
-        async move { todo!() }
-    }
+        let vault = IERC4626Vault::new(self.vault_token, provider);
 
-    fn sync<T, N, P>(
-        &self,
-        amms: Vec<AMM>,
-        to_block: u64,
-        provider: Arc<P>,
-    ) -> impl Future<Output = Result<Vec<AMM>, AMMError>>
-    where
-        T: Transport + Clone,
-        N: Network,
-        P: Provider<T, N>,
-    {
-        info!(target = "amms::erc_4626::sync", "Syncing all vaults");
+        let total_assets = vault
+            .totalAssets()
+            .block(block_number.into())
+            .call()
+            .await?
+            ._0;
 
-        async move { todo!() }
-    }
-}
+        let total_supply = vault
+            .totalSupply()
+            .block(block_number.into())
+            .call()
+            .await?
+            ._0;
 
-// TODO: update factory macro to impl into impl
-impl AutomatedMarketMakerFactory for ERC4626Factory {
-    type PoolVariant = ERC4626Vault;
-
-    fn address(&self) -> Address {
-        Address::default()
-    }
-
-    fn create_pool(&self, _log: Log) -> Result<AMM, AMMError> {
-        Ok(ERC4626Vault::default().into())
-    }
-
-    fn creation_block(&self) -> u64 {
-        self.creation_block
-    }
-
-    fn pool_creation_event(&self) -> B256 {
-        todo!()
+        Ok((total_supply, total_assets))
     }
 }
