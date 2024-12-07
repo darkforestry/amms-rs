@@ -97,6 +97,7 @@ pub struct StateSpaceBuilder<T, N, P> {
     pub provider: Arc<P>,
     pub latest_block: u64,
     pub factories: Vec<Factory>,
+    pub amms: Vec<AMM>,
     pub filters: Vec<PoolFilter>,
     phantom: PhantomData<(T, N)>,
     // TODO: add support for caching
@@ -109,11 +110,12 @@ where
     N: Network,
     P: Provider<T, N> + 'static,
 {
-    pub fn new(provider: Arc<P>, factories: Vec<Factory>) -> StateSpaceBuilder<T, N, P> {
+    pub fn new(provider: Arc<P>) -> StateSpaceBuilder<T, N, P> {
         Self {
             provider,
             latest_block: 0,
-            factories,
+            factories: vec![],
+            amms: vec![],
             filters: vec![],
             // discovery: false,
             phantom: PhantomData,
@@ -127,6 +129,14 @@ where
         }
     }
 
+    pub fn with_factories(self, factories: Vec<Factory>) -> StateSpaceBuilder<T, N, P> {
+        StateSpaceBuilder { factories, ..self }
+    }
+
+    pub fn with_amms(self, amms: Vec<AMM>) -> StateSpaceBuilder<T, N, P> {
+        StateSpaceBuilder { amms, ..self }
+    }
+
     pub fn with_filters(self, filters: Vec<PoolFilter>) -> StateSpaceBuilder<T, N, P> {
         StateSpaceBuilder { filters, ..self }
     }
@@ -136,49 +146,63 @@ where
         let factories = self.factories.clone();
         let mut futures = FuturesUnordered::new();
 
+        let mut amms = HashMap::new();
+        for amm in self.amms.into_iter() {
+            amms.entry(amm.variant()).or_insert_with(Vec::new).push(amm);
+        }
+        let amms = Arc::new(amms);
+
         for factory in factories {
             let provider = self.provider.clone();
             let filters = self.filters.clone();
+
+            let amms = amms.clone();
             futures.push(tokio::spawn(async move {
-                let mut amms = factory.discover(chain_tip, provider.clone()).await?;
+                let mut discovered_amms = factory.discover(chain_tip, provider.clone()).await?;
+
+                if let Some(amm) = discovered_amms.first() {
+                    if let Some(group) = amms.get(&amm.variant()) {
+                        discovered_amms.extend(group.to_owned());
+                    }
+                }
 
                 // Apply discovery filters
                 for filter in filters.iter() {
                     if filter.stage() == filters::FilterStage::Discovery {
-                        let pre_filter_len = amms.len();
-                        amms = filter.filter(amms).await?;
+                        let pre_filter_len = discovered_amms.len();
+                        discovered_amms = filter.filter(discovered_amms).await?;
 
                         info!(
                             target: "state_space::sync",
                             factory = %factory.address(),
                             pre_filter_len,
-                            post_filter_len = amms.len(),
+                            post_filter_len = discovered_amms.len(),
                             filter = ?filter,
                             "Discovery filter"
                         );
                     }
                 }
 
-                amms = factory.sync(amms, chain_tip, provider).await?;
+                discovered_amms = factory.sync(discovered_amms, chain_tip, provider).await?;
 
                 // Apply sync filters
                 for filter in filters.iter() {
                     if filter.stage() == filters::FilterStage::Sync {
-                        let pre_filter_len = amms.len();
-                        amms = filter.filter(amms).await?;
+                        let pre_filter_len = discovered_amms.len();
+                        discovered_amms = filter.filter(discovered_amms).await?;
 
                         info!(
                             target: "state_space::sync",
                             factory = %factory.address(),
                             pre_filter_len,
-                            post_filter_len = amms.len(),
+                            post_filter_len = discovered_amms.len(),
                             filter = ?filter,
                             "Sync filter"
                         );
                     }
                 }
 
-                Ok::<Vec<AMM>, AMMError>(amms)
+                Ok::<Vec<AMM>, AMMError>(discovered_amms)
             }));
         }
 

@@ -43,7 +43,8 @@ async fn main() -> eyre::Result<()> {
        all pools to the latest block. This method returns a `StateSpaceManager` which can be used to
        subscribe to state changes and interact with AMMs the state space.
     */
-    let _state_space_manager = StateSpaceBuilder::new(provider.clone(), factories)
+    let _state_space_manager = StateSpaceBuilder::new(provider.clone())
+        .with_factories(factories)
         .sync()
         .await?;
 

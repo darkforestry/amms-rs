@@ -19,7 +19,7 @@ async fn main() -> eyre::Result<()> {
 
     let provider = Arc::new(ProviderBuilder::new().on_client(client));
 
-    let pool = UniswapV3Pool::new(address!("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640"))
+    let pool = UniswapV3Pool::new(address!("88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640"))
         .init(BlockId::latest(), provider)
         .await?;
 
