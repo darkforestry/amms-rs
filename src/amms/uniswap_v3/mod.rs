@@ -600,7 +600,7 @@ impl AutomatedMarketMaker for UniswapV3Pool {
 
 impl UniswapV3Pool {
     // Create a new, unsynced UniswapV3 pool
-    fn new(address: Address) -> Self {
+    pub fn new(address: Address) -> Self {
         Self {
             address,
             ..Default::default()
