@@ -5,7 +5,8 @@ use alloy::{
     transports::layers::RetryBackoffLayer,
 };
 use alloy_throttle::ThrottleLayer;
-use amms::amms::{amm::AutomatedMarketMaker, uniswap_v2::UniswapV2Pool};
+use amms::amms::amm::AutomatedMarketMaker;
+use amms::amms::uniswap_v3::UniswapV3Pool;
 use std::sync::Arc;
 
 #[tokio::main]
@@ -18,7 +19,7 @@ async fn main() -> eyre::Result<()> {
 
     let provider = Arc::new(ProviderBuilder::new().on_client(client));
 
-    let pool = UniswapV2Pool::new(address!("B4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc"))
+    let pool = UniswapV3Pool::new(address!("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640"))
         .init(BlockId::latest(), provider)
         .await?;
 

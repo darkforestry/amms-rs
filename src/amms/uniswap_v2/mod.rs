@@ -227,9 +227,11 @@ pub fn u128_to_float(num: u128) -> Result<Float, AMMError> {
 
 impl UniswapV2Pool {
     // Create a new, unsynced UniswapV2 pool
-    pub fn new(address: Address) -> Self {
+    // TODO: update the init function to derive the fee
+    pub fn new(address: Address, fee: usize) -> Self {
         Self {
             address,
+            fee,
             ..Default::default()
         }
     }
