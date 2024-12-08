@@ -7,10 +7,17 @@ use alloy::{
 use alloy_throttle::ThrottleLayer;
 use amms::{
     amms::{
+        amm::AMM,
         uniswap_v2::{UniswapV2Factory, UniswapV2Pool},
         uniswap_v3::{UniswapV3Factory, UniswapV3Pool},
     },
-    state_space::StateSpaceBuilder,
+    state_space::{
+        filters::{
+            whitelist::{PoolWhitelistFilter, TokenWhitelistFilter},
+            PoolFilter,
+        },
+        StateSpaceBuilder,
+    },
     sync,
 };
 
@@ -42,7 +49,13 @@ async fn main() -> eyre::Result<()> {
         .into(),
     ];
 
-    let _state_space_manager = sync!(factories, provider);
+    let filters: Vec<PoolFilter> = vec![
+        PoolWhitelistFilter::new(vec![address!("88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640")]).into(),
+        TokenWhitelistFilter::new(vec![address!("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48")])
+            .into(),
+    ];
+
+    let _state_space_manager = sync!(factories, filters, provider);
 
     Ok(())
 }
