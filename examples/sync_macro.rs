@@ -11,6 +11,7 @@ use amms::{
         uniswap_v3::{UniswapV3Factory, UniswapV3Pool},
     },
     state_space::StateSpaceBuilder,
+    sync,
 };
 
 #[tokio::main]
@@ -25,15 +26,23 @@ async fn main() -> eyre::Result<()> {
 
     let provider = Arc::new(ProviderBuilder::new().on_client(client));
 
-    let amms = vec![
-        UniswapV2Pool::new(address!("B4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc"), 300).into(),
-        UniswapV3Pool::new(address!("88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640")).into(),
+    let factories = vec![
+        // UniswapV2
+        UniswapV2Factory::new(
+            address!("5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f"),
+            300,
+            10000835,
+        )
+        .into(),
+        // UniswapV3
+        UniswapV3Factory::new(
+            address!("1F98431c8aD98523631AE4a59f267346ea31F984"),
+            12369621,
+        )
+        .into(),
     ];
 
-    let _state_space_manager = StateSpaceBuilder::new(provider.clone())
-        .with_amms(amms)
-        .sync()
-        .await?;
+    let _state_space_manager = sync!(factories, provider);
 
     Ok(())
 }

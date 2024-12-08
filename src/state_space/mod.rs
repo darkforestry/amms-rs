@@ -341,3 +341,112 @@ impl StateSpace {
         Ok(affected_amms.into_iter().collect())
     }
 }
+
+#[macro_export]
+macro_rules! sync {
+    // Factories and provider
+    ($factories:expr, $provider:expr) => {{
+        StateSpaceBuilder::new($provider.clone())
+            .with_factories($factories)
+            .sync()
+            .await?
+    }};
+
+    // Factories, filters, and provider
+    ($factories:expr, $filters:expr, $provider:expr) => {{
+        StateSpaceBuilder::new($provider.clone())
+            .with_factories($factories)
+            .with_filters($filters)
+            .sync()
+            .await?
+    }};
+
+    // Factories, block_number, and provider
+    ($factories:expr, $block_number:expr, $provider:expr) => {{
+        StateSpaceBuilder::new($provider.clone())
+            .with_factories($factories)
+            .with_block_number($block_number)
+            .sync()
+            .await?
+    }};
+
+    // Factories, filters, block_number, and provider
+    ($factories:expr, $filters:expr, $block_number:expr, $provider:expr) => {{
+        StateSpaceBuilder::new($provider.clone())
+            .with_factories($factories)
+            .with_filters($filters)
+            .with_block_number($block_number)
+            .sync()
+            .await?
+    }};
+
+    // AMMs and provider
+    ($amms:expr, $provider:expr) => {{
+        StateSpaceBuilder::new($provider.clone())
+            .with_amms($amms)
+            .sync()
+            .await?
+    }};
+    // AMMs, filters, and provider
+    ($amms:expr, $filters:expr, $provider:expr) => {{
+        StateSpaceBuilder::new($provider.clone())
+            .with_amms($amms)
+            .with_filters($filters)
+            .sync()
+            .await?
+    }};
+    // AMMs, filters, block_number, and provider
+    ($amms:expr, $filters:expr, $block_number:expr, $provider:expr) => {{
+        StateSpaceBuilder::new($provider.clone())
+            .with_amms($amms)
+            .with_filters($filters)
+            .with_block_number($block_number)
+            .sync()
+            .await?
+    }};
+    // AMMs, block_number, and provider
+    ($amms:expr, $block_number:expr, $provider:expr) => {{
+        StateSpaceBuilder::new($provider.clone())
+            .with_amms($amms)
+            .with_block_number($block_number)
+            .sync()
+            .await?
+    }};
+
+    // Factories, AMMs, and provider
+    ($factories:expr, $amms:expr, $provider:expr) => {{
+        StateSpaceBuilder::new($provider.clone())
+            .with_factories($factories)
+            .with_amms($amms)
+            .sync()
+            .await?
+    }};
+    // Factories, AMMs, filters, and provider
+    ($factories:expr, $amms:expr, $filters:expr, $provider:expr) => {{
+        StateSpaceBuilder::new($provider.clone())
+            .with_factories($factories)
+            .with_amms($amms)
+            .with_filters($filters)
+            .sync()
+            .await?
+    }};
+    // Factories, AMMs, block_number, and provider
+    ($factories:expr, $amms:expr, $block_number:expr, $provider:expr) => {{
+        StateSpaceBuilder::new($provider.clone())
+            .with_factories($factories)
+            .with_amms($amms)
+            .with_block_number($block_number)
+            .sync()
+            .await?
+    }};
+    // Factories, AMMs, filters, block_number, and provider
+    ($factories:expr, $amms:expr, $filters:expr, $block_number:expr, $provider:expr) => {{
+        StateSpaceBuilder::new($provider.clone())
+            .with_factories($factories)
+            .with_amms($amms)
+            .with_filters($filters)
+            .with_block_number($block_number)
+            .sync()
+            .await?
+    }};
+}
