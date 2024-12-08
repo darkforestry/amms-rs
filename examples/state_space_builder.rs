@@ -1,11 +1,8 @@
 use std::sync::Arc;
 
 use alloy::{
-    network::Network,
-    primitives::address,
-    providers::{Provider, ProviderBuilder},
-    rpc::client::ClientBuilder,
-    transports::{layers::RetryBackoffLayer, Transport},
+    primitives::address, providers::ProviderBuilder, rpc::client::ClientBuilder,
+    transports::layers::RetryBackoffLayer,
 };
 use alloy_throttle::ThrottleLayer;
 use amms::{

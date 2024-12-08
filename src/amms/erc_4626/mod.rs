@@ -120,7 +120,7 @@ impl AutomatedMarketMaker for ERC4626Vault {
     }
 
     fn calculate_price(&self, base_token: Address, _quote_token: Address) -> Result<f64, AMMError> {
-        Ok(q64_to_float(self.calculate_price_64_x_64(base_token)?)?)
+        q64_to_float(self.calculate_price_64_x_64(base_token)?)
     }
 
     fn simulate_swap(
@@ -174,7 +174,7 @@ impl AutomatedMarketMaker for ERC4626Vault {
     {
         let deployer =
             IGetERC4626VaultDataBatchRequest::deploy_builder(provider, vec![self.vault_token]);
-        let res = deployer.call_raw().block(block_number.into()).await?;
+        let res = deployer.call_raw().block(block_number).await?;
 
         let data = <Vec<(
             Address,

@@ -6,11 +6,7 @@ use alloy::{
 };
 use alloy_throttle::ThrottleLayer;
 use amms::{
-    amms::{
-        amm::AMM,
-        uniswap_v2::{UniswapV2Factory, UniswapV2Pool},
-        uniswap_v3::{UniswapV3Factory, UniswapV3Pool},
-    },
+    amms::{uniswap_v2::UniswapV2Factory, uniswap_v3::UniswapV3Factory},
     state_space::{
         filters::{
             whitelist::{PoolWhitelistFilter, TokenWhitelistFilter},
