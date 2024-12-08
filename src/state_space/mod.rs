@@ -146,24 +146,24 @@ where
         let factories = self.factories.clone();
         let mut futures = FuturesUnordered::new();
 
-        let mut amms = HashMap::new();
+        let mut amm_variants = HashMap::new();
         for amm in self.amms.into_iter() {
-            amms.entry(amm.variant()).or_insert_with(Vec::new).push(amm);
+            amm_variants
+                .entry(amm.variant())
+                .or_insert_with(Vec::new)
+                .push(amm);
         }
-        let amms = Arc::new(amms);
 
         for factory in factories {
             let provider = self.provider.clone();
             let filters = self.filters.clone();
 
-            let amms = amms.clone();
+            let extension = amm_variants.remove(&factory.variant());
             futures.push(tokio::spawn(async move {
                 let mut discovered_amms = factory.discover(chain_tip, provider.clone()).await?;
 
-                if let Some(amm) = discovered_amms.first() {
-                    if let Some(group) = amms.get(&amm.variant()) {
-                        discovered_amms.extend(group.to_owned());
-                    }
+                if let Some(amms) = extension {
+                    discovered_amms.extend(amms);
                 }
 
                 // Apply discovery filters
@@ -208,11 +208,20 @@ where
 
         let mut state_space = StateSpace::default();
         while let Some(res) = futures.next().await {
-            let amms = res??;
+            let synced_amms = res??;
 
-            for amm in amms {
+            for amm in synced_amms {
                 // println!("Adding AMM: {:?}", amm.address());
                 state_space.state.insert(amm.address(), amm);
+            }
+        }
+
+        // Sync remaining AMM variants
+        for (_, remaining_amms) in amm_variants.drain() {
+            for mut amm in remaining_amms {
+                let address = amm.address();
+                amm = amm.init(chain_tip, self.provider.clone()).await?;
+                state_space.state.insert(address, amm);
             }
         }
 
