@@ -671,7 +671,7 @@ impl UniswapV3Pool {
         liquidity_delta: i128,
         upper: bool,
     ) -> Result<bool, AMMError> {
-        let info = self.ticks.entry(tick).or_insert(Info::default());
+        let info = self.ticks.entry(tick).or_default();
 
         let liquidity_gross_before = info.liquidity_gross;
 
@@ -984,7 +984,7 @@ impl UniswapV3Factory {
                     pool_info,
                     GetUniswapV3PoolTickBitmapBatchRequest::deploy_builder(provider, calldata)
                         .call_raw()
-                        .block(block_number.into())
+                        .block(block_number)
                         .await?,
                 ))
             }));

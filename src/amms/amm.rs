@@ -123,6 +123,20 @@ macro_rules! amm {
             }
         }
 
+
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+        pub enum Variant {
+            $($pool_type,)+
+        }
+
+        impl AMM {
+            pub fn variant(&self) -> Variant {
+                match self {
+                    $(AMM::$pool_type(_) => Variant::$pool_type,)+
+                }
+            }
+        }
+
         impl Hash for AMM {
             fn hash<H: Hasher>(&self, state: &mut H) {
                 self.address().hash(state);
