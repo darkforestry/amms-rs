@@ -140,7 +140,7 @@ where
             let provider = self.provider.clone();
             let filters = self.filters.clone();
             futures.push(tokio::spawn(async move {
-                let mut amms = factory.discover(chain_tip, provider.clone()).await?;
+                let mut amms = factory.get_pools(chain_tip, provider.clone()).await?;
 
                 // Apply discovery filters
                 for filter in filters.iter() {
@@ -159,7 +159,7 @@ where
                     }
                 }
 
-                amms = factory.sync(amms, chain_tip, provider).await?;
+                amms = factory.sync_pools(amms, chain_tip, provider).await?;
 
                 // Apply sync filters
                 for filter in filters.iter() {

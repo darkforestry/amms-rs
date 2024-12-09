@@ -1,7 +1,7 @@
 use super::{
     amm::{AutomatedMarketMaker, AMM},
     error::AMMError,
-    factory::{AutomatedMarketMakerFactory, DiscoverySync},
+    factory::AutomatedMarketMakerFactory,
     get_token_decimals,
 };
 use crate::amms::{
@@ -745,52 +745,6 @@ impl UniswapV3Factory {
         }
     }
 
-    pub async fn get_all_pools<T, N, P>(
-        &self,
-        block_number: BlockId,
-        provider: Arc<P>,
-    ) -> Result<Vec<AMM>, AMMError>
-    where
-        T: Transport + Clone,
-        N: Network,
-        P: Provider<T, N>,
-    {
-        let disc_filter = Filter::new()
-            .event_signature(FilterSet::from(vec![self.pool_creation_event()]))
-            .address(vec![self.address()]);
-
-        let sync_provider = provider.clone();
-        let mut futures = FuturesUnordered::new();
-
-        let sync_step = 100_000;
-        let mut latest_block = self.creation_block;
-        while latest_block < block_number.as_u64().unwrap_or_default() {
-            let mut block_filter = disc_filter.clone();
-            let from_block = latest_block;
-            let to_block = (from_block + sync_step).min(block_number.as_u64().unwrap_or_default());
-
-            block_filter = block_filter.from_block(from_block);
-            block_filter = block_filter.to_block(to_block);
-
-            let sync_provider = sync_provider.clone();
-
-            futures.push(async move { sync_provider.get_logs(&block_filter).await });
-
-            latest_block = to_block + 1;
-        }
-
-        let mut pools = vec![];
-        while let Some(res) = futures.next().await {
-            let logs = res?;
-
-            for log in logs {
-                pools.push(self.create_pool(log)?);
-            }
-        }
-
-        Ok(pools)
-    }
-
     // TODO: update this to use uv3 error and then use thiserror to convert to AMMError
     pub async fn sync_all_pools<T, N, P>(
         mut pools: Vec<AMM>,
@@ -1194,14 +1148,12 @@ impl AutomatedMarketMakerFactory for UniswapV3Factory {
     fn creation_block(&self) -> u64 {
         self.creation_block
     }
-}
 
-impl DiscoverySync for UniswapV3Factory {
-    fn discover<T, N, P>(
+    fn get_pools<T, N, P>(
         &self,
         to_block: BlockId,
         provider: Arc<P>,
-    ) -> impl Future<Output = Result<Vec<AMM>, AMMError>>
+    ) -> impl Future<Output = eyre::Result<Vec<AMM>, AMMError>>
     where
         T: Transport + Clone,
         N: Network,
@@ -1213,15 +1165,50 @@ impl DiscoverySync for UniswapV3Factory {
             "Discovering all pools"
         );
 
-        self.get_all_pools(to_block, provider.clone())
+        async move {
+            let disc_filter = Filter::new()
+                .event_signature(FilterSet::from(vec![self.pool_creation_event()]))
+                .address(vec![self.address()]);
+
+            let sync_provider = provider.clone();
+            let mut futures = FuturesUnordered::new();
+
+            let sync_step = 100_000;
+            let mut latest_block = self.creation_block;
+            while latest_block < to_block.as_u64().unwrap_or_default() {
+                let mut block_filter = disc_filter.clone();
+                let from_block = latest_block;
+                let to_block = (from_block + sync_step).min(to_block.as_u64().unwrap_or_default());
+
+                block_filter = block_filter.from_block(from_block);
+                block_filter = block_filter.to_block(to_block);
+
+                let sync_provider = sync_provider.clone();
+
+                futures.push(async move { sync_provider.get_logs(&block_filter).await });
+
+                latest_block = to_block + 1;
+            }
+
+            let mut pools = vec![];
+            while let Some(res) = futures.next().await {
+                let logs = res?;
+
+                for log in logs {
+                    pools.push(self.create_pool(log)?);
+                }
+            }
+
+            Ok(pools)
+        }
     }
 
-    fn sync<T, N, P>(
+    fn sync_pools<T, N, P>(
         &self,
         amms: Vec<AMM>,
         to_block: BlockId,
         provider: Arc<P>,
-    ) -> impl Future<Output = Result<Vec<AMM>, AMMError>>
+    ) -> impl Future<Output = eyre::Result<Vec<AMM>, AMMError>>
     where
         T: Transport + Clone,
         N: Network,

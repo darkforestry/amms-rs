@@ -19,30 +19,12 @@ use std::{
     sync::Arc,
 };
 
-pub trait DiscoverySync {
-    fn discover<T, N, P>(
-        &self,
-        to_block: BlockId,
-        provider: Arc<P>,
-    ) -> impl Future<Output = Result<Vec<AMM>, AMMError>>
-    where
-        T: Transport + Clone,
-        N: Network,
-        P: Provider<T, N>;
-
-    fn sync<T, N, P>(
-        &self,
-        amms: Vec<AMM>,
-        to_block: BlockId,
-        provider: Arc<P>,
-    ) -> impl Future<Output = Result<Vec<AMM>, AMMError>>
-    where
-        T: Transport + Clone,
-        N: Network,
-        P: Provider<T, N>;
+// TODO: docs
+pub trait Discoverable {
+    fn discover();
 }
 
-pub trait AutomatedMarketMakerFactory: DiscoverySync {
+pub trait AutomatedMarketMakerFactory {
     type PoolVariant: AutomatedMarketMaker + Default;
 
     /// Address of the factory contract
@@ -61,6 +43,27 @@ pub trait AutomatedMarketMakerFactory: DiscoverySync {
     fn pool_events(&self) -> Vec<B256> {
         Self::PoolVariant::default().sync_events()
     }
+
+    fn get_pools<T, N, P>(
+        &self,
+        to_block: BlockId,
+        provider: Arc<P>,
+    ) -> impl Future<Output = Result<Vec<AMM>, AMMError>>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>;
+
+    fn sync_pools<T, N, P>(
+        &self,
+        amms: Vec<AMM>,
+        to_block: BlockId,
+        provider: Arc<P>,
+    ) -> impl Future<Output = Result<Vec<AMM>, AMMError>>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>;
 }
 
 macro_rules! factory {
@@ -118,25 +121,25 @@ macro_rules! factory {
 
 
         impl Factory {
-            pub async fn discover<T, N, P>(&self, to_block: BlockId, provider: Arc<P>) -> Result<Vec<AMM>, AMMError>
+            pub async fn get_pools<T, N, P>(&self, to_block: BlockId, provider: Arc<P>) -> Result<Vec<AMM>, AMMError>
             where
                 T: Transport + Clone,
                 N: Network,
                 P: Provider<T, N>,
             {
                 match self {
-                    $(Factory::$factory_type(factory) => factory.discover(to_block, provider).await,)+
+                    $(Factory::$factory_type(factory) => factory.get_pools(to_block, provider).await,)+
                 }
             }
 
-            pub async fn sync<T, N, P>(&self, amms: Vec<AMM>, to_block: BlockId, provider: Arc<P>) -> Result<Vec<AMM>, AMMError>
+            pub async fn sync_pools<T, N, P>(&self, amms: Vec<AMM>, to_block: BlockId, provider: Arc<P>) -> Result<Vec<AMM>, AMMError>
             where
                 T: Transport + Clone,
                 N: Network,
                 P: Provider<T, N>,
             {
                 match self {
-                    $(Factory::$factory_type(factory) => factory.sync(amms, to_block, provider).await,)+
+                    $(Factory::$factory_type(factory) => factory.sync_pools(amms, to_block, provider).await,)+
                 }
             }
         }
