@@ -360,4 +360,13 @@ macro_rules! sync {
             .sync()
             .await?
     }};
+
+    ($factories:expr, $amms:expr, $filters:expr, $provider:expr) => {{
+        StateSpaceBuilder::new($provider.clone())
+            .with_factories($factories)
+            .with_amms($amms)
+            .with_filters($filters)
+            .sync()
+            .await?
+    }};
 }
