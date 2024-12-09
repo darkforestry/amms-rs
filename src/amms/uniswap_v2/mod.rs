@@ -7,7 +7,7 @@ use super::{
         U256_16, U256_191, U256_192, U256_2, U256_255, U256_32, U256_4, U256_64, U256_8,
     },
     error::AMMError,
-    factory::{AutomatedMarketMakerFactory, DiscoverySync},
+    factory::AutomatedMarketMakerFactory,
 };
 
 use alloy::{
@@ -563,14 +563,12 @@ impl AutomatedMarketMakerFactory for UniswapV2Factory {
     fn creation_block(&self) -> u64 {
         self.creation_block
     }
-}
 
-impl DiscoverySync for UniswapV2Factory {
-    fn discover<T, N, P>(
+    fn get_pools<T, N, P>(
         &self,
         to_block: BlockId,
         provider: Arc<P>,
-    ) -> impl Future<Output = Result<Vec<AMM>, AMMError>>
+    ) -> impl Future<Output = eyre::Result<Vec<AMM>, AMMError>>
     where
         T: Transport + Clone,
         N: Network,
@@ -605,12 +603,12 @@ impl DiscoverySync for UniswapV2Factory {
         }
     }
 
-    fn sync<T, N, P>(
+    fn sync_pools<T, N, P>(
         &self,
         amms: Vec<AMM>,
         to_block: BlockId,
         provider: Arc<P>,
-    ) -> impl Future<Output = Result<Vec<AMM>, AMMError>>
+    ) -> impl Future<Output = eyre::Result<Vec<AMM>, AMMError>>
     where
         T: Transport + Clone,
         N: Network,
