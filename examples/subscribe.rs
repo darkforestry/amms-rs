@@ -18,17 +18,15 @@ async fn main() -> eyre::Result<()> {
 
     let sync_provider = Arc::new(ProviderBuilder::new().on_client(client));
 
-    let factories = vec![
-        // UniswapV2
-        UniswapV2Factory::new(
-            address!("5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f"),
-            300,
-            10000835,
-        )
-        .into(),
-    ];
+    let factories = vec![UniswapV2Factory::new(
+        address!("5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f"),
+        300,
+        10000835,
+    )
+    .into()];
 
-    let state_space_manager = StateSpaceBuilder::new(sync_provider.clone(), factories)
+    let state_space_manager = StateSpaceBuilder::new(sync_provider.clone())
+        .with_factories(factories)
         .sync()
         .await?;
 
