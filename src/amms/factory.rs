@@ -21,7 +21,8 @@ use std::{
 
 // TODO: docs
 pub trait Discoverable {
-    fn discover();
+    type FactoryVariant: AutomatedMarketMakerFactory + Default;
+    fn discover() -> Vec<Self::FactoryVariant>;
 }
 
 pub trait AutomatedMarketMakerFactory {
@@ -64,6 +65,7 @@ pub trait AutomatedMarketMakerFactory {
         T: Transport + Clone,
         N: Network,
         P: Provider<T, N>;
+
     fn pool_variant(&self) -> Self::PoolVariant {
         Self::PoolVariant::default()
     }

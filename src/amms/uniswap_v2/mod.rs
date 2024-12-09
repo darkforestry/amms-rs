@@ -7,7 +7,7 @@ use super::{
         U256_16, U256_191, U256_192, U256_2, U256_255, U256_32, U256_4, U256_64, U256_8,
     },
     error::AMMError,
-    factory::AutomatedMarketMakerFactory,
+    factory::{AutomatedMarketMakerFactory, Discoverable},
 };
 
 use alloy::{
