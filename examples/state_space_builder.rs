@@ -78,8 +78,7 @@ async fn main() -> eyre::Result<()> {
     specify specific AMMs to sync. This can be helpful when there isnt a factory for a given AMM
     as is the case with ERC4626 vaults.
     */
-    let amms: Vec<amms::amms::amm::AMM> =
-        vec![ERC4626Vault::new(address!("163538E22F4d38c1eb21B79939f3d2ee274198Ff")).into()];
+    let amms = vec![ERC4626Vault::new(address!("163538E22F4d38c1eb21B79939f3d2ee274198Ff")).into()];
 
     let _state_space_manager = StateSpaceBuilder::new(provider.clone())
         .with_factories(factories)
