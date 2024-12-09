@@ -341,3 +341,32 @@ impl StateSpace {
         Ok(affected_amms.into_iter().collect())
     }
 }
+
+#[macro_export]
+macro_rules! sync {
+    // Sync factories with provider
+    ($factories:expr, $provider:expr) => {{
+        StateSpaceBuilder::new($provider.clone())
+            .with_factories($factories)
+            .sync()
+            .await?
+    }};
+
+    // Sync factories with filters
+    ($factories:expr, $filters:expr, $provider:expr) => {{
+        StateSpaceBuilder::new($provider.clone())
+            .with_factories($factories)
+            .with_filters($filters)
+            .sync()
+            .await?
+    }};
+
+    ($factories:expr, $amms:expr, $filters:expr, $provider:expr) => {{
+        StateSpaceBuilder::new($provider.clone())
+            .with_factories($factories)
+            .with_amms($amms)
+            .with_filters($filters)
+            .sync()
+            .await?
+    }};
+}
