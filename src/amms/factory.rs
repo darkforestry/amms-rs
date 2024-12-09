@@ -1,8 +1,8 @@
+use super::{amm::Variant, uniswap_v2::UniswapV2Factory, uniswap_v3::UniswapV3Factory};
 use super::{
     amm::{AutomatedMarketMaker, AMM},
     error::AMMError,
 };
-use super::{uniswap_v2::UniswapV2Factory, uniswap_v3::UniswapV3Factory};
 use alloy::{
     eips::BlockId,
     network::Network,
@@ -64,6 +64,9 @@ pub trait AutomatedMarketMakerFactory {
         T: Transport + Clone,
         N: Network,
         P: Provider<T, N>;
+    fn pool_variant(&self) -> Self::PoolVariant {
+        Self::PoolVariant::default()
+    }
 }
 
 macro_rules! factory {
@@ -101,6 +104,12 @@ macro_rules! factory {
              pub fn pool_events(&self) -> Vec<B256> {
                 match self {
                     $(Factory::$factory_type(factory) => factory.pool_events(),)+
+                }
+            }
+
+            pub fn variant(&self) -> Variant {
+                match self {
+                    $(Factory::$factory_type(factory) => AMM::from(factory.pool_variant()).variant(),)+
                 }
             }
         }
