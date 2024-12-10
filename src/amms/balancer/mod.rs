@@ -574,10 +574,9 @@ mod tests {
 
     #[tokio::test]
     pub async fn test_populate_data() -> eyre::Result<()> {
-        let provider = Arc::new(
-            ProviderBuilder::new().on_http(env!("ETHEREUM_RPC_ENDPOINT").parse().unwrap()),
-        );
-        let mut balancer_pool = super::BalancerPool {
+        let provider =
+            Arc::new(ProviderBuilder::new().on_http(env!("ETHEREUM_PROVIDER").parse().unwrap()));
+        let balancer_pool = super::BalancerPool {
             address: address!("8a649274E4d777FFC6851F13d23A86BBFA2f2Fbf"),
             ..Default::default()
         }
@@ -606,9 +605,8 @@ mod tests {
 
     #[tokio::test]
     pub async fn test_calculate_price() -> eyre::Result<()> {
-        let provider = Arc::new(
-            ProviderBuilder::new().on_http(env!("ETHEREUM_RPC_ENDPOINT").parse().unwrap()),
-        );
+        let provider =
+            Arc::new(ProviderBuilder::new().on_http(env!("ETHEREUM_PROVIDER").parse().unwrap()));
         let balancer_pool = BalancerPool {
             address: address!("8a649274E4d777FFC6851F13d23A86BBFA2f2Fbf"),
             ..Default::default()
@@ -629,9 +627,8 @@ mod tests {
 
     #[tokio::test]
     pub async fn test_simulate_swap() -> eyre::Result<()> {
-        let provider =
-            Arc::new(ProviderBuilder::new().on_http(env!("ETHEREUM_RPC_ENDPOINT").parse()?));
-        let mut balancer_pool = BalancerPool {
+        let provider = Arc::new(ProviderBuilder::new().on_http(env!("ETHEREUM_PROVIDER").parse()?));
+        let balancer_pool = BalancerPool {
             address: address!("8a649274E4d777FFC6851F13d23A86BBFA2f2Fbf"),
             ..Default::default()
         }
