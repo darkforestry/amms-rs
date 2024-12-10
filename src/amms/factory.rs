@@ -1,10 +1,10 @@
-use std::{
-    future::Future,
-    hash::{Hash, Hasher},
-    sync::Arc,
+use super::{
+    amm::{AutomatedMarketMaker, AMM},
+    error::AMMError,
 };
-
+use super::{uniswap_v2::UniswapV2Factory, uniswap_v3::UniswapV3Factory};
 use alloy::{
+    eips::BlockId,
     network::Network,
     primitives::{Address, B256, U256},
     providers::Provider,
@@ -13,19 +13,16 @@ use alloy::{
 };
 use eyre::Result;
 use serde::{Deserialize, Serialize};
-
-use super::{
-    amm::{AutomatedMarketMaker, AMM},
-    error::AMMError,
+use std::{
+    future::Future,
+    hash::{Hash, Hasher},
+    sync::Arc,
 };
-
-use super::uniswap_v2::UniswapV2Factory;
-use super::uniswap_v3::UniswapV3Factory;
 
 pub trait DiscoverySync {
     fn discover<T, N, P>(
         &self,
-        to_block: u64,
+        to_block: BlockId,
         provider: Arc<P>,
     ) -> impl Future<Output = Result<Vec<AMM>, AMMError>>
     where
@@ -36,7 +33,7 @@ pub trait DiscoverySync {
     fn sync<T, N, P>(
         &self,
         amms: Vec<AMM>,
-        to_block: u64,
+        to_block: BlockId,
         provider: Arc<P>,
     ) -> impl Future<Output = Result<Vec<AMM>, AMMError>>
     where
@@ -45,20 +42,22 @@ pub trait DiscoverySync {
         P: Provider<T, N>;
 }
 
-pub trait AutomatedMarketMakerFactory: DiscoverySync + Into<Factory> {
+pub trait AutomatedMarketMakerFactory: DiscoverySync {
     type PoolVariant: AutomatedMarketMaker + Default;
 
-    /// Returns the address of the factory.
+    /// Address of the factory contract
     fn address(&self) -> Address;
 
-    // TODO: update to be factory error?
+    /// Creates an unsynced pool from a creation log.
     fn create_pool(&self, log: Log) -> Result<AMM, AMMError>;
 
     /// Returns the block number at which the factory was created.
     fn creation_block(&self) -> u64;
 
-    fn discovery_event(&self) -> B256;
+    /// Event signature that indicates when a new pool was created
+    fn pool_creation_event(&self) -> B256;
 
+    /// Event signatures signifying when a pool created by the factory should be synced
     fn pool_events(&self) -> Vec<B256> {
         Self::PoolVariant::default().sync_events()
     }
@@ -80,7 +79,7 @@ macro_rules! factory {
 
              pub fn discovery_event(&self) -> B256 {
                 match self {
-                    $(Factory::$factory_type(factory) => factory.discovery_event(),)+
+                    $(Factory::$factory_type(factory) => factory.pool_creation_event(),)+
                 }
             }
 
@@ -119,7 +118,7 @@ macro_rules! factory {
 
 
         impl Factory {
-            pub async fn discover<T, N, P>(&self, to_block: u64, provider: Arc<P>) -> Result<Vec<AMM>, AMMError>
+            pub async fn discover<T, N, P>(&self, to_block: BlockId, provider: Arc<P>) -> Result<Vec<AMM>, AMMError>
             where
                 T: Transport + Clone,
                 N: Network,
@@ -130,7 +129,7 @@ macro_rules! factory {
                 }
             }
 
-            pub async fn sync<T, N, P>(&self, amms: Vec<AMM>, to_block: u64, provider: Arc<P>) -> Result<Vec<AMM>, AMMError>
+            pub async fn sync<T, N, P>(&self, amms: Vec<AMM>, to_block: BlockId, provider: Arc<P>) -> Result<Vec<AMM>, AMMError>
             where
                 T: Transport + Clone,
                 N: Network,
@@ -141,6 +140,14 @@ macro_rules! factory {
                 }
             }
         }
+
+        $(
+            impl From<$factory_type> for Factory {
+                fn from(factory: $factory_type) -> Self {
+                    Factory::$factory_type(factory)
+                }
+            }
+        )+
     };
 }
 
@@ -187,6 +194,19 @@ impl AutomatedMarketMaker for NoopAMM {
     }
 
     fn tokens(&self) -> Vec<Address> {
+        unreachable!()
+    }
+
+    async fn init<T, N, P>(
+        self,
+        _block_number: BlockId,
+        _provider: Arc<P>,
+    ) -> Result<Self, AMMError>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
         unreachable!()
     }
 }

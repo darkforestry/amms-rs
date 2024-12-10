@@ -1,29 +1,41 @@
+use super::{
+    balancer::BalancerPool, erc_4626::ERC4626Vault, error::AMMError, uniswap_v2::UniswapV2Pool,
+    uniswap_v3::UniswapV3Pool,
+};
 use alloy::{
+    eips::BlockId,
+    network::Network,
     primitives::{Address, B256, U256},
+    providers::Provider,
     rpc::types::Log,
+    transports::Transport,
 };
 use eyre::Result;
 use serde::{Deserialize, Serialize};
-use std::hash::{Hash, Hasher};
+use std::{
+    hash::{Hash, Hasher},
+    sync::Arc,
+};
 
-use super::{error::AMMError, uniswap_v2::UniswapV2Pool, uniswap_v3::UniswapV3Pool};
-
+#[allow(async_fn_in_trait)]
 pub trait AutomatedMarketMaker {
-    /// Returns the address of the AMM.
+    /// Address of the AMM
     fn address(&self) -> Address;
 
+    /// Event signatures that indicate when the AMM should be synced
     fn sync_events(&self) -> Vec<B256>;
 
+    /// Syncs the AMM state
     fn sync(&mut self, log: &Log) -> Result<(), AMMError>;
 
-    /// Returns a vector of tokens in the AMM.
+    /// Returns a list of token addresses used in the AMM
     fn tokens(&self) -> Vec<Address>;
 
-    /// Calculates a f64 representation of base token price in the AMM.
+    /// Calculates the price of `base_token` in terms of `quote_token`
     fn calculate_price(&self, base_token: Address, quote_token: Address) -> Result<f64, AMMError>;
 
-    /// Locally simulates a swap in the AMM.
-    /// Returns the amount received for `amount_in` of `token_in`.
+    /// Simulate a swap
+    /// Returns the amount_out in `quote token` for a given `amount_in` of `base_token`
     fn simulate_swap(
         &self,
         base_token: Address,
@@ -31,9 +43,8 @@ pub trait AutomatedMarketMaker {
         amount_in: U256,
     ) -> Result<U256, AMMError>;
 
-    /// Locally simulates a swap in the AMM.
-    /// Mutates the AMM state to the state of the AMM after swapping.
-    /// Returns the amount received for `amount_in` of `token_in`.
+    /// Simulate a swap, mutating the AMM state
+    /// Returns the amount_out in `quote token` for a given `amount_in` of `base_token`
     fn simulate_swap_mut(
         &mut self,
         base_token: Address,
@@ -41,7 +52,14 @@ pub trait AutomatedMarketMaker {
         amount_in: U256,
     ) -> Result<U256, AMMError>;
 
-    // TODO: fn swap_calldata(&self, token_in, token_out, amount_in, amount_out_min) -> Vec<u8>;
+    // Initializes an empty pool and syncs state up to `block_number`
+    // TODO: return an error
+    async fn init<T, N, P>(self, block_number: BlockId, provider: Arc<P>) -> Result<Self, AMMError>
+    where
+        Self: Sized,
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>;
 }
 
 macro_rules! amm {
@@ -93,6 +111,18 @@ macro_rules! amm {
                     $(AMM::$pool_type(pool) => pool.calculate_price(base_token, quote_token),)+
                 }
             }
+
+            async fn init<T, N, P>(self, block_number: BlockId, provider: Arc<P>) -> Result<Self, AMMError>
+            where
+                Self: Sized,
+                T: Transport + Clone,
+                N: Network,
+                P: Provider<T, N>,
+            {
+                match self {
+                    $(AMM::$pool_type(pool) => pool.init(block_number, provider).await.map(AMM::$pool_type),)+
+                }
+            }
         }
 
         impl Hash for AMM {
@@ -108,7 +138,15 @@ macro_rules! amm {
         }
 
         impl Eq for AMM {}
+
+        $(
+            impl From<$pool_type> for AMM {
+                fn from(amm: $pool_type) -> Self {
+                    AMM::$pool_type(amm)
+                }
+            }
+        )+
     };
 }
 
-amm!(UniswapV2Pool, UniswapV3Pool);
+amm!(UniswapV2Pool, UniswapV3Pool, ERC4626Vault, BalancerPool);

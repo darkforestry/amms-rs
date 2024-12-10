@@ -1,7 +1,10 @@
 use alloy::{primitives::FixedBytes, transports::TransportErrorKind};
 use thiserror::Error;
 
-use super::{balancer::BalancerError, uniswap_v2::UniswapV2Error, uniswap_v3::UniswapV3Error};
+use super::{
+    balancer::BalancerError, erc_4626::ERC4626VaultError, uniswap_v2::UniswapV2Error,
+    uniswap_v3::UniswapV3Error,
+};
 
 #[derive(Error, Debug)]
 pub enum AMMError {
@@ -19,6 +22,8 @@ pub enum AMMError {
     UniswapV3Error(#[from] UniswapV3Error),
     #[error(transparent)]
     BalancerError(#[from] BalancerError),
+    #[error(transparent)]
+    ERC4626VaultError(#[from] ERC4626VaultError),
     #[error(transparent)]
     ParseFloatError(#[from] rug::float::ParseFloatError),
     #[error("Unrecognized Event Signature {0}")]

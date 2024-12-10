@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use alloy::{
     primitives::address, providers::ProviderBuilder, rpc::client::ClientBuilder,
     transports::layers::RetryBackoffLayer,
@@ -12,6 +10,7 @@ use amms::{
         StateSpaceBuilder,
     },
 };
+use std::sync::Arc;
 
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
@@ -35,8 +34,16 @@ async fn main() -> eyre::Result<()> {
         .into(),
     ];
 
-    // TODO: add docs detailing when these filters are applied, etc.
-    // Whitelist filter that only include pools with the specified "pools" addresses or any pool containing the specified "tokens"
+    /*  PoolFilters are applied all AMMs when syncing the state space.
+       Filters have two "stages", `FilterStage::Discovery` or `FilterStage::Sync`.
+       Discovery filters are applied to AMMs after the `StateSpaceManager` has processed all pool created events.
+       Sync filters are applied to AMMs after the `StateSpaceManager` has processed all pool sync events.
+       This allows for efficient syncing of the state space by minimizing the amount of pools that need to sync state.
+       In the following example, the `PoolWhitelistFilter` is applied to the `Discovery` stage
+       and the `TokenWhitelistFilter` is applied to the `Sync` stage. Rather than syncing all pools from the factory,
+       only the whitelisted pools are synced. The `TokenWhitelistFilter` is applied after syncing since pool creation logs
+       do not always emit the tokens included in the pool, but this data will always be populated after syncing.
+    */
     let filters = vec![
         PoolWhitelistFilter::new(vec![address!("88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640")]).into(),
         TokenWhitelistFilter::new(vec![address!("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48")])

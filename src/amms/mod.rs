@@ -7,13 +7,14 @@ use alloy::{
 use futures::{stream::FuturesUnordered, StreamExt};
 
 pub mod amm;
+pub mod balancer;
 pub mod consts;
-pub mod float;
+pub mod erc_4626;
 pub mod error;
 pub mod factory;
+pub mod float;
 pub mod uniswap_v2;
 pub mod uniswap_v3;
-pub mod balancer;
 
 sol! {
     #[sol(rpc)]
@@ -21,6 +22,10 @@ sol! {
     "contracts/out/GetTokenDecimalsBatchRequest.sol/GetTokenDecimalsBatchRequest.json",
 }
 
+/// Fetches the decimal precision for a list of ERC-20 tokens.
+///
+/// # Returns
+/// A map of token addresses to their decimal precision.
 pub async fn get_token_decimals<T, N, P>(
     tokens: Vec<Address>,
     provider: Arc<P>,

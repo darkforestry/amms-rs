@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
 use alloy::{
+    eips::BlockId,
     primitives::{address, U256},
-    providers::{Provider, ProviderBuilder},
+    providers::ProviderBuilder,
     rpc::client::ClientBuilder,
     transports::layers::RetryBackoffLayer,
 };
@@ -39,10 +40,8 @@ fn simulate_swap(c: &mut Criterion) {
             ..Default::default()
         });
 
-        let block_number = provider.get_block_number().await.unwrap();
-
         let mut pools =
-            UniswapV3Factory::sync_all_pools(vec![pool], block_number, provider.clone())
+            UniswapV3Factory::sync_all_pools(vec![pool], BlockId::latest(), provider.clone())
                 .await
                 .expect("Could not sync pool");
 

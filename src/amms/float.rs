@@ -1,7 +1,10 @@
 use alloy::primitives::U256;
 use rug::Float;
 
-use super::{consts::{MPFR_T_PRECISION, U128_0X10000000000000000}, error::AMMError};
+use super::{
+    consts::{MPFR_T_PRECISION, U128_0X10000000000000000},
+    error::AMMError,
+};
 
 pub fn q64_to_float(num: u128) -> Result<f64, AMMError> {
     let float_num = u128_to_float(num)?;
