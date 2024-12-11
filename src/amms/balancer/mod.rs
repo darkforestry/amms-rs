@@ -74,10 +74,10 @@ sol!(
 pub enum BalancerError {
     #[error("Error initializing Balancer Pool")]
     InitializationError,
-    #[error("Base token does not exist")]
-    BaseTokenDoesNotExist,
-    #[error("Quote token does not exist")]
-    QuoteTokenDoesNotExist,
+    #[error("Token in does not exist")]
+    TokenInDoesNotExist,
+    #[error("Token out does not exist")]
+    TokenOutDoesNotExist,
     #[error("Division by zero")]
     DivZero,
     #[error("Error during division")]
@@ -90,20 +90,23 @@ pub enum BalancerError {
     MulOverflow,
 }
 
+// TODO: we could consider creating a "Token" struct that would store the decimals.
 #[derive(Default, Debug, Serialize, Deserialize, Clone)]
 pub struct BalancerPool {
     /// The Pool Address.
     address: Address,
-    /// The Pool Tokens.
-    tokens: Vec<Address>,
-    /// The token decimals indexed by token.
-    decimals: Vec<u8>,
-    /// The Pool Liquidity indexed by token.
-    liquidity: Vec<U256>,
-    /// The Pool Weights indexed by token.
-    weights: Vec<U256>,
+    // TODO:
+    state: HashMap<Address, TokenPoolState>,
     /// The Swap Fee on the Pool.
     fee: u32,
+}
+
+#[derive(Default, Debug, Serialize, Deserialize, Clone)]
+pub struct TokenPoolState {
+    pub liquidity: U256,
+    pub weight: U256,
+
+    pub decimals: u8,
 }
 
 impl AutomatedMarketMaker for BalancerPool {
@@ -117,18 +120,31 @@ impl AutomatedMarketMaker for BalancerPool {
     }
 
     fn sync(&mut self, log: &Log) -> Result<(), AMMError> {
-        self.sync_from_log(log.clone())?;
-        info!(
-            target = "amm::balancer::sync",
-            address = ?self.address,
-            liquidity = ?self.liquidity, "Sync"
-        );
+        let signature = log.topics()[0];
+
+        if IBPool::LOG_SWAP::SIGNATURE_HASH == signature {
+            let swap_event = IBPool::LOG_SWAP::decode_log(log.as_ref(), false)?;
+
+            // TODO: we should handle this error instead of unwrapping
+            self.state.get_mut(&swap_event.tokenIn).unwrap().liquidity += swap_event.tokenAmountIn;
+            self.state.get_mut(&swap_event.tokenOut).unwrap().liquidity +=
+                swap_event.tokenAmountOut;
+
+            info!(
+                target = "amm::balancer::sync",
+                address = ?self.address,
+                state = ?self.state, "Sync"
+            );
+        } else {
+            return Err(AMMError::UnrecognizedEventSignature(signature));
+        }
+
         Ok(())
     }
 
     /// Returns a vector of tokens in the AMM.
     fn tokens(&self) -> Vec<Address> {
-        self.tokens.clone()
+        self.state.keys().cloned().collect()
     }
 
     /// Calculates a f64 representation of base token price in the AMM. This is a "tax inclusive" spot approximation.
@@ -312,44 +328,6 @@ impl BalancerPool {
             weights,
             fee,
         }
-    }
-
-    /// Updates the AMM data from a log.
-    #[instrument(skip(self), level = "debug")]
-    fn sync_from_log(&mut self, log: Log) -> Result<(), AMMError> {
-        let signature = log.topics()[0];
-
-        if IBPool::LOG_SWAP::SIGNATURE_HASH == signature {
-            self.sync_from_swap_log(log)?;
-        } else {
-            return Err(AMMError::UnrecognizedEventSignature(signature));
-        }
-
-        Ok(())
-    }
-
-    pub fn sync_from_swap_log(
-        &mut self,
-        log: Log,
-    ) -> Result<alloy::primitives::Log<IBPool::LOG_SWAP>, AMMError> {
-        let swap_event = IBPool::LOG_SWAP::decode_log(log.as_ref(), true)?;
-
-        let token_in_index = self
-            .tokens
-            .iter()
-            .position(|r| r == &swap_event.tokenIn)
-            .unwrap();
-        let token_out_index = self
-            .tokens
-            .iter()
-            .position(|r| r == &swap_event.tokenOut)
-            .unwrap();
-
-        // Update the pool liquidity
-        self.liquidity[token_in_index] += swap_event.tokenAmountIn;
-        self.liquidity[token_out_index] -= swap_event.tokenAmountOut;
-
-        Ok(swap_event)
     }
 }
 
