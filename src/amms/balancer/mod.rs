@@ -105,7 +105,6 @@ pub struct BalancerPool {
 pub struct TokenPoolState {
     pub liquidity: U256,
     pub weight: U256,
-
     pub decimals: u8,
 }
 
@@ -126,9 +125,15 @@ impl AutomatedMarketMaker for BalancerPool {
             let swap_event = IBPool::LOG_SWAP::decode_log(log.as_ref(), false)?;
 
             // TODO: we should handle this error instead of unwrapping
-            self.state.get_mut(&swap_event.tokenIn).unwrap().liquidity += swap_event.tokenAmountIn;
-            self.state.get_mut(&swap_event.tokenOut).unwrap().liquidity +=
-                swap_event.tokenAmountOut;
+            self.state
+                .get_mut(&swap_event.tokenIn)
+                .ok_or(BalancerError::TokenInDoesNotExist)?
+                .liquidity += swap_event.tokenAmountIn;
+
+            self.state
+                .get_mut(&swap_event.tokenOut)
+                .ok_or(BalancerError::TokenOutDoesNotExist)?
+                .liquidity += swap_event.tokenAmountOut;
 
             info!(
                 target = "amm::balancer::sync",
@@ -158,39 +163,32 @@ impl AutomatedMarketMaker for BalancerPool {
     /// sF = swapFee                                                                              //
     ///**********************************************************************************************/
     fn calculate_price(&self, base_token: Address, quote_token: Address) -> Result<f64, AMMError> {
-        // Grab the indices of the tokens
-        let base_token_index = self
-            .tokens
-            .iter()
-            .position(|&r| r == base_token)
-            .map_or_else(|| Err(BalancerError::BaseTokenDoesNotExist), Ok)?;
-        let quote_token_index = self
-            .tokens
-            .iter()
-            .position(|&r| r == quote_token)
-            .map_or_else(|| Err(BalancerError::QuoteTokenDoesNotExist), Ok)?;
+        let token_in = self
+            .state
+            .get(&base_token)
+            .ok_or(BalancerError::TokenInDoesNotExist)?;
+
+        let token_out = self
+            .state
+            .get(&quote_token)
+            .ok_or(BalancerError::TokenOutDoesNotExist)?;
+
         let bone = u256_to_float(BONE)?;
-        let norm_base = if self.decimals[base_token_index] < 18 {
-            Float::with_val(
-                MPFR_T_PRECISION,
-                10_u64.pow(18 - self.decimals[base_token_index] as u32),
-            )
+        let norm_base = if token_in.decimals < 18 {
+            Float::with_val(MPFR_T_PRECISION, 10_u64.pow(18 - token_in.decimals as u32))
         } else {
             Float::with_val(MPFR_T_PRECISION, 1)
         };
-        let norm_quote = if self.decimals[quote_token_index] < 18 {
-            Float::with_val(
-                MPFR_T_PRECISION,
-                10_u64.pow(18 - self.decimals[quote_token_index] as u32),
-            )
+        let norm_quote = if token_out.decimals < 18 {
+            Float::with_val(MPFR_T_PRECISION, 10_u64.pow(18 - token_out.decimals as u32))
         } else {
             Float::with_val(MPFR_T_PRECISION, 1)
         };
 
-        let norm_weight_base = u256_to_float(self.weights[base_token_index])? / norm_base;
-        let norm_weight_quote = u256_to_float(self.weights[quote_token_index])? / norm_quote;
-        let balance_base = u256_to_float(self.liquidity[base_token_index])?;
-        let balance_quote = u256_to_float(self.liquidity[quote_token_index])?;
+        let norm_weight_base = u256_to_float(token_in.weight)? / norm_base;
+        let norm_weight_quote = u256_to_float(token_out.weight)? / norm_quote;
+        let balance_base = u256_to_float(token_in.liquidity)?;
+        let balance_quote = u256_to_float(token_out.liquidity)?;
 
         let dividend = (balance_quote / norm_weight_quote) * bone.clone();
         let divisor = (balance_base / norm_weight_base)
@@ -209,29 +207,23 @@ impl AutomatedMarketMaker for BalancerPool {
         quote_token: Address,
         amount_in: U256,
     ) -> Result<U256, AMMError> {
-        let base_token_index = self
-            .tokens
-            .iter()
-            .position(|&r| r == base_token)
-            .map_or_else(|| Err(BalancerError::BaseTokenDoesNotExist), Ok)?;
-        let quote_token_index = self
-            .tokens
-            .iter()
-            .position(|&r| r == quote_token)
-            .map_or_else(|| Err(BalancerError::QuoteTokenDoesNotExist), Ok)?;
+        let token_in = self
+            .state
+            .get(&base_token)
+            .ok_or(BalancerError::TokenInDoesNotExist)?;
 
-        let base_token_balance = self.liquidity[base_token_index];
-        let quote_token_balance = self.liquidity[quote_token_index];
-        let base_token_weight = self.weights[base_token_index];
-        let quote_token_weight = self.weights[quote_token_index];
-        let swap_fee = U256::from(self.fee);
+        let token_out = self
+            .state
+            .get(&quote_token)
+            .ok_or(BalancerError::TokenOutDoesNotExist)?;
+
         Ok(bmath::calculate_out_given_in(
-            base_token_balance,
-            base_token_weight,
-            quote_token_balance,
-            quote_token_weight,
+            token_in.liquidity,
+            token_in.weight,
+            token_out.liquidity,
+            token_out.weight,
             amount_in,
-            swap_fee,
+            U256::from(self.fee),
         )?)
     }
 
@@ -246,33 +238,28 @@ impl AutomatedMarketMaker for BalancerPool {
         quote_token: Address,
         amount_in: U256,
     ) -> Result<U256, AMMError> {
-        let base_token_index = self
-            .tokens
-            .iter()
-            .position(|&r| r == base_token)
-            .map_or_else(|| Err(BalancerError::BaseTokenDoesNotExist), Ok)?;
-        let quote_token_index = self
-            .tokens
-            .iter()
-            .position(|&r| r == quote_token)
-            .map_or_else(|| Err(BalancerError::QuoteTokenDoesNotExist), Ok)?;
+        let token_in = self
+            .state
+            .get(&base_token)
+            .ok_or(BalancerError::TokenInDoesNotExist)?;
 
-        let base_token_balance = self.liquidity[base_token_index];
-        let quote_token_balance = self.liquidity[quote_token_index];
-        let base_token_weight = self.weights[base_token_index];
-        let quote_token_weight = self.weights[quote_token_index];
-        let swap_fee = U256::from(self.fee);
+        let token_out = self
+            .state
+            .get(&quote_token)
+            .ok_or(BalancerError::TokenOutDoesNotExist)?;
+
         let out = bmath::calculate_out_given_in(
-            base_token_balance,
-            base_token_weight,
-            quote_token_balance,
-            quote_token_weight,
+            token_in.liquidity,
+            token_in.weight,
+            token_out.liquidity,
+            token_out.weight,
             amount_in,
-            swap_fee,
-        )
-        .map_err(BalancerError::from)?;
-        self.liquidity[base_token_index] = bmath::badd(base_token_balance, amount_in)?;
-        self.liquidity[quote_token_index] = bmath::bsub(quote_token_balance, out)?;
+            U256::from(self.fee),
+        )?;
+
+        token_in.liquidity += bmath::badd(token_in.liquidity, amount_in)?;
+        token_out.liquidity = bmath::bsub(token_out.liquidity, out)?;
+
         Ok(out)
     }
 
