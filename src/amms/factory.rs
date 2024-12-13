@@ -1,7 +1,6 @@
 use super::{amm::Variant, uniswap_v2::UniswapV2Factory, uniswap_v3::UniswapV3Factory};
 use super::{
-    amm::{AutomatedMarketMaker, AMM},
-    error::AMMError,
+    amm::{AutomatedMarketMaker, AMM}, balancer::BalancerFactory, error::AMMError
 };
 use alloy::{
     eips::BlockId,
@@ -161,7 +160,7 @@ macro_rules! factory {
     };
 }
 
-factory!(UniswapV2Factory, UniswapV3Factory);
+factory!(UniswapV2Factory, UniswapV3Factory, BalancerFactory);
 
 #[derive(Default)]
 pub struct NoopAMM;
