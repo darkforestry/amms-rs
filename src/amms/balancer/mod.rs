@@ -124,7 +124,6 @@ impl AutomatedMarketMaker for BalancerPool {
         if IBPool::LOG_SWAP::SIGNATURE_HASH == signature {
             let swap_event = IBPool::LOG_SWAP::decode_log(log.as_ref(), false)?;
 
-            // TODO: we should handle this error instead of unwrapping
             self.state
                 .get_mut(&swap_event.tokenIn)
                 .ok_or(BalancerError::TokenInDoesNotExist)?
