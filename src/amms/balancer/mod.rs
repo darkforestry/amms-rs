@@ -101,7 +101,7 @@ pub struct BalancerPool {
     fee: u32,
 }
 
-#[derive(Default, Debug, Serialize, Deserialize, Clone)]
+#[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct TokenPoolState {
     pub liquidity: U256,
     pub weight: U256,
@@ -257,8 +257,8 @@ impl AutomatedMarketMaker for BalancerPool {
             U256::from(self.fee),
         )?;
 
-        token_in.liquidity += bmath::badd(token_in.liquidity, amount_in)?;
-        token_out.liquidity = bmath::bsub(token_out.liquidity, out)?;
+        self.state.get_mut(&base_token).unwrap().liquidity += amount_in;
+        self.state.get_mut(&quote_token).unwrap().liquidity -= out;
 
         Ok(out)
     }
@@ -287,10 +287,24 @@ impl AutomatedMarketMaker for BalancerPool {
             return Err(BalancerError::InitializationError.into());
         };
 
-        self.tokens = tokens;
-        self.decimals = decimals.into_iter().map(|d| d as u8).collect();
-        self.liquidity = liquidity;
-        self.weights = weights;
+        let token_state = tokens
+            .into_iter()
+            .zip(decimals)
+            .zip(liquidity)
+            .zip(weights)
+            .map(|(((token, decimals), liquidity), weight)| {
+                (
+                    token,
+                    TokenPoolState {
+                        liquidity,
+                        weight,
+                        decimals: decimals as u8,
+                    },
+                )
+            })
+            .collect::<HashMap<Address, TokenPoolState>>();
+
+        self.state = token_state;
         self.fee = fee;
 
         Ok(self)
@@ -299,21 +313,10 @@ impl AutomatedMarketMaker for BalancerPool {
 
 impl BalancerPool {
     #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        address: Address,
-        tokens: Vec<Address>,
-        decimals: Vec<u8>,
-        liquidity: Vec<U256>,
-        weights: Vec<U256>,
-        fee: u32,
-    ) -> BalancerPool {
+    pub fn new(address: Address) -> BalancerPool {
         BalancerPool {
             address,
-            tokens,
-            decimals,
-            liquidity,
-            weights,
-            fee,
+            ..Default::default()
         }
     }
 }
@@ -499,10 +502,29 @@ impl BalancerFactory {
                     panic!("Unexpected pool type")
                 };
 
-                pool.tokens = pool_data.0.clone();
-                pool.decimals = pool_data.1.iter().map(|d| *d as u8).collect();
-                pool.liquidity = pool_data.2.clone();
-                pool.weights = pool_data.3.clone();
+                let tokens = pool_data.0.clone();
+                let decimals = pool_data.1.clone();
+                let liquidity = pool_data.2.clone();
+                let weights = pool_data.3.clone();
+
+                let token_state = tokens
+                    .into_iter()
+                    .zip(decimals)
+                    .zip(liquidity)
+                    .zip(weights)
+                    .map(|(((token, decimals), liquidity), weight)| {
+                        (
+                            token,
+                            TokenPoolState {
+                                liquidity,
+                                weight,
+                                decimals: decimals as u8,
+                            },
+                        )
+                    })
+                    .collect::<HashMap<Address, TokenPoolState>>();
+
+                pool.state = token_state;
                 pool.fee = pool_data.4;
             }
         }
@@ -524,14 +546,15 @@ impl BalancerFactory {
 
 #[cfg(test)]
 mod tests {
-    use std::{str::FromStr, sync::Arc};
+    use std::{collections::HashMap, str::FromStr, sync::Arc};
 
     use alloy::{
-        primitives::{address, U256},
+        primitives::{address, Address, U256},
         providers::ProviderBuilder,
     };
     use eyre::Ok;
 
+    use crate::amms::balancer::TokenPoolState;
     use crate::amms::{
         amm::AutomatedMarketMaker,
         balancer::{BalancerPool, IBPool::IBPoolInstance},
@@ -541,30 +564,46 @@ mod tests {
     pub async fn test_populate_data() -> eyre::Result<()> {
         let provider =
             Arc::new(ProviderBuilder::new().on_http(env!("ETHEREUM_PROVIDER").parse().unwrap()));
-        let balancer_pool = super::BalancerPool {
-            address: address!("8a649274E4d777FFC6851F13d23A86BBFA2f2Fbf"),
-            ..Default::default()
-        }
-        .init(20487793.into(), provider.clone())
-        .await?;
 
-        println!("Balancer V2 Pool: {:?}", balancer_pool);
-        assert_eq!(
-            balancer_pool.tokens,
-            vec![
+        let balancer_pool = BalancerPool::new(address!("8a649274E4d777FFC6851F13d23A86BBFA2f2Fbf"))
+            .init(20487793.into(), provider.clone())
+            .await?;
+
+        // Construct the expected state as a HashMap
+        let expected_state: HashMap<Address, TokenPoolState> = vec![
+            (
                 address!("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"),
-                address!("a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48")
-            ]
-        );
-        assert_eq!(balancer_pool.decimals, vec![18, 6]);
+                TokenPoolState {
+                    liquidity: U256::from(1234567890000000000),
+                    weight: U256::from(25000000000000000000),
+                    decimals: 18,
+                },
+            ),
+            (
+                address!("a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"),
+                TokenPoolState {
+                    liquidity: U256::from(987654321000000),
+                    weight: U256::from(25000000000000000000),
+                    decimals: 6,
+                },
+            ),
+        ]
+        .into_iter()
+        .collect::<HashMap<Address, TokenPoolState>>();
+
+        // Compare the actual state with the expected state
         assert_eq!(
-            balancer_pool.weights,
-            vec![
-                U256::from_str("25000000000000000000").unwrap(),
-                U256::from_str("25000000000000000000").unwrap()
-            ]
+            balancer_pool.state, expected_state,
+            "Balancer pool state mismatch"
         );
-        assert_eq!(balancer_pool.fee, 640942080);
+
+        // Validate the fee
+        let expected_fee = 640942080;
+        assert_eq!(
+            balancer_pool.fee, expected_fee,
+            "Fee does not match expected value"
+        );
+
         Ok(())
     }
 
