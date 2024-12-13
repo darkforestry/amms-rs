@@ -18,7 +18,7 @@ use itertools::Itertools;
 use rug::{float::Round, Float};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use tracing::{info, instrument};
+use tracing::info;
 
 use super::{
     amm::{AutomatedMarketMaker, AMM},
@@ -611,12 +611,10 @@ mod tests {
     pub async fn test_calculate_price() -> eyre::Result<()> {
         let provider =
             Arc::new(ProviderBuilder::new().on_http(env!("ETHEREUM_PROVIDER").parse().unwrap()));
-        let balancer_pool = BalancerPool {
-            address: address!("8a649274E4d777FFC6851F13d23A86BBFA2f2Fbf"),
-            ..Default::default()
-        }
-        .init(20487793.into(), provider.clone())
-        .await?;
+
+        let balancer_pool = BalancerPool::new(address!("8a649274E4d777FFC6851F13d23A86BBFA2f2Fbf"))
+            .init(20487793.into(), provider.clone())
+            .await?;
 
         let calculated = balancer_pool
             .calculate_price(
@@ -632,34 +630,33 @@ mod tests {
     #[tokio::test]
     pub async fn test_simulate_swap() -> eyre::Result<()> {
         let provider = Arc::new(ProviderBuilder::new().on_http(env!("ETHEREUM_PROVIDER").parse()?));
-        let balancer_pool = BalancerPool {
-            address: address!("8a649274E4d777FFC6851F13d23A86BBFA2f2Fbf"),
-            ..Default::default()
-        }
-        .init(20487793.into(), provider.clone())
-        .await?;
+
+        let balancer_pool = BalancerPool::new(address!("8a649274E4d777FFC6851F13d23A86BBFA2f2Fbf"))
+            .init(20487793.into(), provider.clone())
+            .await?;
 
         println!("Balancer V2 Pool: {:?}", balancer_pool);
 
-        // 1 ETH
+        let token_in = address!("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2");
+        let token_out = address!("a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48");
+
         let amount_in = U256::from(10_u64.pow(18));
-        let calculated = balancer_pool.simulate_swap(
-            address!("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"),
-            address!("a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"),
-            amount_in,
-        )?;
+        let calculated = balancer_pool.simulate_swap(token_in, token_out, amount_in)?;
 
         let b_pool_quoter = IBPoolInstance::new(
             address!("8a649274E4d777FFC6851F13d23A86BBFA2f2Fbf"),
             provider.clone(),
         );
 
+        let token_in = balancer_pool.state.get(&token_in).unwrap();
+        let token_out = balancer_pool.state.get(&token_out).unwrap();
+
         let expected = b_pool_quoter
             .calcOutGivenIn(
-                balancer_pool.liquidity[0],
-                balancer_pool.weights[0],
-                balancer_pool.liquidity[1],
-                balancer_pool.weights[1],
+                token_in.liquidity,
+                token_in.weight,
+                token_out.liquidity,
+                token_out.weight,
                 amount_in,
                 U256::from(balancer_pool.fee),
             )
