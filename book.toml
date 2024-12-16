@@ -1,0 +1,6 @@
+[book]
+authors = ["0xKitsune"]
+language = "en"
+multilingual = false
+src = "src"
+title = "amms-rs"
