@@ -99,6 +99,7 @@ where
                     AMM::UniswapV2Pool(_) => 0,
                     AMM::UniswapV3Pool(_) => 1,
                     AMM::ERC4626Vault(_) => todo!(),
+                    AMM::BalancerPool(_) => todo!(),
                 };
 
                 PoolInfo {

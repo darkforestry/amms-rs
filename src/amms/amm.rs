@@ -1,5 +1,6 @@
 use super::{
-    erc_4626::ERC4626Vault, error::AMMError, uniswap_v2::UniswapV2Pool, uniswap_v3::UniswapV3Pool,
+    balancer::BalancerPool, erc_4626::ERC4626Vault, error::AMMError, uniswap_v2::UniswapV2Pool,
+    uniswap_v3::UniswapV3Pool,
 };
 use alloy::{
     eips::BlockId,
@@ -16,6 +17,7 @@ use std::{
     sync::Arc,
 };
 
+#[allow(async_fn_in_trait)]
 pub trait AutomatedMarketMaker {
     /// Address of the AMM
     fn address(&self) -> Address;
@@ -161,4 +163,4 @@ macro_rules! amm {
     };
 }
 
-amm!(UniswapV2Pool, UniswapV3Pool, ERC4626Vault);
+amm!(UniswapV2Pool, UniswapV3Pool, ERC4626Vault, BalancerPool);

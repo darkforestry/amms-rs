@@ -18,4 +18,4 @@
 | --------------- | ------ |
 | UniswapV2 Pools | ✅     |
 | UniswapV3 Pools | ✅     |
-| Balancer Pools  | 🟨     |
+| Balancer Pools  | ✅     |
