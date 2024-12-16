@@ -89,7 +89,7 @@ pub trait AutomatedMarketMakerFactory: DiscoverySync {
 }
 
 // --snip--
-factory!(UniswapV2Factory, UniswapV3Factory, YourFactoryType);
+factory!(UniswapV2Factory, UniswapV3Factory, BalancerFactory, YourFactoryType);
 ```
 
 Now you can include the new factory type when discovering/syncing all pools via the `StateSpaceBuilder`.
