@@ -5,6 +5,7 @@ use alloy::{
     transports::Transport,
 };
 use futures::{stream::FuturesUnordered, StreamExt};
+use serde::{Deserialize, Serialize};
 
 pub mod amm;
 pub mod balancer;
@@ -22,21 +23,23 @@ sol! {
     "contracts/out/GetTokenDecimalsBatchRequest.sol/GetTokenDecimalsBatchRequest.json",
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Token {
     address: Address,
     decimals: u8,
+    // TODO: add optional tax
 }
 
 impl Token {
-    pub fn new(address: Address, decimals: u8) -> Self {
+    pub const fn new(address: Address, decimals: u8) -> Self {
         Self { address, decimals }
     }
 
-    pub fn address(&self) -> Address {
+    pub const fn address(&self) -> Address {
         self.address
     }
 
-    pub fn decimals(&self) -> u8 {
+    pub const fn decimals(&self) -> u8 {
         self.decimals
     }
 }
