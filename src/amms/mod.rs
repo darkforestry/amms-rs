@@ -69,6 +69,15 @@ impl Token {
     }
 }
 
+impl From<Address> for Token {
+    fn from(address: Address) -> Self {
+        Self {
+            address,
+            decimals: 0,
+        }
+    }
+}
+
 impl Hash for Token {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.address.hash(state);
