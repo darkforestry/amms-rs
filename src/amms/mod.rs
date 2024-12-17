@@ -8,6 +8,7 @@ use alloy::{
     dyn_abi::DynSolType, network::Network, primitives::Address, providers::Provider, sol,
     transports::Transport,
 };
+use error::AMMError;
 use futures::{stream::FuturesUnordered, StreamExt};
 use serde::{Deserialize, Serialize};
 
@@ -27,6 +28,13 @@ sol! {
     "contracts/out/GetTokenDecimalsBatchRequest.sol/GetTokenDecimalsBatchRequest.json",
 }
 
+sol!(
+#[derive(Debug, PartialEq, Eq)]
+#[sol(rpc)]
+contract IERC20 {
+    function decimals() external view returns (uint8);
+});
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Token {
     address: Address,
@@ -45,6 +53,19 @@ impl Token {
 
     pub const fn decimals(&self) -> u8 {
         self.decimals
+    }
+
+    pub async fn fetch_decimals<T, N, P>(&self, provider: Arc<P>) -> Result<u8, AMMError>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
+        Ok(IERC20::new(self.address, provider)
+            .decimals()
+            .call()
+            .await?
+            ._0)
     }
 }
 
