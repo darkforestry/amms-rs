@@ -22,6 +22,25 @@ sol! {
     "contracts/out/GetTokenDecimalsBatchRequest.sol/GetTokenDecimalsBatchRequest.json",
 }
 
+pub struct Token {
+    address: Address,
+    decimals: u8,
+}
+
+impl Token {
+    pub fn new(address: Address, decimals: u8) -> Self {
+        Self { address, decimals }
+    }
+
+    pub fn address(&self) -> Address {
+        self.address
+    }
+
+    pub fn decimals(&self) -> u8 {
+        self.decimals
+    }
+}
+
 /// Fetches the decimal precision for a list of ERC-20 tokens.
 ///
 /// # Returns
