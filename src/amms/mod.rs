@@ -1,4 +1,8 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    hash::{Hash, Hasher},
+    sync::Arc,
+};
 
 use alloy::{
     dyn_abi::DynSolType, network::Network, primitives::Address, providers::Provider, sol,
@@ -23,7 +27,7 @@ sol! {
     "contracts/out/GetTokenDecimalsBatchRequest.sol/GetTokenDecimalsBatchRequest.json",
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Token {
     address: Address,
     decimals: u8,
@@ -41,6 +45,12 @@ impl Token {
 
     pub const fn decimals(&self) -> u8 {
         self.decimals
+    }
+}
+
+impl Hash for Token {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.address.hash(state);
     }
 }
 

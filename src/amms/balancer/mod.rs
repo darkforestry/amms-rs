@@ -26,6 +26,7 @@ use super::{
     error::AMMError,
     factory::{AutomatedMarketMakerFactory, DiscoverySync},
     float::u256_to_float,
+    Token,
 };
 
 sol! {
@@ -105,7 +106,7 @@ pub struct BalancerPool {
 pub struct TokenPoolState {
     pub liquidity: U256,
     pub weight: U256,
-    pub decimals: u8,
+    pub token: Token,
 }
 
 impl AutomatedMarketMaker for BalancerPool {
@@ -173,13 +174,19 @@ impl AutomatedMarketMaker for BalancerPool {
             .ok_or(BalancerError::TokenOutDoesNotExist)?;
 
         let bone = u256_to_float(BONE)?;
-        let norm_base = if token_in.decimals < 18 {
-            Float::with_val(MPFR_T_PRECISION, 10_u64.pow(18 - token_in.decimals as u32))
+        let norm_base = if token_in.token.decimals < 18 {
+            Float::with_val(
+                MPFR_T_PRECISION,
+                10_u64.pow(18 - token_in.token.decimals as u32),
+            )
         } else {
             Float::with_val(MPFR_T_PRECISION, 1)
         };
-        let norm_quote = if token_out.decimals < 18 {
-            Float::with_val(MPFR_T_PRECISION, 10_u64.pow(18 - token_out.decimals as u32))
+        let norm_quote = if token_out.token.decimals < 18 {
+            Float::with_val(
+                MPFR_T_PRECISION,
+                10_u64.pow(18 - token_out.token.decimals as u32),
+            )
         } else {
             Float::with_val(MPFR_T_PRECISION, 1)
         };
@@ -297,7 +304,7 @@ impl AutomatedMarketMaker for BalancerPool {
                     TokenPoolState {
                         liquidity,
                         weight,
-                        decimals: decimals as u8,
+                        token: Token::new(token, decimals as u8),
                     },
                 )
             })
@@ -517,7 +524,7 @@ impl BalancerFactory {
                             TokenPoolState {
                                 liquidity,
                                 weight,
-                                decimals: decimals as u8,
+                                token: Token::new(token, decimals as u8),
                             },
                         )
                     })
@@ -553,11 +560,11 @@ mod tests {
     };
     use eyre::Ok;
 
-    use crate::amms::balancer::TokenPoolState;
     use crate::amms::{
         amm::AutomatedMarketMaker,
         balancer::{BalancerPool, IBPool::IBPoolInstance},
     };
+    use crate::amms::{balancer::TokenPoolState, Token};
 
     #[tokio::test]
     pub async fn test_populate_data() -> eyre::Result<()> {
@@ -575,7 +582,7 @@ mod tests {
                 TokenPoolState {
                     liquidity: U256::from(1234567890000000000),
                     weight: U256::from(25000000000000000000),
-                    decimals: 18,
+                    token: Token::new(address!("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"), 18),
                 },
             ),
             (
@@ -583,7 +590,7 @@ mod tests {
                 TokenPoolState {
                     liquidity: U256::from(987654321000000),
                     weight: U256::from(25000000000000000000),
-                    decimals: 6,
+                    token: Token::new(address!("a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"), 6),
                 },
             ),
         ]
