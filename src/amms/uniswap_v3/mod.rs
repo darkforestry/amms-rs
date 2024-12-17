@@ -1181,8 +1181,8 @@ impl AutomatedMarketMakerFactory for UniswapV3Factory {
 
         Ok(AMM::UniswapV3Pool(UniswapV3Pool {
             address: pool_created_event.pool,
-            token_a: Token::new(pool_created_event.token0, 0),
-            token_b: Token::new(pool_created_event.token1, 0),
+            token_a: pool_created_event.token0.into(),
+            token_b: pool_created_event.token1.into(),
             fee: pool_created_event.fee.to::<u32>(),
             tick_spacing: pool_created_event.tickSpacing.unchecked_into(),
             ..Default::default()

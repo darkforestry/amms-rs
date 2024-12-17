@@ -545,8 +545,8 @@ impl AutomatedMarketMakerFactory for UniswapV2Factory {
         let event = IUniswapV2Factory::PairCreated::decode_log(&log.inner, false)?;
         Ok(AMM::UniswapV2Pool(UniswapV2Pool {
             address: event.pair,
-            token_a: Token::new(event.token0, 0),
-            token_b: Token::new(event.token1, 0),
+            token_a: event.token0.into(),
+            token_b: event.token1.into(),
             reserve_0: 0,
             reserve_1: 0,
             fee: self.fee,
@@ -585,8 +585,8 @@ impl DiscoverySync for UniswapV2Factory {
                 .map(|pair| {
                     AMM::UniswapV2Pool(UniswapV2Pool {
                         address: pair,
-                        token_a: Token::new(Address::default(), 0),
-                        token_b: Token::new(Address::default(), 0),
+                        token_a: Address::default().into(),
+                        token_b: Address::default().into(),
                         reserve_0: 0,
                         reserve_1: 0,
                         fee: self.fee,
