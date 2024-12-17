@@ -1,10 +1,16 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    hash::{Hash, Hasher},
+    sync::Arc,
+};
 
 use alloy::{
     dyn_abi::DynSolType, network::Network, primitives::Address, providers::Provider, sol,
     transports::Transport,
 };
+use error::AMMError;
 use futures::{stream::FuturesUnordered, StreamExt};
+use serde::{Deserialize, Serialize};
 
 pub mod amm;
 pub mod balancer;
@@ -20,6 +26,53 @@ sol! {
     #[sol(rpc)]
     GetTokenDecimalsBatchRequest,
     "contracts/out/GetTokenDecimalsBatchRequest.sol/GetTokenDecimalsBatchRequest.json",
+}
+
+sol!(
+#[derive(Debug, PartialEq, Eq)]
+#[sol(rpc)]
+contract IERC20 {
+    function decimals() external view returns (uint8);
+});
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Token {
+    address: Address,
+    decimals: u8,
+    // TODO: add optional tax
+}
+
+impl Token {
+    pub const fn new(address: Address, decimals: u8) -> Self {
+        Self { address, decimals }
+    }
+
+    pub const fn address(&self) -> Address {
+        self.address
+    }
+
+    pub const fn decimals(&self) -> u8 {
+        self.decimals
+    }
+
+    pub async fn fetch_decimals<T, N, P>(&self, provider: Arc<P>) -> Result<u8, AMMError>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
+        Ok(IERC20::new(self.address, provider)
+            .decimals()
+            .call()
+            .await?
+            ._0)
+    }
+}
+
+impl Hash for Token {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.address.hash(state);
+    }
 }
 
 /// Fetches the decimal precision for a list of ERC-20 tokens.
