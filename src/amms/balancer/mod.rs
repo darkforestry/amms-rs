@@ -591,7 +591,7 @@ mod tests {
             (
                 address!("a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"),
                 TokenPoolState {
-                    liquidity: U256::from(24609707945_u128),
+                    liquidity: U256::from(987654321000000_u128),
                     weight: U256::from(25000000000000000000_u128),
                     token: Token::new_with_decimals(
                         address!("a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"),
