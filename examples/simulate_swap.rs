@@ -25,7 +25,11 @@ async fn main() -> eyre::Result<()> {
 
     // Note that the token out does not need to be specified when
     // simulating a swap for pools with only two tokens.
-    let amount_out = pool.simulate_swap(pool.token_a, Address::default(), U256::from(1000000))?;
+    let amount_out = pool.simulate_swap(
+        pool.token_a.address,
+        Address::default(),
+        U256::from(1000000),
+    )?;
     println!("Amount out: {:?}", amount_out);
 
     Ok(())

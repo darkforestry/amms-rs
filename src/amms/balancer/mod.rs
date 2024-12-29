@@ -552,7 +552,7 @@ impl BalancerFactory {
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::HashMap, str::FromStr, sync::Arc};
+    use std::{collections::HashMap, sync::Arc};
 
     use alloy::{
         primitives::{address, Address, U256},
@@ -580,16 +580,16 @@ mod tests {
             (
                 address!("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"),
                 TokenPoolState {
-                    liquidity: U256::from(1234567890000000000),
-                    weight: U256::from(25000000000000000000),
+                    liquidity: U256::from(1234567890000000000_u128),
+                    weight: U256::from(25000000000000000000_u128),
                     token: Token::new(address!("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"), 18),
                 },
             ),
             (
                 address!("a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"),
                 TokenPoolState {
-                    liquidity: U256::from(987654321000000),
-                    weight: U256::from(25000000000000000000),
+                    liquidity: U256::from(987654321000000_u128),
+                    weight: U256::from(25000000000000000000_u128),
                     token: Token::new(address!("a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"), 6),
                 },
             ),

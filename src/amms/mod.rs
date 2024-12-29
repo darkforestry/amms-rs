@@ -37,8 +37,8 @@ contract IERC20 {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Token {
-    address: Address,
-    decimals: u8,
+    pub address: Address,
+    pub decimals: u8,
     // TODO: add optional tax
 }
 
