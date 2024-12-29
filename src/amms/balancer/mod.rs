@@ -304,7 +304,7 @@ impl AutomatedMarketMaker for BalancerPool {
                     TokenPoolState {
                         liquidity,
                         weight,
-                        token: Token::new(token, decimals as u8),
+                        token: Token::new_with_decimals(token, decimals as u8),
                     },
                 )
             })
@@ -524,7 +524,7 @@ impl BalancerFactory {
                             TokenPoolState {
                                 liquidity,
                                 weight,
-                                token: Token::new(token, decimals as u8),
+                                token: Token::new_with_decimals(token, decimals as u8),
                             },
                         )
                     })
@@ -582,7 +582,10 @@ mod tests {
                 TokenPoolState {
                     liquidity: U256::from(1234567890000000000_u128),
                     weight: U256::from(25000000000000000000_u128),
-                    token: Token::new(address!("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"), 18),
+                    token: Token::new_with_decimals(
+                        address!("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"),
+                        18,
+                    ),
                 },
             ),
             (
@@ -590,7 +593,10 @@ mod tests {
                 TokenPoolState {
                     liquidity: U256::from(987654321000000_u128),
                     weight: U256::from(25000000000000000000_u128),
-                    token: Token::new(address!("a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"), 6),
+                    token: Token::new_with_decimals(
+                        address!("a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"),
+                        6,
+                    ),
                 },
             ),
         ]

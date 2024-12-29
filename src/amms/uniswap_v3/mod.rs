@@ -27,6 +27,7 @@ use std::{
     hash::Hash,
     str::FromStr,
     sync::Arc,
+    u8,
 };
 use thiserror::Error;
 use tracing::info;
@@ -91,6 +92,11 @@ sol! {
     #[sol(rpc)]
     contract IUniswapV3Pool {
         function swap(address recipient, bool zeroForOne, int256 amountSpecified, uint160 sqrtPriceLimitX96, bytes calldata data) external returns (int256, int256);
+        function tickSpacing() external view returns (int24);
+        function fee() external view returns (uint24);
+        function token0() external view returns (address);
+        function token1() external view returns (address);
+
     }
 }
 
@@ -575,14 +581,27 @@ impl AutomatedMarketMaker for UniswapV3Pool {
         }
     }
 
-    async fn init<T, N, P>(self, block_number: BlockId, provider: Arc<P>) -> Result<Self, AMMError>
+    async fn init<T, N, P>(
+        mut self,
+        block_number: BlockId,
+        provider: Arc<P>,
+    ) -> Result<Self, AMMError>
     where
         T: Transport + Clone,
         N: Network,
         P: Provider<T, N>,
     {
-        let mut pool = vec![self.into()];
+        let pool = IUniswapV3Pool::new(self.address, provider.clone());
 
+        // Get pool data
+        self.tick_spacing = pool.tickSpacing().call().await?._0.as_i32();
+        self.fee = pool.fee().call().await?._0.to::<u32>();
+
+        // Get tokens
+        self.token_a = Token::new(pool.token0().call().await?._0, provider.clone()).await?;
+        self.token_b = Token::new(pool.token1().call().await?._0, provider.clone()).await?;
+
+        let mut pool = vec![self.into()];
         UniswapV3Factory::sync_slot_0(&mut pool, block_number, provider.clone()).await?;
         UniswapV3Factory::sync_token_decimals(&mut pool, provider.clone()).await;
         UniswapV3Factory::sync_tick_bitmaps(&mut pool, block_number, provider.clone()).await?;
@@ -1261,13 +1280,6 @@ mod test {
     async fn test_simulate_swap_usdc_weth() -> eyre::Result<()> {
         let rpc_endpoint = std::env::var("ETHEREUM_PROVIDER")?;
 
-        //NOTE: -3466 to 3466 word pos range, we need to split up the word pos throughout the tick bitmap spacing
-        // NOTE: word pos always fits within i16 though so we can just break it up this way
-        let min_word = tick_to_word(MIN_TICK, 1);
-        let max_word = tick_to_word(MAX_TICK, 10);
-
-        dbg!(max_word, min_word);
-
         let client = ClientBuilder::default()
             .layer(ThrottleLayer::new(250, None)?)
             .layer(RetryBackoffLayer::new(5, 200, 330))
@@ -1285,9 +1297,14 @@ mod test {
         );
 
         // Test swap from USDC to WETH
-
         let amount_in = U256::from(100000000); // 100 USDC
         let amount_out = pool.simulate_swap(pool.token_a.address, Address::default(), amount_in)?;
+
+        dbg!(pool.token_a.address);
+        dbg!(pool.token_b.address);
+        dbg!(amount_in);
+        dbg!(amount_out);
+        dbg!(pool.fee);
 
         let expected_amount_out = quoter
             .quoteExactInputSingle(

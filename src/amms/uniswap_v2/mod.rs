@@ -199,8 +199,8 @@ impl AutomatedMarketMaker for UniswapV2Pool {
             todo!("Return error");
         }
 
-        self.token_a = Token::new(pool_data.0, pool_data.4 as u8);
-        self.token_b = Token::new(pool_data.1, pool_data.5 as u8);
+        self.token_a = Token::new_with_decimals(pool_data.0, pool_data.4 as u8);
+        self.token_b = Token::new_with_decimals(pool_data.1, pool_data.5 as u8);
         self.reserve_0 = pool_data.2;
         self.reserve_1 = pool_data.3;
 
@@ -508,8 +508,8 @@ impl UniswapV2Factory {
                     panic!("Unexpected pool type")
                 };
 
-                pool.token_a = Token::new(pool_data.0, pool_data.4 as u8);
-                pool.token_b = Token::new(pool_data.1, pool_data.5 as u8);
+                pool.token_a = Token::new_with_decimals(pool_data.0, pool_data.4 as u8);
+                pool.token_b = Token::new_with_decimals(pool_data.1, pool_data.5 as u8);
                 pool.reserve_0 = pool_data.2;
                 pool.reserve_1 = pool_data.3;
             }
@@ -628,8 +628,14 @@ mod tests {
         let token_b = address!("8f18dc399594b451eda8c5da02d0563c0b2d0f16");
         let pool = UniswapV2Pool {
             address: address!("B4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc"),
-            token_a: Token::new(address!("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"), 6),
-            token_b: Token::new(address!("C02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"), 18),
+            token_a: Token::new_with_decimals(
+                address!("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"),
+                6,
+            ),
+            token_b: Token::new_with_decimals(
+                address!("C02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"),
+                18,
+            ),
             reserve_0: 23595096345912178729927,
             reserve_1: 154664232014390554564,
             fee: 300,
@@ -643,8 +649,14 @@ mod tests {
     async fn test_calculate_price() {
         let pool = UniswapV2Pool {
             address: address!("B4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc"),
-            token_a: Token::new(address!("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"), 6),
-            token_b: Token::new(address!("C02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"), 18),
+            token_a: Token::new_with_decimals(
+                address!("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"),
+                6,
+            ),
+            token_b: Token::new_with_decimals(
+                address!("C02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"),
+                18,
+            ),
             reserve_0: 47092140895915,
             reserve_1: 28396598565590008529300,
             fee: 300,
@@ -667,8 +679,14 @@ mod tests {
     async fn test_calculate_price_64_x_64() {
         let pool = UniswapV2Pool {
             address: address!("B4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc"),
-            token_a: Token::new(address!("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"), 6),
-            token_b: Token::new(address!("C02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"), 18),
+            token_a: Token::new_with_decimals(
+                address!("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"),
+                6,
+            ),
+            token_b: Token::new_with_decimals(
+                address!("C02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"),
+                18,
+            ),
             reserve_0: 47092140895915,
             reserve_1: 28396598565590008529300,
             fee: 300,

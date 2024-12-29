@@ -43,7 +43,18 @@ pub struct Token {
 }
 
 impl Token {
-    pub const fn new(address: Address, decimals: u8) -> Self {
+    pub async fn new<T, N, P>(address: Address, provider: Arc<P>) -> Result<Self, AMMError>
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
+        let decimals = IERC20::new(address, provider).decimals().call().await?._0;
+
+        Ok(Self { address, decimals })
+    }
+
+    pub const fn new_with_decimals(address: Address, decimals: u8) -> Self {
         Self { address, decimals }
     }
 
@@ -53,19 +64,6 @@ impl Token {
 
     pub const fn decimals(&self) -> u8 {
         self.decimals
-    }
-
-    pub async fn fetch_decimals<T, N, P>(&self, provider: Arc<P>) -> Result<u8, AMMError>
-    where
-        T: Transport + Clone,
-        N: Network,
-        P: Provider<T, N>,
-    {
-        Ok(IERC20::new(self.address, provider)
-            .decimals()
-            .call()
-            .await?
-            ._0)
     }
 }
 
