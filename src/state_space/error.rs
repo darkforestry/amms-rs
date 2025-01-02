@@ -8,7 +8,7 @@ pub enum StateSpaceError {
     #[error(transparent)]
     AMMError(#[from] AMMError),
     #[error(transparent)]
-    TransportError(#[from] alloy_json_rpc::RpcError<TransportErrorKind>),
+    TransportError(#[from] alloy::transports::RpcError<TransportErrorKind>),
     #[error(transparent)]
     JoinError(#[from] tokio::task::JoinError),
     #[error("Block Number Does not Exist")]

@@ -9,7 +9,7 @@ use super::{
 #[derive(Error, Debug)]
 pub enum AMMError {
     #[error(transparent)]
-    TransportError(#[from] alloy_json_rpc::RpcError<TransportErrorKind>),
+    TransportError(#[from] alloy::transports::RpcError<TransportErrorKind>),
     #[error(transparent)]
     ContractError(#[from] alloy::contract::Error),
     #[error(transparent)]

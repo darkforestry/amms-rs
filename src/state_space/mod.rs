@@ -8,6 +8,7 @@ use crate::amms::amm::AMM;
 use crate::amms::error::AMMError;
 use crate::amms::factory::Factory;
 
+use alloy::consensus::BlockHeader;
 use alloy::eips::BlockId;
 use alloy::rpc::types::Block;
 use alloy::rpc::types::FilterSet;
@@ -74,7 +75,7 @@ impl<T, N, P> StateSpaceManager<T, N, P> {
             tokio::pin!(block_stream);
 
             while let Some(block) = block_stream.next().await {
-                let block_number = block.header.number;
+                let block_number = block.number();
                 block_filter = block_filter.select(block_number);
 
 

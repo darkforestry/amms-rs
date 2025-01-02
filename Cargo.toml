@@ -14,11 +14,11 @@ exclude = ["target/*", ".github/*", ".gitignore"]
 # TODO: clean up and organize deps
 [dependencies]
 # darkforest
-uniswap_v3_math = "0.5.2"
-alloy-throttle = { git = "https://github.com/darkforestry/alloy-throttle.git" }
+uniswap_v3_math = "0.5"
+alloy-throttle = { git = "https://github.com/darkforestry/alloy-throttle.git", rev = "4d145b62ff8c28a4ab3d95565eb3d128f3fe6b1b" }
 
 # alloy
-alloy = { version = "0.5", features = [
+alloy = { version = "0.9", features = [
     "contract",
     "network",
     "provider-ws",
@@ -32,7 +32,7 @@ eyre = "0.6"
 tracing = "0.1"
 
 # async
-tokio = { version = "1.38", default-features = false }
+tokio = { version = "1.42", default-features = false }
 futures = "0.3"
 future-utils = "0.12"
 async-trait = "0.1"
@@ -60,10 +60,10 @@ async-stream = "0.3.6"
 rand = "0.8.5"
 tracing-subscriber = "0.3"
 criterion = "0.5"
-tokio = { version = "1.38", default-features = false, features = [
+tokio = { version = "1.42", default-features = false, features = [
     "rt-multi-thread",
 ] }
-alloy = { version = "0.5", features = ["rpc-client"] }
+alloy = { version = "0.9", features = ["rpc-client"] }
 
 [build-dependencies]
 
