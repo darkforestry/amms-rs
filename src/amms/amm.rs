@@ -53,7 +53,6 @@ pub trait AutomatedMarketMaker {
     ) -> Result<U256, AMMError>;
 
     // Initializes an empty pool and syncs state up to `block_number`
-    // TODO: return an error
     async fn init<T, N, P>(self, block_number: BlockId, provider: Arc<P>) -> Result<Self, AMMError>
     where
         Self: Sized,
