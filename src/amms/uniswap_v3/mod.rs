@@ -21,7 +21,7 @@ use futures::{stream::FuturesUnordered, StreamExt};
 use rayon::iter::{IntoParallelRefIterator, ParallelDrainRange, ParallelIterator};
 use serde::{Deserialize, Serialize};
 use std::{
-    cmp::Ordering,
+    cmp::{min, Ordering},
     collections::{HashMap, HashSet},
     future::Future,
     hash::Hash,
@@ -933,10 +933,12 @@ impl UniswapV3Factory {
     {
         let mut futures: FuturesUnordered<BoxFuture<'_, _>> = FuturesUnordered::new();
 
-        let max_range = 6900;
-        let mut group_range = 0;
-        let mut group = vec![];
+        let max_group_size = 90;
+        let max_group_words = 6900;
+        let mut curr_words = 0;
+        let mut curr_group = vec![];
 
+        // Batched, limited to max_group_size range queries per group and max_group_words over all ranges
         for pool in pools.iter() {
             let AMM::UniswapV3Pool(uniswap_v3_pool) = pool else {
                 unreachable!()
@@ -945,34 +947,29 @@ impl UniswapV3Factory {
             let mut min_word = tick_to_word(MIN_TICK, uniswap_v3_pool.tick_spacing);
             let max_word = tick_to_word(MAX_TICK, uniswap_v3_pool.tick_spacing);
 
-            // NOTE: found the issue, we are getting max word - min word which is just pos - negative
-            let mut word_range = max_word - min_word;
+            while min_word <= max_word {
+                let remaining_group_words = max_group_words - curr_words;
+                let remaining_pool_words = max_word - min_word + 1;
+                let additional_words = min(remaining_group_words, remaining_pool_words);
 
-            while word_range > 0 {
-                let remaining_range = max_range - group_range;
-                let range = word_range.min(remaining_range);
-
-                group.push(TickBitmapInfo {
+                // Query [min_word, max_word] (inclusive)
+                curr_group.push(TickBitmapInfo {
                     pool: uniswap_v3_pool.address,
                     minWord: min_word as i16,
-                    maxWord: (min_word + range) as i16,
+                    maxWord: (min_word + additional_words - 1) as i16,
                 });
 
-                word_range -= range;
-                min_word += range - 1;
-                group_range += range;
+                curr_words += additional_words;
+                min_word += additional_words;
 
                 // If group is full, fire it off and reset
-
-                // NOTE: we are firing off for each pool, but really we want to make sure that we are grouping pools
-                if group_range >= max_range {
-                    // if group_range >= max_range || word_range <= 0 {
+                if curr_words >= max_group_words || curr_group.len() + 1 >= max_group_size {
                     let provider = provider.clone();
-                    let pool_info = group.iter().map(|info| info.pool).collect::<Vec<_>>();
+                    let pool_info = curr_group.iter().map(|info| info.pool).collect::<Vec<_>>();
 
-                    let calldata = std::mem::take(&mut group);
+                    let calldata = std::mem::take(&mut curr_group);
 
-                    group_range = 0;
+                    curr_words = 0;
 
                     futures.push(Box::pin(async move {
                         Ok::<(Vec<Address>, Bytes), AMMError>((
@@ -989,12 +986,12 @@ impl UniswapV3Factory {
             }
         }
 
-        // Flush group if not empty
-        if !group.is_empty() {
+        // Flush remaining queries in group if not empty
+        if !curr_group.is_empty() {
             let provider = provider.clone();
-            let pool_info = group.iter().map(|info| info.pool).collect::<Vec<_>>();
+            let pool_info = curr_group.iter().map(|info| info.pool).collect::<Vec<_>>();
 
-            let calldata = std::mem::take(&mut group);
+            let calldata = std::mem::take(&mut curr_group);
 
             futures.push(Box::pin(async move {
                 Ok::<(Vec<Address>, Bytes), AMMError>((
