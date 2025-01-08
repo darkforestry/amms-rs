@@ -173,12 +173,7 @@ where
     }
 
     pub async fn sync(self) -> Result<StateSpaceManager<T, N, P>, AMMError> {
-        let this = if let Some(_) = &self.checkpoint_path {
-            self.load_checkpoint()
-        } else {
-            self
-        };
-        
+        let this = self.load_checkpoint();
         let chain_tip = BlockId::from(this.provider.get_block_number().await?);
         let factories = this.factories.clone();
         let mut futures = FuturesUnordered::new();
