@@ -96,8 +96,15 @@ impl<T, N, P> StateSpaceManager<T, N, P> {
 
     pub async fn write_checkpoint(&self) {
         self.checkpoint_path.as_ref().map(|path| async move {
-            self.state.read().await.write_checkpoint(path.clone());
+            self.state.read().await.write_checkpoint(path.clone()).expect("Failed to write checkpoint");
         });
+    }
+}
+
+impl<T, N, P> Drop for StateSpaceManager<T, N, P> {
+    fn drop(&mut self) {
+        let rt = tokio::runtime::Runtime::new().expect("Failed to create runtime");
+        rt.block_on(self.write_checkpoint());
     }
 }
 
