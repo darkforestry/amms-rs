@@ -30,7 +30,12 @@ use filters::PoolFilter;
 use futures::stream::FuturesUnordered;
 use futures::Stream;
 use futures::StreamExt;
+use serde::Deserialize;
+use serde::Serialize;
 use std::collections::HashSet;
+use std::fs::File;
+use std::path::Path;
+use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering;
@@ -48,8 +53,8 @@ pub struct StateSpaceManager<T, N, P> {
     // discovery_manager: Option<DiscoveryManager>,
     pub block_filter: Filter,
     pub provider: Arc<P>,
+    pub checkpoint_path: Option<PathBuf>,
     phantom: PhantomData<(T, N)>,
-    // TODO: add support for caching
 }
 
 impl<T, N, P> StateSpaceManager<T, N, P> {
@@ -88,6 +93,12 @@ impl<T, N, P> StateSpaceManager<T, N, P> {
             }
         }))
     }
+
+    pub async fn write_checkpoint(&self) {
+        self.checkpoint_path.as_ref().map(|path| async move {
+            self.state.read().await.write_checkpoint(path.clone());
+        });
+    }
 }
 
 // NOTE: Drop impl, create a checkpoint
@@ -101,8 +112,8 @@ pub struct StateSpaceBuilder<T, N, P> {
     pub amms: Vec<AMM>,
     pub filters: Vec<PoolFilter>,
     phantom: PhantomData<(T, N)>,
-    // TODO: add support for caching
-    // TODO: add support to load from cache
+    pub checkpoint_path: Option<PathBuf>,
+    pub discovery: bool, // TODO:
 }
 
 impl<T, N, P> StateSpaceBuilder<T, N, P>
@@ -118,8 +129,9 @@ where
             factories: vec![],
             amms: vec![],
             filters: vec![],
-            // discovery: false,
+            discovery: false,
             phantom: PhantomData,
+            checkpoint_path: None,
         }
     }
 
@@ -142,13 +154,37 @@ where
         StateSpaceBuilder { filters, ..self }
     }
 
+    pub fn with_checkpoint(self, path: impl AsRef<Path>) -> StateSpaceBuilder<T, N, P> {
+        StateSpaceBuilder {
+            checkpoint_path: Some(path.as_ref().canonicalize().unwrap()),
+            ..self
+        }
+    }
+
+    pub fn load_checkpoint(mut self) -> StateSpaceBuilder<T, N, P> {
+        self.checkpoint_path.as_ref().map( |path|  {
+            let state_space: StateSpace = serde_json::from_reader(File::open(path).expect(
+                "Failed to open checkpoint file. Ensure the path is correct and you have read permissions.",
+            )).expect("Failed to deserialize checkpoint file");
+            self.latest_block = state_space.latest_block.load(Ordering::Relaxed);
+            self.amms = state_space.state.into_iter().map(|(_, amm)| amm).collect();
+        });
+        self
+    }
+
     pub async fn sync(self) -> Result<StateSpaceManager<T, N, P>, AMMError> {
-        let chain_tip = BlockId::from(self.provider.get_block_number().await?);
-        let factories = self.factories.clone();
+        let this = if let Some(_) = &self.checkpoint_path {
+            self.load_checkpoint()
+        } else {
+            self
+        };
+        
+        let chain_tip = BlockId::from(this.provider.get_block_number().await?);
+        let factories = this.factories.clone();
         let mut futures = FuturesUnordered::new();
 
         let mut amm_variants = HashMap::new();
-        for amm in self.amms.into_iter() {
+        for amm in this.amms.into_iter() {
             amm_variants
                 .entry(amm.variant())
                 .or_insert_with(Vec::new)
@@ -156,8 +192,8 @@ where
         }
 
         for factory in factories {
-            let provider = self.provider.clone();
-            let filters = self.filters.clone();
+            let provider = this.provider.clone();
+            let filters = this.filters.clone();
 
             let extension = amm_variants.remove(&factory.variant());
             futures.push(tokio::spawn(async move {
@@ -221,13 +257,13 @@ where
         for (_, remaining_amms) in amm_variants.drain() {
             for mut amm in remaining_amms {
                 let address = amm.address();
-                amm = amm.init(chain_tip, self.provider.clone()).await?;
+                amm = amm.init(chain_tip, this.provider.clone()).await?;
                 state_space.state.insert(address, amm);
             }
         }
 
         let mut filter_set = HashSet::new();
-        for factory in &self.factories {
+        for factory in &this.factories {
             for event in factory.pool_events() {
                 filter_set.insert(event);
             }
@@ -238,19 +274,21 @@ where
         ));
 
         Ok(StateSpaceManager {
-            latest_block: Arc::new(AtomicU64::new(self.latest_block)),
+            latest_block: Arc::new(AtomicU64::new(this.latest_block)),
             state: Arc::new(RwLock::new(state_space)),
             block_filter,
-            provider: self.provider,
+            provider: this.provider,
+            checkpoint_path: this.checkpoint_path,
             phantom: PhantomData,
         })
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct StateSpace {
     pub state: HashMap<Address, AMM>,
-    pub latest_block: Arc<AtomicU64>,
+    pub latest_block: AtomicU64,
+    #[serde(skip)]
     cache: StateChangeCache<CACHE_SIZE>,
 }
 
@@ -340,6 +378,12 @@ impl StateSpace {
         }
 
         Ok(affected_amms.into_iter().collect())
+    }
+
+    pub fn write_checkpoint(&self, path: PathBuf) -> Result<(), StateSpaceError> {
+        serde_json::to_writer(File::create(path).expect(
+            "Failed to create checkpoint file. Ensure the path is correct and you have write permissions.",
+        ), self).map_err(StateSpaceError::from)
     }
 }
 

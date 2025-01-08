@@ -13,4 +13,6 @@ pub enum StateSpaceError {
     JoinError(#[from] tokio::task::JoinError),
     #[error("Block Number Does not Exist")]
     MissingBlockNumber,
+    #[error(transparent)]
+    CheckpointError(#[from] serde_json::Error),
 }
