@@ -32,6 +32,7 @@ use futures::Stream;
 use futures::StreamExt;
 use serde::Deserialize;
 use serde::Serialize;
+use tokio::runtime::Handle;
 use std::collections::HashSet;
 use std::fs::File;
 use std::path::Path;
@@ -95,24 +96,21 @@ impl<T, N, P> StateSpaceManager<T, N, P> {
     }
 
     pub async fn write_checkpoint(&self) {
-        self.checkpoint_path.as_ref().map(|path| async move {
-            self.state.read().await.write_checkpoint(path.clone()).expect("Failed to write checkpoint");
-        });
+        self.checkpoint_path
+            .as_ref()
+            .map(|path| async move { self.state.read().await.write_checkpoint(path.clone()) });
     }
 }
 
 impl<T, N, P> Drop for StateSpaceManager<T, N, P> {
     fn drop(&mut self) {
-        let rt = tokio::runtime::Runtime::new().expect("Failed to create runtime");
+        let rt = Handle::current();
         rt.block_on(self.write_checkpoint());
     }
 }
 
-// NOTE: Drop impl, create a checkpoint
-
 #[derive(Debug, Default)]
 pub struct StateSpaceBuilder<T, N, P> {
-    // TODO: do we want to add optional amms? for example, if someone wants to sync specific pools but does not care about discovering pools.
     pub provider: Arc<P>,
     pub latest_block: u64,
     pub factories: Vec<Factory>,
@@ -199,7 +197,14 @@ where
 
             let extension = amm_variants.remove(&factory.variant());
             futures.push(tokio::spawn(async move {
-                let mut discovered_amms = factory.discover(chain_tip, provider.clone()).await?;
+                let from_block = if this.latest_block == 0 {
+                    None
+                } else {
+                    Some(this.latest_block.into())
+                };
+                let mut discovered_amms = factory
+                    .discover(from_block, chain_tip, provider.clone())
+                    .await?;
 
                 if let Some(amms) = extension {
                     discovered_amms.extend(amms);
@@ -382,10 +387,10 @@ impl StateSpace {
         Ok(affected_amms.into_iter().collect())
     }
 
-    pub fn write_checkpoint(&self, path: PathBuf) -> Result<(), StateSpaceError> {
+    pub fn write_checkpoint(&self, path: PathBuf) {
         serde_json::to_writer(File::create(path).expect(
             "Failed to create checkpoint file. Ensure the path is correct and you have write permissions.",
-        ), self).map_err(StateSpaceError::from)
+        ), self).expect("Failed to serialize state space");
     }
 }
 

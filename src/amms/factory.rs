@@ -23,6 +23,7 @@ use std::{
 pub trait DiscoverySync {
     fn discover<T, N, P>(
         &self,
+        from_block: Option<BlockId>,
         to_block: BlockId,
         provider: Arc<P>,
     ) -> impl Future<Output = Result<Vec<AMM>, AMMError>>
@@ -63,6 +64,7 @@ pub trait AutomatedMarketMakerFactory: DiscoverySync {
         Self::PoolVariant::default().sync_events()
     }
 
+    /// Pool variant of the factory
     fn pool_variant(&self) -> Self::PoolVariant {
         Self::PoolVariant::default()
     }
@@ -129,14 +131,14 @@ macro_rules! factory {
 
 
         impl Factory {
-            pub async fn discover<T, N, P>(&self, to_block: BlockId, provider: Arc<P>) -> Result<Vec<AMM>, AMMError>
+            pub async fn discover<T, N, P>(&self, from_block: Option<BlockId>, to_block: BlockId, provider: Arc<P>) -> Result<Vec<AMM>, AMMError>
             where
                 T: Transport + Clone,
                 N: Network,
                 P: Provider<T, N>,
             {
                 match self {
-                    $(Factory::$factory_type(factory) => factory.discover(to_block, provider).await,)+
+                    $(Factory::$factory_type(factory) => factory.discover(from_block, to_block, provider).await,)+
                 }
             }
 

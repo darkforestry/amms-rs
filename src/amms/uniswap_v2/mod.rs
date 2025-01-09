@@ -397,6 +397,7 @@ impl UniswapV2Factory {
 
     pub async fn get_all_pairs<T, N, P>(
         factory_address: Address,
+        from_block: Option<BlockId>,
         block_number: BlockId,
         provider: Arc<P>,
     ) -> Result<Vec<Address>, AMMError>
@@ -406,6 +407,7 @@ impl UniswapV2Factory {
         P: Provider<T, N>,
     {
         let factory = IUniswapV2FactoryInstance::new(factory_address, provider.clone());
+
         let pairs_length = factory
             .allPairsLength()
             .call()
@@ -414,9 +416,21 @@ impl UniswapV2Factory {
             ._0
             .to::<usize>();
 
+        let start_idx = if let Some(from_block) = from_block {
+            factory
+                .allPairsLength()
+                .call()
+                .block(from_block)
+                .await?
+                ._0
+                .to::<usize>()
+        } else {
+            0
+        };
+
         let step = 766;
         let mut futures_unordered = FuturesUnordered::new();
-        for i in (0..pairs_length).step_by(step) {
+        for i in (start_idx..pairs_length).step_by(step) {
             // Note that the batch contract handles if the step is greater than the pairs length
             // So we can pass the step in as is without checking for this condition
             let deployer = IGetUniswapV2PairsBatchRequest::deploy_builder(
@@ -561,6 +575,7 @@ impl AutomatedMarketMakerFactory for UniswapV2Factory {
 impl DiscoverySync for UniswapV2Factory {
     fn discover<T, N, P>(
         &self,
+        from_block: Option<BlockId>,
         to_block: BlockId,
         provider: Arc<P>,
     ) -> impl Future<Output = Result<Vec<AMM>, AMMError>>
@@ -578,7 +593,7 @@ impl DiscoverySync for UniswapV2Factory {
         let provider = provider.clone();
         async move {
             let pairs =
-                UniswapV2Factory::get_all_pairs(self.address, to_block, provider.clone()).await?;
+                UniswapV2Factory::get_all_pairs(self.address, from_block, to_block, provider.clone()).await?;
 
             Ok(pairs
                 .into_iter()

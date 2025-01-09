@@ -764,6 +764,7 @@ impl UniswapV3Factory {
 
     pub async fn get_all_pools<T, N, P>(
         &self,
+        from_block: Option<BlockId>,
         block_number: BlockId,
         provider: Arc<P>,
     ) -> Result<Vec<AMM>, AMMError>
@@ -780,7 +781,8 @@ impl UniswapV3Factory {
         let mut futures = FuturesUnordered::new();
 
         let sync_step = 100_000;
-        let mut latest_block = self.creation_block;
+        let mut latest_block =
+            from_block.map_or(self.creation_block(), |b| b.as_u64().unwrap_or_default());
         while latest_block < block_number.as_u64().unwrap_or_default() {
             let mut block_filter = disc_filter.clone();
             let from_block = latest_block;
@@ -811,7 +813,7 @@ impl UniswapV3Factory {
     // TODO: update this to use uv3 error and then use thiserror to convert to AMMError
     pub async fn sync_all_pools<T, N, P>(
         mut pools: Vec<AMM>,
-        block_number: BlockId,
+        to_block: BlockId,
         provider: Arc<P>,
     ) -> Result<Vec<AMM>, AMMError>
     where
@@ -819,7 +821,7 @@ impl UniswapV3Factory {
         N: Network,
         P: Provider<T, N>,
     {
-        UniswapV3Factory::sync_slot_0(&mut pools, block_number, provider.clone()).await?;
+        UniswapV3Factory::sync_slot_0(&mut pools, to_block, provider.clone()).await?;
         UniswapV3Factory::sync_token_decimals(&mut pools, provider.clone()).await;
 
         pools = pools
@@ -834,8 +836,8 @@ impl UniswapV3Factory {
             })
             .collect();
 
-        UniswapV3Factory::sync_tick_bitmaps(&mut pools, block_number, provider.clone()).await?;
-        UniswapV3Factory::sync_tick_data(&mut pools, block_number, provider.clone()).await?;
+        UniswapV3Factory::sync_tick_bitmaps(&mut pools, to_block, provider.clone()).await?;
+        UniswapV3Factory::sync_tick_data(&mut pools, to_block, provider.clone()).await?;
 
         Ok(pools)
     }
@@ -1216,6 +1218,7 @@ impl AutomatedMarketMakerFactory for UniswapV3Factory {
 impl DiscoverySync for UniswapV3Factory {
     fn discover<T, N, P>(
         &self,
+        from_block: Option<BlockId>,
         to_block: BlockId,
         provider: Arc<P>,
     ) -> impl Future<Output = Result<Vec<AMM>, AMMError>>
@@ -1230,7 +1233,7 @@ impl DiscoverySync for UniswapV3Factory {
             "Discovering all pools"
         );
 
-        self.get_all_pools(to_block, provider.clone())
+        self.get_all_pools(from_block, to_block, provider.clone())
     }
 
     fn sync<T, N, P>(
