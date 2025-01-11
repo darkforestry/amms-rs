@@ -11,6 +11,7 @@ use alloy_throttle::ThrottleLayer;
 use amms::amms::{
     amm::{AutomatedMarketMaker, AMM},
     uniswap_v3::{UniswapV3Factory, UniswapV3Pool},
+    Token,
 };
 use criterion::{criterion_group, criterion_main, Criterion};
 use rand::Rng;
@@ -26,15 +27,18 @@ fn simulate_swap(c: &mut Criterion) {
 
     let provider = Arc::new(ProviderBuilder::new().on_client(client));
 
-    let token_a = address!("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48");
-    let token_b = address!("C02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2");
-
     let runtime = Runtime::new().expect("Failed to create Tokio runtime");
     let pool = runtime.block_on(async {
         let pool = AMM::UniswapV3Pool(UniswapV3Pool {
             address: address!("88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640"),
-            token_a,
-            token_b,
+            token_a: Token::new_with_decimals(
+                address!("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"),
+                6,
+            ),
+            token_b: Token::new_with_decimals(
+                address!("C02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"),
+                18,
+            ),
             tick_spacing: 10,
             fee: 500,
             ..Default::default()
@@ -57,7 +61,9 @@ fn simulate_swap(c: &mut Criterion) {
         b.iter_with_setup(
             || U256::from(rng.gen_range(1_000..=1e24 as u128)),
             |amount| {
-                let _ = pool.simulate_swap(token_a, token_b, amount).unwrap();
+                let _ = pool
+                    .simulate_swap(pool.token_a.address(), pool.token_b.address(), amount)
+                    .unwrap();
             },
         );
     });

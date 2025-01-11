@@ -27,7 +27,6 @@ use std::{
     hash::Hash,
     str::FromStr,
     sync::Arc,
-    u8,
 };
 use thiserror::Error;
 use tracing::info;
@@ -190,6 +189,10 @@ pub struct Tick {
 impl AutomatedMarketMaker for UniswapV3Pool {
     fn address(&self) -> Address {
         self.address
+    }
+
+    fn initialized(&self) -> bool {
+        !self.token_a.address.is_zero() && !self.token_b.address.is_zero()
     }
 
     fn sync_events(&self) -> Vec<B256> {

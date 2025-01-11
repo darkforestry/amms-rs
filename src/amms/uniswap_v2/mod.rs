@@ -90,6 +90,10 @@ impl AutomatedMarketMaker for UniswapV2Pool {
         self.address
     }
 
+    fn initialized(&self) -> bool {
+        !self.token_a.address.is_zero() && !self.token_b.address.is_zero()
+    }
+
     fn sync_events(&self) -> Vec<B256> {
         vec![IUniswapV2Pair::Sync::SIGNATURE_HASH]
     }
@@ -592,8 +596,13 @@ impl DiscoverySync for UniswapV2Factory {
 
         let provider = provider.clone();
         async move {
-            let pairs =
-                UniswapV2Factory::get_all_pairs(self.address, from_block, to_block, provider.clone()).await?;
+            let pairs = UniswapV2Factory::get_all_pairs(
+                self.address,
+                from_block,
+                to_block,
+                provider.clone(),
+            )
+            .await?;
 
             Ok(pairs
                 .into_iter()

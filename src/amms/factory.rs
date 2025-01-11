@@ -173,6 +173,10 @@ impl AutomatedMarketMaker for NoopAMM {
         unreachable!()
     }
 
+    fn initialized(&self) -> bool {
+        unreachable!()
+    }
+
     fn sync_events(&self) -> Vec<B256> {
         unreachable!()
     }

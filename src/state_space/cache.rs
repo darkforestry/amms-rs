@@ -53,7 +53,7 @@ impl<const CAP: usize> StateChangeCache<CAP> {
         // If the block to unwind is greater than the latest state change in the block, exit early
         if cache
             .front()
-            .map_or(true, |latest| block_to_unwind > latest.block_number)
+            .is_none_or(|latest| block_to_unwind > latest.block_number)
         {
             return vec![];
         }

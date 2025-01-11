@@ -115,6 +115,10 @@ impl AutomatedMarketMaker for BalancerPool {
         self.address
     }
 
+    fn initialized(&self) -> bool {
+        !self.state.is_empty()
+    }
+
     fn sync_events(&self) -> Vec<B256> {
         vec![IBPool::LOG_SWAP::SIGNATURE_HASH]
     }
@@ -429,7 +433,8 @@ impl BalancerFactory {
         let mut futures = FuturesUnordered::new();
 
         let sync_step = 100_000;
-        let mut latest_block = from_block.map_or(self.creation_block(), |b| b.as_u64().unwrap_or_default());
+        let mut latest_block =
+            from_block.map_or(self.creation_block(), |b| b.as_u64().unwrap_or_default());
         while latest_block < block_number.as_u64().unwrap_or_default() {
             let mut block_filter = disc_filter.clone();
             let from_block = latest_block;

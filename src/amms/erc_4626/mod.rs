@@ -69,6 +69,10 @@ impl AutomatedMarketMaker for ERC4626Vault {
         self.vault_token
     }
 
+    fn initialized(&self) -> bool {
+        !self.vault_token.is_zero() && !self.asset_token.is_zero()
+    }
+
     fn sync_events(&self) -> Vec<B256> {
         vec![
             IERC4626Vault::Deposit::SIGNATURE_HASH,

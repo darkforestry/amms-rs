@@ -32,7 +32,7 @@ use futures::Stream;
 use futures::StreamExt;
 use serde::Deserialize;
 use serde::Serialize;
-use tokio::runtime::Handle;
+use std::cmp::min;
 use std::collections::HashSet;
 use std::fs::File;
 use std::path::Path;
@@ -41,6 +41,7 @@ use std::pin::Pin;
 use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering;
 use std::{collections::HashMap, marker::PhantomData, sync::Arc};
+use tokio::runtime::Handle;
 use tokio::sync::RwLock;
 use tracing::debug;
 use tracing::info;
@@ -167,17 +168,17 @@ where
     }
 
     pub fn load_checkpoint(mut self) -> StateSpaceBuilder<T, N, P> {
-        self.checkpoint_path.as_ref().map( |path|  {
+        if let Some(path) = self.checkpoint_path.as_ref() {
             let state_space: StateSpace = serde_json::from_reader(File::open(path).expect(
                 "Failed to open checkpoint file. Ensure the path is correct and you have read permissions.",
             )).expect("Failed to deserialize checkpoint file");
             self.latest_block = state_space.latest_block.load(Ordering::Relaxed);
-            self.amms = state_space.state.into_iter().map(|(_, amm)| amm).collect();
-        });
+            self.amms.extend(state_space.state.into_values());
+        };
         self
     }
 
-    pub async fn sync(self) -> Result<StateSpaceManager<T, N, P>, AMMError> {
+    pub async fn sync(self) -> Result<StateSpaceManager<T, N, P>, StateSpaceError> {
         let this = self.load_checkpoint();
         let chain_tip = BlockId::from(this.provider.get_block_number().await?);
         let factories = this.factories.clone();
@@ -227,6 +228,7 @@ where
                     }
                 }
 
+                // `discovered_amms` are always empty regardless of checkpoint - sync through batched calls.
                 discovered_amms = factory.sync(discovered_amms, chain_tip, provider).await?;
 
                 // Apply sync filters
@@ -250,22 +252,49 @@ where
             }));
         }
 
+        // Initialize an empty state space.
         let mut state_space = StateSpace::default();
+        // Collect all AMMs that are non-empty i.e. have been loaded from the checkpoint.
+        let populated_amms = amm_variants
+            .iter()
+            .flat_map(|(_, amms)| amms.iter().cloned())
+            .filter(|amm| amm.initialized())
+            .collect::<Vec<AMM>>();
+        let unpopulated_amms = amm_variants
+            .iter()
+            .flat_map(|(_, amms)| amms.iter().cloned())
+            .filter(|amm| !amm.initialized())
+            .collect::<Vec<AMM>>();
+
+        // Insert the populated AMMs into the state space.
+        state_space.state.extend(
+            populated_amms
+                .iter()
+                .map(|amm| (amm.address(), amm.clone())),
+        );
+
+        // Sync populated AMMs in the state space from logs self.latest_block + 1 to chain_tip.
+        let step = 1000;
+        let tip = chain_tip.as_u64().unwrap();
+        for i in (this.latest_block + 1..=tip).step_by(step as usize) {
+            let filter = Filter::new().from_block(i).to_block(min(i + step, tip));
+            let logs = this.provider.get_logs(&filter).await?;
+            state_space.sync(&logs)?;
+        }
+
+        // Sync unpopulates AMM variants
+        for mut amm in unpopulated_amms {
+            let address = amm.address();
+            amm = amm.init(chain_tip, this.provider.clone()).await?;
+            state_space.state.insert(address, amm);
+        }
+
         while let Some(res) = futures.next().await {
             let synced_amms = res??;
 
             for amm in synced_amms {
                 // println!("Adding AMM: {:?}", amm.address());
                 state_space.state.insert(amm.address(), amm);
-            }
-        }
-
-        // Sync remaining AMM variants
-        for (_, remaining_amms) in amm_variants.drain() {
-            for mut amm in remaining_amms {
-                let address = amm.address();
-                amm = amm.init(chain_tip, this.provider.clone()).await?;
-                state_space.state.insert(address, amm);
             }
         }
 

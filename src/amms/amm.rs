@@ -22,6 +22,9 @@ pub trait AutomatedMarketMaker {
     /// Address of the AMM
     fn address(&self) -> Address;
 
+    /// Whether the AMM has been initialized.
+    fn initialized(&self) -> bool;
+
     /// Event signatures that indicate when the AMM should be synced
     fn sync_events(&self) -> Vec<B256>;
 
@@ -72,6 +75,12 @@ macro_rules! amm {
             fn address(&self) -> Address{
                 match self {
                     $(AMM::$pool_type(pool) => pool.address(),)+
+                }
+            }
+
+            fn initialized(&self) -> bool {
+                match self {
+                    $(AMM::$pool_type(pool) => pool.initialized(),)+
                 }
             }
 
