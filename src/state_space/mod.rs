@@ -167,25 +167,25 @@ where
         }
     }
 
-    pub fn load_checkpoint(mut self) -> StateSpaceBuilder<T, N, P> {
+    pub fn load_checkpoint(&mut self) -> Result<(), StateSpaceError> {
         if let Some(path) = self.checkpoint_path.as_ref() {
-            let state_space: StateSpace = serde_json::from_reader(File::open(path).expect(
-                "Failed to open checkpoint file. Ensure the path is correct and you have read permissions.",
-            )).expect("Failed to deserialize checkpoint file");
+            let state_space: StateSpace = serde_json::from_reader(File::open(path)?)?;
             self.latest_block = state_space.latest_block.load(Ordering::Relaxed);
             self.amms.extend(state_space.state.into_values());
         };
-        self
+        Ok(())
     }
 
-    pub async fn sync(self) -> Result<StateSpaceManager<T, N, P>, StateSpaceError> {
-        let this = self.load_checkpoint();
-        let chain_tip = BlockId::from(this.provider.get_block_number().await?);
-        let factories = this.factories.clone();
+    pub async fn sync(mut self) -> Result<StateSpaceManager<T, N, P>, StateSpaceError> {
+        // Load checkpoint if it exists
+        self.load_checkpoint()?;
+
+        let chain_tip = BlockId::from(self.provider.get_block_number().await?);
+        let factories = self.factories.clone();
         let mut futures = FuturesUnordered::new();
 
         let mut amm_variants = HashMap::new();
-        for amm in this.amms.into_iter() {
+        for amm in self.amms.into_iter() {
             amm_variants
                 .entry(amm.variant())
                 .or_insert_with(Vec::new)
@@ -193,15 +193,15 @@ where
         }
 
         for factory in factories {
-            let provider = this.provider.clone();
-            let filters = this.filters.clone();
+            let provider = self.provider.clone();
+            let filters = self.filters.clone();
 
             let extension = amm_variants.remove(&factory.variant());
             futures.push(tokio::spawn(async move {
-                let from_block = if this.latest_block == 0 {
+                let from_block = if self.latest_block == 0 {
                     None
                 } else {
-                    Some(this.latest_block.into())
+                    Some(self.latest_block.into())
                 };
                 let mut discovered_amms = factory
                     .discover(from_block, chain_tip, provider.clone())
@@ -254,12 +254,15 @@ where
 
         // Initialize an empty state space.
         let mut state_space = StateSpace::default();
+
         // Collect all AMMs that are non-empty i.e. have been loaded from the checkpoint.
         let populated_amms = amm_variants
             .iter()
             .flat_map(|(_, amms)| amms.iter().cloned())
             .filter(|amm| amm.initialized())
             .collect::<Vec<AMM>>();
+
+        // Collect all AMMs that are empty i.e. have not been loaded from the checkpoint.
         let unpopulated_amms = amm_variants
             .iter()
             .flat_map(|(_, amms)| amms.iter().cloned())
@@ -276,16 +279,16 @@ where
         // Sync populated AMMs in the state space from logs self.latest_block + 1 to chain_tip.
         let step = 1000;
         let tip = chain_tip.as_u64().unwrap();
-        for i in (this.latest_block + 1..=tip).step_by(step as usize) {
+        for i in (self.latest_block + 1..=tip).step_by(step as usize) {
             let filter = Filter::new().from_block(i).to_block(min(i + step, tip));
-            let logs = this.provider.get_logs(&filter).await?;
+            let logs = self.provider.get_logs(&filter).await?;
             state_space.sync(&logs)?;
         }
 
-        // Sync unpopulates AMM variants
+        // Sync unpopulated AMM variants
         for mut amm in unpopulated_amms {
             let address = amm.address();
-            amm = amm.init(chain_tip, this.provider.clone()).await?;
+            amm = amm.init(chain_tip, self.provider.clone()).await?;
             state_space.state.insert(address, amm);
         }
 
@@ -299,7 +302,7 @@ where
         }
 
         let mut filter_set = HashSet::new();
-        for factory in &this.factories {
+        for factory in &self.factories {
             for event in factory.pool_events() {
                 filter_set.insert(event);
             }
@@ -310,11 +313,11 @@ where
         ));
 
         Ok(StateSpaceManager {
-            latest_block: Arc::new(AtomicU64::new(this.latest_block)),
+            latest_block: Arc::new(AtomicU64::new(self.latest_block)),
             state: Arc::new(RwLock::new(state_space)),
             block_filter,
-            provider: this.provider,
-            checkpoint_path: this.checkpoint_path,
+            provider: self.provider,
+            checkpoint_path: self.checkpoint_path,
             phantom: PhantomData,
         })
     }
@@ -416,10 +419,8 @@ impl StateSpace {
         Ok(affected_amms.into_iter().collect())
     }
 
-    pub fn write_checkpoint(&self, path: PathBuf) {
-        serde_json::to_writer(File::create(path).expect(
-            "Failed to create checkpoint file. Ensure the path is correct and you have write permissions.",
-        ), self).expect("Failed to serialize state space");
+    pub fn write_checkpoint(&self, path: PathBuf) -> Result<(), StateSpaceError> {
+        Ok(serde_json::to_writer(File::create(path)?, self)?)
     }
 }
 

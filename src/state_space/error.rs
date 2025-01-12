@@ -14,5 +14,7 @@ pub enum StateSpaceError {
     #[error("Block Number Does not Exist")]
     MissingBlockNumber,
     #[error(transparent)]
-    CheckpointError(#[from] serde_json::Error),
+    SerdeError(#[from] serde_json::Error),
+    #[error(transparent)]
+    IOError(#[from] std::io::Error),
 }
