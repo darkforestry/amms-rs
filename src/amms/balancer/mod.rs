@@ -15,17 +15,16 @@ use alloy::{
 use async_trait::async_trait;
 use futures::{stream::FuturesUnordered, StreamExt};
 use itertools::Itertools;
-use rug::{float::Round, Float};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tracing::info;
 
 use super::{
     amm::{AutomatedMarketMaker, AMM},
-    consts::{BONE, MPFR_T_PRECISION},
+    consts::{F64_BONE, U64_BONE},
     error::AMMError,
     factory::{AutomatedMarketMakerFactory, DiscoverySync},
-    float::u256_to_float,
+    float::u256_to_f64,
     Token,
 };
 
@@ -75,6 +74,7 @@ sol!(
 pub enum BalancerError {
     #[error("Error initializing Balancer Pool")]
     InitializationError,
+    // TODO: remove?
     #[error("Token in does not exist")]
     TokenInDoesNotExist,
     #[error("Token out does not exist")]
@@ -99,7 +99,7 @@ pub struct BalancerPool {
     // TODO:
     state: HashMap<Address, TokenPoolState>,
     /// The Swap Fee on the Pool.
-    fee: u32,
+    fee: u64,
 }
 
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -166,41 +166,29 @@ impl AutomatedMarketMaker for BalancerPool {
         let token_in = self
             .state
             .get(&base_token)
-            .ok_or(BalancerError::TokenInDoesNotExist)?;
+            .ok_or(AMMError::IncompatibleToken)?;
 
         let token_out = self
             .state
             .get(&quote_token)
-            .ok_or(BalancerError::TokenOutDoesNotExist)?;
+            .ok_or(AMMError::IncompatibleToken)?;
 
-        let bone = u256_to_float(BONE)?;
-        let norm_base = if token_in.token.decimals < 18 {
-            Float::with_val(
-                MPFR_T_PRECISION,
-                10_u64.pow(18 - token_in.token.decimals as u32),
-            )
-        } else {
-            Float::with_val(MPFR_T_PRECISION, 1)
-        };
-        let norm_quote = if token_out.token.decimals < 18 {
-            Float::with_val(
-                MPFR_T_PRECISION,
-                10_u64.pow(18 - token_out.token.decimals as u32),
-            )
-        } else {
-            Float::with_val(MPFR_T_PRECISION, 1)
-        };
+        if token_out.liquidity == U256::ZERO {
+            return Err(BalancerError::DivZero.into());
+        }
 
-        let norm_weight_base = u256_to_float(token_in.weight)? / norm_base;
-        let norm_weight_quote = u256_to_float(token_out.weight)? / norm_quote;
-        let balance_base = u256_to_float(token_in.liquidity)?;
-        let balance_quote = u256_to_float(token_out.liquidity)?;
+        // Should be exact through 10**24
+        let inv_norm_base = 10f64.powi(token_in.token.decimals as i32);
+        let inv_norm_quote = 10f64.powi(token_out.token.decimals as i32);
 
-        let dividend = (balance_quote / norm_weight_quote) * bone.clone();
-        let divisor = (balance_base / norm_weight_base)
-            * (bone - Float::with_val(MPFR_T_PRECISION, self.fee));
-        let ratio = dividend / divisor;
-        Ok(ratio.to_f64_round(Round::Nearest))
+        let norm_weight_base = u256_to_f64(token_in.weight) * inv_norm_base;
+        let norm_weight_quote = u256_to_f64(token_out.weight) * inv_norm_quote;
+        let balance_base = u256_to_f64(token_in.liquidity);
+        let balance_quote = u256_to_f64(token_out.liquidity);
+
+        let numerator = balance_quote * norm_weight_base * F64_BONE;
+        let denominator = balance_base * norm_weight_quote * (U64_BONE - self.fee) as f64;
+        Ok(numerator / denominator)
     }
 
     /// Locally simulates a swap in the AMM.
@@ -216,12 +204,12 @@ impl AutomatedMarketMaker for BalancerPool {
         let token_in = self
             .state
             .get(&base_token)
-            .ok_or(BalancerError::TokenInDoesNotExist)?;
+            .ok_or(AMMError::IncompatibleToken)?;
 
         let token_out = self
             .state
             .get(&quote_token)
-            .ok_or(BalancerError::TokenOutDoesNotExist)?;
+            .ok_or(AMMError::IncompatibleToken)?;
 
         Ok(bmath::calculate_out_given_in(
             token_in.liquidity,
@@ -247,12 +235,12 @@ impl AutomatedMarketMaker for BalancerPool {
         let token_in = self
             .state
             .get(&base_token)
-            .ok_or(BalancerError::TokenInDoesNotExist)?;
+            .ok_or(AMMError::IncompatibleToken)?;
 
         let token_out = self
             .state
             .get(&quote_token)
-            .ok_or(BalancerError::TokenOutDoesNotExist)?;
+            .ok_or(AMMError::IncompatibleToken)?;
 
         let out = bmath::calculate_out_given_in(
             token_in.liquidity,
@@ -284,7 +272,7 @@ impl AutomatedMarketMaker for BalancerPool {
         let res = deployer.block(block_number).call_raw().await?;
 
         let mut data =
-            <Vec<(Vec<Address>, Vec<u16>, Vec<U256>, Vec<U256>, u32)> as SolValue>::abi_decode(
+            <Vec<(Vec<Address>, Vec<u16>, Vec<U256>, Vec<U256>, u64)> as SolValue>::abi_decode(
                 &res, false,
             )?;
         let (tokens, decimals, liquidity, weights, fee) = if !data.is_empty() {
@@ -483,11 +471,11 @@ impl BalancerFactory {
             futures_unordered.push(async move {
                 let res = deployer.call_raw().block(block_number).await?;
 
-                let return_data = <Vec<(Vec<Address>, Vec<u16>, Vec<U256>, Vec<U256>, u32)> as SolValue>::abi_decode(
+                let return_data = <Vec<(Vec<Address>, Vec<u16>, Vec<U256>, Vec<U256>, u64)> as SolValue>::abi_decode(
                     &res, false,
                 )?;
 
-                Ok::<(Vec<Address>, Vec<(Vec<Address>, Vec<u16>, Vec<U256>, Vec<U256>, u32)>), AMMError>((
+                Ok::<(Vec<Address>, Vec<(Vec<Address>, Vec<u16>, Vec<U256>, Vec<U256>, u64)>), AMMError>((
                     group,
                     return_data,
                 ))
@@ -552,25 +540,25 @@ impl BalancerFactory {
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::HashMap, sync::Arc};
+    use std::collections::HashMap;
 
-    use alloy::{
-        primitives::{address, Address, U256},
-        providers::ProviderBuilder,
-    };
+    use alloy::primitives::{address, Address, U256};
     use eyre::Ok;
+    use float_cmp::assert_approx_eq;
 
-    use crate::amms::{
-        amm::AutomatedMarketMaker,
-        balancer::{BalancerPool, IBPool::IBPoolInstance},
-    };
     use crate::amms::{balancer::TokenPoolState, Token};
+    use crate::{
+        amms::{
+            amm::AutomatedMarketMaker,
+            balancer::{BalancerPool, IBPool::IBPoolInstance},
+            error::AMMError,
+        },
+        test_provider,
+    };
 
     #[tokio::test]
     pub async fn test_populate_data() -> eyre::Result<()> {
-        let provider = Arc::new(
-            ProviderBuilder::new().on_http(std::env::var("ETHEREUM_PROVIDER")?.parse().unwrap()),
-        );
+        let provider = test_provider!()?;
 
         let balancer_pool = BalancerPool::new(address!("8a649274E4d777FFC6851F13d23A86BBFA2f2Fbf"))
             .init(20487793.into(), provider.clone())
@@ -581,7 +569,7 @@ mod tests {
             (
                 address!("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"),
                 TokenPoolState {
-                    liquidity: U256::from(1234567890000000000_u128),
+                    liquidity: U256::from(9244284612208827034_u128),
                     weight: U256::from(25000000000000000000_u128),
                     token: Token::new_with_decimals(
                         address!("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"),
@@ -592,7 +580,7 @@ mod tests {
             (
                 address!("a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"),
                 TokenPoolState {
-                    liquidity: U256::from(987654321000000_u128),
+                    liquidity: U256::from(24609707945_u128),
                     weight: U256::from(25000000000000000000_u128),
                     token: Token::new_with_decimals(
                         address!("a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"),
@@ -611,7 +599,7 @@ mod tests {
         );
 
         // Validate the fee
-        let expected_fee = 640942080;
+        let expected_fee = 8000000000000000;
         assert_eq!(
             balancer_pool.fee, expected_fee,
             "Fee does not match expected value"
@@ -622,9 +610,7 @@ mod tests {
 
     #[tokio::test]
     pub async fn test_calculate_price() -> eyre::Result<()> {
-        let provider = Arc::new(
-            ProviderBuilder::new().on_http(std::env::var("ETHEREUM_PROVIDER")?.parse().unwrap()),
-        );
+        let provider = test_provider!()?;
 
         let balancer_pool = BalancerPool::new(address!("8a649274E4d777FFC6851F13d23A86BBFA2f2Fbf"))
             .init(20487793.into(), provider.clone())
@@ -637,15 +623,20 @@ mod tests {
             )
             .unwrap();
 
-        assert_eq!(calculated, 2662.153859723404_f64);
+        assert_approx_eq!(f64, calculated, 2683.622840743061482241114050, ulps = 4);
+
+        let incompatible = balancer_pool.calculate_price(
+            address!("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"),
+            Address::default(),
+        );
+        assert!(matches!(incompatible, Err(AMMError::IncompatibleToken)));
+
         Ok(())
     }
 
     #[tokio::test]
     pub async fn test_simulate_swap() -> eyre::Result<()> {
-        let provider = Arc::new(
-            ProviderBuilder::new().on_http(std::env::var("ETHEREUM_PROVIDER")?.parse().unwrap()),
-        );
+        let provider = test_provider!()?;
 
         let balancer_pool = BalancerPool::new(address!("8a649274E4d777FFC6851F13d23A86BBFA2f2Fbf"))
             .init(20487793.into(), provider.clone())

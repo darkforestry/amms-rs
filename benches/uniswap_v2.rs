@@ -14,7 +14,7 @@ fn simulate_swap(c: &mut Criterion) {
         token_b_decimals: 18,
         reserve_0: 20_000_000_u128,
         reserve_1: 20_000_000_u128,
-        fee: 300,
+        fee: 3000,
         ..Default::default()
     };
 

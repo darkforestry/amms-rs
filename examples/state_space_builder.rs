@@ -38,7 +38,7 @@ async fn main() -> eyre::Result<()> {
         // UniswapV2
         UniswapV2Factory::new(
             address!("5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f"),
-            300,
+            3000,
             10000835,
         )
         .into(),
@@ -62,7 +62,7 @@ async fn main() -> eyre::Result<()> {
     need to track a handful of specific pools.
     */
     let amms = vec![
-        UniswapV2Pool::new(address!("B4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc"), 300).into(),
+        UniswapV2Pool::new(address!("B4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc"), 3000).into(),
         UniswapV3Pool::new(address!("88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640")).into(),
     ];
 
@@ -81,7 +81,6 @@ async fn main() -> eyre::Result<()> {
     let amms = vec![ERC4626Vault::new(address!("163538E22F4d38c1eb21B79939f3d2ee274198Ff")).into()];
 
     let _state_space_manager = StateSpaceBuilder::new(provider.clone())
-        .with_factories(factories)
         .with_amms(amms)
         .sync()
         .await?;

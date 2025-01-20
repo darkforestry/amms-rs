@@ -28,7 +28,7 @@ async fn main() -> eyre::Result<()> {
         // UniswapV2
         UniswapV2Factory::new(
             address!("5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f"),
-            300,
+            3000,
             10000835,
         )
         .into(),

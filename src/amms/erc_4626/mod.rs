@@ -1,8 +1,9 @@
 use super::{
     amm::AutomatedMarketMaker,
-    consts::{U128_0X10000000000000000, U256_10000, U256_2},
+    consts::{F64_FEE_ONE, U256_2, U256_FEE_ONE, U32_FEE_ONE},
     error::AMMError,
-    uniswap_v2::{div_uu, q64_to_float},
+    float::u256_to_f64,
+    Token,
 };
 use alloy::{
     eips::BlockId,
@@ -15,7 +16,7 @@ use alloy::{
     transports::Transport,
 };
 use serde::{Deserialize, Serialize};
-use std::{cmp::Ordering, sync::Arc};
+use std::sync::Arc;
 use thiserror::Error;
 use tracing::info;
 
@@ -49,11 +50,9 @@ pub enum ERC4626VaultError {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ERC4626Vault {
     /// Token received from depositing, i.e. shares token
-    pub vault_token: Address,
-    pub vault_token_decimals: u8,
+    pub vault_token: Token,
     /// Token received from withdrawing, i.e. underlying token
-    pub asset_token: Address,
-    pub asset_token_decimals: u8,
+    pub asset_token: Token,
     /// Total supply of vault tokens
     pub vault_reserve: U256,
     /// Total balance of asset tokens held by vault
@@ -66,7 +65,7 @@ pub struct ERC4626Vault {
 
 impl AutomatedMarketMaker for ERC4626Vault {
     fn address(&self) -> Address {
-        self.vault_token
+        self.vault_token.address
     }
 
     fn sync_events(&self) -> Vec<B256> {
@@ -116,11 +115,36 @@ impl AutomatedMarketMaker for ERC4626Vault {
     }
 
     fn tokens(&self) -> Vec<Address> {
-        vec![self.vault_token, self.asset_token]
+        vec![self.vault_token.address, self.asset_token.address]
     }
 
     fn calculate_price(&self, base_token: Address, _quote_token: Address) -> Result<f64, AMMError> {
-        q64_to_float(self.calculate_price_64_x_64(base_token)?)
+        // TODO: this is the same behavior as before, but I'm not sure it's correct
+        if base_token == self.vault_token {
+            if self.vault_reserve == U256::ZERO {
+                return Ok(1.0);
+            }
+        } else {
+            if self.asset_reserve == U256::ZERO {
+                return Ok(1.0);
+            }
+        }
+
+        // Decimals are intentionally swapped as we are multiplying rather than dividing
+        let (r_a, r_v) = (
+            u256_to_f64(self.asset_reserve) * (10f64).powi(self.vault_token.decimals as i32),
+            u256_to_f64(self.vault_reserve) * (10f64).powi(self.asset_token.decimals as i32),
+        );
+        let (reserve_in, reserve_out, fee) = if base_token == self.asset_token {
+            Ok((r_a, r_v, self.deposit_fee))
+        } else if base_token == self.vault_token {
+            Ok((r_v, r_a, self.withdraw_fee))
+        } else {
+            Err(AMMError::IncompatibleToken)
+        }?;
+        let numerator = reserve_out * F64_FEE_ONE;
+        let denominator = reserve_in * (U32_FEE_ONE - fee) as f64;
+        Ok(numerator / denominator)
     }
 
     fn simulate_swap(
@@ -172,8 +196,10 @@ impl AutomatedMarketMaker for ERC4626Vault {
         N: Network,
         P: Provider<T, N>,
     {
-        let deployer =
-            IGetERC4626VaultDataBatchRequest::deploy_builder(provider, vec![self.vault_token]);
+        let deployer = IGetERC4626VaultDataBatchRequest::deploy_builder(
+            provider,
+            vec![self.vault_token.address],
+        );
         let res = deployer.call_raw().block(block_number).await?;
 
         let data = <Vec<(
@@ -214,7 +240,7 @@ impl AutomatedMarketMaker for ERC4626Vault {
             self.deposit_fee = 0;
 
         // Assuming 18 decimals, if the delta of 1e20 is half the delta of 2e20, relative fee.
-        // Delta / (amount without fee / 10000) to give us the fee in basis points
+        // Delta / (amount without fee / 1,000,000) to give us the fee in basis points
         } else if deposit_fee_delta_1 * U256_2 == deposit_fee_delta_2 {
             self.deposit_fee = (deposit_fee_delta_1 / (deposit_no_fee / U256::from(10_000))).to();
         } else {
@@ -225,7 +251,7 @@ impl AutomatedMarketMaker for ERC4626Vault {
         if withdraw_fee_delta_1.is_zero() && withdraw_fee_delta_2.is_zero() {
             self.withdraw_fee = 0;
         // Assuming 18 decimals, if the delta of 1e20 is half the delta of 2e20, relative fee.
-        // Delta / (amount without fee / 10000) to give us the fee in basis points
+        // Delta / (amount without fee / 1,000,000) to give us the fee in basis points
         } else if withdraw_fee_delta_1 * U256::from(2) == withdraw_fee_delta_2 {
             self.withdraw_fee =
                 (withdraw_fee_delta_1 / (withdraw_no_fee / U256::from(10_000))).to();
@@ -235,10 +261,8 @@ impl AutomatedMarketMaker for ERC4626Vault {
         }
 
         // if above does not error => populate the vault
-        self.vault_token = vault_token;
-        self.vault_token_decimals = vault_token_dec as u8;
-        self.asset_token = asset_token;
-        self.asset_token_decimals = asset_token_dec as u8;
+        self.vault_token = Token::new_with_decimals(vault_token, vault_token_dec as u8);
+        self.asset_token = Token::new_with_decimals(asset_token, asset_token_dec as u8);
         self.vault_reserve = vault_reserve;
         self.asset_reserve = asset_reserve;
 
@@ -251,7 +275,7 @@ impl ERC4626Vault {
     // Returns a new, unsynced ERC4626 vault
     pub fn new(address: Address) -> Self {
         Self {
-            vault_token: address,
+            vault_token: address.into(),
             ..Default::default()
         }
     }
@@ -276,44 +300,16 @@ impl ERC4626Vault {
             self.deposit_fee
         };
 
-        if reserve_in.is_zero() || 10000 - fee == 0 {
+        if reserve_in.is_zero() || U32_FEE_ONE - fee == 0 {
             return Err(ERC4626VaultError::DivisionByZero.into());
         }
 
-        Ok(amount_in * reserve_out / reserve_in * U256::from(10000 - fee) / U256_10000)
-    }
-
-    // TODO: Right now this will return a uv2 error, fix this
-    pub fn calculate_price_64_x_64(&self, base_token: Address) -> Result<u128, AMMError> {
-        let decimal_shift = self.vault_token_decimals as i8 - self.asset_token_decimals as i8;
-
-        // Normalize reserves by decimal shift
-        let (r_v, r_a) = match decimal_shift.cmp(&0) {
-            Ordering::Less => (
-                self.vault_reserve * U256::from(10u128.pow(decimal_shift.unsigned_abs() as u32)),
-                self.asset_reserve,
-            ),
-            _ => (
-                self.vault_reserve,
-                self.asset_reserve * U256::from(10u128.pow(decimal_shift as u32)),
-            ),
-        };
-
-        // Withdraw
-        if base_token == self.vault_token {
-            if r_v.is_zero() {
-                // Return 1 in Q64
-                Ok(U128_0X10000000000000000)
-            } else {
-                Ok(div_uu(r_a, r_v)?)
-            }
-        // Deposit
-        } else if r_a.is_zero() {
-            // Return 1 in Q64
-            Ok(U128_0X10000000000000000)
-        } else {
-            Ok(div_uu(r_v, r_a)?)
-        }
+        // TODO: support virtual offset?
+        // TODO: guessing this new fee calculation is more accurate but not sure
+        let fee_num = U32_FEE_ONE - fee;
+        let numerator = amount_in * reserve_out * U256::from(fee_num);
+        let denominator = reserve_in * U256_FEE_ONE;
+        Ok(numerator / denominator)
     }
 
     pub async fn get_reserves<T, N, P>(
@@ -326,12 +322,93 @@ impl ERC4626Vault {
         N: Network,
         P: Provider<T, N> + Clone,
     {
-        let vault = IERC4626Vault::new(self.vault_token, provider);
+        let vault = IERC4626Vault::new(self.vault_token.address, provider);
 
         let total_assets = vault.totalAssets().block(block_number).call().await?._0;
 
         let total_supply = vault.totalSupply().block(block_number).call().await?._0;
 
         Ok((total_supply, total_assets))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use alloy::primitives::{address, Address, U256};
+    use float_cmp::assert_approx_eq;
+
+    use crate::amms::{amm::AutomatedMarketMaker, Token};
+
+    use super::ERC4626Vault;
+
+    fn get_test_vault(vault_reserve: u128, asset_reserve: u128) -> ERC4626Vault {
+        ERC4626Vault {
+            vault_token: Token {
+                address: address!("163538E22F4d38c1eb21B79939f3d2ee274198Ff"),
+                decimals: 18,
+            },
+            asset_token: Token {
+                address: address!("6B175474E89094C44Da98b954EedeAC495271d0F"),
+                decimals: 6,
+            },
+            vault_reserve: U256::from(vault_reserve),
+            asset_reserve: U256::from(asset_reserve),
+            // ficticious fees
+            deposit_fee: 1000,
+            withdraw_fee: 5000,
+        }
+    }
+
+    #[test]
+    fn test_calculate_price_varying_decimals() {
+        let vault = get_test_vault(501910315708981197269904, 505434849031);
+
+        let price_v_for_a = vault
+            .calculate_price(vault.vault_token.address, Address::default())
+            .unwrap();
+        let price_a_for_v = vault
+            .calculate_price(vault.asset_token.address, Address::default())
+            .unwrap();
+
+        assert_approx_eq!(f64, price_v_for_a, 1.012082650516304962229139433, ulps = 4);
+        assert_approx_eq!(f64, price_a_for_v, 0.9940207514393293696121269615, ulps = 4);
+    }
+
+    #[test]
+    fn test_calculate_price_zero_reserve() {
+        let vault = get_test_vault(0, 0);
+
+        let price_v_for_a = vault
+            .calculate_price(vault.vault_token.address, Address::default())
+            .unwrap();
+        let price_a_for_v = vault
+            .calculate_price(vault.asset_token.address, Address::default())
+            .unwrap();
+
+        assert_eq!(price_v_for_a, 1.0);
+        assert_eq!(price_a_for_v, 1.0);
+    }
+
+    #[test]
+    fn test_simulate_swap() {
+        let vault = get_test_vault(501910315708981197269904, 505434849031054568651911);
+
+        let assets_out = vault
+            .simulate_swap(
+                vault.vault_token.address,
+                vault.asset_token.address,
+                U256::from(3000000000000000000_u128),
+            )
+            .unwrap();
+        let shares_out = vault
+            .simulate_swap(
+                vault.asset_token.address,
+                vault.vault_token.address,
+                U256::from(3000000000000000000_u128),
+            )
+            .unwrap();
+
+        assert_eq!(assets_out, U256::from(3005961378232538995_u128));
+        assert_eq!(shares_out, U256::from(2976101111871285139_u128));
     }
 }

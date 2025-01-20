@@ -10,7 +10,6 @@ use alloy::{
     rpc::types::Log,
     transports::Transport,
 };
-use eyre::Result;
 use serde::{Deserialize, Serialize};
 use std::{
     hash::{Hash, Hasher},
@@ -31,7 +30,8 @@ pub trait AutomatedMarketMaker {
     /// Returns a list of token addresses used in the AMM
     fn tokens(&self) -> Vec<Address>;
 
-    /// Calculates the price of `base_token` in terms of `quote_token`
+    /// Calculates the price of `base_token` in terms of `quote_token` with fee included
+    /// The result should be precise down to a few bits
     fn calculate_price(&self, base_token: Address, quote_token: Address) -> Result<f64, AMMError>;
 
     /// Simulate a swap

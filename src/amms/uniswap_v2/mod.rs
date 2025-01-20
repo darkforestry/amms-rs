@@ -1,11 +1,6 @@
 use super::{
     amm::{AutomatedMarketMaker, AMM},
-    consts::{
-        MPFR_T_PRECISION, U128_0X10000000000000000, U256_0X100, U256_0X10000, U256_0X100000000,
-        U256_0XFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF,
-        U256_0XFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF, U256_1, U256_1000, U256_128,
-        U256_16, U256_191, U256_192, U256_2, U256_255, U256_32, U256_4, U256_64, U256_8,
-    },
+    consts::{F64_FEE_ONE, U256_FEE_ONE, U32_FEE_ONE},
     error::AMMError,
     factory::{AutomatedMarketMakerFactory, DiscoverySync},
     Token,
@@ -23,7 +18,6 @@ use alloy::{
 };
 use futures::{stream::FuturesUnordered, StreamExt};
 use itertools::Itertools;
-use rug::Float;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, future::Future, hash::Hash, sync::Arc};
 use thiserror::Error;
@@ -68,12 +62,7 @@ sol!(
 );
 
 #[derive(Error, Debug)]
-pub enum UniswapV2Error {
-    #[error("Division by zero")]
-    DivisionByZero,
-    #[error("Rounding Error")]
-    RoundingError,
-}
+pub enum UniswapV2Error {}
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct UniswapV2Pool {
@@ -82,7 +71,7 @@ pub struct UniswapV2Pool {
     pub token_b: Token,
     pub reserve_0: u128,
     pub reserve_1: u128,
-    pub fee: usize,
+    pub fee: u32,
 }
 
 impl AutomatedMarketMaker for UniswapV2Pool {
@@ -170,8 +159,21 @@ impl AutomatedMarketMaker for UniswapV2Pool {
     }
 
     fn calculate_price(&self, base_token: Address, _quote_token: Address) -> Result<f64, AMMError> {
-        let price = self.calculate_price_64_x_64(base_token)?;
-        q64_to_float(price)
+        // Decimals are intentionally swapped as we are multiplying rather than dividing
+        let (r_0, r_1) = (
+            self.reserve_0 as f64 * (10f64).powi(self.token_b.decimals as i32),
+            self.reserve_1 as f64 * (10f64).powi(self.token_a.decimals as i32),
+        );
+        let (reserve_in, reserve_out) = if base_token == self.token_a {
+            Ok((r_0, r_1))
+        } else if base_token == self.token_b {
+            Ok((r_1, r_0))
+        } else {
+            Err(AMMError::IncompatibleToken)
+        }?;
+        let numerator = reserve_out * F64_FEE_ONE;
+        let denominator = reserve_in * (U32_FEE_ONE - self.fee) as f64;
+        Ok(numerator / denominator)
     }
 
     async fn init<T, N, P>(
@@ -210,22 +212,10 @@ impl AutomatedMarketMaker for UniswapV2Pool {
     }
 }
 
-pub fn q64_to_float(num: u128) -> Result<f64, AMMError> {
-    let float_num = u128_to_float(num)?;
-    let divisor = u128_to_float(U128_0X10000000000000000)?;
-    Ok((float_num / divisor).to_f64())
-}
-
-pub fn u128_to_float(num: u128) -> Result<Float, AMMError> {
-    let value_string = num.to_string();
-    let parsed_value = Float::parse_radix(value_string, 10)?;
-    Ok(Float::with_val(MPFR_T_PRECISION, parsed_value))
-}
-
 impl UniswapV2Pool {
     // Create a new, unsynced UniswapV2 pool
     // TODO: update the init function to derive the fee
-    pub fn new(address: Address, fee: usize) -> Self {
+    pub fn new(address: Address, fee: u32) -> Self {
         Self {
             address,
             fee,
@@ -240,44 +230,12 @@ impl UniswapV2Pool {
         }
 
         // TODO: we could set this as the fee on the pool instead of calculating this
-        let fee = (10000 - (self.fee / 10)) / 10; // Fee of 300 => (10,000 - 30) / 10  = 997
+        let fee = U32_FEE_ONE - self.fee;
         let amount_in_with_fee = amount_in * U256::from(fee);
         let numerator = amount_in_with_fee * reserve_out;
-        let denominator = reserve_in * U256_1000 + amount_in_with_fee;
+        let denominator = reserve_in * U256_FEE_ONE + amount_in_with_fee;
 
         numerator / denominator
-    }
-
-    /// Calculates the price of the base token in terms of the quote token.
-    ///
-    /// Returned as a Q64 fixed point number.
-    pub fn calculate_price_64_x_64(&self, base_token: Address) -> Result<u128, AMMError> {
-        let decimal_shift = self.token_a.decimals as i8 - self.token_b.decimals as i8;
-
-        let (r_0, r_1) = if decimal_shift < 0 {
-            (
-                U256::from(self.reserve_0)
-                    * U256::from(10u128.pow(decimal_shift.unsigned_abs() as u32)),
-                U256::from(self.reserve_1),
-            )
-        } else {
-            (
-                U256::from(self.reserve_0),
-                U256::from(self.reserve_1) * U256::from(10u128.pow(decimal_shift as u32)),
-            )
-        };
-
-        if base_token == self.token_a.address {
-            if r_0.is_zero() {
-                Ok(U128_0X10000000000000000)
-            } else {
-                div_uu(r_1, r_0)
-            }
-        } else if r_1.is_zero() {
-            Ok(U128_0X10000000000000000)
-        } else {
-            div_uu(r_0, r_1)
-        }
     }
 
     pub fn swap_calldata(
@@ -298,96 +256,15 @@ impl UniswapV2Pool {
     }
 }
 
-pub fn div_uu(x: U256, y: U256) -> Result<u128, AMMError> {
-    if !y.is_zero() {
-        let mut answer;
-
-        if x <= U256_0XFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF {
-            answer = (x << U256_64) / y;
-        } else {
-            let mut msb = U256_192;
-            let mut xc = x >> U256_192;
-
-            if xc >= U256_0X100000000 {
-                xc >>= U256_32;
-                msb += U256_32;
-            }
-
-            if xc >= U256_0X10000 {
-                xc >>= U256_16;
-                msb += U256_16;
-            }
-
-            if xc >= U256_0X100 {
-                xc >>= U256_8;
-                msb += U256_8;
-            }
-
-            if xc >= U256_16 {
-                xc >>= U256_4;
-                msb += U256_4;
-            }
-
-            if xc >= U256_4 {
-                xc >>= U256_2;
-                msb += U256_2;
-            }
-
-            if xc >= U256_2 {
-                msb += U256_1;
-            }
-
-            answer = (x << (U256_255 - msb)) / (((y - U256_1) >> (msb - U256_191)) + U256_1);
-        }
-
-        if answer > U256_0XFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF {
-            return Ok(0);
-        }
-
-        let hi = answer * (y >> U256_128);
-        let mut lo = answer * (y & U256_0XFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF);
-
-        let mut xh = x >> U256_192;
-        let mut xl = x << U256_64;
-
-        if xl < lo {
-            xh -= U256_1;
-        }
-
-        xl = xl.overflowing_sub(lo).0;
-        lo = hi << U256_128;
-
-        if xl < lo {
-            xh -= U256_1;
-        }
-
-        xl = xl.overflowing_sub(lo).0;
-
-        if xh != hi >> U256_128 {
-            return Err(UniswapV2Error::RoundingError.into());
-        }
-
-        answer += xl / y;
-
-        if answer > U256_0XFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF {
-            return Ok(0_u128);
-        }
-
-        Ok(answer.to::<u128>())
-    } else {
-        Err(UniswapV2Error::DivisionByZero.into())
-    }
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize, Hash, PartialEq, Eq)]
 pub struct UniswapV2Factory {
     pub address: Address,
-    pub fee: usize,
+    pub fee: u32,
     pub creation_block: u64,
 }
 
 impl UniswapV2Factory {
-    pub fn new(address: Address, fee: usize, creation_block: u64) -> Self {
+    pub fn new(address: Address, fee: u32, creation_block: u64) -> Self {
         Self {
             address,
             creation_block,
@@ -619,83 +496,82 @@ impl DiscoverySync for UniswapV2Factory {
 
 #[cfg(test)]
 mod tests {
-    use crate::amms::{amm::AutomatedMarketMaker, uniswap_v2::UniswapV2Pool, Token};
+    use crate::amms::{
+        amm::AutomatedMarketMaker, error::AMMError, uniswap_v2::UniswapV2Pool, Token,
+    };
     use alloy::primitives::{address, Address};
+    use float_cmp::assert_approx_eq;
+
+    fn get_test_pool(reserve_0: u128, reserve_1: u128) -> UniswapV2Pool {
+        UniswapV2Pool {
+            address: address!("B4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc"),
+            token_a: Token::new_with_decimals(
+                address!("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"),
+                6,
+            ),
+            token_b: Token::new_with_decimals(
+                address!("C02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"),
+                18,
+            ),
+            reserve_0: reserve_0,
+            reserve_1: reserve_1,
+            fee: 3000,
+        }
+    }
 
     #[test]
     fn test_calculate_price_edge_case() {
-        let token_a = address!("0d500b1d8e8ef31e21c99d1db9a6444d3adf1270");
-        let token_b = address!("8f18dc399594b451eda8c5da02d0563c0b2d0f16");
-        let pool = UniswapV2Pool {
-            address: address!("B4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc"),
-            token_a: Token::new_with_decimals(
-                address!("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"),
-                6,
-            ),
-            token_b: Token::new_with_decimals(
-                address!("C02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"),
-                18,
-            ),
-            reserve_0: 23595096345912178729927,
-            reserve_1: 154664232014390554564,
-            fee: 300,
-        };
-
-        assert!(pool.calculate_price(token_a, Address::default()).unwrap() != 0.0);
-        assert!(pool.calculate_price(token_b, Address::default()).unwrap() != 0.0);
+        let pool = get_test_pool(23595096345912178729927, 154664232014390554564);
+        assert_ne!(
+            pool.calculate_price(pool.token_a.address, Address::default())
+                .unwrap(),
+            0.0
+        );
+        assert_ne!(
+            pool.calculate_price(pool.token_b.address, Address::default())
+                .unwrap(),
+            0.0
+        );
     }
 
-    #[tokio::test]
-    async fn test_calculate_price() {
-        let pool = UniswapV2Pool {
-            address: address!("B4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc"),
-            token_a: Token::new_with_decimals(
-                address!("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"),
-                6,
-            ),
-            token_b: Token::new_with_decimals(
-                address!("C02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"),
-                18,
-            ),
-            reserve_0: 47092140895915,
-            reserve_1: 28396598565590008529300,
-            fee: 300,
-        };
+    #[test]
+    fn test_calculate_price() {
+        let pool = get_test_pool(47092140895915, 28396598565590008529300);
 
-        let price_a_64_x = pool
+        let price_a_for_b = pool
             .calculate_price(pool.token_a.address, Address::default())
             .unwrap();
-        let price_b_64_x = pool
+        let price_b_for_a = pool
             .calculate_price(pool.token_b.address, Address::default())
             .unwrap();
 
-        // No precision loss: 30591574867092394336528 / 2**64
-        assert_eq!(1658.3725965327264, price_b_64_x);
-        // Precision loss: 11123401407064628 / 2**64
-        assert_eq!(0.0006030007985483893, price_a_64_x);
+        // FWIW, the representation is accurate to 0 and 1 ULPs on this example, but we don't want a change detector
+        assert_approx_eq!(f64, 1663.362684586485983229152871, price_b_for_a, ulps = 4);
+        assert_approx_eq!(
+            f64,
+            0.0006048152442812330502786409979,
+            price_a_for_b,
+            ulps = 4
+        );
     }
 
-    #[tokio::test]
-    async fn test_calculate_price_64_x_64() {
-        let pool = UniswapV2Pool {
-            address: address!("B4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc"),
-            token_a: Token::new_with_decimals(
-                address!("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"),
-                6,
-            ),
-            token_b: Token::new_with_decimals(
-                address!("C02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"),
-                18,
-            ),
-            reserve_0: 47092140895915,
-            reserve_1: 28396598565590008529300,
-            fee: 300,
-        };
+    #[test]
+    fn test_incompatible_token() {
+        let pool = get_test_pool(47092140895915, 28396598565590008529300);
 
-        let price_a_64_x = pool.calculate_price_64_x_64(pool.token_a.address).unwrap();
-        let price_b_64_x = pool.calculate_price_64_x_64(pool.token_b.address).unwrap();
+        let invalid_price = pool.calculate_price(Address::default(), Address::default());
 
-        assert_eq!(30591574867092394336528, price_b_64_x);
-        assert_eq!(11123401407064628, price_a_64_x);
+        assert!(matches!(invalid_price, Err(AMMError::IncompatibleToken)));
+    }
+
+    #[test]
+    fn test_zero_reserve() {
+        let pool = get_test_pool(0, 28396598565590008529300);
+
+        let infinite_price = pool.calculate_price(pool.token_a.address, Address::default());
+        let zero_price = pool.calculate_price(pool.token_b.address, Address::default());
+
+        assert_eq!(infinite_price.unwrap(), f64::INFINITY);
+        assert_eq!(zero_price.unwrap(), 0.0);
     }
 }

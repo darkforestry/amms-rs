@@ -24,10 +24,10 @@ pub enum AMMError {
     BalancerError(#[from] BalancerError),
     #[error(transparent)]
     ERC4626VaultError(#[from] ERC4626VaultError),
-    #[error(transparent)]
-    ParseFloatError(#[from] rug::float::ParseFloatError),
     #[error("Unrecognized Event Signature {0}")]
     UnrecognizedEventSignature(FixedBytes<32>),
     #[error(transparent)]
     JoinError(#[from] tokio::task::JoinError),
+    #[error("Specified tokens are incompatible")]
+    IncompatibleToken,
 }

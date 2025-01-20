@@ -1,8 +1,9 @@
-use super::{amm::Variant, uniswap_v2::UniswapV2Factory, uniswap_v3::UniswapV3Factory};
 use super::{
-    amm::{AutomatedMarketMaker, AMM},
+    amm::{AutomatedMarketMaker, Variant, AMM},
     balancer::BalancerFactory,
     error::AMMError,
+    uniswap_v2::UniswapV2Factory,
+    uniswap_v3::UniswapV3Factory,
 };
 use alloy::{
     eips::BlockId,
@@ -12,7 +13,6 @@ use alloy::{
     rpc::types::eth::Log,
     transports::Transport,
 };
-use eyre::Result;
 use serde::{Deserialize, Serialize};
 use std::{
     future::Future,

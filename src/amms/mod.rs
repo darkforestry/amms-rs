@@ -76,6 +76,18 @@ impl From<Address> for Token {
     }
 }
 
+impl PartialEq<Address> for Token {
+    fn eq(&self, other: &Address) -> bool {
+        self.address() == *other
+    }
+}
+
+impl PartialEq<Token> for Address {
+    fn eq(&self, other: &Token) -> bool {
+        other == self
+    }
+}
+
 impl Hash for Token {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.address.hash(state);
@@ -132,4 +144,25 @@ where
         }
     }
     token_decimals
+}
+
+#[cfg(test)]
+mod test {
+    #[macro_export]
+    macro_rules! test_provider {
+        () => {{
+            let rpc_endpoint = ::std::env::var("ETHEREUM_PROVIDER")?;
+
+            let client = ::alloy::rpc::client::ClientBuilder::default()
+                .layer(::alloy_throttle::ThrottleLayer::new(250, None)?)
+                .layer(::alloy::transports::layers::RetryBackoffLayer::new(
+                    5, 200, 330,
+                ))
+                .http(rpc_endpoint.parse()?);
+
+            ::eyre::Ok(::std::sync::Arc::new(
+                ::alloy::providers::ProviderBuilder::new().on_client(client),
+            ))
+        }};
+    }
 }

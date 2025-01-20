@@ -22,7 +22,7 @@ contract GetBalancerPoolDataBatchRequest {
         uint8[] decimals;
         uint256[] liquidity;
         uint256[] weights;
-        uint32 fee;
+        uint64 fee;
     }
 
     constructor(address[] memory pools) {
@@ -62,7 +62,7 @@ contract GetBalancerPoolDataBatchRequest {
             }
 
             // Grab the swap fee
-            poolData.fee = uint32(IBPool(poolAddress).getSwapFee());
+            poolData.fee = uint64(IBPool(poolAddress).getSwapFee());
             poolData.tokens = tokens;
             poolData.decimals = decimals;
             poolData.liquidity = liquidity;
