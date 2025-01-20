@@ -54,7 +54,7 @@ itertools = "0.13.0"
 tower = "0.5.1"
 rayon = "1.10.0"
 async-stream = "0.3.6"
-
+heimdall-decompiler = { git = "https://github.com/Jon-Becker/heimdall-rs.git" }
 
 [dev-dependencies]
 rand = "0.8.5"
