@@ -24,6 +24,8 @@ alloy = { version = "0.9", features = [
     "provider-ws",
     "rpc-types-eth",
     "signer-local",
+    "sol-types",
+    "alloy-json-abi",
 ] }
 alloy-json-rpc = { version = "0.5" }
 

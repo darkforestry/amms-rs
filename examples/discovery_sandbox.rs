@@ -1,14 +1,22 @@
 use std::sync::Arc;
 
 use alloy::{
-    primitives::{address, Address}, providers::ProviderBuilder, rpc::client::ClientBuilder, sol,
+    primitives::{address, Address},
+    providers::ProviderBuilder,
+    rpc::client::ClientBuilder,
+    sol,
     transports::layers::RetryBackoffLayer,
 };
 use alloy_throttle::ThrottleLayer;
 use amms::{
     amms::{
         erc_4626::ERC4626Vault,
-        uniswap_v2::{IUniswapV2Factory::{self, IUniswapV2FactoryCalls, IUniswapV2FactoryEvents, IUniswapV2FactoryInstance}, UniswapV2Factory, UniswapV2Pool},
+        uniswap_v2::{
+            IUniswapV2Factory::{
+                self, IUniswapV2FactoryCalls, IUniswapV2FactoryEvents, IUniswapV2FactoryInstance,
+            },
+            UniswapV2Factory, UniswapV2Pool,
+        },
         uniswap_v3::{UniswapV3Factory, UniswapV3Pool},
     },
     state_space::StateSpaceBuilder,
@@ -38,7 +46,7 @@ async fn main() -> eyre::Result<()> {
     let uv2 = decompile(uv2_args).await?;
     let sushi = decompile(sushi_args).await?;
 
-    let abi = IUniswapV2FactoryInstance::new(Address::ZERO, provider)
+    let abi = IUniswapV2FactoryInstance::new(Address::ZERO, provider).abi();
 
     for (func, _) in uv2.abi.functions.iter() {
         println!("Function: {:#?}", func);
