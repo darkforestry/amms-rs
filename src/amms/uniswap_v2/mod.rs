@@ -411,6 +411,7 @@ impl UniswapV2Factory {
         P: Provider<T, N>,
     {
         let factory = IUniswapV2FactoryInstance::new(factory_address, provider.clone());
+
         let pairs_length = factory
             .allPairsLength()
             .call()
