@@ -1,28 +1,6 @@
-use std::sync::Arc;
-
-use alloy::{
-    primitives::{address, Address},
-    providers::ProviderBuilder,
-    rpc::client::ClientBuilder,
-    sol,
-    sol_types::SolCall,
-    transports::layers::RetryBackoffLayer,
-};
-use alloy_throttle::ThrottleLayer;
-use amms::{
-    amms::{
-        erc_4626::ERC4626Vault,
-        uniswap_v2::{
-            IUniswapV2Factory::{
-                self, IUniswapV2FactoryCalls, IUniswapV2FactoryEvents, IUniswapV2FactoryInstance,
-            },
-            UniswapV2Factory, UniswapV2Pool,
-        },
-        uniswap_v3::{UniswapV3Factory, UniswapV3Pool},
-    },
-    state_space::{discovery::DiscoverableFactory, StateSpaceBuilder},
-};
-use heimdall_decompiler::{decompile, DecompilerArgs, DecompilerArgsBuilder};
+use alloy::sol_types::SolCall;
+use amms::amms::uniswap_v2::IUniswapV2Factory::{self};
+use heimdall_decompiler::{decompile, DecompilerArgsBuilder};
 
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
@@ -36,32 +14,12 @@ async fn main() -> eyre::Result<()> {
 
     let decompiled_abi = decompile(uniswap_v2_args).await?.abi;
 
+    println!("Selector {:?}", IUniswapV2Factory::allPairsCall::SELECTOR);
+    println!("Signature {:?}", IUniswapV2Factory::allPairsCall::SIGNATURE);
+
     for (k, v) in decompiled_abi.functions {
-        println!("v: {:?}", v);
+        println!("Decompiled: {:?}: {:?}", k, v);
     }
-
-    let factory = DiscoverableFactory::UniswapV2;
-    for function in factory.functions() {
-        println!("Function: {}", function);
-    }
-
-    // // Check functions exist in decompiled abi
-    // if !factory
-    //     .functions()
-    //     .iter()
-    //     .all(|value| decompiled_abi.functions.contains_key(&value.to_string()))
-    // {
-    //     todo!("Return error")
-    // }
-
-    // // Check events exist in decompiled abi
-    // if !factory
-    //     .events()
-    //     .iter()
-    //     .all(|value| decompiled_abi.events.contains_key(&value.to_string()))
-    // {
-    //     todo!("Return error")
-    // }
 
     Ok(())
 }
