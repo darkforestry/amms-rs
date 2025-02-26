@@ -210,12 +210,6 @@ impl AutomatedMarketMaker for UniswapV2Pool {
     }
 }
 
-pub fn q64_to_float(num: u128) -> Result<f64, AMMError> {
-    let float_num = u128_to_float(num)?;
-    let divisor = u128_to_float(U128_0X10000000000000000)?;
-    Ok((float_num / divisor).to_f64())
-}
-
 pub fn u128_to_float(num: u128) -> Result<Float, AMMError> {
     let value_string = num.to_string();
     let parsed_value = Float::parse_radix(value_string, 10)?;
