@@ -38,7 +38,7 @@ future-utils = "0.12"
 async-trait = "0.1"
 
 # serde
-serde = "1.0"
+serde = {version = "1.0", features = ["std"] }
 serde_json = "1.0"
 
 # misc

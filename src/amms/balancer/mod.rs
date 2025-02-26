@@ -115,6 +115,10 @@ impl AutomatedMarketMaker for BalancerPool {
         self.address
     }
 
+    fn initialized(&self) -> bool {
+        !self.state.is_empty()
+    }
+
     fn sync_events(&self) -> Vec<B256> {
         vec![IBPool::LOG_SWAP::SIGNATURE_HASH]
     }
@@ -365,6 +369,7 @@ impl AutomatedMarketMakerFactory for BalancerFactory {
 impl DiscoverySync for BalancerFactory {
     fn discover<T, N, P>(
         &self,
+        from_block: Option<BlockId>,
         to_block: BlockId,
         provider: Arc<P>,
     ) -> impl Future<Output = Result<Vec<AMM>, AMMError>>
@@ -378,7 +383,7 @@ impl DiscoverySync for BalancerFactory {
             address = ?self.address,
             "Discovering all pools"
         );
-        self.get_all_pools(to_block, provider)
+        self.get_all_pools(from_block, to_block, provider)
     }
 
     fn sync<T, N, P>(
@@ -411,6 +416,7 @@ impl BalancerFactory {
 
     pub async fn get_all_pools<T, N, P>(
         &self,
+        from_block: Option<BlockId>,
         block_number: BlockId,
         provider: Arc<P>,
     ) -> Result<Vec<AMM>, AMMError>
@@ -427,7 +433,8 @@ impl BalancerFactory {
         let mut futures = FuturesUnordered::new();
 
         let sync_step = 100_000;
-        let mut latest_block = self.creation_block;
+        let mut latest_block =
+            from_block.map_or(self.creation_block(), |b| b.as_u64().unwrap_or_default());
         while latest_block < block_number.as_u64().unwrap_or_default() {
             let mut block_filter = disc_filter.clone();
             let from_block = latest_block;

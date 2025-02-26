@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use crate::amms::amm::{AutomatedMarketMaker, AMM};
 use arraydeque::ArrayDeque;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug)]
 
@@ -52,7 +53,7 @@ impl<const CAP: usize> StateChangeCache<CAP> {
         // If the block to unwind is greater than the latest state change in the block, exit early
         if cache
             .front()
-            .map_or(true, |latest| block_to_unwind > latest.block_number)
+            .is_none_or(|latest| block_to_unwind > latest.block_number)
         {
             return vec![];
         }
@@ -87,7 +88,7 @@ impl<const CAP: usize> StateChangeCache<CAP> {
 
 // NOTE: we can probably make this more efficient and create a state change struct for each amm rather than
 // cloning each amm when caching
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StateChange {
     pub state_change: Vec<AMM>,
     pub block_number: u64,
