@@ -125,8 +125,7 @@ where
             .filter(|amm| {
                 let pool_address = amm.address();
                 pool_info_returns
-                    .get(&pool_address)
-                    .map_or(false, |pool_info_return| {
+                    .get(&pool_address).is_some_and(|pool_info_return| {
                         pool_info_return.wethValue > self.min_weth_threshold
                     })
             })

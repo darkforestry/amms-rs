@@ -1476,7 +1476,7 @@ mod test {
                 amount_in,
                 U160::ZERO,
             )
-            .block(current_block.into())
+            .block(current_block)
             .call()
             .await?;
 
@@ -1494,7 +1494,7 @@ mod test {
                 amount_in_1,
                 U160::ZERO,
             )
-            .block(current_block.into())
+            .block(current_block)
             .call()
             .await?;
 
@@ -1512,7 +1512,7 @@ mod test {
                 amount_in_2,
                 U160::ZERO,
             )
-            .block(current_block.into())
+            .block(current_block)
             .call()
             .await?;
 
@@ -1530,7 +1530,7 @@ mod test {
                 amount_in_3,
                 U160::ZERO,
             )
-            .block(current_block.into())
+            .block(current_block)
             .call()
             .await?;
 
@@ -1548,7 +1548,7 @@ mod test {
                 amount_in,
                 U160::ZERO,
             )
-            .block(current_block.into())
+            .block(current_block)
             .call()
             .await?;
 
@@ -1565,7 +1565,7 @@ mod test {
                 amount_in_1,
                 U160::ZERO,
             )
-            .block(current_block.into())
+            .block(current_block)
             .call()
             .await?;
 
@@ -1582,7 +1582,7 @@ mod test {
                 amount_in_2,
                 U160::ZERO,
             )
-            .block(current_block.into())
+            .block(current_block)
             .call()
             .await?;
         assert_eq!(amount_out_2, expected_amount_out_2.amountOut);
@@ -1598,7 +1598,7 @@ mod test {
                 amount_in_3,
                 U160::ZERO,
             )
-            .block(current_block.into())
+            .block(current_block)
             .call()
             .await?;
 
