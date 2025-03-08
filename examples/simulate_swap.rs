@@ -11,7 +11,7 @@ use std::sync::Arc;
 
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
-    let rpc_endpoint = std::env::var("ETHEREUM_RPC_ENDPOINT")?;
+    let rpc_endpoint = std::env::var("ETHEREUM_PROVIDER")?;
     let client = ClientBuilder::default()
         .layer(ThrottleLayer::new(500, None)?)
         .layer(RetryBackoffLayer::new(5, 200, 330))
