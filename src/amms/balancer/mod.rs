@@ -552,10 +552,10 @@ impl BalancerFactory {
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::HashMap, sync::Arc};
+    use std::sync::Arc;
 
     use alloy::{
-        primitives::{address, Address, U256},
+        primitives::{address, U256},
         providers::ProviderBuilder,
     };
     use eyre::Ok;
@@ -573,41 +573,34 @@ mod tests {
         );
 
         let balancer_pool = BalancerPool::new(address!("8a649274E4d777FFC6851F13d23A86BBFA2f2Fbf"))
-            .init(20487793.into(), provider.clone())
+            .init(22000236.into(), provider.clone())
             .await?;
 
-        // Construct the expected state as a HashMap
-        let expected_state: HashMap<Address, TokenPoolState> = vec![
-            (
-                address!("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"),
-                TokenPoolState {
-                    liquidity: U256::from(1234567890000000000_u128),
-                    weight: U256::from(25000000000000000000_u128),
-                    token: Token::new_with_decimals(
-                        address!("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"),
-                        18,
-                    ),
-                },
-            ),
-            (
-                address!("a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"),
-                TokenPoolState {
-                    liquidity: U256::from(987654321000000_u128),
-                    weight: U256::from(25000000000000000000_u128),
-                    token: Token::new_with_decimals(
-                        address!("a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"),
-                        6,
-                    ),
-                },
-            ),
-        ]
-        .into_iter()
-        .collect::<HashMap<Address, TokenPoolState>>();
+        let weth =
+            Token::new_with_decimals(address!("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"), 18);
+        let usdc =
+            Token::new_with_decimals(address!("a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"), 6);
 
-        // Compare the actual state with the expected state
+        let weth_state = balancer_pool.state.get(weth.address()).unwrap();
+
         assert_eq!(
-            balancer_pool.state, expected_state,
-            "Balancer pool state mismatch"
+            *weth_state,
+            TokenPoolState {
+                liquidity: U256::from(10512868599101770417_u128),
+                weight: U256::from(25000000000000000000_u128),
+                token: weth,
+            }
+        );
+
+        let usdc_state = balancer_pool.state.get(usdc.address()).unwrap();
+
+        assert_eq!(
+            *usdc_state,
+            TokenPoolState {
+                liquidity: U256::from(22394300283_u128),
+                weight: U256::from(25000000000000000000_u128),
+                token: usdc,
+            }
         );
 
         // Validate the fee

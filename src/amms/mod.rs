@@ -58,8 +58,8 @@ impl Token {
         Self { address, decimals }
     }
 
-    pub const fn address(&self) -> Address {
-        self.address
+    pub const fn address(&self) -> &Address {
+        &self.address
     }
 
     pub const fn decimals(&self) -> u8 {

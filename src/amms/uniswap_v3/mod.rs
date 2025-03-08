@@ -1607,7 +1607,6 @@ mod test {
         Ok(())
     }
 
-    // NOTE: test is failing due to invalid push0 opcode, update this test to use a block post push0
     #[tokio::test]
     async fn test_calculate_price() -> eyre::Result<()> {
         let rpc_endpoint = std::env::var("ETHEREUM_PROVIDER")?;
@@ -1619,15 +1618,15 @@ mod test {
 
         let provider = Arc::new(ProviderBuilder::new().on_client(client));
 
-        let block_number = BlockId::from(16515398);
+        let block_number = BlockId::from(22000114);
         let pool = UniswapV3Pool::new(address!("88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640"))
             .init(block_number, provider.clone())
             .await?;
 
         let float_price_a = pool.calculate_price(pool.token_a.address, Address::default())?;
         let float_price_b = pool.calculate_price(pool.token_b.address, Address::default())?;
-        assert_eq!(float_price_a, 0.0006081236083117488);
-        assert_eq!(float_price_b, 1644.4025299004006);
+        assert_eq!(float_price_a, 0.00046777681145863687);
+        assert_eq!(float_price_b, 2137.7716370372605);
 
         Ok(())
     }
