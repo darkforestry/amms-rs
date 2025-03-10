@@ -15,7 +15,7 @@ use alloy::{
     rpc::types::{Filter, FilterSet, Log},
     sol,
     sol_types::{SolCall, SolEvent, SolValue},
-    transports::{BoxFuture, Transport},
+    transports::BoxFuture,
 };
 use futures::{stream::FuturesUnordered, StreamExt};
 use rayon::iter::{IntoParallelRefIterator, ParallelDrainRange, ParallelIterator};
@@ -27,7 +27,6 @@ use std::{
     hash::Hash,
     str::FromStr,
     sync::Arc,
-    u8,
 };
 use thiserror::Error;
 use tracing::info;
@@ -581,15 +580,10 @@ impl AutomatedMarketMaker for UniswapV3Pool {
         }
     }
 
-    async fn init<T, N, P>(
-        mut self,
-        block_number: BlockId,
-        provider: Arc<P>,
-    ) -> Result<Self, AMMError>
+    async fn init<N, P>(mut self, block_number: BlockId, provider: P) -> Result<Self, AMMError>
     where
-        T: Transport + Clone,
         N: Network,
-        P: Provider<T, N>,
+        P: Provider<N>,
     {
         let pool = IUniswapV3Pool::new(self.address, provider.clone());
 
@@ -762,15 +756,14 @@ impl UniswapV3Factory {
         }
     }
 
-    pub async fn get_all_pools<T, N, P>(
+    pub async fn get_all_pools<N, P>(
         &self,
         block_number: BlockId,
-        provider: Arc<P>,
+        provider: P,
     ) -> Result<Vec<AMM>, AMMError>
     where
-        T: Transport + Clone,
         N: Network,
-        P: Provider<T, N>,
+        P: Provider<N>,
     {
         let disc_filter = Filter::new()
             .event_signature(FilterSet::from(vec![self.pool_creation_event()]))
@@ -809,15 +802,14 @@ impl UniswapV3Factory {
     }
 
     // TODO: update this to use uv3 error and then use thiserror to convert to AMMError
-    pub async fn sync_all_pools<T, N, P>(
+    pub async fn sync_all_pools<N, P>(
         mut pools: Vec<AMM>,
         block_number: BlockId,
-        provider: Arc<P>,
+        provider: P,
     ) -> Result<Vec<AMM>, AMMError>
     where
-        T: Transport + Clone,
         N: Network,
-        P: Provider<T, N>,
+        P: Provider<N>,
     {
         UniswapV3Factory::sync_slot_0(&mut pools, block_number, provider.clone()).await?;
         UniswapV3Factory::sync_token_decimals(&mut pools, provider.clone()).await;
@@ -840,11 +832,10 @@ impl UniswapV3Factory {
         Ok(pools)
     }
 
-    async fn sync_token_decimals<T, N, P>(pools: &mut [AMM], provider: Arc<P>)
+    async fn sync_token_decimals<N, P>(pools: &mut [AMM], provider: P)
     where
-        T: Transport + Clone,
         N: Network,
-        P: Provider<T, N>,
+        P: Provider<N>,
     {
         // Get all token decimals
         let mut tokens = HashSet::new();
@@ -871,15 +862,14 @@ impl UniswapV3Factory {
         }
     }
 
-    async fn sync_slot_0<T, N, P>(
+    async fn sync_slot_0<N, P>(
         pools: &mut [AMM],
         block_number: BlockId,
-        provider: Arc<P>,
+        provider: P,
     ) -> Result<(), AMMError>
     where
-        T: Transport + Clone,
         N: Network,
-        P: Provider<T, N>,
+        P: Provider<N>,
     {
         let step = 255;
 
@@ -921,15 +911,14 @@ impl UniswapV3Factory {
         Ok(())
     }
 
-    async fn sync_tick_bitmaps<T, N, P>(
+    async fn sync_tick_bitmaps<N, P>(
         pools: &mut [AMM],
         block_number: BlockId,
-        provider: Arc<P>,
+        provider: P,
     ) -> Result<(), AMMError>
     where
-        T: Transport + Clone,
         N: Network,
-        P: Provider<T, N>,
+        P: Provider<N>,
     {
         let mut futures: FuturesUnordered<BoxFuture<'_, _>> = FuturesUnordered::new();
 
@@ -1035,15 +1024,14 @@ impl UniswapV3Factory {
     }
 
     // TODO: Clean this function up
-    async fn sync_tick_data<T, N, P>(
+    async fn sync_tick_data<N, P>(
         pools: &mut [AMM],
         block_number: BlockId,
-        provider: Arc<P>,
+        provider: P,
     ) -> Result<(), AMMError>
     where
-        T: Transport + Clone,
         N: Network,
-        P: Provider<T, N>,
+        P: Provider<N>,
     {
         let pool_ticks = pools
             .par_iter()
@@ -1214,15 +1202,14 @@ impl AutomatedMarketMakerFactory for UniswapV3Factory {
 }
 
 impl DiscoverySync for UniswapV3Factory {
-    fn discover<T, N, P>(
+    fn discover<N, P>(
         &self,
         to_block: BlockId,
-        provider: Arc<P>,
+        provider: P,
     ) -> impl Future<Output = Result<Vec<AMM>, AMMError>>
     where
-        T: Transport + Clone,
         N: Network,
-        P: Provider<T, N>,
+        P: Provider<N>,
     {
         info!(
             target = "amms::uniswap_v3::discover",
@@ -1233,16 +1220,15 @@ impl DiscoverySync for UniswapV3Factory {
         self.get_all_pools(to_block, provider.clone())
     }
 
-    fn sync<T, N, P>(
+    fn sync<N, P>(
         &self,
         amms: Vec<AMM>,
         to_block: BlockId,
-        provider: Arc<P>,
+        provider: P,
     ) -> impl Future<Output = Result<Vec<AMM>, AMMError>>
     where
-        T: Transport + Clone,
         N: Network,
-        P: Provider<T, N>,
+        P: Provider<N>,
     {
         info!(
             target = "amms::uniswap_v3::sync",

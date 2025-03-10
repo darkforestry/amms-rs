@@ -13,7 +13,6 @@ use alloy::{
     rpc::types::Log,
     sol,
     sol_types::{SolEvent, SolValue},
-    transports::Transport,
 };
 use serde::{Deserialize, Serialize};
 use std::{cmp::Ordering, sync::Arc};
@@ -163,15 +162,10 @@ impl AutomatedMarketMaker for ERC4626Vault {
     }
 
     // TODO: clean up this function
-    async fn init<T, N, P>(
-        mut self,
-        block_number: BlockId,
-        provider: Arc<P>,
-    ) -> Result<Self, AMMError>
+    async fn init<N, P>(mut self, block_number: BlockId, provider: P) -> Result<Self, AMMError>
     where
-        T: Transport + Clone,
         N: Network,
-        P: Provider<T, N>,
+        P: Provider<N>,
     {
         let deployer =
             IGetERC4626VaultDataBatchRequest::deploy_builder(provider, vec![self.vault_token]);
@@ -317,15 +311,14 @@ impl ERC4626Vault {
         }
     }
 
-    pub async fn get_reserves<T, N, P>(
+    pub async fn get_reserves<N, P>(
         &self,
         provider: P,
         block_number: BlockId,
     ) -> Result<(U256, U256), AMMError>
     where
-        T: Transport + Clone,
         N: Network,
-        P: Provider<T, N> + Clone,
+        P: Provider<N> + Clone,
     {
         let vault = IERC4626Vault::new(self.vault_token, provider);
 

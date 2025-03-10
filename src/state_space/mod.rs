@@ -10,15 +10,11 @@ use crate::amms::factory::Factory;
 
 use alloy::consensus::BlockHeader;
 use alloy::eips::BlockId;
-use alloy::rpc::types::Block;
-use alloy::rpc::types::FilterSet;
-use alloy::rpc::types::Log;
+use alloy::rpc::types::{Block, Filter, FilterSet, Log};
 use alloy::{
     network::Network,
     primitives::{Address, FixedBytes},
     providers::Provider,
-    rpc::types::Filter,
-    transports::Transport,
 };
 use async_stream::stream;
 use cache::StateChange;
@@ -42,17 +38,17 @@ use tracing::info;
 pub const CACHE_SIZE: usize = 30;
 
 #[derive(Clone)]
-pub struct StateSpaceManager<T, N, P> {
+pub struct StateSpaceManager<N, P> {
     pub state: Arc<RwLock<StateSpace>>,
     pub latest_block: Arc<AtomicU64>,
     // discovery_manager: Option<DiscoveryManager>,
     pub block_filter: Filter,
-    pub provider: Arc<P>,
-    phantom: PhantomData<(T, N)>,
+    pub provider: P,
+    phantom: PhantomData<N>,
     // TODO: add support for caching
 }
 
-impl<T, N, P> StateSpaceManager<T, N, P> {
+impl<N, P> StateSpaceManager<N, P> {
     pub async fn subscribe(
         &self,
     ) -> Result<
@@ -60,8 +56,7 @@ impl<T, N, P> StateSpaceManager<T, N, P> {
         StateSpaceError,
     >
     where
-        P: Provider<T, N> + 'static,
-        T: Transport + Clone,
+        P: Provider<N> + 'static + Clone,
         N: Network<BlockResponse = Block>,
     {
         let provider = self.provider.clone();
@@ -93,25 +88,24 @@ impl<T, N, P> StateSpaceManager<T, N, P> {
 // NOTE: Drop impl, create a checkpoint
 
 #[derive(Debug, Default)]
-pub struct StateSpaceBuilder<T, N, P> {
+pub struct StateSpaceBuilder<N, P> {
     // TODO: do we want to add optional amms? for example, if someone wants to sync specific pools but does not care about discovering pools.
-    pub provider: Arc<P>,
+    pub provider: P,
     pub latest_block: u64,
     pub factories: Vec<Factory>,
     pub amms: Vec<AMM>,
     pub filters: Vec<PoolFilter>,
-    phantom: PhantomData<(T, N)>,
+    phantom: PhantomData<N>,
     // TODO: add support for caching
     // TODO: add support to load from cache
 }
 
-impl<T, N, P> StateSpaceBuilder<T, N, P>
+impl<N, P> StateSpaceBuilder<N, P>
 where
-    T: Transport + Clone,
     N: Network,
-    P: Provider<T, N> + 'static,
+    P: Provider<N> + 'static + Clone,
 {
-    pub fn new(provider: Arc<P>) -> StateSpaceBuilder<T, N, P> {
+    pub fn new(provider: P) -> StateSpaceBuilder<N, P> {
         Self {
             provider,
             latest_block: 0,
@@ -123,26 +117,26 @@ where
         }
     }
 
-    pub fn block(self, latest_block: u64) -> StateSpaceBuilder<T, N, P> {
+    pub fn block(self, latest_block: u64) -> StateSpaceBuilder<N, P> {
         StateSpaceBuilder {
             latest_block,
             ..self
         }
     }
 
-    pub fn with_factories(self, factories: Vec<Factory>) -> StateSpaceBuilder<T, N, P> {
+    pub fn with_factories(self, factories: Vec<Factory>) -> StateSpaceBuilder<N, P> {
         StateSpaceBuilder { factories, ..self }
     }
 
-    pub fn with_amms(self, amms: Vec<AMM>) -> StateSpaceBuilder<T, N, P> {
+    pub fn with_amms(self, amms: Vec<AMM>) -> StateSpaceBuilder<N, P> {
         StateSpaceBuilder { amms, ..self }
     }
 
-    pub fn with_filters(self, filters: Vec<PoolFilter>) -> StateSpaceBuilder<T, N, P> {
+    pub fn with_filters(self, filters: Vec<PoolFilter>) -> StateSpaceBuilder<N, P> {
         StateSpaceBuilder { filters, ..self }
     }
 
-    pub async fn sync(self) -> Result<StateSpaceManager<T, N, P>, AMMError> {
+    pub async fn sync(self) -> Result<StateSpaceManager<N, P>, AMMError> {
         let chain_tip = BlockId::from(self.provider.get_block_number().await?);
         let factories = self.factories.clone();
         let mut futures = FuturesUnordered::new();

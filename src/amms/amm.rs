@@ -8,7 +8,6 @@ use alloy::{
     primitives::{Address, B256, U256},
     providers::Provider,
     rpc::types::Log,
-    transports::Transport,
 };
 use eyre::Result;
 use serde::{Deserialize, Serialize};
@@ -53,12 +52,11 @@ pub trait AutomatedMarketMaker {
     ) -> Result<U256, AMMError>;
 
     // Initializes an empty pool and syncs state up to `block_number`
-    async fn init<T, N, P>(self, block_number: BlockId, provider: Arc<P>) -> Result<Self, AMMError>
+    async fn init<N, P>(self, block_number: BlockId, provider: P) -> Result<Self, AMMError>
     where
         Self: Sized,
-        T: Transport + Clone,
         N: Network,
-        P: Provider<T, N>;
+        P: Provider<N>;
 }
 
 macro_rules! amm {
@@ -111,12 +109,11 @@ macro_rules! amm {
                 }
             }
 
-            async fn init<T, N, P>(self, block_number: BlockId, provider: Arc<P>) -> Result<Self, AMMError>
+            async fn init<N, P>(self, block_number: BlockId, provider: P) -> Result<Self, AMMError>
             where
                 Self: Sized,
-                T: Transport + Clone,
                 N: Network,
-                P: Provider<T, N>,
+                P: Provider<N>,
             {
                 match self {
                     $(AMM::$pool_type(pool) => pool.init(block_number, provider).await.map(AMM::$pool_type),)+

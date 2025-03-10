@@ -10,7 +10,6 @@ use alloy::{
     primitives::{Address, B256, U256},
     providers::Provider,
     rpc::types::eth::Log,
-    transports::Transport,
 };
 use eyre::Result;
 use serde::{Deserialize, Serialize};
@@ -21,26 +20,24 @@ use std::{
 };
 
 pub trait DiscoverySync {
-    fn discover<T, N, P>(
+    fn discover<N, P>(
         &self,
         to_block: BlockId,
-        provider: Arc<P>,
+        provider: P,
     ) -> impl Future<Output = Result<Vec<AMM>, AMMError>>
     where
-        T: Transport + Clone,
         N: Network,
-        P: Provider<T, N>;
+        P: Provider<N>;
 
-    fn sync<T, N, P>(
+    fn sync<N, P>(
         &self,
         amms: Vec<AMM>,
         to_block: BlockId,
-        provider: Arc<P>,
+        provider: P,
     ) -> impl Future<Output = Result<Vec<AMM>, AMMError>>
     where
-        T: Transport + Clone,
         N: Network,
-        P: Provider<T, N>;
+        P: Provider<N>;
 }
 
 pub trait AutomatedMarketMakerFactory: DiscoverySync {
@@ -129,22 +126,20 @@ macro_rules! factory {
 
 
         impl Factory {
-            pub async fn discover<T, N, P>(&self, to_block: BlockId, provider: Arc<P>) -> Result<Vec<AMM>, AMMError>
+            pub async fn discover< N, P>(&self, to_block: BlockId, provider: P) -> Result<Vec<AMM>, AMMError>
             where
-                T: Transport + Clone,
-                N: Network,
-                P: Provider<T, N>,
+                                N: Network,
+                P: Provider<N>,
             {
                 match self {
                     $(Factory::$factory_type(factory) => factory.discover(to_block, provider).await,)+
                 }
             }
 
-            pub async fn sync<T, N, P>(&self, amms: Vec<AMM>, to_block: BlockId, provider: Arc<P>) -> Result<Vec<AMM>, AMMError>
+            pub async fn sync< N, P>(&self, amms: Vec<AMM>, to_block: BlockId, provider: P) -> Result<Vec<AMM>, AMMError>
             where
-                T: Transport + Clone,
-                N: Network,
-                P: Provider<T, N>,
+                                N: Network,
+                P: Provider<N>,
             {
                 match self {
                     $(Factory::$factory_type(factory) => factory.sync(amms, to_block, provider).await,)+
@@ -208,15 +203,10 @@ impl AutomatedMarketMaker for NoopAMM {
         unreachable!()
     }
 
-    async fn init<T, N, P>(
-        self,
-        _block_number: BlockId,
-        _provider: Arc<P>,
-    ) -> Result<Self, AMMError>
+    async fn init<N, P>(self, _block_number: BlockId, _provider: P) -> Result<Self, AMMError>
     where
-        T: Transport + Clone,
         N: Network,
-        P: Provider<T, N>,
+        P: Provider<N>,
     {
         unreachable!()
     }

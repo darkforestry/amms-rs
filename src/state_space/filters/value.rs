@@ -11,7 +11,6 @@ use alloy::{
     providers::Provider,
     sol,
     sol_types::SolValue,
-    transports::Transport,
 };
 use async_trait::async_trait;
 use WethValueInPools::{PoolInfo, PoolInfoReturn};
@@ -22,32 +21,30 @@ sol! {
     "contracts/out/WethValueInPools.sol/WethValueInPoolsBatchRequest.json"
 }
 
-pub struct ValueFilter<const CHUNK_SIZE: usize, T, N, P>
+pub struct ValueFilter<const CHUNK_SIZE: usize, N, P>
 where
-    T: Transport + Clone,
     N: Network,
-    P: Provider<T, N>,
+    P: Provider<N>,
 {
     pub uniswap_v2_factory: Address,
     pub uniswap_v3_factory: Address,
     pub weth: Address,
     pub min_weth_threshold: U256,
-    pub provider: Arc<P>,
-    phantom: PhantomData<(T, N)>,
+    pub provider: P,
+    phantom: PhantomData<N>,
 }
 
-impl<const CHUNK_SIZE: usize, T, N, P> ValueFilter<CHUNK_SIZE, T, N, P>
+impl<const CHUNK_SIZE: usize, N, P> ValueFilter<CHUNK_SIZE, N, P>
 where
-    T: Transport + Clone,
     N: Network,
-    P: Provider<T, N>,
+    P: Provider<N>,
 {
     pub fn new(
         uniswap_v2_factory: Address,
         uniswap_v3_factory: Address,
         weth: Address,
         min_weth_threshold: U256,
-        provider: Arc<P>,
+        provider: P,
     ) -> Self {
         Self {
             uniswap_v2_factory,
@@ -82,11 +79,10 @@ where
 }
 
 #[async_trait]
-impl<const CHUNK_SIZE: usize, T, N, P> AMMFilter for ValueFilter<CHUNK_SIZE, T, N, P>
+impl<const CHUNK_SIZE: usize, N, P> AMMFilter for ValueFilter<CHUNK_SIZE, N, P>
 where
-    T: Transport + Clone,
     N: Network,
-    P: Provider<T, N>,
+    P: Provider<N>,
 {
     async fn filter(&self, amms: Vec<AMM>) -> Result<Vec<AMM>, AMMError> {
         let pool_infos = amms

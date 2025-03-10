@@ -11,7 +11,7 @@ on:
 
 env:
   ETHEREUM_PROVIDER: ${{ secrets.ETHEREUM_PROVIDER }}
-  RUST_VERSION: "1.83"
+  RUST_VERSION: "1.84"
   NIGHTLY_VERSION: nightly-2024-11-01
   CARGO_TERM_COLOR: always
   # Skip incremental build and debug info generation in CI
