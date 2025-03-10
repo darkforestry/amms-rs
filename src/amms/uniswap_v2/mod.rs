@@ -174,13 +174,9 @@ impl AutomatedMarketMaker for UniswapV2Pool {
         q64_to_float(price)
     }
 
-    async fn init< N, P>(
-        mut self,
-        block_number: BlockId,
-        provider: Arc<P>,
-    ) -> Result<Self, AMMError>
+    async fn init<N, P>(mut self, block_number: BlockId, provider: P) -> Result<Self, AMMError>
     where
-                N: Network,
+        N: Network,
         P: Provider<N>,
     {
         let deployer = IGetUniswapV2PoolDataBatchRequestInstance::deploy_builder(
@@ -388,13 +384,13 @@ impl UniswapV2Factory {
         }
     }
 
-    pub async fn get_all_pairs< N, P>(
+    pub async fn get_all_pairs<N, P>(
         factory_address: Address,
         block_number: BlockId,
-        provider: Arc<P>,
+        provider: P,
     ) -> Result<Vec<Address>, AMMError>
     where
-                N: Network,
+        N: Network,
         P: Provider<N>,
     {
         let factory = IUniswapV2FactoryInstance::new(factory_address, provider.clone());
@@ -439,13 +435,13 @@ impl UniswapV2Factory {
         Ok(pairs)
     }
 
-    pub async fn sync_all_pools< N, P>(
+    pub async fn sync_all_pools<N, P>(
         amms: Vec<AMM>,
         block_number: BlockId,
-        provider: Arc<P>,
+        provider: P,
     ) -> Result<Vec<AMM>, AMMError>
     where
-                N: Network,
+        N: Network,
         P: Provider<N>,
     {
         let step = 120;
@@ -550,13 +546,13 @@ impl AutomatedMarketMakerFactory for UniswapV2Factory {
 }
 
 impl DiscoverySync for UniswapV2Factory {
-    fn discover< N, P>(
+    fn discover<N, P>(
         &self,
         to_block: BlockId,
-        provider: Arc<P>,
+        provider: P,
     ) -> impl Future<Output = Result<Vec<AMM>, AMMError>>
     where
-                N: Network,
+        N: Network,
         P: Provider<N>,
     {
         info!(
@@ -586,14 +582,14 @@ impl DiscoverySync for UniswapV2Factory {
         }
     }
 
-    fn sync< N, P>(
+    fn sync<N, P>(
         &self,
         amms: Vec<AMM>,
         to_block: BlockId,
-        provider: Arc<P>,
+        provider: P,
     ) -> impl Future<Output = Result<Vec<AMM>, AMMError>>
     where
-                N: Network,
+        N: Network,
         P: Provider<N>,
     {
         info!(

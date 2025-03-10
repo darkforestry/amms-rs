@@ -43,7 +43,7 @@ pub struct StateSpaceManager<N, P> {
     pub latest_block: Arc<AtomicU64>,
     // discovery_manager: Option<DiscoveryManager>,
     pub block_filter: Filter,
-    pub provider: Arc<P>,
+    pub provider: P,
     phantom: PhantomData<N>,
     // TODO: add support for caching
 }
@@ -56,7 +56,7 @@ impl<N, P> StateSpaceManager<N, P> {
         StateSpaceError,
     >
     where
-        P: Provider<N> + 'static,
+        P: Provider<N> + 'static + Clone,
         N: Network<BlockResponse = Block>,
     {
         let provider = self.provider.clone();
@@ -90,7 +90,7 @@ impl<N, P> StateSpaceManager<N, P> {
 #[derive(Debug, Default)]
 pub struct StateSpaceBuilder<N, P> {
     // TODO: do we want to add optional amms? for example, if someone wants to sync specific pools but does not care about discovering pools.
-    pub provider: Arc<P>,
+    pub provider: P,
     pub latest_block: u64,
     pub factories: Vec<Factory>,
     pub amms: Vec<AMM>,
@@ -103,9 +103,9 @@ pub struct StateSpaceBuilder<N, P> {
 impl<N, P> StateSpaceBuilder<N, P>
 where
     N: Network,
-    P: Provider<N> + 'static,
+    P: Provider<N> + 'static + Clone,
 {
-    pub fn new(provider: Arc<P>) -> StateSpaceBuilder<N, P> {
+    pub fn new(provider: P) -> StateSpaceBuilder<N, P> {
         Self {
             provider,
             latest_block: 0,

@@ -268,13 +268,9 @@ impl AutomatedMarketMaker for BalancerPool {
         Ok(out)
     }
 
-    async fn init< N, P>(
-        mut self,
-        block_number: BlockId,
-        provider: Arc<P>,
-    ) -> Result<Self, AMMError>
+    async fn init<N, P>(mut self, block_number: BlockId, provider: P) -> Result<Self, AMMError>
     where
-                N: Network,
+        N: Network,
         P: Provider<N>,
     {
         let deployer =
@@ -361,13 +357,13 @@ impl AutomatedMarketMakerFactory for BalancerFactory {
 }
 
 impl DiscoverySync for BalancerFactory {
-    fn discover< N, P>(
+    fn discover<N, P>(
         &self,
         to_block: BlockId,
-        provider: Arc<P>,
+        provider: P,
     ) -> impl Future<Output = Result<Vec<AMM>, AMMError>>
     where
-                N: Network,
+        N: Network,
         P: Provider<N>,
     {
         info!(
@@ -378,14 +374,14 @@ impl DiscoverySync for BalancerFactory {
         self.get_all_pools(to_block, provider)
     }
 
-    fn sync< N, P>(
+    fn sync<N, P>(
         &self,
         amms: Vec<AMM>,
         to_block: BlockId,
-        provider: Arc<P>,
+        provider: P,
     ) -> impl Future<Output = Result<Vec<AMM>, AMMError>>
     where
-                N: Network,
+        N: Network,
         P: Provider<N>,
     {
         info!(
@@ -405,13 +401,13 @@ impl BalancerFactory {
         }
     }
 
-    pub async fn get_all_pools< N, P>(
+    pub async fn get_all_pools<N, P>(
         &self,
         block_number: BlockId,
-        provider: Arc<P>,
+        provider: P,
     ) -> Result<Vec<AMM>, AMMError>
     where
-                N: Network,
+        N: Network,
         P: Provider<N>,
     {
         let disc_filter = Filter::new()
@@ -450,13 +446,13 @@ impl BalancerFactory {
         Ok(pools)
     }
 
-    pub async fn sync_all_pools< N, P>(
+    pub async fn sync_all_pools<N, P>(
         amms: Vec<AMM>,
         block_number: BlockId,
-        provider: Arc<P>,
+        provider: P,
     ) -> Result<Vec<AMM>, AMMError>
     where
-                N: Network,
+        N: Network,
         P: Provider<N>,
     {
         let step = 120;

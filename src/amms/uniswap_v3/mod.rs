@@ -580,7 +580,7 @@ impl AutomatedMarketMaker for UniswapV3Pool {
         }
     }
 
-    async fn init<N, P>(mut self, block_number: BlockId, provider: Arc<P>) -> Result<Self, AMMError>
+    async fn init<N, P>(mut self, block_number: BlockId, provider: P) -> Result<Self, AMMError>
     where
         N: Network,
         P: Provider<N>,
@@ -759,7 +759,7 @@ impl UniswapV3Factory {
     pub async fn get_all_pools<N, P>(
         &self,
         block_number: BlockId,
-        provider: Arc<P>,
+        provider: P,
     ) -> Result<Vec<AMM>, AMMError>
     where
         N: Network,
@@ -805,7 +805,7 @@ impl UniswapV3Factory {
     pub async fn sync_all_pools<N, P>(
         mut pools: Vec<AMM>,
         block_number: BlockId,
-        provider: Arc<P>,
+        provider: P,
     ) -> Result<Vec<AMM>, AMMError>
     where
         N: Network,
@@ -832,7 +832,7 @@ impl UniswapV3Factory {
         Ok(pools)
     }
 
-    async fn sync_token_decimals<N, P>(pools: &mut [AMM], provider: Arc<P>)
+    async fn sync_token_decimals<N, P>(pools: &mut [AMM], provider: P)
     where
         N: Network,
         P: Provider<N>,
@@ -865,7 +865,7 @@ impl UniswapV3Factory {
     async fn sync_slot_0<N, P>(
         pools: &mut [AMM],
         block_number: BlockId,
-        provider: Arc<P>,
+        provider: P,
     ) -> Result<(), AMMError>
     where
         N: Network,
@@ -914,7 +914,7 @@ impl UniswapV3Factory {
     async fn sync_tick_bitmaps<N, P>(
         pools: &mut [AMM],
         block_number: BlockId,
-        provider: Arc<P>,
+        provider: P,
     ) -> Result<(), AMMError>
     where
         N: Network,
@@ -1027,7 +1027,7 @@ impl UniswapV3Factory {
     async fn sync_tick_data<N, P>(
         pools: &mut [AMM],
         block_number: BlockId,
-        provider: Arc<P>,
+        provider: P,
     ) -> Result<(), AMMError>
     where
         N: Network,
@@ -1205,7 +1205,7 @@ impl DiscoverySync for UniswapV3Factory {
     fn discover<N, P>(
         &self,
         to_block: BlockId,
-        provider: Arc<P>,
+        provider: P,
     ) -> impl Future<Output = Result<Vec<AMM>, AMMError>>
     where
         N: Network,
@@ -1224,7 +1224,7 @@ impl DiscoverySync for UniswapV3Factory {
         &self,
         amms: Vec<AMM>,
         to_block: BlockId,
-        provider: Arc<P>,
+        provider: P,
     ) -> impl Future<Output = Result<Vec<AMM>, AMMError>>
     where
         N: Network,

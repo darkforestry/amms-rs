@@ -162,13 +162,9 @@ impl AutomatedMarketMaker for ERC4626Vault {
     }
 
     // TODO: clean up this function
-    async fn init< N, P>(
-        mut self,
-        block_number: BlockId,
-        provider: Arc<P>,
-    ) -> Result<Self, AMMError>
+    async fn init<N, P>(mut self, block_number: BlockId, provider: P) -> Result<Self, AMMError>
     where
-                N: Network,
+        N: Network,
         P: Provider<N>,
     {
         let deployer =
@@ -315,14 +311,14 @@ impl ERC4626Vault {
         }
     }
 
-    pub async fn get_reserves< N, P>(
+    pub async fn get_reserves<N, P>(
         &self,
         provider: P,
         block_number: BlockId,
     ) -> Result<(U256, U256), AMMError>
     where
-                N: Network,
-        P: Provider< N> + Clone,
+        N: Network,
+        P: Provider<N> + Clone,
     {
         let vault = IERC4626Vault::new(self.vault_token, provider);
 

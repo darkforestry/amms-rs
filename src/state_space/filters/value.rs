@@ -30,7 +30,7 @@ where
     pub uniswap_v3_factory: Address,
     pub weth: Address,
     pub min_weth_threshold: U256,
-    pub provider: Arc<P>,
+    pub provider: P,
     phantom: PhantomData<N>,
 }
 
@@ -44,7 +44,7 @@ where
         uniswap_v3_factory: Address,
         weth: Address,
         min_weth_threshold: U256,
-        provider: Arc<P>,
+        provider: P,
     ) -> Self {
         Self {
             uniswap_v2_factory,
