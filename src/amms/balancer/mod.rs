@@ -10,7 +10,6 @@ use alloy::{
     rpc::types::{Filter, FilterSet, Log},
     sol,
     sol_types::{SolEvent, SolValue},
-    transports::Transport,
 };
 use async_trait::async_trait;
 use futures::{stream::FuturesUnordered, StreamExt};

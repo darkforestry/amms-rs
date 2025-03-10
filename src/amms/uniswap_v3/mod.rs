@@ -15,7 +15,7 @@ use alloy::{
     rpc::types::{Filter, FilterSet, Log},
     sol,
     sol_types::{SolCall, SolEvent, SolValue},
-    transports::{BoxFuture, Transport},
+    transports::BoxFuture,
 };
 use futures::{stream::FuturesUnordered, StreamExt};
 use rayon::iter::{IntoParallelRefIterator, ParallelDrainRange, ParallelIterator};
@@ -27,7 +27,6 @@ use std::{
     hash::Hash,
     str::FromStr,
     sync::Arc,
-    u8,
 };
 use thiserror::Error;
 use tracing::info;

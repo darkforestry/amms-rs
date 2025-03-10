@@ -6,7 +6,6 @@ use std::{
 
 use alloy::{
     dyn_abi::DynSolType, network::Network, primitives::Address, providers::Provider, sol,
-    transports::Transport,
 };
 use error::AMMError;
 use futures::{stream::FuturesUnordered, StreamExt};

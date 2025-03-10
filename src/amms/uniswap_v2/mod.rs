@@ -20,7 +20,6 @@ use alloy::{
     rpc::types::Log,
     sol,
     sol_types::{SolCall, SolEvent, SolValue},
-    transports::Transport,
 };
 use futures::{stream::FuturesUnordered, StreamExt};
 use itertools::Itertools;

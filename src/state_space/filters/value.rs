@@ -11,7 +11,6 @@ use alloy::{
     providers::Provider,
     sol,
     sol_types::SolValue,
-    transports::Transport,
 };
 use async_trait::async_trait;
 use WethValueInPools::{PoolInfo, PoolInfoReturn};

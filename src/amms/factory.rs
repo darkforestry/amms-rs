@@ -10,7 +10,6 @@ use alloy::{
     primitives::{Address, B256, U256},
     providers::Provider,
     rpc::types::eth::Log,
-    transports::Transport,
 };
 use eyre::Result;
 use serde::{Deserialize, Serialize};

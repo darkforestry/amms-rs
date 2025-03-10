@@ -15,7 +15,6 @@ use alloy::{
     network::Network,
     primitives::{Address, FixedBytes},
     providers::Provider,
-    transports::Transport,
 };
 use async_stream::stream;
 use cache::StateChange;

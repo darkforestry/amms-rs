@@ -13,7 +13,6 @@ use alloy::{
     rpc::types::Log,
     sol,
     sol_types::{SolEvent, SolValue},
-    transports::Transport,
 };
 use serde::{Deserialize, Serialize};
 use std::{cmp::Ordering, sync::Arc};
