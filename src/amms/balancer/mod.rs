@@ -269,15 +269,14 @@ impl AutomatedMarketMaker for BalancerPool {
         Ok(out)
     }
 
-    async fn init<T, N, P>(
+    async fn init< N, P>(
         mut self,
         block_number: BlockId,
         provider: Arc<P>,
     ) -> Result<Self, AMMError>
     where
-        T: Transport + Clone,
-        N: Network,
-        P: Provider<T, N>,
+                N: Network,
+        P: Provider<N>,
     {
         let deployer =
             IGetBalancerPoolDataBatchRequest::deploy_builder(provider, vec![self.address]);
@@ -363,15 +362,14 @@ impl AutomatedMarketMakerFactory for BalancerFactory {
 }
 
 impl DiscoverySync for BalancerFactory {
-    fn discover<T, N, P>(
+    fn discover< N, P>(
         &self,
         to_block: BlockId,
         provider: Arc<P>,
     ) -> impl Future<Output = Result<Vec<AMM>, AMMError>>
     where
-        T: Transport + Clone,
-        N: Network,
-        P: Provider<T, N>,
+                N: Network,
+        P: Provider<N>,
     {
         info!(
             target = "amms::balancer::discover",
@@ -381,16 +379,15 @@ impl DiscoverySync for BalancerFactory {
         self.get_all_pools(to_block, provider)
     }
 
-    fn sync<T, N, P>(
+    fn sync< N, P>(
         &self,
         amms: Vec<AMM>,
         to_block: BlockId,
         provider: Arc<P>,
     ) -> impl Future<Output = Result<Vec<AMM>, AMMError>>
     where
-        T: Transport + Clone,
-        N: Network,
-        P: Provider<T, N>,
+                N: Network,
+        P: Provider<N>,
     {
         info!(
             target = "amms::balancer::sync",
@@ -409,15 +406,14 @@ impl BalancerFactory {
         }
     }
 
-    pub async fn get_all_pools<T, N, P>(
+    pub async fn get_all_pools< N, P>(
         &self,
         block_number: BlockId,
         provider: Arc<P>,
     ) -> Result<Vec<AMM>, AMMError>
     where
-        T: Transport + Clone,
-        N: Network,
-        P: Provider<T, N>,
+                N: Network,
+        P: Provider<N>,
     {
         let disc_filter = Filter::new()
             .event_signature(FilterSet::from(vec![self.pool_creation_event()]))
@@ -455,15 +451,14 @@ impl BalancerFactory {
         Ok(pools)
     }
 
-    pub async fn sync_all_pools<T, N, P>(
+    pub async fn sync_all_pools< N, P>(
         amms: Vec<AMM>,
         block_number: BlockId,
         provider: Arc<P>,
     ) -> Result<Vec<AMM>, AMMError>
     where
-        T: Transport + Clone,
-        N: Network,
-        P: Provider<T, N>,
+                N: Network,
+        P: Provider<N>,
     {
         let step = 120;
         let pairs = amms

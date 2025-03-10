@@ -43,11 +43,10 @@ pub struct Token {
 }
 
 impl Token {
-    pub async fn new<T, N, P>(address: Address, provider: Arc<P>) -> Result<Self, AMMError>
+    pub async fn new<N, P>(address: Address, provider: P) -> Result<Self, AMMError>
     where
-        T: Transport + Clone,
         N: Network,
-        P: Provider<T, N>,
+        P: Provider<N>,
     {
         let decimals = IERC20::new(address, provider).decimals().call().await?._0;
 
@@ -86,14 +85,13 @@ impl Hash for Token {
 ///
 /// # Returns
 /// A map of token addresses to their decimal precision.
-pub async fn get_token_decimals<T, N, P>(
+pub async fn get_token_decimals<N, P>(
     tokens: Vec<Address>,
     provider: Arc<P>,
 ) -> HashMap<Address, u8>
 where
-    T: Transport + Clone,
     N: Network,
-    P: Provider<T, N>,
+    P: Provider<N>,
 {
     let step = 765;
 

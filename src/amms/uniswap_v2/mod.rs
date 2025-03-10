@@ -175,15 +175,14 @@ impl AutomatedMarketMaker for UniswapV2Pool {
         q64_to_float(price)
     }
 
-    async fn init<T, N, P>(
+    async fn init< N, P>(
         mut self,
         block_number: BlockId,
         provider: Arc<P>,
     ) -> Result<Self, AMMError>
     where
-        T: Transport + Clone,
-        N: Network,
-        P: Provider<T, N>,
+                N: Network,
+        P: Provider<N>,
     {
         let deployer = IGetUniswapV2PoolDataBatchRequestInstance::deploy_builder(
             provider.clone(),
@@ -390,15 +389,14 @@ impl UniswapV2Factory {
         }
     }
 
-    pub async fn get_all_pairs<T, N, P>(
+    pub async fn get_all_pairs< N, P>(
         factory_address: Address,
         block_number: BlockId,
         provider: Arc<P>,
     ) -> Result<Vec<Address>, AMMError>
     where
-        T: Transport + Clone,
-        N: Network,
-        P: Provider<T, N>,
+                N: Network,
+        P: Provider<N>,
     {
         let factory = IUniswapV2FactoryInstance::new(factory_address, provider.clone());
         let pairs_length = factory
@@ -442,15 +440,14 @@ impl UniswapV2Factory {
         Ok(pairs)
     }
 
-    pub async fn sync_all_pools<T, N, P>(
+    pub async fn sync_all_pools< N, P>(
         amms: Vec<AMM>,
         block_number: BlockId,
         provider: Arc<P>,
     ) -> Result<Vec<AMM>, AMMError>
     where
-        T: Transport + Clone,
-        N: Network,
-        P: Provider<T, N>,
+                N: Network,
+        P: Provider<N>,
     {
         let step = 120;
         let pairs = amms
@@ -554,15 +551,14 @@ impl AutomatedMarketMakerFactory for UniswapV2Factory {
 }
 
 impl DiscoverySync for UniswapV2Factory {
-    fn discover<T, N, P>(
+    fn discover< N, P>(
         &self,
         to_block: BlockId,
         provider: Arc<P>,
     ) -> impl Future<Output = Result<Vec<AMM>, AMMError>>
     where
-        T: Transport + Clone,
-        N: Network,
-        P: Provider<T, N>,
+                N: Network,
+        P: Provider<N>,
     {
         info!(
             target = "amms::uniswap_v2::discover",
@@ -591,16 +587,15 @@ impl DiscoverySync for UniswapV2Factory {
         }
     }
 
-    fn sync<T, N, P>(
+    fn sync< N, P>(
         &self,
         amms: Vec<AMM>,
         to_block: BlockId,
         provider: Arc<P>,
     ) -> impl Future<Output = Result<Vec<AMM>, AMMError>>
     where
-        T: Transport + Clone,
-        N: Network,
-        P: Provider<T, N>,
+                N: Network,
+        P: Provider<N>,
     {
         info!(
             target = "amms::uniswap_v2::sync",
