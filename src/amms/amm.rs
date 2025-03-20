@@ -56,7 +56,7 @@ pub trait AutomatedMarketMaker {
     where
         Self: Sized,
         N: Network,
-        P: Provider<N>;
+        P: Provider<N> + Clone;
 }
 
 macro_rules! amm {
@@ -113,7 +113,7 @@ macro_rules! amm {
             where
                 Self: Sized,
                 N: Network,
-                P: Provider<N>,
+                P: Provider<N> + Clone,
             {
                 match self {
                     $(AMM::$pool_type(pool) => pool.init(block_number, provider).await.map(AMM::$pool_type),)+

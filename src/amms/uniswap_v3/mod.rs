@@ -583,7 +583,7 @@ impl AutomatedMarketMaker for UniswapV3Pool {
     async fn init<N, P>(mut self, block_number: BlockId, provider: P) -> Result<Self, AMMError>
     where
         N: Network,
-        P: Provider<N>,
+        P: Provider<N> + Clone,
     {
         let pool = IUniswapV3Pool::new(self.address, provider.clone());
 
@@ -763,7 +763,7 @@ impl UniswapV3Factory {
     ) -> Result<Vec<AMM>, AMMError>
     where
         N: Network,
-        P: Provider<N>,
+        P: Provider<N> + Clone,
     {
         let disc_filter = Filter::new()
             .event_signature(FilterSet::from(vec![self.pool_creation_event()]))
@@ -809,7 +809,7 @@ impl UniswapV3Factory {
     ) -> Result<Vec<AMM>, AMMError>
     where
         N: Network,
-        P: Provider<N>,
+        P: Provider<N> + Clone,
     {
         UniswapV3Factory::sync_slot_0(&mut pools, block_number, provider.clone()).await?;
         UniswapV3Factory::sync_token_decimals(&mut pools, provider.clone()).await;
@@ -835,7 +835,7 @@ impl UniswapV3Factory {
     async fn sync_token_decimals<N, P>(pools: &mut [AMM], provider: P)
     where
         N: Network,
-        P: Provider<N>,
+        P: Provider<N> + Clone,
     {
         // Get all token decimals
         let mut tokens = HashSet::new();
@@ -869,7 +869,7 @@ impl UniswapV3Factory {
     ) -> Result<(), AMMError>
     where
         N: Network,
-        P: Provider<N>,
+        P: Provider<N> + Clone,
     {
         let step = 255;
 
@@ -918,7 +918,7 @@ impl UniswapV3Factory {
     ) -> Result<(), AMMError>
     where
         N: Network,
-        P: Provider<N>,
+        P: Provider<N> + Clone,
     {
         let mut futures: FuturesUnordered<BoxFuture<'_, _>> = FuturesUnordered::new();
 
@@ -1031,7 +1031,7 @@ impl UniswapV3Factory {
     ) -> Result<(), AMMError>
     where
         N: Network,
-        P: Provider<N>,
+        P: Provider<N> + Clone,
     {
         let pool_ticks = pools
             .par_iter()
@@ -1209,7 +1209,7 @@ impl DiscoverySync for UniswapV3Factory {
     ) -> impl Future<Output = Result<Vec<AMM>, AMMError>>
     where
         N: Network,
-        P: Provider<N>,
+        P: Provider<N> + Clone,
     {
         info!(
             target = "amms::uniswap_v3::discover",
@@ -1228,7 +1228,7 @@ impl DiscoverySync for UniswapV3Factory {
     ) -> impl Future<Output = Result<Vec<AMM>, AMMError>>
     where
         N: Network,
-        P: Provider<N>,
+        P: Provider<N> + Clone,
     {
         info!(
             target = "amms::uniswap_v3::sync",

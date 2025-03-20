@@ -165,7 +165,7 @@ impl AutomatedMarketMaker for ERC4626Vault {
     async fn init<N, P>(mut self, block_number: BlockId, provider: P) -> Result<Self, AMMError>
     where
         N: Network,
-        P: Provider<N>,
+        P: Provider<N> + Clone,
     {
         let deployer =
             IGetERC4626VaultDataBatchRequest::deploy_builder(provider, vec![self.vault_token]);
@@ -318,7 +318,7 @@ impl ERC4626Vault {
     ) -> Result<(U256, U256), AMMError>
     where
         N: Network,
-        P: Provider<N> + Clone,
+        P: Provider<N> + Clone + Clone,
     {
         let vault = IERC4626Vault::new(self.vault_token, provider);
 

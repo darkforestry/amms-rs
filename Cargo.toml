@@ -11,14 +11,12 @@ keywords = ["ethereum", "amm", "mev"]
 exclude = ["target/*", ".github/*", ".gitignore"]
 
 
-# TODO: clean up and organize deps
 [dependencies]
 # darkforest
 uniswap_v3_math = "0.6"
-alloy-throttle = { git = "https://github.com/darkforestry/alloy-throttle.git", rev = "d0816ee82fa1ef846b7e82b910a4950c3e82f2ad" }
 
 # alloy
-alloy = { version = "0.12", features = [
+alloy = { version = "0.12.6", features = [
     "contract",
     "network",
     "rpc",
@@ -28,6 +26,7 @@ alloy = { version = "0.12", features = [
     "signer-local",
 ] }
 alloy-json-rpc = { version = "0.12" }
+alloy-provider = { version = "0.12.6", features = ["throttle"] }
 
 # tracing
 eyre = "0.6"
