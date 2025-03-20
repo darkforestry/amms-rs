@@ -90,12 +90,10 @@ pub enum BalancerError {
     MulOverflow,
 }
 
-// TODO: we could consider creating a "Token" struct that would store the decimals.
 #[derive(Default, Debug, Serialize, Deserialize, Clone)]
 pub struct BalancerPool {
     /// The Pool Address.
     address: Address,
-    // TODO:
     state: HashMap<Address, TokenPoolState>,
     /// The Swap Fee on the Pool.
     fee: u32,

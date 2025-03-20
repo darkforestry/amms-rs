@@ -278,7 +278,6 @@ impl ERC4626Vault {
         Ok(amount_in * reserve_out / reserve_in * U256::from(10000 - fee) / U256_10000)
     }
 
-    // TODO: Right now this will return a uv2 error, fix this
     pub fn calculate_price_64_x_64(&self, base_token: Address) -> Result<u128, AMMError> {
         let decimal_shift = self.vault_token_decimals as i8 - self.asset_token_decimals as i8;
 

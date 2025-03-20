@@ -5,7 +5,6 @@ pragma solidity ^0.8.0;
  * @dev This contract is not meant to be deployed. Instead, use a static call with the
  *       deployment bytecode as payload.
  */
-
 contract GetUniswapV3PoolTickBitmapBatchRequest {
     struct TickBitmapInfo {
         address pool;
@@ -18,8 +17,6 @@ contract GetUniswapV3PoolTickBitmapBatchRequest {
         uint256[] tickBitmaps;
     }
 
-    /// @notice TODO: add comments about encoding scheme
-
     constructor(TickBitmapInfo[] memory allPoolInfo) {
         uint256[][] memory allTickBitmaps = new uint256[][](allPoolInfo.length);
 
@@ -27,9 +24,7 @@ contract GetUniswapV3PoolTickBitmapBatchRequest {
             TickBitmapInfo memory info = allPoolInfo[i];
             IUniswapV3PoolState pool = IUniswapV3PoolState(info.pool);
 
-            uint256[] memory tickBitmaps = new uint256[](
-                uint16(info.maxWord - info.minWord) + 1
-            );
+            uint256[] memory tickBitmaps = new uint256[](uint16(info.maxWord - info.minWord) + 1);
 
             uint256 wordIdx = 0;
             for (int16 j = info.minWord; j <= info.maxWord; ++j) {
