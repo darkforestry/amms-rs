@@ -25,7 +25,7 @@ use futures::{stream::FuturesUnordered, StreamExt};
 use itertools::Itertools;
 use rug::Float;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, future::Future, hash::Hash, sync::Arc};
+use std::{collections::HashMap, future::Future, hash::Hash};
 use thiserror::Error;
 use tracing::info;
 use IGetUniswapV2PoolDataBatchRequest::IGetUniswapV2PoolDataBatchRequestInstance;

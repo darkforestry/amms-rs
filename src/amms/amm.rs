@@ -11,10 +11,7 @@ use alloy::{
 };
 use eyre::Result;
 use serde::{Deserialize, Serialize};
-use std::{
-    hash::{Hash, Hasher},
-    sync::Arc,
-};
+use std::hash::{Hash, Hasher};
 
 #[allow(async_fn_in_trait)]
 pub trait AutomatedMarketMaker {

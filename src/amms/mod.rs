@@ -1,7 +1,6 @@
 use std::{
     collections::HashMap,
     hash::{Hash, Hasher},
-    sync::Arc,
 };
 
 use alloy::{dyn_abi::DynSolType, network::Network, primitives::Address, providers::Provider, sol};

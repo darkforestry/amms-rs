@@ -16,7 +16,6 @@ use serde::{Deserialize, Serialize};
 use std::{
     future::Future,
     hash::{Hash, Hasher},
-    sync::Arc,
 };
 
 pub trait DiscoverySync {

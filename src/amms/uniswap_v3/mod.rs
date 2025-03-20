@@ -26,7 +26,6 @@ use std::{
     future::Future,
     hash::Hash,
     str::FromStr,
-    sync::Arc,
 };
 use thiserror::Error;
 use tracing::info;

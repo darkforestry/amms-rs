@@ -15,7 +15,7 @@ use alloy::{
     sol_types::{SolEvent, SolValue},
 };
 use serde::{Deserialize, Serialize};
-use std::{cmp::Ordering, sync::Arc};
+use std::cmp::Ordering;
 use thiserror::Error;
 use tracing::info;
 

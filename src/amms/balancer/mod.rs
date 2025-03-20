@@ -1,6 +1,6 @@
 pub mod bmath;
 
-use std::{collections::HashMap, future::Future, sync::Arc};
+use std::{collections::HashMap, future::Future};
 
 use alloy::{
     eips::BlockId,
