@@ -1,10 +1,11 @@
 use std::sync::Arc;
 
 use alloy::{
-    primitives::address, providers::ProviderBuilder, rpc::client::ClientBuilder,
-    transports::layers::RetryBackoffLayer,
+    primitives::address,
+    providers::ProviderBuilder,
+    rpc::client::ClientBuilder,
+    transports::layers::{RetryBackoffLayer, ThrottleLayer},
 };
-use alloy_throttle::ThrottleLayer;
 use amms::{
     amms::{
         erc_4626::ERC4626Vault,
@@ -20,7 +21,7 @@ async fn main() -> eyre::Result<()> {
     let rpc_endpoint = std::env::var("ETHEREUM_PROVIDER")?;
 
     let client = ClientBuilder::default()
-        .layer(ThrottleLayer::new(500, None)?)
+        .layer(ThrottleLayer::new(500))
         .layer(RetryBackoffLayer::new(5, 200, 330))
         .http(rpc_endpoint.parse()?);
 

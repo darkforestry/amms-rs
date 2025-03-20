@@ -1,8 +1,9 @@
 use alloy::{
-    primitives::address, providers::ProviderBuilder, rpc::client::ClientBuilder,
-    transports::layers::RetryBackoffLayer,
+    primitives::address,
+    providers::ProviderBuilder,
+    rpc::client::ClientBuilder,
+    transports::layers::{RetryBackoffLayer, ThrottleLayer},
 };
-use alloy_throttle::ThrottleLayer;
 use amms::{amms::uniswap_v2::UniswapV2Factory, state_space::StateSpaceBuilder};
 use futures::StreamExt;
 use std::sync::Arc;
@@ -12,7 +13,7 @@ async fn main() -> eyre::Result<()> {
     tracing_subscriber::fmt::init();
     let rpc_endpoint = std::env::var("ETHEREUM_PROVIDER")?;
     let client = ClientBuilder::default()
-        .layer(ThrottleLayer::new(500, None)?)
+        .layer(ThrottleLayer::new(500))
         .layer(RetryBackoffLayer::new(5, 200, 330))
         .http(rpc_endpoint.parse()?);
 

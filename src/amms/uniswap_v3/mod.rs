@@ -1249,9 +1249,8 @@ mod test {
         primitives::{address, aliases::U24, U160, U256},
         providers::ProviderBuilder,
         rpc::client::ClientBuilder,
-        transports::layers::RetryBackoffLayer,
+        transports::layers::{RetryBackoffLayer, ThrottleLayer},
     };
-    use alloy_throttle::ThrottleLayer;
 
     sol! {
         /// Interface of the Quoter
@@ -1267,7 +1266,7 @@ mod test {
         let rpc_endpoint = std::env::var("ETHEREUM_PROVIDER")?;
 
         let client = ClientBuilder::default()
-            .layer(ThrottleLayer::new(250, None)?)
+            .layer(ThrottleLayer::new(250))
             .layer(RetryBackoffLayer::new(5, 200, 330))
             .http(rpc_endpoint.parse()?);
 
@@ -1434,7 +1433,7 @@ mod test {
         let rpc_endpoint = std::env::var("ETHEREUM_PROVIDER")?;
 
         let client = ClientBuilder::default()
-            .layer(ThrottleLayer::new(250, None)?)
+            .layer(ThrottleLayer::new(250))
             .layer(RetryBackoffLayer::new(5, 200, 330))
             .http(rpc_endpoint.parse()?);
 
@@ -1598,7 +1597,7 @@ mod test {
         let rpc_endpoint = std::env::var("ETHEREUM_PROVIDER")?;
 
         let client = ClientBuilder::default()
-            .layer(ThrottleLayer::new(250, None)?)
+            .layer(ThrottleLayer::new(250))
             .layer(RetryBackoffLayer::new(5, 200, 330))
             .http(rpc_endpoint.parse()?);
 

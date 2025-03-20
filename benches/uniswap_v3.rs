@@ -5,9 +5,8 @@ use alloy::{
     primitives::{address, U256},
     providers::ProviderBuilder,
     rpc::client::ClientBuilder,
-    transports::layers::RetryBackoffLayer,
+    transports::layers::{RetryBackoffLayer, ThrottleLayer},
 };
-use alloy_throttle::ThrottleLayer;
 use amms::amms::{amm::AutomatedMarketMaker, uniswap_v3::UniswapV3Pool};
 use criterion::{criterion_group, criterion_main, Criterion};
 use rand::Rng;
@@ -17,7 +16,7 @@ fn simulate_swap(c: &mut Criterion) {
     let rpc_endpoint = std::env::var("ETHEREUM_PROVIDER").expect("Could not get rpc endpoint");
 
     let client = ClientBuilder::default()
-        .layer(ThrottleLayer::new(500, None).unwrap())
+        .layer(ThrottleLayer::new(500))
         .layer(RetryBackoffLayer::new(5, 200, 330))
         .http(rpc_endpoint.parse().unwrap());
 
