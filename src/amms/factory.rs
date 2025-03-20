@@ -27,7 +27,7 @@ pub trait DiscoverySync {
     ) -> impl Future<Output = Result<Vec<AMM>, AMMError>>
     where
         N: Network,
-        P: Provider<N>;
+        P: Provider<N> + Clone;
 
     fn sync<N, P>(
         &self,
@@ -37,7 +37,7 @@ pub trait DiscoverySync {
     ) -> impl Future<Output = Result<Vec<AMM>, AMMError>>
     where
         N: Network,
-        P: Provider<N>;
+        P: Provider<N> + Clone;
 }
 
 pub trait AutomatedMarketMakerFactory: DiscoverySync {
@@ -129,7 +129,7 @@ macro_rules! factory {
             pub async fn discover< N, P>(&self, to_block: BlockId, provider: P) -> Result<Vec<AMM>, AMMError>
             where
                                 N: Network,
-                P: Provider<N>,
+                P: Provider<N> + Clone,
             {
                 match self {
                     $(Factory::$factory_type(factory) => factory.discover(to_block, provider).await,)+
@@ -139,7 +139,7 @@ macro_rules! factory {
             pub async fn sync< N, P>(&self, amms: Vec<AMM>, to_block: BlockId, provider: P) -> Result<Vec<AMM>, AMMError>
             where
                                 N: Network,
-                P: Provider<N>,
+                P: Provider<N> + Clone,
             {
                 match self {
                     $(Factory::$factory_type(factory) => factory.sync(amms, to_block, provider).await,)+
@@ -206,7 +206,7 @@ impl AutomatedMarketMaker for NoopAMM {
     async fn init<N, P>(self, _block_number: BlockId, _provider: P) -> Result<Self, AMMError>
     where
         N: Network,
-        P: Provider<N>,
+        P: Provider<N> + Clone,
     {
         unreachable!()
     }

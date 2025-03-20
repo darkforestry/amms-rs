@@ -43,7 +43,7 @@ impl Token {
     pub async fn new<N, P>(address: Address, provider: P) -> Result<Self, AMMError>
     where
         N: Network,
-        P: Provider<N>,
+        P: Provider<N> + Clone,
     {
         let decimals = IERC20::new(address, provider).decimals().call().await?._0;
 
@@ -85,7 +85,7 @@ impl Hash for Token {
 pub async fn get_token_decimals<N, P>(tokens: Vec<Address>, provider: P) -> HashMap<Address, u8>
 where
     N: Network,
-    P: Provider<N>,
+    P: Provider<N> + Clone + Clone,
 {
     let step = 765;
 

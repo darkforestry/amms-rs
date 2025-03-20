@@ -177,7 +177,7 @@ impl AutomatedMarketMaker for UniswapV2Pool {
     async fn init<N, P>(mut self, block_number: BlockId, provider: P) -> Result<Self, AMMError>
     where
         N: Network,
-        P: Provider<N>,
+        P: Provider<N> + Clone,
     {
         let deployer = IGetUniswapV2PoolDataBatchRequestInstance::deploy_builder(
             provider.clone(),
@@ -391,7 +391,7 @@ impl UniswapV2Factory {
     ) -> Result<Vec<Address>, AMMError>
     where
         N: Network,
-        P: Provider<N>,
+        P: Provider<N> + Clone,
     {
         let factory = IUniswapV2FactoryInstance::new(factory_address, provider.clone());
         let pairs_length = factory
@@ -442,7 +442,7 @@ impl UniswapV2Factory {
     ) -> Result<Vec<AMM>, AMMError>
     where
         N: Network,
-        P: Provider<N>,
+        P: Provider<N> + Clone,
     {
         let step = 120;
         let pairs = amms
@@ -553,7 +553,7 @@ impl DiscoverySync for UniswapV2Factory {
     ) -> impl Future<Output = Result<Vec<AMM>, AMMError>>
     where
         N: Network,
-        P: Provider<N>,
+        P: Provider<N> + Clone,
     {
         info!(
             target = "amms::uniswap_v2::discover",
@@ -590,7 +590,7 @@ impl DiscoverySync for UniswapV2Factory {
     ) -> impl Future<Output = Result<Vec<AMM>, AMMError>>
     where
         N: Network,
-        P: Provider<N>,
+        P: Provider<N> + Clone,
     {
         info!(
             target = "amms::uniswap_v2::sync",

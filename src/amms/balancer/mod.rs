@@ -271,7 +271,7 @@ impl AutomatedMarketMaker for BalancerPool {
     async fn init<N, P>(mut self, block_number: BlockId, provider: P) -> Result<Self, AMMError>
     where
         N: Network,
-        P: Provider<N>,
+        P: Provider<N> + Clone,
     {
         let deployer =
             IGetBalancerPoolDataBatchRequest::deploy_builder(provider, vec![self.address]);
@@ -364,7 +364,7 @@ impl DiscoverySync for BalancerFactory {
     ) -> impl Future<Output = Result<Vec<AMM>, AMMError>>
     where
         N: Network,
-        P: Provider<N>,
+        P: Provider<N> + Clone,
     {
         info!(
             target = "amms::balancer::discover",
@@ -382,7 +382,7 @@ impl DiscoverySync for BalancerFactory {
     ) -> impl Future<Output = Result<Vec<AMM>, AMMError>>
     where
         N: Network,
-        P: Provider<N>,
+        P: Provider<N> + Clone,
     {
         info!(
             target = "amms::balancer::sync",
@@ -408,7 +408,7 @@ impl BalancerFactory {
     ) -> Result<Vec<AMM>, AMMError>
     where
         N: Network,
-        P: Provider<N>,
+        P: Provider<N> + Clone + Clone,
     {
         let disc_filter = Filter::new()
             .event_signature(FilterSet::from(vec![self.pool_creation_event()]))
@@ -453,7 +453,7 @@ impl BalancerFactory {
     ) -> Result<Vec<AMM>, AMMError>
     where
         N: Network,
-        P: Provider<N>,
+        P: Provider<N> + Clone,
     {
         let step = 120;
         let pairs = amms

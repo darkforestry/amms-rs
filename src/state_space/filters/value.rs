@@ -24,7 +24,7 @@ sol! {
 pub struct ValueFilter<const CHUNK_SIZE: usize, N, P>
 where
     N: Network,
-    P: Provider<N>,
+    P: Provider<N> + Clone,
 {
     pub uniswap_v2_factory: Address,
     pub uniswap_v3_factory: Address,
@@ -37,7 +37,7 @@ where
 impl<const CHUNK_SIZE: usize, N, P> ValueFilter<CHUNK_SIZE, N, P>
 where
     N: Network,
-    P: Provider<N>,
+    P: Provider<N> + Clone,
 {
     pub fn new(
         uniswap_v2_factory: Address,
@@ -82,7 +82,7 @@ where
 impl<const CHUNK_SIZE: usize, N, P> AMMFilter for ValueFilter<CHUNK_SIZE, N, P>
 where
     N: Network,
-    P: Provider<N>,
+    P: Provider<N> + Clone,
 {
     async fn filter(&self, amms: Vec<AMM>) -> Result<Vec<AMM>, AMMError> {
         let pool_infos = amms

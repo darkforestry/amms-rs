@@ -56,7 +56,7 @@ impl<N, P> StateSpaceManager<N, P> {
         StateSpaceError,
     >
     where
-        P: Provider<N> + 'static + Clone,
+        P: Provider<N> + Clone + 'static,
         N: Network<BlockResponse = Block>,
     {
         let provider = self.provider.clone();
@@ -103,7 +103,7 @@ pub struct StateSpaceBuilder<N, P> {
 impl<N, P> StateSpaceBuilder<N, P>
 where
     N: Network,
-    P: Provider<N> + 'static + Clone,
+    P: Provider<N> + Clone + 'static,
 {
     pub fn new(provider: P) -> StateSpaceBuilder<N, P> {
         Self {
