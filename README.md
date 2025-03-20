@@ -16,7 +16,7 @@
 
 | AMM             | Status |
 | --------------- | ------ |
-| UniswapV2 Pools | ✅     |
-| UniswapV3 Pools | ✅     |
-| Balancer Pools  | ✅     |
-| ERC4626 Vaults  | ✅     |
+| UniswapV2 | ✅     |
+| UniswapV3 | ✅     |
+| Balancer  | ✅     |
+| ERC4626 Vaults | ✅     |
