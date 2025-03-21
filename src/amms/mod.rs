@@ -124,5 +124,3 @@ where
     }
     Ok(token_decimals)
 }
-
-// TODO: batch contract error

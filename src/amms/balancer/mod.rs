@@ -29,7 +29,6 @@ use super::{
 };
 
 sol! {
-    // TODO: Add Liquidity Provision event's to sync stream.
     #[derive(Debug, PartialEq, Eq)]
     #[sol(rpc)]
     contract IBPool {
@@ -40,6 +39,19 @@ sol! {
             uint256         tokenAmountIn,
             uint256         tokenAmountOut
         );
+
+        event LOG_JOIN(
+            address indexed caller,
+            address indexed tokenIn,
+            uint256         tokenAmountIn
+        );
+
+        event LOG_EXIT(
+            address indexed caller,
+            address indexed tokenOut,
+            uint256         tokenAmountOut
+        );
+
         function getSpotPrice(address tokenIn, address tokenOut) external returns (uint256);
         function calcOutGivenIn(
             uint tokenBalanceIn,
@@ -113,7 +125,11 @@ impl AutomatedMarketMaker for BalancerPool {
     }
 
     fn sync_events(&self) -> Vec<B256> {
-        vec![IBPool::LOG_SWAP::SIGNATURE_HASH]
+        vec![
+            IBPool::LOG_SWAP::SIGNATURE_HASH,
+            IBPool::LOG_JOIN::SIGNATURE_HASH,
+            IBPool::LOG_EXIT::SIGNATURE_HASH,
+        ]
     }
 
     fn sync(&mut self, log: &Log) -> Result<(), AMMError> {
@@ -136,6 +152,32 @@ impl AutomatedMarketMaker for BalancerPool {
                 target = "amm::balancer::sync",
                 address = ?self.address,
                 state = ?self.state, "Sync"
+            );
+        } else if IBPool::LOG_JOIN::SIGNATURE_HASH == signature {
+            let join_event = IBPool::LOG_JOIN::decode_log(log.as_ref(), false)?;
+
+            self.state
+                .get_mut(&join_event.tokenIn)
+                .ok_or(BalancerError::TokenInDoesNotExist)?
+                .liquidity += join_event.tokenAmountIn;
+
+            info!(
+                target = "amm::balancer::sync",
+                address = ?self.address,
+                state = ?self.state, "Join"
+            );
+        } else if IBPool::LOG_EXIT::SIGNATURE_HASH == signature {
+            let exit_event = IBPool::LOG_JOIN::decode_log(log.as_ref(), false)?;
+
+            self.state
+                .get_mut(&exit_event.tokenIn)
+                .ok_or(BalancerError::TokenInDoesNotExist)?
+                .liquidity -= exit_event.tokenAmountIn;
+
+            info!(
+                target = "amm::balancer::sync",
+                address = ?self.address,
+                state = ?self.state, "Exit"
             );
         } else {
             return Err(AMMError::UnrecognizedEventSignature(signature));
