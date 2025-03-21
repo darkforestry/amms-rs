@@ -800,7 +800,6 @@ impl UniswapV3Factory {
         Ok(pools)
     }
 
-    // TODO: update this to use uv3 error and then use thiserror to convert to AMMError
     pub async fn sync_all_pools<N, P>(
         mut pools: Vec<AMM>,
         block_number: BlockId,

@@ -89,7 +89,7 @@ impl<N, P> StateSpaceManager<N, P> {
 
 #[derive(Debug, Default)]
 pub struct StateSpaceBuilder<N, P> {
-    // TODO: do we want to add optional amms? for example, if someone wants to sync specific pools but does not care about discovering pools.
+    // NOTE: do we want to add optional amms? for example, if someone wants to sync specific pools but does not care about discovering pools.
     pub provider: P,
     pub latest_block: u64,
     pub factories: Vec<Factory>,
@@ -97,7 +97,6 @@ pub struct StateSpaceBuilder<N, P> {
     pub filters: Vec<PoolFilter>,
     phantom: PhantomData<N>,
     // TODO: add support for caching
-    // TODO: add support to load from cache
 }
 
 impl<N, P> StateSpaceBuilder<N, P>
