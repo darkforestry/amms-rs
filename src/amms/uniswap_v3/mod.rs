@@ -1,6 +1,6 @@
 use super::{
     amm::{AutomatedMarketMaker, AMM},
-    error::AMMError,
+    error::{AMMError, BatchContractError},
     factory::{AutomatedMarketMakerFactory, DiscoverySync},
     get_token_decimals, Token,
 };
@@ -596,7 +596,7 @@ impl AutomatedMarketMaker for UniswapV3Pool {
 
         let mut pool = vec![self.into()];
         UniswapV3Factory::sync_slot_0(&mut pool, block_number, provider.clone()).await?;
-        UniswapV3Factory::sync_token_decimals(&mut pool, provider.clone()).await;
+        UniswapV3Factory::sync_token_decimals(&mut pool, provider.clone()).await?;
         UniswapV3Factory::sync_tick_bitmaps(&mut pool, block_number, provider.clone()).await?;
         UniswapV3Factory::sync_tick_data(&mut pool, block_number, provider.clone()).await?;
 
@@ -800,7 +800,6 @@ impl UniswapV3Factory {
         Ok(pools)
     }
 
-    // TODO: update this to use uv3 error and then use thiserror to convert to AMMError
     pub async fn sync_all_pools<N, P>(
         mut pools: Vec<AMM>,
         block_number: BlockId,
@@ -811,7 +810,7 @@ impl UniswapV3Factory {
         P: Provider<N> + Clone,
     {
         UniswapV3Factory::sync_slot_0(&mut pools, block_number, provider.clone()).await?;
-        UniswapV3Factory::sync_token_decimals(&mut pools, provider.clone()).await;
+        UniswapV3Factory::sync_token_decimals(&mut pools, provider.clone()).await?;
 
         pools = pools
             .par_drain(..)
@@ -831,7 +830,10 @@ impl UniswapV3Factory {
         Ok(pools)
     }
 
-    async fn sync_token_decimals<N, P>(pools: &mut [AMM], provider: P)
+    async fn sync_token_decimals<N, P>(
+        pools: &mut [AMM],
+        provider: P,
+    ) -> Result<(), BatchContractError>
     where
         N: Network,
         P: Provider<N> + Clone,
@@ -843,7 +845,7 @@ impl UniswapV3Factory {
                 tokens.insert(token);
             }
         }
-        let token_decimals = get_token_decimals(tokens.into_iter().collect(), provider).await;
+        let token_decimals = get_token_decimals(tokens.into_iter().collect(), provider).await?;
 
         // Set token decimals
         for pool in pools.iter_mut() {
@@ -859,6 +861,8 @@ impl UniswapV3Factory {
                 uniswap_v3_pool.token_b.decimals = *decimals;
             }
         }
+
+        Ok(())
     }
 
     async fn sync_slot_0<N, P>(

@@ -4,7 +4,7 @@ use std::{
 };
 
 use alloy::{dyn_abi::DynSolType, network::Network, primitives::Address, providers::Provider, sol};
-use error::AMMError;
+use error::{AMMError, BatchContractError};
 use futures::{stream::FuturesUnordered, StreamExt};
 use serde::{Deserialize, Serialize};
 
@@ -81,7 +81,10 @@ impl Hash for Token {
 ///
 /// # Returns
 /// A map of token addresses to their decimal precision.
-pub async fn get_token_decimals<N, P>(tokens: Vec<Address>, provider: P) -> HashMap<Address, u8>
+pub async fn get_token_decimals<N, P>(
+    tokens: Vec<Address>,
+    provider: P,
+) -> Result<HashMap<Address, u8>, BatchContractError>
 where
     N: Network,
     P: Provider<N> + Clone + Clone,
@@ -97,8 +100,7 @@ where
                 group,
                 GetTokenDecimalsBatchRequest::deploy_builder(provider, group.to_vec())
                     .call_raw()
-                    .await
-                    .expect("TODO: handle error"),
+                    .await,
             )
         });
     });
@@ -109,18 +111,18 @@ where
     while let Some(res) = futures.next().await {
         let (token_addresses, return_data) = res;
 
-        let return_data = return_type
-            .abi_decode_sequence(&return_data)
-            .expect("TODO: handle error");
+        let return_data = return_type.abi_decode_sequence(&return_data?)?;
 
         if let Some(tokens_arr) = return_data.as_array() {
             for (decimals, token_address) in tokens_arr.iter().zip(token_addresses.iter()) {
                 token_decimals.insert(
                     *token_address,
-                    decimals.as_uint().expect("TODO:").0.to::<u8>(),
+                    decimals.as_uint().expect("Could not get uint").0.to::<u8>(),
                 );
             }
         }
     }
-    token_decimals
+    Ok(token_decimals)
 }
+
+// TODO: batch contract error

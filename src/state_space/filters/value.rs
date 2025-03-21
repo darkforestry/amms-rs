@@ -90,10 +90,10 @@ where
             .cloned()
             .map(|amm| {
                 let pool_address = amm.address();
-                // TODO FIXME: Need to update this when we have balancer/v3 support
                 let pool_type = match amm {
                     AMM::UniswapV2Pool(_) => 0,
                     AMM::UniswapV3Pool(_) => 1,
+                    // TODO: At the moment, filters are not compatible with vaults or balancer pools
                     AMM::ERC4626Vault(_) => todo!(),
                     AMM::BalancerPool(_) => todo!(),
                 };

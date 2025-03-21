@@ -44,6 +44,8 @@ pub enum ERC4626VaultError {
     NonRelativeOrZeroFee,
     #[error("Division by zero")]
     DivisionByZero,
+    #[error("Initialization error")]
+    InitializationError,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -201,7 +203,7 @@ impl AutomatedMarketMaker for ERC4626Vault {
         ) = if !data.is_empty() {
             data[0]
         } else {
-            todo!("Handle error")
+            return Err(ERC4626VaultError::InitializationError)?;
         };
 
         // If both deltas are zero, the fee is zero
