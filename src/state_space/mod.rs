@@ -205,7 +205,6 @@ where
             let synced_amms = res??;
 
             for amm in synced_amms {
-                // println!("Adding AMM: {:?}", amm.address());
                 state_space.state.insert(amm.address(), amm);
             }
         }
