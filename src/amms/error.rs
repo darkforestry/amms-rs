@@ -1,11 +1,9 @@
-use alloy::{primitives::FixedBytes, transports::TransportErrorKind};
-use thiserror::Error;
-use tokio::sync::broadcast::error;
-
 use super::{
     balancer::BalancerError, erc_4626::ERC4626VaultError, uniswap_v2::UniswapV2Error,
     uniswap_v3::UniswapV3Error,
 };
+use alloy::{primitives::FixedBytes, transports::TransportErrorKind};
+use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum AMMError {

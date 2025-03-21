@@ -596,7 +596,7 @@ impl AutomatedMarketMaker for UniswapV3Pool {
 
         let mut pool = vec![self.into()];
         UniswapV3Factory::sync_slot_0(&mut pool, block_number, provider.clone()).await?;
-        UniswapV3Factory::sync_token_decimals(&mut pool, provider.clone()).await;
+        UniswapV3Factory::sync_token_decimals(&mut pool, provider.clone()).await?;
         UniswapV3Factory::sync_tick_bitmaps(&mut pool, block_number, provider.clone()).await?;
         UniswapV3Factory::sync_tick_data(&mut pool, block_number, provider.clone()).await?;
 
