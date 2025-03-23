@@ -18,7 +18,7 @@ use WethValueInPools::{PoolInfo, PoolInfoReturn};
 sol! {
     #[sol(rpc)]
     WethValueInPoolsBatchRequest,
-    "contracts/out/WethValueInPools.sol/WethValueInPoolsBatchRequest.json"
+    "src/amms/abi/WethValueInPoolsBatchRequest.json"
 }
 
 pub struct ValueFilter<const CHUNK_SIZE: usize, N, P>

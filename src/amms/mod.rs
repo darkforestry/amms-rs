@@ -21,7 +21,7 @@ pub mod uniswap_v3;
 sol! {
     #[sol(rpc)]
     GetTokenDecimalsBatchRequest,
-    "contracts/out/GetTokenDecimalsBatchRequest.sol/GetTokenDecimalsBatchRequest.json",
+    "src/amms/abi/GetTokenDecimalsBatchRequest.json",
 }
 
 sol!(

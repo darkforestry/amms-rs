@@ -57,14 +57,14 @@ sol!(
     #[allow(missing_docs)]
     #[sol(rpc)]
     IGetUniswapV2PairsBatchRequest,
-    "contracts/out/GetUniswapV2PairsBatchRequest.sol/GetUniswapV2PairsBatchRequest.json"
+    "src/amms/abi/GetUniswapV2PairsBatchRequest.json"
 );
 
 sol!(
     #[allow(missing_docs)]
     #[sol(rpc)]
     IGetUniswapV2PoolDataBatchRequest,
-    "contracts/out/GetUniswapV2PoolDataBatchRequest.sol/GetUniswapV2PoolDataBatchRequest.json"
+    "src/amms/abi/GetUniswapV2PoolDataBatchRequest.json"
 );
 
 #[derive(Error, Debug)]

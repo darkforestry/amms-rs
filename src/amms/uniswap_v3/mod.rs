@@ -101,19 +101,19 @@ sol! {
 sol! {
     #[sol(rpc)]
     GetUniswapV3PoolSlot0BatchRequest,
-    "contracts/out/GetUniswapV3PoolSlot0BatchRequest.sol/GetUniswapV3PoolSlot0BatchRequest.json",
+    "src/amms/abi/GetUniswapV3PoolSlot0BatchRequest.json",
 }
 
 sol! {
     #[sol(rpc)]
     GetUniswapV3PoolTickBitmapBatchRequest,
-    "contracts/out/GetUniswapV3PoolTickBitmapBatchRequest.sol/GetUniswapV3PoolTickBitmapBatchRequest.json",
+    "src/amms/abi/GetUniswapV3PoolTickBitmapBatchRequest.json",
 }
 
 sol! {
     #[sol(rpc)]
     GetUniswapV3PoolTickDataBatchRequest,
-    "contracts/out/GetUniswapV3PoolTickDataBatchRequest.sol/GetUniswapV3PoolTickDataBatchRequest.json"
+    "src/amms/abi/GetUniswapV3PoolTickDataBatchRequest.json"
 }
 
 #[derive(Error, Debug)]

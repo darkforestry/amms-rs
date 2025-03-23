@@ -35,7 +35,7 @@ sol! {
     #[allow(missing_docs)]
     #[sol(rpc)]
     IGetERC4626VaultDataBatchRequest,
-    "contracts/out/GetERC4626VaultDataBatchRequest.sol/GetERC4626VaultDataBatchRequest.json",
+    "src/amms/abi/GetERC4626VaultDataBatchRequest.json",
 }
 
 #[derive(Error, Debug)]
