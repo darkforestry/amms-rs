@@ -1,6 +1,6 @@
 [package]
 name = "amms"
-version = "0.6.3"
+version = "0.7.0"
 edition = "2021"
 license = "MIT"
 description = "A library to interact with automated market makers across EVM chains."
@@ -10,54 +10,54 @@ repository = "https://github.com/darkforestry/amms-rs"
 keywords = ["ethereum", "amm", "mev"]
 exclude = ["target/*", ".github/*", ".gitignore"]
 
+
 [dependencies]
-arraydeque = { version = "0.5", optional = true }
-# artemis-core = { git = "https://github.com/paradigmxyz/artemis.git", branch = "main", optional = true }
-async-trait = "0.1"
-eyre = "0.6"
-futures = "0.3"
-lazy_static = "1.5"
-num-bigfloat = "1.7"
-regex = "1.11"
-serde = "1.0"
-serde_json = "1.0"
-thiserror = "1.0"
-tokio = { version = "1.41", default-features = false }
-tracing = "0.1"
-uniswap_v3_math = { git = "https://github.com/0xKitsune/uniswap-v3-math.git" }
-alloy = { version = "0.6", features = [
+# darkforest
+uniswap_v3_math = "0.6"
+
+# alloy
+alloy = { version = "0.12.6", features = [
     "contract",
     "network",
+    "rpc",
+    "rpc-types",
     "provider-ws",
     "rpc-types-eth",
     "signer-local",
 ] }
 
-rug = "1.26.1"
+# tracing
+eyre = "0.6"
+tracing = "0.1"
 
-[features]
-default = ["state-space"]
-state-space = ["arraydeque"]
-# TODO: Uncomment this when artemis is published as a crate
-# artemis = ["artemis-core"] 
-artemis = []
+# async
+tokio = { version = "1.42", default-features = false }
+futures = "0.3"
+async-trait = "0.1"
+
+# misc
+arraydeque = "0.5"
+thiserror = "1.0"
+rug = "1.24.1"
+itertools = "0.13.0"
+rayon = "1.10.0"
+async-stream = "0.3.6"
+serde = "1.0"
+
 
 [dev-dependencies]
 rand = "0.8.5"
 tracing-subscriber = "0.3"
 criterion = "0.5"
-tokio = { version = "1.41", default-features = false, features = [
+tokio = { version = "1.42", default-features = false, features = [
     "rt-multi-thread",
 ] }
-alloy = { version = "0.6", features = ["rpc-client"] }
+alloy = { version = "0.12", features = ["rpc-client"] }
+alloy-provider = { version = "0.12.6", features = ["throttle"] }
 
-[[bench]]
-name = "state_space"
-harness = false
 
-[[bench]]
-name = "uniswapv2_simulate"
-harness = false
+[build-dependencies]
+
 
 [profile.release]
 opt-level = 3
@@ -70,3 +70,12 @@ opt-level = 3
 lto = true
 codegen-units = 1
 debug = "full"
+
+
+[[bench]]
+name = "uniswap_v2"
+harness = false
+
+[[bench]]
+name = "uniswap_v3"
+harness = false
