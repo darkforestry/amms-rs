@@ -26,8 +26,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         panic!("forge build failed");
     }
 
-    let abi_out_dir = manifest_dir.join("src/amms/abi/");
     let forge_out_dir = manifest_dir.join("contracts/out");
+    let abi_out_dir = manifest_dir.join("src/amms/abi/");
     fs::create_dir_all(&abi_out_dir)?;
 
     for contract in TARGET_CONTRACTS {
