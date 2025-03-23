@@ -79,7 +79,7 @@ sol!(
     #[allow(missing_docs)]
     #[sol(rpc)]
     IGetBalancerPoolDataBatchRequest,
-    "contracts/out/GetBalancerPoolDataBatchRequest.sol/GetBalancerPoolDataBatchRequest.json"
+    "src/amms/abi/GetBalancerPoolDataBatchRequest.json"
 );
 
 #[derive(Error, Debug)]
