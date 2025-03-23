@@ -25,8 +25,6 @@ alloy = { version = "0.12.6", features = [
     "rpc-types-eth",
     "signer-local",
 ] }
-alloy-json-rpc = { version = "0.12" }
-alloy-provider = { version = "0.12.6", features = ["throttle"] }
 
 # tracing
 eyre = "0.6"
@@ -35,26 +33,16 @@ tracing = "0.1"
 # async
 tokio = { version = "1.42", default-features = false }
 futures = "0.3"
-future-utils = "0.12"
 async-trait = "0.1"
-
-# serde
-serde = "1.0"
-serde_json = "1.0"
 
 # misc
 arraydeque = "0.5"
-lazy_static = "1.5"
-num-bigfloat = "1.7"
-regex = "1.10"
 thiserror = "1.0"
 rug = "1.24.1"
-derive_more = "1.0.0"
-governor = "0.7.0"
 itertools = "0.13.0"
-tower = "0.5.1"
 rayon = "1.10.0"
 async-stream = "0.3.6"
+serde = "1.0"
 
 
 [dev-dependencies]
@@ -65,6 +53,8 @@ tokio = { version = "1.42", default-features = false, features = [
     "rt-multi-thread",
 ] }
 alloy = { version = "0.12", features = ["rpc-client"] }
+alloy-provider = { version = "0.12.6", features = ["throttle"] }
+
 
 [build-dependencies]
 
