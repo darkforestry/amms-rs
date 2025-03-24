@@ -11,6 +11,11 @@ theme = "book/theme"
 git-repository-url = "https://github.com/darkforestry/amms-rs"
 default-theme = "ayu"
 no-section-label = true
+additional-js = [
+    "specs/static/mermaid.min.js",
+    "specs/static/mermaid-init.js",
+    "specs/static/solidity-min.js",
+]
 
 [output.html.fold]
 enable = true
@@ -21,3 +26,6 @@ build-dir = "target/book"
 
 [preprocessor.template]
 before = ["links"]
+
+[preprocessor.mermaid]
+command = "mdbook-mermaid"
