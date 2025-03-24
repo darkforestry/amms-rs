@@ -1,4 +1,11 @@
-use std::{fs, path::PathBuf, process::Command};
+use std::{
+    fs,
+    hash::{self, DefaultHasher, Hash, Hasher},
+    path::PathBuf,
+    process::Command,
+};
+
+use serde_json::Value;
 
 const TARGET_CONTRACTS: &[&str] = &[
     "GetERC4626VaultDataBatchRequest",
@@ -31,12 +38,39 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     fs::create_dir_all(&abi_out_dir)?;
 
     for contract in TARGET_CONTRACTS {
-        let json_file = forge_out_dir
+        let new_abi = forge_out_dir
             .join(format!("{contract}.sol"))
             .join(format!("{contract}.json"));
-        let dest_file = abi_out_dir.join(format!("{contract}.json"));
-        fs::copy(&json_file, &dest_file)?;
+
+        let prev_abi = abi_out_dir.join(format!("{contract}.json"));
+        if !prev_abi.exists() {
+            fs::copy(&new_abi, &prev_abi)?;
+            continue;
+        }
+
+        let prev_contents: Value = serde_json::from_str(&fs::read_to_string(&prev_abi)?)?;
+        let prev_bytecode = prev_contents["bytecode"]
+            .as_str()
+            .expect("Could not get previous bytecode");
+
+        let new_contents: Value = serde_json::from_str(&fs::read_to_string(&new_abi)?)?;
+        let new_bytecode = new_contents["bytecode"]
+            .as_str()
+            .expect("Could not get new bytecode");
+
+        let prev_bytecode_hash = hash(prev_bytecode);
+        let new_bytecode_hash = hash(new_bytecode);
+
+        if prev_bytecode_hash != new_bytecode_hash {
+            fs::copy(&new_abi, &prev_abi)?;
+        }
     }
 
     Ok(())
+}
+
+fn hash(value: &str) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    value.hash(&mut hasher);
+    hasher.finish()
 }
