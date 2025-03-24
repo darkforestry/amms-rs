@@ -1,4 +1,11 @@
-use std::{fs, path::PathBuf, process::Command};
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+use serde_json::Value;
+use std::{
+    fs,
+    hash::{DefaultHasher, Hash, Hasher},
+    path::PathBuf,
+    process::Command,
+};
 
 const TARGET_CONTRACTS: &[&str] = &[
     "GetERC4626VaultDataBatchRequest",
@@ -30,13 +37,41 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let abi_out_dir = manifest_dir.join("src/amms/abi/");
     fs::create_dir_all(&abi_out_dir)?;
 
-    for contract in TARGET_CONTRACTS {
-        let json_file = forge_out_dir
+    TARGET_CONTRACTS.par_iter().for_each(|contract| {
+        let new_abi = forge_out_dir
             .join(format!("{contract}.sol"))
             .join(format!("{contract}.json"));
-        let dest_file = abi_out_dir.join(format!("{contract}.json"));
-        fs::copy(&json_file, &dest_file)?;
-    }
+        let prev_abi = abi_out_dir.join(format!("{contract}.json"));
+
+        if !prev_abi.exists() {
+            fs::copy(&new_abi, &prev_abi).unwrap();
+            return;
+        }
+
+        let prev_contents: Value =
+            serde_json::from_str(&fs::read_to_string(&prev_abi).unwrap()).unwrap();
+        let new_contents: Value =
+            serde_json::from_str(&fs::read_to_string(&new_abi).unwrap()).unwrap();
+
+        let prev_bytecode = prev_contents["bytecode"]["object"]
+            .as_str()
+            .expect("Missing prev bytecode");
+        let new_bytecode = new_contents["bytecode"]["object"]
+            .as_str()
+            .expect("Missing new bytecode");
+
+        if hash(prev_bytecode) != hash(new_bytecode) {
+            fs::copy(&new_abi, &prev_abi).unwrap();
+        }
+    });
+
+    println!("cargo:rerun-if-changed=contracts");
 
     Ok(())
+}
+
+fn hash(value: &str) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    value.hash(&mut hasher);
+    hasher.finish()
 }
