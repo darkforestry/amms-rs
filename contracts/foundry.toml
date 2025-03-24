@@ -3,4 +3,3 @@ optimizer = false
 evm_version = "cancun"
 remappings = ["forge-std=lib/forge-std/src/"]
 fs_permissions = [{ access = "read-write", path = "./" }]
-bytecode_hash = "none"
