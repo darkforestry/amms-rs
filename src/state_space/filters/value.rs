@@ -91,11 +91,11 @@ where
             .map(|amm| {
                 let pool_address = amm.address();
                 let pool_type = match amm {
-                    AMM::UniswapV2Pool(_) => 0,
-                    AMM::UniswapV3Pool(_) => 1,
-                    // TODO: At the moment, filters are not compatible with vaults or balancer pools
+                    AMM::BalancerPool(_) => 0,
+                    AMM::UniswapV2Pool(_) => 1,
+                    AMM::UniswapV3Pool(_) => 2,
+                    // TODO: At the moment, filters are not compatible with vaults
                     AMM::ERC4626Vault(_) => todo!(),
-                    AMM::BalancerPool(_) => todo!(),
                 };
 
                 PoolInfo {
