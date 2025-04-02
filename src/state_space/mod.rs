@@ -225,6 +225,12 @@ where
             }
         }
 
+        for amm in &self.amms {
+            for event in amm.sync_events() {
+                filter_set.insert(event)
+            }
+        }
+
         let block_filter = Filter::new().event_signature(FilterSet::from(
             filter_set.into_iter().collect::<Vec<FixedBytes<32>>>(),
         ));
