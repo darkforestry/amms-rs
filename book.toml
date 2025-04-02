@@ -1,0 +1,10 @@
+[book]
+authors = ["0xKitsune"]
+language = "en"
+multilingual = false
+src = "book"
+title = "amms-rs"
+
+
+[build]
+build-dir = "target/book"
