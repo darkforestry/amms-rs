@@ -173,7 +173,79 @@ let amount_out = balancer_pool.simulate_swap(
 )?;
 ```
 
-TODO: add example showing how to simulate a route
 
+You can also chain swap simulation over a series of pools to simulate a route.
 
-TODO: add example showing how to generate swap calldata
+```rust
+// --snip--
+
+let pools: Vec<AMM> = vec![
+    UniswapV3Pool::new(address!(addr_0))
+    .init(BlockId::latest(), provider)
+    .await?.into(),
+
+     UniswapV2Pool::new(address!(addr_1))
+    .init(BlockId::latest(), provider)
+    .await?.into(),
+
+    UniswapV3Pool::new(address!(addr_2))
+    .init(BlockId::latest(), provider)
+    .await?.into(),
+
+     UniswapV2Pool::new(address!(addr_3))
+    .init(BlockId::latest(), provider)
+    .await?.into(),
+];
+
+let token_in = pools[0].token_a;
+let mut amount_in = 10e23;
+
+for pool in pools{
+    amount_in = pool.simulate_swap(token_in, Address::default(), amount_in);
+    if pool.token_a == token_in{
+        token_in = pool.token_b;
+    } else{
+        token_in = pool.token_a;
+    }
+}
+
+println!("Amount Out: {amount_in:?}");
+```
+
+## Swap Calldata
+Pools also feature a method to generate swap calldata. Each pool has a protocol specific `swap_calldata` function since the inputs will differ from `UniswapV2` to `UniswapV3` to `Balancer`, etc. Below is an example of the `UniswapV2::swap_calldata()` function.
+
+Filename: `src/amms/uniswap_v2/mod.rs`
+```rust
+impl UniswapV2Pool {
+  // --snip--
+    pub fn swap_calldata(
+        &self,
+        amount_0_out: U256,
+        amount_1_out: U256,
+        to: Address,
+        calldata: Vec<u8>,
+    ) -> Result<Bytes, AMMError> {
+        Ok(IUniswapV2Pair::swapCall {
+            amount0Out: amount_0_out,
+            amount1Out: amount_1_out,
+            to,
+            data: calldata.into(),
+        }
+        .abi_encode()
+        .into())
+    }
+}
+```
+
+And here is an example of how to use the function in action.
+```rust
+let pool = UniswapV2Pool::new(address!("B4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc"), 300)
+    .init(BlockId::latest(), provider)
+    .await?;
+
+let to_address = address!("DecafC0ffee15BadDecafC0ffee15BadDecafC0f");
+let swap_calldata = pool.swap_calldata(U256::from(10000), U256::ZERO, to_address, vec![]);
+
+println!("Swap calldata: {:?}", swap_calldata);
+```
