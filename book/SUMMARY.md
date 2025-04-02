@@ -1,8 +1,7 @@
 # Summary
 - [Introduction](./intro.md)
-- [AMMs](./amms.md)
-    - [Pools](./pools.md)
-    - [Factories](./factories.md)
+- [Pools](./pools.md)
+- [Factories](./factories.md)
 - [State Space](./state_space.md)
     - [Syncing](./syncing.md)
     - [Filtering](./filtering.md)
