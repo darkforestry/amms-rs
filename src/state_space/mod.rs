@@ -225,6 +225,16 @@ where
             }
         }
 
+        for variant in amm_variants.keys() {
+            while let Some(amms) = amm_variants.get(variant) {
+                for amm in amms.iter() {
+                    for event in amm.sync_events() {
+                        filter_set.insert(event);
+                    }
+                }
+            }
+        }
+
         let block_filter = Filter::new().event_signature(FilterSet::from(
             filter_set.into_iter().collect::<Vec<FixedBytes<32>>>(),
         ));
