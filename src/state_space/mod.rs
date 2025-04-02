@@ -225,9 +225,13 @@ where
             }
         }
 
-        for amm in &self.amms {
-            for event in amm.sync_events() {
-                filter_set.insert(event)
+        for variant in amm_variants.keys() {
+            while let Some(amms) = amm_variants.get(variant) {
+                for amm in amms.iter() {
+                    for event in amm.sync_events() {
+                        filter_set.insert(event);
+                    }
+                }
             }
         }
 
