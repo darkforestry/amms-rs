@@ -181,20 +181,20 @@ You can also chain swap simulation over a series of pools to simulate a route.
 
 let pools: Vec<AMM> = vec![
     UniswapV3Pool::new(address!(addr_0))
-    .init(BlockId::latest(), provider)
-    .await?.into(),
+        .init(BlockId::latest(), provider)
+        .await?.into(),
 
      UniswapV2Pool::new(address!(addr_1))
-    .init(BlockId::latest(), provider)
-    .await?.into(),
+        .init(BlockId::latest(), provider)
+        .await?.into(),
 
     UniswapV3Pool::new(address!(addr_2))
-    .init(BlockId::latest(), provider)
-    .await?.into(),
+        .init(BlockId::latest(), provider)
+        .await?.into(),
 
      UniswapV2Pool::new(address!(addr_3))
-    .init(BlockId::latest(), provider)
-    .await?.into(),
+        .init(BlockId::latest(), provider)
+        .await?.into(),
 ];
 
 let token_in = pools[0].token_a;
