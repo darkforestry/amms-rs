@@ -156,7 +156,6 @@ where
         let block_filter = Filter::new().event_signature(FilterSet::from(
             filter_set.into_iter().collect::<Vec<FixedBytes<32>>>(),
         ));
-        
         let mut amm_variants = HashMap::new();
         for amm in self.amms.into_iter() {
             amm_variants
