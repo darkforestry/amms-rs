@@ -12,9 +12,9 @@
 
 **Pools** are protocol specific primitives for simulating swaps, computing prices and accessing pool state/metadata.
 
-**Factories** are types used for discovering all pools belonging to a given protocol. 
+**Factories** are types used for discovering pools associated with a specific protocol.
 
-A **State Space** aggregates pools from multiple protocols. It handles syncing, filtering, and listening to state changes for pools in the state space. Additionally, the state space is able to simulate swaps over pools to identify optimal routes.
+A **State Space** aggregates pools from multiple protocols. It handles syncing, filtering, and listening to state changes for pools in the state space. Additionally, the state space is able to simulate swaps over `n` pools to identify optimal routes.
 
 <br>
 
