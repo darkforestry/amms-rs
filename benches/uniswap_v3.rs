@@ -44,7 +44,5 @@ fn simulate_swap(c: &mut Criterion) {
     });
 }
 
-// TODO: bench syncing
-
 criterion_group!(uniswap_v3, simulate_swap);
 criterion_main!(uniswap_v3);
