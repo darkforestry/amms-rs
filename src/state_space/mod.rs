@@ -140,6 +140,22 @@ where
         let factories = self.factories.clone();
         let mut futures = FuturesUnordered::new();
 
+        let mut filter_set = HashSet::new();
+        for factory in &self.factories {
+            for event in factory.pool_events() {
+                filter_set.insert(event);
+            }
+        }
+
+        for amm in self.amms.iter() {
+            for event in amm.sync_events() {
+                filter_set.insert(event);
+            }
+        }
+
+        let block_filter = Filter::new().event_signature(FilterSet::from(
+            filter_set.into_iter().collect::<Vec<FixedBytes<32>>>(),
+        ));
         let mut amm_variants = HashMap::new();
         for amm in self.amms.into_iter() {
             amm_variants
@@ -217,27 +233,6 @@ where
                 state_space.state.insert(address, amm);
             }
         }
-
-        let mut filter_set = HashSet::new();
-        for factory in &self.factories {
-            for event in factory.pool_events() {
-                filter_set.insert(event);
-            }
-        }
-
-        for variant in amm_variants.keys() {
-            while let Some(amms) = amm_variants.get(variant) {
-                for amm in amms.iter() {
-                    for event in amm.sync_events() {
-                        filter_set.insert(event);
-                    }
-                }
-            }
-        }
-
-        let block_filter = Filter::new().event_signature(FilterSet::from(
-            filter_set.into_iter().collect::<Vec<FixedBytes<32>>>(),
-        ));
 
         Ok(StateSpaceManager {
             latest_block: Arc::new(AtomicU64::new(self.latest_block)),
