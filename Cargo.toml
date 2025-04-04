@@ -81,3 +81,8 @@ harness = false
 [[bench]]
 name = "uniswap_v3"
 harness = false
+
+
+[[bench]]
+name = "erc_4626"
+harness = false
