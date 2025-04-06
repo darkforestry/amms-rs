@@ -3,7 +3,7 @@ use super::{
     consts::{
         MPFR_T_PRECISION, U128_0X10000000000000000, U256_0X100, U256_0X10000, U256_0X100000000,
         U256_0XFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF,
-        U256_0XFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF, U256_1, U256_1000, U256_128,
+        U256_0XFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF, U256_1, U256_100000, U256_128,
         U256_16, U256_191, U256_192, U256_2, U256_255, U256_32, U256_4, U256_64, U256_8,
     },
     error::AMMError,
@@ -227,12 +227,10 @@ impl UniswapV2Pool {
         if amount_in.is_zero() || reserve_in.is_zero() || reserve_out.is_zero() {
             return U256::ZERO;
         }
-
-        // TODO: we could set this as the fee on the pool instead of calculating this
-        let fee = (10000 - (self.fee / 10)) / 10; // Fee of 300 => (10,000 - 30) / 10  = 997
-        let amount_in_with_fee = amount_in * U256::from(fee);
-        let numerator = amount_in_with_fee * reserve_out;
-        let denominator = reserve_in * U256_1000 + amount_in_with_fee;
+        let fee = U256_100000 - U256::from(self.fee);
+        let amount_in = amount_in * fee;
+        let numerator = amount_in * reserve_out;
+        let denominator = reserve_in * U256_100000 + amount_in;
 
         numerator / denominator
     }
@@ -604,8 +602,28 @@ impl DiscoverySync for UniswapV2Factory {
 
 #[cfg(test)]
 mod tests {
-    use crate::amms::{amm::AutomatedMarketMaker, uniswap_v2::UniswapV2Pool, Token};
-    use alloy::primitives::{address, Address};
+    use crate::amms::{
+        amm::AutomatedMarketMaker, consts::U256_100000, uniswap_v2::UniswapV2Pool, Token,
+    };
+    use alloy::primitives::{address, Address, U256};
+
+    #[test]
+    fn test_get_amount_out() {
+        let fees = [125, 150, 300, 1000]; // 0.125%, 0.15%, 0.3%, 1%
+        let amount_in = U256::from(10).pow(U256::from(18));
+        let reserve_in = U256::from(100).pow(U256::from(18));
+        let reserve_out = U256::from(100).pow(U256::from(18));
+        let amount_out_no_fee = (reserve_out * amount_in) / (reserve_in + amount_in);
+        for fee in fees {
+            let pool = UniswapV2Pool {
+                fee,
+                ..Default::default()
+            };
+
+            let res = pool.get_amount_out(amount_in, reserve_in, reserve_out);
+            assert!(amount_out_no_fee * (U256_100000 - U256::from(fee)) / U256_100000 == res);
+        }
+    }
 
     #[test]
     fn test_calculate_price_edge_case() {
