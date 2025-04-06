@@ -609,7 +609,6 @@ mod tests {
 
     #[test]
     fn test_get_amount_out() {
-        //
         let fees = [125, 150, 300, 1000]; // 0.125%, 0.15%, 0.3%, 1%
         let amount_in = U256::from(10).pow(U256::from(18));
         let reserve_in = U256::from(100).pow(U256::from(18));
