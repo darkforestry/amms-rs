@@ -22,7 +22,6 @@ contract GetUniswapV3PoolDataBatchRequest {
     }
 
     struct PoolData {
-        // NOTE: the len is from minWord to maxWord which are the keys for thehashmap
         uint256[] tickBitmap;
         int24[] tickIndices;
         TickInfo[] ticks;
@@ -46,9 +45,6 @@ contract GetUniswapV3PoolDataBatchRequest {
             uint256 tickArrayIndex = 0;
 
             // Loop from min to max word inclusive and get all tick bitmaps
-
-            // NOTE: since we are iterating over this range and
-            // getting the the tick index accordingly this will overflow
             uint256 wordRangeIdx = 0;
             for (int16 j = info.minWord; j <= info.maxWord; ++j) {
                 uint256 tickBitmap = pool.tickBitmap(j);

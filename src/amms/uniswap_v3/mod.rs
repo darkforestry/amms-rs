@@ -936,8 +936,6 @@ impl UniswapV3Factory {
 
             let mut min_word = tick_to_word(MIN_TICK, uniswap_v3_pool.tick_spacing);
             let max_word = tick_to_word(MAX_TICK, uniswap_v3_pool.tick_spacing);
-
-            // NOTE: found the issue, we are getting max word - min word which is just pos - negative
             let mut word_range = max_word - min_word;
 
             while word_range > 0 {
@@ -955,8 +953,6 @@ impl UniswapV3Factory {
                 group_range += range;
 
                 // If group is full, fire it off and reset
-
-                // NOTE: we are firing off for each pool, but really we want to make sure that we are grouping pools
                 if group_range >= max_range {
                     // if group_range >= max_range || word_range <= 0 {
                     let provider = provider.clone();

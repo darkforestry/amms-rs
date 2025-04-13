@@ -85,11 +85,9 @@ impl<N, P> StateSpaceManager<N, P> {
     }
 }
 
-// NOTE: Drop impl, create a checkpoint
-
+// TODO: Drop impl, create a checkpoint
 #[derive(Debug, Default)]
 pub struct StateSpaceBuilder<N, P> {
-    // NOTE: do we want to add optional amms? for example, if someone wants to sync specific pools but does not care about discovering pools.
     pub provider: P,
     pub latest_block: u64,
     pub factories: Vec<Factory>,
