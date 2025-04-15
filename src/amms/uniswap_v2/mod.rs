@@ -489,7 +489,7 @@ impl UniswapV2Factory {
                 let amm = amms.get_mut(pool_address).unwrap();
 
                 let AMM::UniswapV2Pool(pool) = amm else {
-                    // NOTE: We should never receive a non UniswapV2Pool AMM here, we can handle this more gracefully in the future
+                    // TODO:: We should never receive a non UniswapV2Pool AMM here, we can handle this more gracefully in the future
                     panic!("Unexpected pool type")
                 };
 
