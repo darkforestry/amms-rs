@@ -505,10 +505,8 @@ impl BalancerFactory {
 
         let mut futures_unordered = FuturesUnordered::new();
         for group in pairs {
-            let deployer = IGetBalancerPoolDataBatchRequest::deploy_builder(
-                provider.clone(),
-                amms.iter().map(|amm| amm.address()).collect(),
-            );
+            let deployer =
+                IGetBalancerPoolDataBatchRequest::deploy_builder(provider.clone(), group.clone());
 
             futures_unordered.push(async move {
                 let res = deployer.call_raw().block(block_number).await?;
