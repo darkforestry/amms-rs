@@ -69,7 +69,7 @@ where
         );
 
         let res = deployer.call_raw().await?;
-        let return_data = <Vec<PoolInfoReturn> as SolValue>::abi_decode(&res, false)?;
+        let return_data = <Vec<PoolInfoReturn> as SolValue>::abi_decode(&res)?;
 
         Ok(return_data
             .into_iter()

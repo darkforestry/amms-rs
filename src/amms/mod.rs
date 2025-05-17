@@ -44,7 +44,7 @@ impl Token {
         N: Network,
         P: Provider<N> + Clone,
     {
-        let decimals = IERC20::new(address, provider).decimals().call().await?._0;
+        let decimals = IERC20::new(address, provider).decimals().call().await?;
 
         Ok(Self { address, decimals })
     }

@@ -82,7 +82,7 @@ impl AutomatedMarketMaker for ERC4626Vault {
         let event_signature = log.data().topics()[0];
         match event_signature {
             IERC4626Vault::Deposit::SIGNATURE_HASH => {
-                let deposit_event = IERC4626Vault::Deposit::decode_log(log.as_ref(), false)?;
+                let deposit_event = IERC4626Vault::Deposit::decode_log(log.as_ref())?;
                 self.asset_reserve += deposit_event.assets;
                 self.vault_reserve += deposit_event.shares;
 
@@ -96,7 +96,7 @@ impl AutomatedMarketMaker for ERC4626Vault {
             }
 
             IERC4626Vault::Withdraw::SIGNATURE_HASH => {
-                let withdraw_event = IERC4626Vault::Withdraw::decode_log(log.as_ref(), false)?;
+                let withdraw_event = IERC4626Vault::Withdraw::decode_log(log.as_ref())?;
                 self.asset_reserve -= withdraw_event.assets;
                 self.vault_reserve -= withdraw_event.shares;
 
@@ -186,7 +186,7 @@ impl AutomatedMarketMaker for ERC4626Vault {
             U256,
             U256,
             U256,
-        )> as SolValue>::abi_decode(&res, false)?;
+        )> as SolValue>::abi_decode(&res)?;
         let (
             vault_token,
             vault_token_dec,
@@ -323,9 +323,9 @@ impl ERC4626Vault {
     {
         let vault = IERC4626Vault::new(self.vault_token, provider);
 
-        let total_assets = vault.totalAssets().block(block_number).call().await?._0;
+        let total_assets = vault.totalAssets().block(block_number).call().await?;
 
-        let total_supply = vault.totalSupply().block(block_number).call().await?._0;
+        let total_supply = vault.totalSupply().block(block_number).call().await?;
 
         Ok((total_supply, total_assets))
     }

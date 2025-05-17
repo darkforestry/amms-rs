@@ -95,7 +95,7 @@ impl AutomatedMarketMaker for UniswapV2Pool {
     }
 
     fn sync(&mut self, log: &Log) -> Result<(), AMMError> {
-        let sync_event = IUniswapV2Pair::Sync::decode_log(&log.inner, false)?;
+        let sync_event = IUniswapV2Pair::Sync::decode_log(&log.inner)?;
 
         let (reserve_0, reserve_1) = (
             sync_event.reserve0.to::<u128>(),
@@ -187,8 +187,7 @@ impl AutomatedMarketMaker for UniswapV2Pool {
         let res = deployer.call_raw().block(block_number).await?;
 
         let pool_data =
-            <Vec<(Address, Address, u128, u128, u32, u32)> as SolValue>::abi_decode(&res, false)?
-                [0];
+            <Vec<(Address, Address, u128, u128, u32, u32)> as SolValue>::abi_decode(&res)?[0];
 
         if pool_data.0.is_zero() {
             todo!("Return error");
@@ -397,7 +396,6 @@ impl UniswapV2Factory {
             .call()
             .block(block_number)
             .await?
-            ._0
             .to::<usize>();
 
         let step = 766;
@@ -414,7 +412,7 @@ impl UniswapV2Factory {
 
             futures_unordered.push(async move {
                 let res = deployer.call_raw().block(block_number).await?;
-                let return_data = <Vec<Address> as SolValue>::abi_decode(&res, false)?;
+                let return_data = <Vec<Address> as SolValue>::abi_decode(&res)?;
 
                 Ok::<Vec<Address>, AMMError>(return_data)
             });
@@ -461,9 +459,7 @@ impl UniswapV2Factory {
                 let res = deployer.call_raw().block(block_number).await?;
 
                 let return_data =
-                    <Vec<(Address, Address, u128, u128, u32, u32)> as SolValue>::abi_decode(
-                        &res, false,
-                    )?;
+                    <Vec<(Address, Address, u128, u128, u32, u32)> as SolValue>::abi_decode(&res)?;
 
                 Ok::<(Vec<Address>, Vec<(Address, Address, u128, u128, u32, u32)>), AMMError>((
                     group,
@@ -527,7 +523,7 @@ impl AutomatedMarketMakerFactory for UniswapV2Factory {
     }
 
     fn create_pool(&self, log: Log) -> Result<AMM, AMMError> {
-        let event = IUniswapV2Factory::PairCreated::decode_log(&log.inner, false)?;
+        let event = IUniswapV2Factory::PairCreated::decode_log(&log.inner)?;
         Ok(AMM::UniswapV2Pool(UniswapV2Pool {
             address: event.pair,
             token_a: event.token0.into(),
