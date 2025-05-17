@@ -17,7 +17,7 @@ async fn main() -> eyre::Result<()> {
         .layer(RetryBackoffLayer::new(5, 200, 330))
         .http(rpc_endpoint.parse()?);
 
-    let sync_provider = Arc::new(ProviderBuilder::new().on_client(client));
+    let sync_provider = Arc::new(ProviderBuilder::new().connect_client(client));
 
     let factories = vec![UniswapV2Factory::new(
         address!("5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f"),

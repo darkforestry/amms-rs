@@ -202,7 +202,7 @@ impl AutomatedMarketMaker for UniswapV3Pool {
         let event_signature = log.topics()[0];
         match event_signature {
             IUniswapV3PoolEvents::Swap::SIGNATURE_HASH => {
-                let swap_event = IUniswapV3PoolEvents::Swap::decode_log(log.as_ref(), false)?;
+                let swap_event = IUniswapV3PoolEvents::Swap::decode_log(log.as_ref())?;
 
                 self.sqrt_price = swap_event.sqrtPriceX96.to();
                 self.liquidity = swap_event.liquidity;
@@ -218,7 +218,7 @@ impl AutomatedMarketMaker for UniswapV3Pool {
                 );
             }
             IUniswapV3PoolEvents::Mint::SIGNATURE_HASH => {
-                let mint_event = IUniswapV3PoolEvents::Mint::decode_log(log.as_ref(), false)?;
+                let mint_event = IUniswapV3PoolEvents::Mint::decode_log(log.as_ref())?;
 
                 self.modify_position(
                     mint_event.tickLower.unchecked_into(),
@@ -236,7 +236,7 @@ impl AutomatedMarketMaker for UniswapV3Pool {
                 );
             }
             IUniswapV3PoolEvents::Burn::SIGNATURE_HASH => {
-                let burn_event = IUniswapV3PoolEvents::Burn::decode_log(log.as_ref(), false)?;
+                let burn_event = IUniswapV3PoolEvents::Burn::decode_log(log.as_ref())?;
 
                 self.modify_position(
                     burn_event.tickLower.unchecked_into(),
@@ -587,12 +587,12 @@ impl AutomatedMarketMaker for UniswapV3Pool {
         let pool = IUniswapV3Pool::new(self.address, provider.clone());
 
         // Get pool data
-        self.tick_spacing = pool.tickSpacing().call().await?._0.as_i32();
-        self.fee = pool.fee().call().await?._0.to::<u32>();
+        self.tick_spacing = pool.tickSpacing().call().await?.as_i32();
+        self.fee = pool.fee().call().await?.to::<u32>();
 
         // Get tokens
-        self.token_a = Token::new(pool.token0().call().await?._0, provider.clone()).await?;
-        self.token_b = Token::new(pool.token1().call().await?._0, provider.clone()).await?;
+        self.token_a = Token::new(pool.token0().call().await?, provider.clone()).await?;
+        self.token_b = Token::new(pool.token1().call().await?, provider.clone()).await?;
 
         let mut pool = vec![self.into()];
         UniswapV3Factory::sync_slot_0(&mut pool, block_number, provider.clone()).await?;
@@ -897,8 +897,7 @@ impl UniswapV3Factory {
 
         while let Some(res) = futures.next().await {
             let (pools, return_data) = res?;
-            let return_data =
-                <Vec<(i32, u128, U256)> as SolValue>::abi_decode(&return_data, false)?;
+            let return_data = <Vec<(i32, u128, U256)> as SolValue>::abi_decode(&return_data)?;
 
             for (slot_0_data, pool) in return_data.iter().zip(pools.iter_mut()) {
                 let AMM::UniswapV3Pool(ref mut uv3_pool) = pool else {
@@ -1002,7 +1001,7 @@ impl UniswapV3Factory {
 
         while let Some(res) = futures.next().await {
             let (pools, return_data) = res?;
-            let return_data = <Vec<Vec<U256>> as SolValue>::abi_decode(&return_data, false)?;
+            let return_data = <Vec<Vec<U256>> as SolValue>::abi_decode(&return_data)?;
 
             for (tick_bitmaps, pool_address) in return_data.iter().zip(pools.iter()) {
                 let pool = pool_set.get_mut(pool_address).unwrap();
@@ -1136,8 +1135,7 @@ impl UniswapV3Factory {
 
         while let Some(res) = futures.next().await {
             let (tick_info, return_data) = res?;
-            let return_data =
-                <Vec<Vec<(bool, u128, i128)>> as SolValue>::abi_decode(&return_data, false)?;
+            let return_data = <Vec<Vec<(bool, u128, i128)>> as SolValue>::abi_decode(&return_data)?;
 
             for (tick_bitmaps, tick_info) in return_data.iter().zip(tick_info.iter()) {
                 let pool = pool_set.get_mut(&tick_info.pool).unwrap();
@@ -1183,7 +1181,7 @@ impl AutomatedMarketMakerFactory for UniswapV3Factory {
 
     fn create_pool(&self, log: Log) -> Result<AMM, AMMError> {
         let pool_created_event: alloy::primitives::Log<IUniswapV3Factory::PoolCreated> =
-            IUniswapV3Factory::PoolCreated::decode_log(&log.inner, false)?;
+            IUniswapV3Factory::PoolCreated::decode_log(&log.inner)?;
 
         Ok(AMM::UniswapV3Pool(UniswapV3Pool {
             address: pool_created_event.pool,
@@ -1269,7 +1267,7 @@ mod test {
             .layer(RetryBackoffLayer::new(5, 200, 330))
             .http(rpc_endpoint.parse()?);
 
-        let provider = ProviderBuilder::new().on_client(client);
+        let provider = ProviderBuilder::new().connect_client(client);
 
         let pool = UniswapV3Pool::new(address!("88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640"))
             .init(BlockId::latest(), provider.clone())
@@ -1302,7 +1300,7 @@ mod test {
             .call()
             .await?;
 
-        assert_eq!(amount_out, expected_amount_out.amountOut);
+        assert_eq!(amount_out, expected_amount_out);
 
         let amount_in_1 = U256::from(10000000000_u64); // 10_000 USDC
         let amount_out_1 =
@@ -1320,7 +1318,7 @@ mod test {
             .call()
             .await?;
 
-        assert_eq!(amount_out_1, expected_amount_out_1.amountOut);
+        assert_eq!(amount_out_1, expected_amount_out_1);
 
         let amount_in_2 = U256::from(10000000000000_u128); // 10_000_000 USDC
         let amount_out_2 =
@@ -1338,7 +1336,7 @@ mod test {
             .call()
             .await?;
 
-        assert_eq!(amount_out_2, expected_amount_out_2.amountOut);
+        assert_eq!(amount_out_2, expected_amount_out_2);
 
         let amount_in_3 = U256::from(100000000000000_u128); // 100_000_000 USDC
         let amount_out_3 =
@@ -1356,7 +1354,7 @@ mod test {
             .call()
             .await?;
 
-        assert_eq!(amount_out_3, expected_amount_out_3.amountOut);
+        assert_eq!(amount_out_3, expected_amount_out_3);
 
         // Test swap from WETH to USDC
 
@@ -1373,7 +1371,7 @@ mod test {
             .block(BlockId::latest())
             .call()
             .await?;
-        assert_eq!(amount_out, expected_amount_out.amountOut);
+        assert_eq!(amount_out, expected_amount_out);
 
         let amount_in_1 = U256::from(10000000000000000000_u128); // 10 ETH
         let amount_out_1 =
@@ -1389,7 +1387,7 @@ mod test {
             .block(BlockId::latest())
             .call()
             .await?;
-        assert_eq!(amount_out_1, expected_amount_out_1.amountOut);
+        assert_eq!(amount_out_1, expected_amount_out_1);
 
         let amount_in_2 = U256::from(100000000000000000000_u128); // 100 ETH
         let amount_out_2 =
@@ -1405,7 +1403,7 @@ mod test {
             .block(BlockId::latest())
             .call()
             .await?;
-        assert_eq!(amount_out_2, expected_amount_out_2.amountOut);
+        assert_eq!(amount_out_2, expected_amount_out_2);
 
         let amount_in_3 = U256::from(100000000000000000000_u128); // 100_000 ETH
         let amount_out_3 =
@@ -1422,7 +1420,7 @@ mod test {
             .call()
             .await?;
 
-        assert_eq!(amount_out_3, expected_amount_out_3.amountOut);
+        assert_eq!(amount_out_3, expected_amount_out_3);
 
         Ok(())
     }
@@ -1436,7 +1434,7 @@ mod test {
             .layer(RetryBackoffLayer::new(5, 200, 330))
             .http(rpc_endpoint.parse()?);
 
-        let provider = ProviderBuilder::new().on_client(client);
+        let provider = ProviderBuilder::new().connect_client(client);
 
         let current_block = BlockId::from(provider.get_block_number().await?);
 
@@ -1464,7 +1462,7 @@ mod test {
             .call()
             .await?;
 
-        assert_eq!(amount_out, expected_amount_out.amountOut);
+        assert_eq!(amount_out, expected_amount_out);
 
         let amount_in_1 = U256::from(100000000000000000000_u128); // 100 LINK
         let amount_out_1 = pool
@@ -1482,7 +1480,7 @@ mod test {
             .call()
             .await?;
 
-        assert_eq!(amount_out_1, expected_amount_out_1.amountOut);
+        assert_eq!(amount_out_1, expected_amount_out_1);
 
         let amount_in_2 = U256::from(10000000000000000000000_u128); // 10_000 LINK
         let amount_out_2 = pool
@@ -1500,7 +1498,7 @@ mod test {
             .call()
             .await?;
 
-        assert_eq!(amount_out_2, expected_amount_out_2.amountOut);
+        assert_eq!(amount_out_2, expected_amount_out_2);
 
         let amount_in_3 = U256::from(10000000000000000000000_u128); // 1_000_000 LINK
         let amount_out_3 = pool
@@ -1518,7 +1516,7 @@ mod test {
             .call()
             .await?;
 
-        assert_eq!(amount_out_3, expected_amount_out_3.amountOut);
+        assert_eq!(amount_out_3, expected_amount_out_3);
 
         // Test swap WETH to LINK
 
@@ -1536,7 +1534,7 @@ mod test {
             .call()
             .await?;
 
-        assert_eq!(amount_out, expected_amount_out.amountOut);
+        assert_eq!(amount_out, expected_amount_out);
 
         let amount_in_1 = U256::from(10000000000000000000_u128); // 10 ETH
         let amount_out_1 =
@@ -1553,7 +1551,7 @@ mod test {
             .call()
             .await?;
 
-        assert_eq!(amount_out_1, expected_amount_out_1.amountOut);
+        assert_eq!(amount_out_1, expected_amount_out_1);
 
         let amount_in_2 = U256::from(100000000000000000000_u128); // 100 ETH
         let amount_out_2 =
@@ -1569,7 +1567,7 @@ mod test {
             .block(current_block)
             .call()
             .await?;
-        assert_eq!(amount_out_2, expected_amount_out_2.amountOut);
+        assert_eq!(amount_out_2, expected_amount_out_2);
 
         let amount_in_3 = U256::from(100000000000000000000_u128); // 100_000 ETH
         let amount_out_3 =
@@ -1586,7 +1584,7 @@ mod test {
             .call()
             .await?;
 
-        assert_eq!(amount_out_3, expected_amount_out_3.amountOut);
+        assert_eq!(amount_out_3, expected_amount_out_3);
 
         Ok(())
     }
@@ -1600,7 +1598,7 @@ mod test {
             .layer(RetryBackoffLayer::new(5, 200, 330))
             .http(rpc_endpoint.parse()?);
 
-        let provider = ProviderBuilder::new().on_client(client);
+        let provider = ProviderBuilder::new().connect_client(client);
 
         let block_number = BlockId::from(22000114);
         let pool = UniswapV3Pool::new(address!("88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640"))

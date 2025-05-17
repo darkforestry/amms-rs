@@ -1,6 +1,6 @@
 [package]
 name = "amms"
-version = "0.7.1"
+version = "0.7.2"
 edition = "2021"
 license = "MIT"
 description = "A library to interact with automated market makers across EVM chains."
@@ -13,17 +13,17 @@ exclude = ["target/*", ".github/*", ".gitignore", "build.rs", "contracts/*"]
 
 [dependencies]
 # darkforest
-uniswap_v3_math = "0.6"
+uniswap_v3_math = "0.6.1"
 
 # alloy
-alloy = { version = "0.12.6", features = [
-    "contract",
-    "network",
-    "rpc",
-    "rpc-types",
-    "provider-ws",
-    "rpc-types-eth",
-    "signer-local",
+alloy = { version = "1.0.3", features = [
+  "contract",
+  "network",
+  "rpc",
+  "rpc-types",
+  "provider-ws",
+  "rpc-types-eth",
+  "signer-local",
 ] }
 
 # tracing
@@ -50,10 +50,10 @@ rand = "0.8.5"
 tracing-subscriber = "0.3"
 criterion = "0.5"
 tokio = { version = "1.42", default-features = false, features = [
-    "rt-multi-thread",
+  "rt-multi-thread",
 ] }
-alloy = { version = "0.12", features = ["rpc-client"] }
-alloy-provider = { version = "0.12.6", features = ["throttle"] }
+alloy = { version = "1.0.3", features = ["rpc-client"] }
+alloy-provider = { version = "1.0.3", features = ["throttle"] }
 
 
 [build-dependencies]

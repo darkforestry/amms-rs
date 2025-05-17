@@ -20,7 +20,7 @@ fn simulate_swap(c: &mut Criterion) {
         .layer(RetryBackoffLayer::new(5, 200, 330))
         .http(rpc_endpoint.parse().unwrap());
 
-    let provider = Arc::new(ProviderBuilder::new().on_client(client));
+    let provider = Arc::new(ProviderBuilder::new().connect_client(client));
 
     let token_a = address!("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48");
     let token_b = address!("C02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2");

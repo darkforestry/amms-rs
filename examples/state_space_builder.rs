@@ -25,7 +25,7 @@ async fn main() -> eyre::Result<()> {
         .layer(RetryBackoffLayer::new(5, 200, 330))
         .http(rpc_endpoint.parse()?);
 
-    let provider = Arc::new(ProviderBuilder::new().on_client(client));
+    let provider = Arc::new(ProviderBuilder::new().connect_client(client));
 
     /*
        The `StateSpaceBuilder` is used to sync a state space of AMMs.

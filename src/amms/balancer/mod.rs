@@ -136,7 +136,7 @@ impl AutomatedMarketMaker for BalancerPool {
         let signature = log.topics()[0];
 
         if IBPool::LOG_SWAP::SIGNATURE_HASH == signature {
-            let swap_event = IBPool::LOG_SWAP::decode_log(log.as_ref(), false)?;
+            let swap_event = IBPool::LOG_SWAP::decode_log(log.as_ref())?;
 
             self.state
                 .get_mut(&swap_event.tokenIn)
@@ -154,7 +154,7 @@ impl AutomatedMarketMaker for BalancerPool {
                 state = ?self.state, "Sync"
             );
         } else if IBPool::LOG_JOIN::SIGNATURE_HASH == signature {
-            let join_event = IBPool::LOG_JOIN::decode_log(log.as_ref(), false)?;
+            let join_event = IBPool::LOG_JOIN::decode_log(log.as_ref())?;
 
             self.state
                 .get_mut(&join_event.tokenIn)
@@ -167,7 +167,7 @@ impl AutomatedMarketMaker for BalancerPool {
                 state = ?self.state, "Join"
             );
         } else if IBPool::LOG_EXIT::SIGNATURE_HASH == signature {
-            let exit_event = IBPool::LOG_JOIN::decode_log(log.as_ref(), false)?;
+            let exit_event = IBPool::LOG_JOIN::decode_log(log.as_ref())?;
 
             self.state
                 .get_mut(&exit_event.tokenIn)
@@ -319,7 +319,7 @@ impl AutomatedMarketMaker for BalancerPool {
 
         let mut data =
             <Vec<(Vec<Address>, Vec<u16>, Vec<U256>, Vec<U256>, u32)> as SolValue>::abi_decode(
-                &res, false,
+                &res,
             )?;
         let (tokens, decimals, liquidity, weights, fee) = if !data.is_empty() {
             data.remove(0)
@@ -378,7 +378,7 @@ impl AutomatedMarketMakerFactory for BalancerFactory {
 
     /// Creates an unsynced pool from a creation log.
     fn create_pool(&self, log: Log) -> Result<AMM, AMMError> {
-        let pool_data = IBFactory::LOG_NEW_POOL::decode_log(&log.inner, true)?;
+        let pool_data = IBFactory::LOG_NEW_POOL::decode_log(&log.inner)?;
         Ok(AMM::BalancerPool(BalancerPool {
             address: pool_data.pool,
             ..Default::default()
@@ -512,7 +512,7 @@ impl BalancerFactory {
                 let res = deployer.call_raw().block(block_number).await?;
 
                 let return_data = <Vec<(Vec<Address>, Vec<u16>, Vec<U256>, Vec<U256>, u32)> as SolValue>::abi_decode(
-                    &res, false,
+                    &res,
                 )?;
 
                 Ok::<(Vec<Address>, Vec<(Vec<Address>, Vec<u16>, Vec<U256>, Vec<U256>, u32)>), AMMError>((
@@ -597,7 +597,8 @@ mod tests {
     #[tokio::test]
     pub async fn test_populate_data() -> eyre::Result<()> {
         let provider = Arc::new(
-            ProviderBuilder::new().on_http(std::env::var("ETHEREUM_PROVIDER")?.parse().unwrap()),
+            ProviderBuilder::new()
+                .connect_http(std::env::var("ETHEREUM_PROVIDER")?.parse().unwrap()),
         );
 
         let balancer_pool = BalancerPool::new(address!("8a649274E4d777FFC6851F13d23A86BBFA2f2Fbf"))
@@ -644,7 +645,8 @@ mod tests {
     #[tokio::test]
     pub async fn test_calculate_price() -> eyre::Result<()> {
         let provider = Arc::new(
-            ProviderBuilder::new().on_http(std::env::var("ETHEREUM_PROVIDER")?.parse().unwrap()),
+            ProviderBuilder::new()
+                .connect_http(std::env::var("ETHEREUM_PROVIDER")?.parse().unwrap()),
         );
 
         let balancer_pool = BalancerPool::new(address!("8a649274E4d777FFC6851F13d23A86BBFA2f2Fbf"))
@@ -665,7 +667,8 @@ mod tests {
     #[tokio::test]
     pub async fn test_simulate_swap() -> eyre::Result<()> {
         let provider = Arc::new(
-            ProviderBuilder::new().on_http(std::env::var("ETHEREUM_PROVIDER")?.parse().unwrap()),
+            ProviderBuilder::new()
+                .connect_http(std::env::var("ETHEREUM_PROVIDER")?.parse().unwrap()),
         );
 
         let balancer_pool = BalancerPool::new(address!("8a649274E4d777FFC6851F13d23A86BBFA2f2Fbf"))
@@ -701,7 +704,7 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(calculated, expected._0);
+        assert_eq!(calculated, expected);
 
         Ok(())
     }
