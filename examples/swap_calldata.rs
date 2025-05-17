@@ -16,7 +16,7 @@ async fn main() -> eyre::Result<()> {
         .layer(RetryBackoffLayer::new(5, 200, 330))
         .http(rpc_endpoint.parse()?);
 
-    let provider = Arc::new(ProviderBuilder::new().on_client(client));
+    let provider = Arc::new(ProviderBuilder::new().connect_client(client));
 
     let pool = UniswapV2Pool::new(address!("B4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc"), 300)
         .init(BlockId::latest(), provider)

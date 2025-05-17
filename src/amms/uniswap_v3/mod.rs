@@ -1267,7 +1267,7 @@ mod test {
             .layer(RetryBackoffLayer::new(5, 200, 330))
             .http(rpc_endpoint.parse()?);
 
-        let provider = ProviderBuilder::new().on_client(client);
+        let provider = ProviderBuilder::new().connect_client(client);
 
         let pool = UniswapV3Pool::new(address!("88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640"))
             .init(BlockId::latest(), provider.clone())
@@ -1434,7 +1434,7 @@ mod test {
             .layer(RetryBackoffLayer::new(5, 200, 330))
             .http(rpc_endpoint.parse()?);
 
-        let provider = ProviderBuilder::new().on_client(client);
+        let provider = ProviderBuilder::new().connect_client(client);
 
         let current_block = BlockId::from(provider.get_block_number().await?);
 
@@ -1598,7 +1598,7 @@ mod test {
             .layer(RetryBackoffLayer::new(5, 200, 330))
             .http(rpc_endpoint.parse()?);
 
-        let provider = ProviderBuilder::new().on_client(client);
+        let provider = ProviderBuilder::new().connect_client(client);
 
         let block_number = BlockId::from(22000114);
         let pool = UniswapV3Pool::new(address!("88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640"))
