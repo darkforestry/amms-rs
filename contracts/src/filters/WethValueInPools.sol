@@ -173,11 +173,19 @@ contract WethValueInPools {
     }
 
     /// @dev Returns the value of `amount` of `token` in terms of WETH.
-    function quoteTokenToWethValue(address token, uint256 amount) internal returns (uint256) {
+    function quoteTokenToWethValue(
+        address token,
+        uint256 amount
+    ) internal returns (uint256) {
+        (uint8 tokenDecimals, ) = getTokenDecimalsUnsafe(token);
+        uint256 normalizedAmount = tokenDecimals <= WETH_DECIMALS
+            ? uint256(amount) * (10 ** (WETH_DECIMALS - tokenDecimals))
+            : uint256(amount) / (10 ** (tokenDecimals - WETH_DECIMALS));
+
         // Try Uniswap V2.
         uint128 price = quoteToken(token);
         if (price > 0) {
-            return FixedPointMath.mul64u(price, amount);
+            return FixedPointMath.mul64u(price, normalizedAmount);
         } else {
             return price;
         }
