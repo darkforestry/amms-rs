@@ -241,7 +241,7 @@ contract WethValueInPools {
             // Get the pool
             IUniswapV3Pool pair =
                 IUniswapV3Pool(IUniswapV3Factory(UNISWAP_V3_FACTORY).getPool(token, WETH, feeTiers[i]));
-            if (address(pool) != ADDRESS_ZERO) {
+            if (address(pair) != ADDRESS_ZERO) {
                 pool = pair;
                 break;
             }
