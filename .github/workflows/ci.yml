@@ -10,6 +10,7 @@ on:
       - main
 
 env:
+
   ETHEREUM_PROVIDER: ${{ secrets.ETHEREUM_PROVIDER }}
   RUST_VERSION: "1.84"
   NIGHTLY_VERSION: nightly-2024-11-01
