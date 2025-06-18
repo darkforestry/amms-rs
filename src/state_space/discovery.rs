@@ -114,11 +114,10 @@ impl DiscoverableFactory {
     }
 
     // TODO: return a result
-    pub async fn create_factory<T, N, P>(&self, log: Log, provider: Arc<P>) -> Factory
+    pub async fn create_factory<N, P>(&self, log: Log, provider: Arc<P>) -> Factory
     where
-        T: Transport + Clone,
         N: Network,
-        P: Provider<T, N>,
+        P: Provider<N>,
     {
         let Some(signature) = log.topic0() else {
             todo!("return error")

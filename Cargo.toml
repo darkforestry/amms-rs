@@ -52,8 +52,8 @@ criterion = "0.5"
 tokio = { version = "1.42", default-features = false, features = [
   "rt-multi-thread",
 ] }
-alloy = { version = "1.0.3", features = ["rpc-client"] }
-alloy-provider = { version = "1.0.3", features = ["throttle"] }
+alloy = { version = "1.0.11", features = ["rpc-client"] }
+alloy-provider = { version = "1.0.11", features = ["throttle"] }
 
 
 [build-dependencies]
