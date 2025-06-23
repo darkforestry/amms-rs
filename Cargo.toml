@@ -43,7 +43,7 @@ itertools = "0.13.0"
 rayon = "1.10.0"
 async-stream = "0.3.6"
 serde = "1.0"
-heimdall-decompiler = { git = "https://github.com/Jon-Becker/heimdall-rs.git", rev = "5b2855f543b96ccca4dacf1cf7dbfc5c6baa6c94" }
+heimdall-decompiler = { git = "https://github.com/Jon-Becker/heimdall-rs.git", rev = "1cbcfb9910c7be4e0f0eb23fb7935c04eefaa285" }
 
 [dev-dependencies]
 rand = "0.8.5"
@@ -52,8 +52,8 @@ criterion = "0.5"
 tokio = { version = "1.42", default-features = false, features = [
   "rt-multi-thread",
 ] }
-alloy = { version = "1.0.11", features = ["rpc-client"] }
-alloy-provider = { version = "1.0.11", features = ["throttle"] }
+alloy = { version = "1.2.1", features = ["rpc-client"] }
+alloy-provider = { version = "1.2.1", features = ["throttle"] }
 
 
 [build-dependencies]
