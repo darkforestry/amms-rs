@@ -27,7 +27,8 @@ use super::filters::PoolFilter;
 
 #[derive(Debug, Default, Clone)]
 pub struct DiscoveryManager {
-    pub factories: HashMap<Address, Factory>,
+    pub target: Vec<DiscoverableFactory>,
+    pub discovered_factories: HashMap<Address, Factory>,
     pub pool_filters: Option<Vec<PoolFilter>>,
     pub token_decimals: HashMap<Address, u8>,
 }
@@ -36,16 +37,9 @@ pub struct DiscoveryManager {
 // TODO: should also track what is already found and ignore events if already found
 
 impl DiscoveryManager {
-    pub fn new(factories: Vec<Factory>) -> Self {
-        let factories = factories
-            .into_iter()
-            .map(|factory| {
-                let address = factory.address();
-                (address, factory)
-            })
-            .collect();
+    pub fn new(target: Vec<DiscoverableFactory>) -> Self {
         Self {
-            factories,
+            target,
             ..Default::default()
         }
     }
@@ -58,9 +52,9 @@ impl DiscoveryManager {
     }
 
     pub fn disc_events(&self) -> HashSet<FixedBytes<32>> {
-        self.factories
+        self.target
             .iter()
-            .fold(HashSet::new(), |mut events_set, (_, factory)| {
+            .fold(HashSet::new(), |mut events_set, factory| {
                 events_set.extend([factory.discovery_event()]);
                 events_set
             })
@@ -70,6 +64,7 @@ impl DiscoveryManager {
 // TODO: disc event
 // TODO: match on event sigs, function sigs, error sigs
 
+#[derive(Clone, Debug)]
 pub enum DiscoverableFactory {
     UniswapV2,
     UniswapV3,
