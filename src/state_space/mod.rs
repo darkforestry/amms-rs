@@ -196,7 +196,9 @@ where
                     }
                 }
 
-                discovered_amms = factory.sync(discovered_amms, chain_tip, provider).await?;
+                discovered_amms = factory
+                    .sync_pools(discovered_amms, chain_tip, provider)
+                    .await?;
 
                 // Apply sync filters
                 for filter in filters.iter() {

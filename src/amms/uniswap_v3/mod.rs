@@ -1200,7 +1200,7 @@ impl AutomatedMarketMakerFactory for UniswapV3Factory {
 }
 
 impl DiscoverySync for UniswapV3Factory {
-    fn discover<N, P>(
+    fn discover_pools<N, P>(
         &self,
         to_block: BlockId,
         provider: P,
@@ -1218,7 +1218,7 @@ impl DiscoverySync for UniswapV3Factory {
         self.get_all_pools(to_block, provider.clone())
     }
 
-    fn sync<N, P>(
+    fn sync_pools<N, P>(
         &self,
         amms: Vec<AMM>,
         to_block: BlockId,

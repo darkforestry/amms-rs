@@ -397,7 +397,7 @@ impl AutomatedMarketMakerFactory for BalancerFactory {
 }
 
 impl DiscoverySync for BalancerFactory {
-    fn discover<N, P>(
+    fn discover_pools<N, P>(
         &self,
         to_block: BlockId,
         provider: P,
@@ -414,7 +414,7 @@ impl DiscoverySync for BalancerFactory {
         self.get_all_pools(to_block, provider)
     }
 
-    fn sync<N, P>(
+    fn sync_pools<N, P>(
         &self,
         amms: Vec<AMM>,
         to_block: BlockId,

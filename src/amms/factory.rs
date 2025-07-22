@@ -19,7 +19,7 @@ use std::{
 };
 
 pub trait DiscoverySync {
-    fn discover<N, P>(
+    fn discover_pools<N, P>(
         &self,
         to_block: BlockId,
         provider: P,
@@ -28,7 +28,7 @@ pub trait DiscoverySync {
         N: Network,
         P: Provider<N> + Clone;
 
-    fn sync<N, P>(
+    fn sync_pools<N, P>(
         &self,
         amms: Vec<AMM>,
         to_block: BlockId,
@@ -131,17 +131,17 @@ macro_rules! factory {
                 P: Provider<N> + Clone,
             {
                 match self {
-                    $(Factory::$factory_type(factory) => factory.discover(to_block, provider).await,)+
+                    $(Factory::$factory_type(factory) => factory.discover_pools(to_block, provider).await,)+
                 }
             }
 
-            pub async fn sync< N, P>(&self, amms: Vec<AMM>, to_block: BlockId, provider: P) -> Result<Vec<AMM>, AMMError>
+            pub async fn sync_pools< N, P>(&self, amms: Vec<AMM>, to_block: BlockId, provider: P) -> Result<Vec<AMM>, AMMError>
             where
                                 N: Network,
                 P: Provider<N> + Clone,
             {
                 match self {
-                    $(Factory::$factory_type(factory) => factory.sync(amms, to_block, provider).await,)+
+                    $(Factory::$factory_type(factory) => factory.sync_pools(amms, to_block, provider).await,)+
                 }
             }
         }

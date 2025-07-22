@@ -546,7 +546,7 @@ impl AutomatedMarketMakerFactory for UniswapV2Factory {
 }
 
 impl DiscoverySync for UniswapV2Factory {
-    fn discover<N, P>(
+    fn discover_pools<N, P>(
         &self,
         to_block: BlockId,
         provider: P,
@@ -582,7 +582,7 @@ impl DiscoverySync for UniswapV2Factory {
         }
     }
 
-    fn sync<N, P>(
+    fn sync_pools<N, P>(
         &self,
         amms: Vec<AMM>,
         to_block: BlockId,
