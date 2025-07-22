@@ -125,7 +125,7 @@ macro_rules! factory {
 
 
         impl Factory {
-            pub async fn discover< N, P>(&self, to_block: BlockId, provider: P) -> Result<Vec<AMM>, AMMError>
+            pub async fn discover_pools< N, P>(&self, to_block: BlockId, provider: P) -> Result<Vec<AMM>, AMMError>
             where
                                 N: Network,
                 P: Provider<N> + Clone,

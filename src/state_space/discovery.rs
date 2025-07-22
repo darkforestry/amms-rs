@@ -1,3 +1,6 @@
+use alloy::eips::BlockId;
+use alloy::rpc::types::{Filter, FilterSet};
+use alloy::signers::k256::elliptic_curve::rand_core::block;
 use alloy::{contract::ContractInstance, sol_types::SolCall};
 use alloy::{
     network::Network,
@@ -8,6 +11,7 @@ use alloy::{
     transports::Transport,
 };
 use alloy::{rpc::types::serde_helpers::quantity::vec, sol_types::JsonAbiExt};
+use futures::stream::{FuturesUnordered, StreamExt};
 use heimdall_decompiler::DecompilerArgsBuilder;
 use std::{
     collections::{HashMap, HashSet},
@@ -27,19 +31,21 @@ use super::filters::PoolFilter;
 
 #[derive(Debug, Default, Clone)]
 pub struct DiscoveryManager {
-    pub target: Vec<DiscoverableFactory>,
+    pub targets: HashMap<FixedBytes<32>, DiscoverableFactory>,
     pub discovered_factories: HashMap<Address, Factory>,
     pub pool_filters: Option<Vec<PoolFilter>>,
     pub token_decimals: HashMap<Address, u8>,
 }
 
-// TODO: have some way to eval pools for some period of time and then drop them if they do not cleared or add them to the state space
-// TODO: should also track what is already found and ignore events if already found
-
 impl DiscoveryManager {
-    pub fn new(target: Vec<DiscoverableFactory>) -> Self {
+    pub fn new(targets: Vec<DiscoverableFactory>) -> Self {
+        let targets = targets
+            .into_iter()
+            .map(|factory| (factory.discovery_event(), factory))
+            .collect();
+
         Self {
-            target,
+            targets,
             ..Default::default()
         }
     }
@@ -52,17 +58,59 @@ impl DiscoveryManager {
     }
 
     pub fn disc_events(&self) -> HashSet<FixedBytes<32>> {
-        self.target
+        self.targets
             .iter()
-            .fold(HashSet::new(), |mut events_set, factory| {
-                events_set.extend([factory.discovery_event()]);
+            .fold(HashSet::new(), |mut events_set, (disc_event, _)| {
+                events_set.insert(*disc_event);
                 events_set
             })
     }
-}
 
-// TODO: disc event
-// TODO: match on event sigs, function sigs, error sigs
+    pub async fn discover_factories<N, P>(&mut self, from: BlockId, to: BlockId, provider: P)
+    where
+        N: Network,
+        P: Provider<N> + Clone,
+    {
+        let mut latest_block = from.as_u64().unwrap_or_default();
+        let disc_filter = Filter::new().event_signature(FilterSet::from(
+            self.disc_events()
+                .into_iter()
+                .collect::<Vec<FixedBytes<32>>>(),
+        ));
+
+        let mut futures = FuturesUnordered::new();
+
+        let sync_step = 100_000;
+        while latest_block < to.as_u64().unwrap_or_default() {
+            let from_block = latest_block;
+            let to_block = (from_block + sync_step).min(to.as_u64().unwrap_or_default());
+            let block_filter = disc_filter
+                .clone()
+                .from_block(from_block)
+                .to_block(to_block);
+
+            let disc_provider = provider.clone();
+            futures.push(async move { disc_provider.get_logs(&block_filter).await });
+            latest_block = to_block + 1;
+        }
+
+        while let Some(res) = futures.next().await {
+            let logs = res.expect("TODO: handle error");
+
+            for log in logs {
+                let Some(sig) = log.topic0() else { todo!() };
+
+                if let Some(target) = self.targets.get(sig) {
+                    let factory = target.create_factory(&log, provider.clone()).await;
+                    self.discovered_factories.insert(factory.address(), factory);
+                }
+            }
+            todo!()
+        }
+
+        todo!()
+    }
+}
 
 #[derive(Clone, Debug)]
 pub enum DiscoverableFactory {
@@ -109,7 +157,8 @@ impl DiscoverableFactory {
     }
 
     // TODO: return a result
-    pub async fn create_factory<N, P>(&self, log: Log, provider: Arc<P>) -> Factory
+    // TODO: match on event sigs, function sigs, error sigs
+    pub async fn create_factory<N, P>(&self, log: &Log, provider: P) -> Factory
     where
         N: Network,
         P: Provider<N>,

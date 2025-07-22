@@ -87,7 +87,7 @@ pub async fn get_token_decimals<N, P>(
 ) -> Result<HashMap<Address, u8>, BatchContractError>
 where
     N: Network,
-    P: Provider<N> + Clone + Clone,
+    P: Provider<N> + Clone,
 {
     let step = 765;
 

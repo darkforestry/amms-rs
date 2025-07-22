@@ -774,12 +774,13 @@ impl UniswapV3Factory {
         let sync_step = 100_000;
         let mut latest_block = self.creation_block;
         while latest_block < block_number.as_u64().unwrap_or_default() {
-            let mut block_filter = disc_filter.clone();
             let from_block = latest_block;
             let to_block = (from_block + sync_step).min(block_number.as_u64().unwrap_or_default());
 
-            block_filter = block_filter.from_block(from_block);
-            block_filter = block_filter.to_block(to_block);
+            let block_filter = disc_filter
+                .clone()
+                .from_block(from_block)
+                .to_block(to_block);
 
             let sync_provider = sync_provider.clone();
 

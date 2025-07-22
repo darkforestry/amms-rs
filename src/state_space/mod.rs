@@ -140,6 +140,8 @@ where
         let factories = self.factories.clone();
         let mut futures = FuturesUnordered::new();
 
+        // TODO: make this more efficient
+
         let mut filter_set = HashSet::new();
         for factory in &self.factories {
             for event in factory.pool_events() {
@@ -170,7 +172,8 @@ where
 
             let extension = amm_variants.remove(&factory.variant());
             futures.push(tokio::spawn(async move {
-                let mut discovered_amms = factory.discover(chain_tip, provider.clone()).await?;
+                let mut discovered_amms =
+                    factory.discover_pools(chain_tip, provider.clone()).await?;
 
                 if let Some(amms) = extension {
                     discovered_amms.extend(amms);

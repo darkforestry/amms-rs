@@ -319,7 +319,7 @@ impl ERC4626Vault {
     ) -> Result<(U256, U256), AMMError>
     where
         N: Network,
-        P: Provider<N> + Clone + Clone,
+        P: Provider<N> + Clone,
     {
         let vault = IERC4626Vault::new(self.vault_token, provider);
 
