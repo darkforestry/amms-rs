@@ -1,6 +1,6 @@
 [package]
 name = "amms"
-version = "0.7.2"
+version = "0.7.3"
 edition = "2021"
 license = "MIT"
 description = "A library to interact with automated market makers across EVM chains."
@@ -13,7 +13,7 @@ exclude = ["target/*", ".github/*", ".gitignore", "build.rs", "contracts/*"]
 
 [dependencies]
 # darkforest
-uniswap_v3_math = "0.6.1"
+uniswap_v3_math = "0.6.2"
 
 # alloy
 alloy = { version = "1.0.25", features = [
