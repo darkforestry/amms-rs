@@ -22,3 +22,5 @@ contracts/src/flattened/
 
 # intellij 
 *.idea/
+
+./snapshots

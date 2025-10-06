@@ -31,6 +31,10 @@ pub enum AMMError {
     UnrecognizedEventSignature(FixedBytes<32>),
     #[error(transparent)]
     JoinError(#[from] tokio::task::JoinError),
+    #[error("Snapshot Error: {0}")]
+    SnapshotError(#[from] serde_json::Error),
+    #[error("Snapshot Error: {0}")]
+    SnapshotIOError(#[from] std::io::Error),
 }
 
 #[derive(Error, Debug)]

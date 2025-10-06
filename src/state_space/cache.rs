@@ -3,11 +3,11 @@ use std::collections::HashMap;
 use crate::amms::amm::{AutomatedMarketMaker, AMM};
 use arraydeque::ArrayDeque;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 
 pub struct StateChangeCache<const CAP: usize> {
-    oldest_block: u64,
-    cache: ArrayDeque<StateChange, CAP>,
+    pub oldest_block: u64,
+    pub cache: ArrayDeque<StateChange, CAP>,
 }
 
 impl<const CAP: usize> Default for StateChangeCache<CAP> {
@@ -87,7 +87,7 @@ impl<const CAP: usize> StateChangeCache<CAP> {
 
 // NOTE: we can probably make this more efficient and create a state change struct for each amm rather than
 // cloning each amm when caching
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct StateChange {
     pub state_change: Vec<AMM>,
     pub block_number: u64,

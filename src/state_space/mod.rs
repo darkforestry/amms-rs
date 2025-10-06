@@ -2,11 +2,16 @@ pub mod cache;
 pub mod discovery;
 pub mod error;
 pub mod filters;
+pub mod hooks;
 
 use crate::amms::amm::AutomatedMarketMaker;
 use crate::amms::amm::AMM;
 use crate::amms::error::AMMError;
 use crate::amms::factory::Factory;
+use crate::state_space::hooks::HookHandle;
+use crate::state_space::hooks::HookRegistry;
+use crate::state_space::hooks::SnapshotConfig;
+use crate::state_space::hooks::StateHook;
 
 use alloy::consensus::BlockHeader;
 use alloy::eips::BlockId;
@@ -27,28 +32,34 @@ use futures::stream::FuturesUnordered;
 use futures::Stream;
 use futures::StreamExt;
 use std::collections::HashSet;
+use std::fmt::Debug;
+use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering;
 use std::{collections::HashMap, marker::PhantomData, sync::Arc};
 use tokio::sync::RwLock;
-use tracing::debug;
-use tracing::info;
+
+use tracing::{debug, info, trace};
 
 pub const CACHE_SIZE: usize = 30;
 
 #[derive(Clone)]
 pub struct StateSpaceManager<N, P> {
     pub state: Arc<RwLock<StateSpace>>,
-    pub latest_block: Arc<AtomicU64>,
-    // discovery_manager: Option<DiscoveryManager>,
     pub block_filter: Filter,
     pub provider: P,
+    pub latest_block: Arc<AtomicU64>,
+    hooks: HookRegistry<Vec<Address>>,
     phantom: PhantomData<N>,
-    // TODO: add support for caching
 }
 
 impl<N, P> StateSpaceManager<N, P> {
+    /// Registers a hook to be called on every state change.
+    pub async fn register_hook(&self, hook: StateHook<Vec<Address>>) -> HookHandle<Vec<Address>> {
+        self.hooks.register(hook).await
+    }
+
     pub async fn subscribe(
         &self,
     ) -> Result<
@@ -65,6 +76,7 @@ impl<N, P> StateSpaceManager<N, P> {
         let mut block_filter = self.block_filter.clone();
 
         let block_stream = provider.subscribe_blocks().await?.into_stream();
+        let hooks = self.hooks.clone();
 
         Ok(Box::pin(stream! {
             tokio::pin!(block_stream);
@@ -77,6 +89,10 @@ impl<N, P> StateSpaceManager<N, P> {
                 let logs = provider.get_logs(&block_filter).await?;
 
                 let affected_amms = state.write().await.sync(&logs)?;
+
+                // Always notify hooks, even if no AMMs were affected
+                hooks.notify(&affected_amms).await;
+
                 latest_block.store(block_number, Ordering::Relaxed);
 
                 yield Ok(affected_amms);
@@ -85,16 +101,17 @@ impl<N, P> StateSpaceManager<N, P> {
     }
 }
 
-// TODO: Drop impl, create a checkpoint
-#[derive(Debug, Default)]
+#[derive(Clone)]
 pub struct StateSpaceBuilder<N, P> {
     pub provider: P,
     pub latest_block: u64,
     pub factories: Vec<Factory>,
     pub amms: Vec<AMM>,
     pub filters: Vec<PoolFilter>,
+    pub hooks: Vec<StateHook<Vec<Address>>>,
+    pub snapshot_path: Option<PathBuf>,
+    pub snapshot_config: Option<SnapshotConfig>,
     phantom: PhantomData<N>,
-    // TODO: add support for caching
 }
 
 impl<N, P> StateSpaceBuilder<N, P>
@@ -109,8 +126,10 @@ where
             factories: vec![],
             amms: vec![],
             filters: vec![],
-            // discovery: false,
             phantom: PhantomData,
+            snapshot_path: None,
+            snapshot_config: None,
+            hooks: vec![],
         }
     }
 
@@ -133,7 +152,35 @@ where
         StateSpaceBuilder { filters, ..self }
     }
 
-    pub async fn sync(self) -> Result<StateSpaceManager<N, P>, AMMError> {
+    pub fn with_hooks(self, hooks: Vec<StateHook<Vec<Address>>>) -> StateSpaceBuilder<N, P> {
+        StateSpaceBuilder { hooks, ..self }
+    }
+
+    pub fn with_snapshot_path(self, snapshot_path: PathBuf) -> StateSpaceBuilder<N, P> {
+        StateSpaceBuilder {
+            snapshot_path: Some(snapshot_path),
+            ..self
+        }
+    }
+
+    pub fn with_snapshot_enabled(self, config: Option<SnapshotConfig>) -> StateSpaceBuilder<N, P> {
+        let config = config.unwrap_or_default();
+        StateSpaceBuilder {
+            snapshot_config: Some(config),
+            ..self
+        }
+    }
+
+    pub async fn sync(mut self) -> Result<StateSpaceManager<N, P>, AMMError> {
+        let mut state_space = if self.snapshot_path.is_some() {
+            let serialized = serde_json::from_reader::<_, SerializableStateSpace>(
+                std::fs::File::open(self.snapshot_path.unwrap())?,
+            )?;
+            serialized.into()
+        } else {
+            StateSpace::default()
+        };
+
         let chain_tip = BlockId::from(self.provider.get_block_number().await?);
         let factories = self.factories.clone();
         let mut futures = FuturesUnordered::new();
@@ -155,6 +202,7 @@ where
             filter_set.into_iter().collect::<Vec<FixedBytes<32>>>(),
         ));
         let mut amm_variants = HashMap::new();
+
         for amm in self.amms.into_iter() {
             amm_variants
                 .entry(amm.variant())
@@ -214,7 +262,6 @@ where
             }));
         }
 
-        let mut state_space = StateSpace::default();
         while let Some(res) = futures.next().await {
             let synced_amms = res??;
 
@@ -232,17 +279,25 @@ where
             }
         }
 
+        let state_space = Arc::new(RwLock::new(state_space));
+
+        if let Some(snapshot_config) = self.snapshot_config {
+            let hook = snapshot_config.into_state_hook(state_space.clone()).await;
+            self.hooks.push(hook);
+        }
+
         Ok(StateSpaceManager {
             latest_block: Arc::new(AtomicU64::new(self.latest_block)),
-            state: Arc::new(RwLock::new(state_space)),
+            state: state_space,
             block_filter,
             provider: self.provider,
             phantom: PhantomData,
+            hooks: HookRegistry::new(self.hooks),
         })
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct StateSpace {
     pub state: HashMap<Address, AMM>,
     pub latest_block: Arc<AtomicU64>,
@@ -270,7 +325,7 @@ impl StateSpace {
 
         // Check if there is a reorg and unwind to state before block_number
         if latest >= block_number {
-            info!(
+            debug!(
                 target: "state_space::sync",
                 from = %latest,
                 to = %block_number - 1,
@@ -296,7 +351,7 @@ impl StateSpace {
                 affected_amms.extend(amms.iter().map(|amm| amm.address()));
                 let state_change = StateChange::new(amms, block_number);
 
-                debug!(
+                trace!(
                     target: "state_space::sync",
                     state_change = ?state_change,
                     "Caching state change"
@@ -312,9 +367,9 @@ impl StateSpace {
                 cached_amms.insert(amm.clone());
                 amm.sync(log)?;
 
-                info!(
+                debug!(
                     target: "state_space::sync",
-                    ?amm,
+                    address =%amm.address(),
                     "Synced AMM"
                 );
             }
@@ -325,7 +380,7 @@ impl StateSpace {
             affected_amms.extend(amms.iter().map(|amm| amm.address()));
             let state_change = StateChange::new(amms, block_number);
 
-            debug!(
+            trace!(
                 target: "state_space::sync",
                 state_change = ?state_change,
                 "Caching state change"
@@ -335,6 +390,37 @@ impl StateSpace {
         }
 
         Ok(affected_amms.into_iter().collect())
+    }
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct SerializableStateSpace {
+    pub state: HashMap<Address, AMM>,
+    pub latest_block: u64,
+    pub cache: (Vec<StateChange>, u64),
+}
+
+impl From<StateSpace> for SerializableStateSpace {
+    fn from(ss: StateSpace) -> Self {
+        Self {
+            state: ss.state,
+            latest_block: ss.latest_block.load(Ordering::Relaxed),
+            cache: (ss.cache.cache.into_iter().collect(), ss.cache.oldest_block),
+        }
+    }
+}
+
+impl From<SerializableStateSpace> for StateSpace {
+    fn from(val: SerializableStateSpace) -> Self {
+        let (cache, oldest_block) = val.cache;
+        StateSpace {
+            state: val.state,
+            latest_block: Arc::new(AtomicU64::new(val.latest_block)),
+            cache: StateChangeCache {
+                cache: cache.into_iter().collect(),
+                oldest_block,
+            },
+        }
     }
 }
 

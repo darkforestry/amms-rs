@@ -87,7 +87,6 @@ where
     async fn filter(&self, amms: Vec<AMM>) -> Result<Vec<AMM>, AMMError> {
         let pool_infos = amms
             .iter()
-            .cloned()
             .map(|amm| {
                 let pool_address = amm.address();
                 let pool_type = match amm {
